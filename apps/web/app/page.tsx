@@ -3,7 +3,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { TopBlock } from "@/components/TopBar";
-import { BarChart, TickGauge } from "@/components/charts";
+import { TickGauge } from "@/components/charts";
+import { KpiGrid, LaunchChart } from "@/components/StatsPanel";
 import { TokenTable } from "@/components/TokenTable";
 import { BurnBadge } from "@/components/ui";
 import { STATS, TOKENS } from "@/lib/mock";
@@ -30,25 +31,12 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-4">
       <TopBlock search={search} onSearch={setSearch}>
-        <div className="mt-4 grid grid-cols-1 items-end gap-10 lg:grid-cols-[1.3fr_auto_1fr]">
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">New tokens per day</h2>
-              <div className="flex items-center gap-4 text-xs text-ink-3">
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px] bg-ink" />Launched</span>
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px] border border-ink bg-hatch" />Graduated</span>
-              </div>
-            </div>
-            <BarChart data={STATS.newPerDay.map((d) => ({ label: d.day, a: d.tokens, b: d.graduated }))} />
-          </div>
-          <div className="flex justify-center">
+        <div className="mt-4 grid grid-cols-1 items-center gap-6 lg:grid-cols-2 xl:grid-cols-[1.25fr_auto_1fr]">
+          <LaunchChart />
+          <div className="flex justify-center lg:order-last lg:col-span-2 xl:order-none xl:col-span-1">
             <TickGauge value={STATS.graduatedPct} label="Graduated" sub={`${STATS.graduated} / ${STATS.totalTokens} tokens`} />
           </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-            <BigStat value={STATS.totalVolumeSol.toLocaleString("en-US", { maximumFractionDigits: 0 })} unit="SOL" label="Total volume" delta={STATS.volumeDelta} href="/" />
-            <BigStat value={STATS.creatorFeesSol.toFixed(1)} unit="SOL" label="Fees to creators" delta={STATS.creatorDelta} href="/leaderboard" />
-            <BigStat value={`${(STATS.barBurned / 1e6).toFixed(2)}M`} label="$BAR burned" delta={STATS.burnDelta} href="/burn" badge={<BurnBadge />} />
-          </div>
+          <KpiGrid stats={STATS} />
         </div>
       </TopBlock>
       <TokenTable tokens={TOKENS} search={search} />
