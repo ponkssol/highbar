@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const n = await fetch(`/hb-api/auth/nonce?address=${address}`, { cache: "no-store" });
         if (!n.ok) throw new Error("nonce");
         const { nonce } = await n.json();
-        const message = `Higher Bar wants you to sign in with your Solana account:\n${address}\n\nSign in to Higher Bar. This does not cost any SOL.\n\nURI: ${window.location.origin}\nNetwork: devnet\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}`;
+        const message = `highbar wants you to sign in with your Solana account:\n${address}\n\nSign in to highbar. This does not cost any SOL.\n\nURI: ${window.location.origin}\nNetwork: devnet\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}`;
         const res = await walletProvider.signMessage(new TextEncoder().encode(message));
         const sig = res instanceof Uint8Array ? res : res.signature;
         const v = await fetch("/hb-api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address, message, signature: b58(sig) }) });

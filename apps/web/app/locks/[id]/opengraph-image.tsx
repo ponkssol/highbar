@@ -3,7 +3,7 @@ import { fetchLock, fmtLockDate } from "@/lib/lockData";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Dev token lock on Higher Bar";
+export const alt = "Dev token lock on highbar";
 
 export default async function OgImage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,7 +23,7 @@ export default async function OgImage({ params }: { params: Promise<{ id: string
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 64, background: "#F6F3EC", color: "#111111", fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", fontSize: 30, fontWeight: 700 }}>Higher Bar</div>
+          <div style={{ display: "flex", fontSize: 30, fontWeight: 700 }}>highbar</div>
           <div style={{ display: "flex", border: "2px solid #111111", borderRadius: 999, padding: "8px 22px", fontSize: 26 }}>Dev tokens locked</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", background: "#FFFFFF", border: "1px solid #E4DFD3", borderRadius: 24, padding: 48 }}>

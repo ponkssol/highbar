@@ -1,4 +1,4 @@
-import { referralAta } from "@hb/onchain";
+﻿import { referralAta } from "@hb/onchain";
 import { db } from "../db/pool.js";
 import { env } from "../lib/env.js";
 import { decodeDbcEvents, type DbcEvent, type RawTx } from "./decode.js";
@@ -30,7 +30,7 @@ export async function ingestTx(raw: RawTx, finalized = false) {
 async function apply(c: import("pg").PoolClient, ev: DbcEvent, tx: Tx, i: number, time: Date, finalized: boolean) {
   switch (ev.kind) {
     case "init":
-      if (!env.DBC_CONFIGS.includes(ev.config)) return; // not a Higher Bar token
+      if (!env.DBC_CONFIGS.includes(ev.config)) return; // not a highbar token
       await c.query(
         "INSERT INTO tokens (mint,pool,config,creator,name,symbol,uri,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING",
         [ev.mint, ev.pool, ev.config, ev.creator, ev.name, ev.symbol, ev.uri, time]);

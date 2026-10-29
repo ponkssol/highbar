@@ -7,3 +7,4 @@ dist
 *.keypair.json
 keys/
 *.db
+.next-build

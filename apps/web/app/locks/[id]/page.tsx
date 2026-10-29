@@ -15,11 +15,11 @@ const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits:
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const l = await fetchLock(id);
-  if (!l) return { title: "Lock not found | Higher Bar" };
+  if (!l) return { title: "Lock not found | highbar" };
   const sym = l.token?.symbol || "TOKEN";
   const title = `${fmtTok(l.totalTokens)} $${sym} locked until ${fmtLockDate(l.cliffTime)}`;
-  const description = `${l.supplyPct.toFixed(2)}% of supply permanently locked by the creator via Jupiter Lock on Higher Bar.`;
-  return { metadataBase: new URL(site()), title: `${title} | Higher Bar`, description, openGraph: { title, description, type: "website", url: `/locks/${id}` }, twitter: { card: "summary_large_image", title, description } };
+  const description = `${l.supplyPct.toFixed(2)}% of supply permanently locked by the creator via Jupiter Lock on highbar.`;
+  return { metadataBase: new URL(site()), title: `${title} | highbar`, description, openGraph: { title, description, type: "website", url: `/locks/${id}` }, twitter: { card: "summary_large_image", title, description } };
 }
 
 export default async function LockSharePage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,7 +34,7 @@ export default async function LockSharePage({ params }: { params: Promise<{ id: 
     ["Unlocked so far", `${l.unlockedPct.toFixed(1)}%`], ["Cancel / change recipient", "None (permanent)"],
     ["Creator", shortAddr(l.creator, 6)], ["Escrow", shortAddr(l.escrow, 6)],
   ];
-  const text = `${fmtTok(l.totalTokens)} $${sym} (${l.supplyPct.toFixed(2)}% of supply) locked until ${fmtLockDate(l.cliffTime)} on Higher Bar`;
+  const text = `${fmtTok(l.totalTokens)} $${sym} (${l.supplyPct.toFixed(2)}% of supply) locked until ${fmtLockDate(l.cliffTime)} on highbar`;
   return (
     <div className="flex flex-col gap-4">
       <TopBlock title="Dev token lock" />

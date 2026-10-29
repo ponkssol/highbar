@@ -32,7 +32,7 @@ export function Sidebar() {
     <aside className="fixed inset-y-0 left-0 z-20 hidden w-sidebar md:flex flex-col border-r border-border bg-surface px-4 py-5">
       <Link href="/" className="mb-8 flex items-center gap-2 px-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-sm bg-ink text-sm font-semibold text-on-ink">HB</span>
-        <span className="text-lg font-semibold tracking-tight">Higher Bar</span>
+        <span className="text-lg font-semibold tracking-tight">highbar</span>
       </Link>
       <nav className="flex flex-col gap-1">
         {NAV.map(({ href, label, icon: Icon }) => (

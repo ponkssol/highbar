@@ -18,17 +18,15 @@ function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []) {
 }
 
 /** Live tokens from the API (no mock fallback). */
-export function useTokens(): { tokens: TokenRow[]; live: boolean } {
+export function useTokens(): { tokens: TokenRow[]; live: boolean; loading: boolean } {
   const { data, error } = usePoll(() => api.tokens({ limit: 200 }), 15_000);
-  if (data) return { tokens: data.items.map(toRow), live: true };
-  void error;
-  return { tokens: [], live: false };
+  if (data) return { tokens: data.items.map(toRow), live: true, loading: false };
+  return { tokens: [], live: false, loading: !error };
 }
 
 export function useStats() {
   const { data, error } = usePoll<ApiStats>(() => api.stats(), 30_000);
-  void error;
-  return statsView(data ?? null);
+  return { ...statsView(data ?? null), loading: !data && !error };
 }
 
 export function useTrades(mint: string) {

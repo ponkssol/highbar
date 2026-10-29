@@ -41,7 +41,7 @@ export default function SettingsPage() {
         <Row title="Explorer" hint="Transaction and address links open here.">
           <Tabs<Explorer> value={s.explorer} onChange={(explorer) => update({ explorer })} options={[{ id: "solscan", label: "Solscan" }, { id: "solana", label: "Solana Explorer" }, { id: "solanafm", label: "SolanaFM" }]} />
         </Row>
-        <Row title="Network" hint="Higher Bar currently runs on devnet.">
+        <Row title="Network" hint="highbar currently runs on devnet.">
           <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm"><span className="h-2 w-2 rounded-full bg-buy" />Solana Devnet</span>
         </Row>
         <Row title="Reset">

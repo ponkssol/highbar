@@ -1,4 +1,4 @@
-/** Data layer for the Higher Bar API. Browser -> same-origin /hb-api proxy; server -> API_URL (server-only env). */
+/** Data layer for the highbar API. Browser -> same-origin /hb-api proxy; server -> API_URL (server-only env). */
 import type { TierId } from "@hb/shared";
 import { STATS, TOKENS, type TokenRow, type Trade } from "./mock";
 

@@ -8,6 +8,7 @@ import { KpiGrid } from "@/components/StatsPanel";
 import { ActivityGrid } from "@/components/ActivityGrid";
 import { TokenTable } from "@/components/TokenTable";
 import { BurnBadge } from "@/components/ui";
+import { StatsSkeleton, TokenTableSkeleton } from "@/components/ui/Skeleton";
 import { useStats, useTokens } from "@/lib/useApi";
 
 function BigStat({ value, unit, label, delta, href, badge }: { value: string; unit?: string; label: string; delta: number; href: string; badge?: React.ReactNode }) {
@@ -30,7 +31,7 @@ function BigStat({ value, unit, label, delta, href, badge }: { value: string; un
 export default function Home() {
   const [search, setSearch] = useState("");
   const STATS = useStats();
-  const { tokens: TOKENS } = useTokens();
+  const { tokens: TOKENS, loading } = useTokens();
   return (
     <div className="flex flex-col gap-4">
       <TopBar search={search} onSearch={setSearch} />
@@ -39,8 +40,9 @@ export default function Home() {
         <div className="flex items-center justify-center p-5 lg:px-8">
           <TickGauge value={STATS.graduatedPct} label="Graduated" sub={`${STATS.graduated} / ${STATS.totalTokens} tokens`} />
         </div>
-        <KpiGrid stats={STATS} bare />
-      </section>      <TokenTable tokens={TOKENS} search={search} />
+        {STATS.loading ? <StatsSkeleton bare /> : <KpiGrid stats={STATS} bare />}
+      </section>
+      {loading ? <TokenTableSkeleton /> : <TokenTable tokens={TOKENS} search={search} />}
     </div>
   );
 }

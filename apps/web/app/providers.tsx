@@ -42,7 +42,7 @@ function initAppKit(projectId: string) {
     networks: [solanaDevnet, solana],
     defaultNetwork: solanaDevnet,
     projectId,
-    metadata: { name: "Higher Bar", description: "Launch tokens on Solana with Higher Bar", url: window.location.origin, icons: [] },
+    metadata: { name: "highbar", description: "Launch tokens on Solana with highbar", url: window.location.origin, icons: [] },
     themeMode: isDark() ? "dark" : "light",
     themeVariables: themeVars(),
     features: { analytics: false, email: false, socials: false },
@@ -58,7 +58,7 @@ export function Providers({ children, reownProjectId, rpcUrl }: { children: Reac
     try { const t = localStorage.getItem("hb-theme"); const dark = t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.classList.toggle("dark", dark); } catch {}
   }, []);
   useEffect(() => {
-    if (!ready) { console.warn("[Higher Bar] REOWN_PROJECT_ID is not set; wallet connect disabled. Get one at https://cloud.reown.com"); return; }
+    if (!ready) { console.warn("[highbar] REOWN_PROJECT_ID is not set; wallet connect disabled. Get one at https://cloud.reown.com"); return; }
     const sync = () => { modal?.setThemeMode(isDark() ? "dark" : "light"); modal?.setThemeVariables(themeVars()); };
     sync();
     const mo = new MutationObserver(sync);

@@ -1,4 +1,4 @@
-import path from "path";
+﻿import path from "path";
 import { fileURLToPath } from "url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -7,6 +7,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const nextConfig = {
   outputFileTracingRoot: root,
   experimental: { devtoolSegmentExplorer: false },
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   reactStrictMode: true,
   devIndicators: false,
   transpilePackages: ["@hb/shared"],

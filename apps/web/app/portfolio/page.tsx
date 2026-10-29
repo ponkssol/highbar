@@ -52,7 +52,7 @@ export default function PortfolioPage() {
     return (
       <div className="flex flex-col gap-4">
         <TopBlock title="Portfolio" />
-        <Card><Empty title="Connect a wallet" hint="Connect your Solana wallet to see your balance, Higher Bar holdings, created tokens and trades."
+        <Card><Empty title="Connect a wallet" hint="Connect your Solana wallet to see your balance, highbar holdings, created tokens and trades."
           action={<Button className="mt-2" onClick={() => openModal("Connect")}><Wallet size={16} />Connect wallet</Button>} /></Card>
       </div>
     );
@@ -80,7 +80,7 @@ export default function PortfolioPage() {
         <Card className="overflow-x-auto p-0">
           <h3 className="border-b border-border px-4 py-3 font-semibold">Holdings</h3>
           {balErr ? <Empty title="Could not load balances" hint={balErr} /> : !bal || tokens.loading ? <Loading /> : holdings.length === 0 ? (
-            <Empty title="No Higher Bar tokens" hint="Tokens you buy on Higher Bar show up here." action={<Link href="/" className="text-sm underline">Browse tokens</Link>} />
+            <Empty title="No highbar tokens" hint="Tokens you buy on highbar show up here." action={<Link href="/" className="text-sm underline">Browse tokens</Link>} />
           ) : (
             <table className="w-full min-w-[480px] text-sm">
               <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} text-left`}>Token</th><th className={`${TH} text-right`}>Amount</th><th className={`${TH} text-right`}>Price</th><th className={`${TH} text-right`}>Value</th></tr></thead>

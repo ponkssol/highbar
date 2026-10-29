@@ -50,7 +50,7 @@ export const TOKENS: TokenRow[] = names.map(([name, ticker], i) => {
     createdAt: NOW - Math.floor(rnd() * 3 * 86400_000),
     creator: addr(),
     antiSniper: rnd() > 0.45,
-    description: `${name} is a community token launched on Higher Bar.`,
+    description: `${name} is a community token launched on highbar.`,
   };
 });
 

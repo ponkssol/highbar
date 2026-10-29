@@ -1,4 +1,4 @@
-/** Same-origin proxy to the Higher Bar API. Server-only env: API_URL (default http://localhost:4000). */
+/** Same-origin proxy to the highbar API. Server-only env: API_URL (default http://localhost:4000). */
 const API_URL = process.env.API_URL || "http://localhost:4000";
 export const dynamic = "force-dynamic";
 

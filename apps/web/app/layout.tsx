@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -10,7 +10,7 @@ import { MobileHeader } from "@/components/MobileHeader";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
-export const metadata: Metadata = { title: "Higher Bar", description: "Launch tokens on Solana with Higher Bar" };
+export const metadata: Metadata = { metadataBase: new URL(process.env.SITE_URL || "http://localhost:3000"), title: "highbar", applicationName: "highbar", description: "Launch tokens on Solana with highbar", openGraph: { siteName: "highbar", title: "highbar", description: "Launch tokens on Solana with highbar", type: "website" }, twitter: { card: "summary_large_image", title: "highbar" } };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
