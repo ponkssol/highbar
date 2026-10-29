@@ -64,7 +64,7 @@ function Bonding({ t }: { t: TokenViewData }) {
         {[25, 50, 75].map((m) => <span key={m} className={`absolute top-1/2 h-2.5 w-0.5 -translate-y-1/2 rounded ${p * 100 >= m ? "bg-surface" : "bg-border-strong"}`} style={{ left: `${m}%` }} />)}
       </div>
       <div className="num mt-1 flex w-full justify-between text-[10px] text-ink-3"><span>0</span><span>25</span><span>50</span><span>75</span><span>100%</span></div>
-      <div className="mt-3 text-xs text-ink-3">Graduate ke Meteora DAMM saat penuh</div>
+      <div className="mt-3 text-xs text-ink-3">Graduates to Meteora DAMM when full</div>
     </div>
   );
 }

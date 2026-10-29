@@ -34,16 +34,16 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
   const slipBps = Math.round((slipAuto ? 1 : Number(slip) || 1) * 100);
 
   const submit = async () => {
-    if (!publicKey) return setMsg("Connect wallet dulu.");
-    if (!(await auth.ensureVerified())) return setMsg("Sign-in dulu untuk trading.");
+    if (!publicKey) return setMsg("Connect your wallet first.");
+    if (!(await auth.ensureVerified())) return setMsg("Sign in with your wallet to trade.");
     setBusy(true);
     try {
       const r = await buildSwapTx({ mint, side, amount: amt, slippageBps: slipBps, owner: publicKey.toBase58() });
       if (!r.ok) return setMsg(r.reason);
       const sig = await sendTransaction(r.transaction);
-      setMsg(`Tx terkirim: ${sig.slice(0, 8)}`);
+      setMsg(`Transaction sent: ${sig.slice(0, 8)}`);
     } catch (e) {
-      setMsg(`Gagal: ${(e as Error).message}`);
+      setMsg(`Failed: ${(e as Error).message}`);
     } finally { setBusy(false); }
   };
 
@@ -57,7 +57,7 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
       </div>
       {sniperActive && (
         <div className="rounded-md border border-border bg-muted p-3 text-sm">
-          <div className="flex items-center justify-between font-medium"><span className="flex items-center gap-2"><ShieldCheck size={16} strokeWidth={1.5} />Fee sekarang <span className="num">{(feeBps / 100).toFixed(2)}%</span></span><span className="num text-xs text-ink-3">{ANTI_SNIPER.decaySeconds - elapsed}s</span></div>
+          <div className="flex items-center justify-between font-medium"><span className="flex items-center gap-2"><ShieldCheck size={16} strokeWidth={1.5} />Current fee <span className="num">{(feeBps / 100).toFixed(2)}%</span></span><span className="num text-xs text-ink-3">{ANTI_SNIPER.decaySeconds - elapsed}s</span></div>
           <div className="mt-2 h-2 overflow-hidden rounded-full border border-ink">
             <div className="h-full bg-hatch transition-[width] duration-1000 ease-linear" style={{ width: `${(1 - elapsed / ANTI_SNIPER.decaySeconds) * 100}%` }} />
           </div>
@@ -93,7 +93,7 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
       </dl>
       <button disabled={!amt || busy} onClick={submit}
         className={`h-12 w-full rounded-md text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${side === "buy" ? "bg-buy" : "bg-sell"}`}>
-        {busy ? "Menyiapkan…" : side === "buy" ? `Buy $${ticker}` : `Sell $${ticker}`}
+        {busy ? "Preparing…" : side === "buy" ? `Buy $${ticker}` : `Sell $${ticker}`}
       </button>
       {msg && <div className="text-xs text-ink-3">{msg}</div>}
     </div>

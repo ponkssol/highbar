@@ -37,12 +37,12 @@ export default function LaunchPage() {
   const submit = async () => {
     setBusy(true); setMsg("");
     try {
-      if (!wallet.publicKey) { setMsg("Connect wallet dulu."); return; }
-      if (!(await auth.ensureVerified())) { setMsg("Sign-in dulu sebelum launch."); return; }
+      if (!wallet.publicKey) { setMsg("Connect your wallet first."); return; }
+      if (!(await auth.ensureVerified())) { setMsg("Sign in with your wallet before launching."); return; }
       const r = await launchToken({ name, ticker, description: desc, image, ...socials, tier, antiSniper: anti }, wallet.publicKey.toBase58(), (tx) => wallet.sendTransaction(tx));
       setMsg(`Launched: mint ${r.mint.slice(0, 8)}, tx ${r.signature.slice(0, 8)}`);
     } catch (e) {
-      setMsg(`Launch gagal: ${(e as Error).message}`);
+      setMsg(`Launch failed: ${(e as Error).message}`);
     } finally { setBusy(false); }
   };
 
@@ -91,7 +91,7 @@ export default function LaunchPage() {
           <div className="flex items-start justify-between gap-4 rounded border border-border p-3">
             <div>
               <div className="flex items-center gap-2 text-sm font-medium"><ShieldCheck size={16} strokeWidth={1.5} />Anti-sniper</div>
-              <div className="mt-0.5 text-[13px] text-ink-3">Fee 25% turun ke 1% dalam 60 detik pertama</div>
+              <div className="mt-0.5 text-[13px] text-ink-3">Fee starts at 25% and drops to 1% over the first 60 seconds</div>
             </div>
             <button role="switch" aria-checked={anti} onClick={() => setAnti(!anti)}
               className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${anti ? "bg-ink" : "bg-border-strong"}`}>
