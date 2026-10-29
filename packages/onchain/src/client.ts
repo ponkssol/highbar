@@ -11,7 +11,7 @@ export type DevnetConfigs = Record<string, string>;
 
 export function loadConfigs(): DevnetConfigs {
   const p = path.resolve(here, "..", "configs.devnet.json");
-  return JSON.parse(fs.readFileSync(p, "utf8"));
+  return JSON.parse(fs.readFileSync(p, "utf8").replace(/^\uFEFF/, ""));
 }
 
 export function rpcUrl(): string {

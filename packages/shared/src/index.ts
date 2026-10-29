@@ -80,3 +80,12 @@ export function curveFeeSplit(tier: Tier) {
 }
 
 
+
+// ---- merged from hb-backend backup (bps-based constants used by apps/api services) ----
+export type Tier_ = TierId;
+export const BPS = 10_000;
+export const METEORA_PROTOCOL_SHARE_PCT = 20;
+export const CREATOR_TRADING_FEE_PCT: Record<TierId, number> = { standard: 50, higher: 62, max: 75 };
+export const MIGRATION_FEE_PCT: Record<TierId, number> = { standard: 1, higher: 1, max: 0 };
+export const CASHBACK_BPS = TRADER_CASHBACK_BPS;
+export const SPLIT_BPS = { buyback: 4000, ops: 5000, treasury: 1000 } as const;
