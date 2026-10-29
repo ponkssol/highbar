@@ -1,4 +1,5 @@
 "use client";
+import { TopBar } from "./TopBar";
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowLeft, Check, Copy, ExternalLink, Globe, Send, ShieldCheck, X as XIcon } from "lucide-react";
@@ -134,6 +135,7 @@ export function TokenView({ t }: { t: TokenViewData }) {
   const panel = (side: "buy" | "sell" = "buy", bare = false) => <TradePanel mint={t.mint} ticker={t.ticker} tier={t.tier} antiSniper={t.antiSniper} priceSol={t.priceSol} initialSide={side} bare={bare} />;
   return (
     <div className="grid grid-cols-12 gap-4 pb-20 md:pb-0">
+      <div className="col-span-12"><TopBar /></div>
       <Header t={t} />
       {/* tablet: right column under header (trade first); desktop: right 4 cols sticky */}
       <aside className="col-span-12 lg:order-last lg:col-span-4 lg:min-w-[360px]">

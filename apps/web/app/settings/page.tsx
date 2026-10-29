@@ -19,7 +19,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-4">
       <TopBlock title="Settings" />
-      <Card className="max-w-3xl px-5 py-1">
+      <Card className="px-5 py-1">
         <Row title="Theme" hint="Light, dark, or follow the system.">
           <Tabs<Theme> value={s.theme} onChange={(theme) => update({ theme })} options={[{ id: "light", label: "Light" }, { id: "dark", label: "Dark" }, { id: "system", label: "System" }]} />
         </Row>

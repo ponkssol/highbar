@@ -49,8 +49,8 @@ export default function LaunchPage() {
   return (
     <div className="flex flex-col gap-4">
       <TopBlock title="Launch a token" />
-      <div className="flex flex-col items-start justify-center gap-6 lg:flex-row">
-        <Card className="w-full max-w-[640px] space-y-5 p-6">
+      <div className="flex flex-col items-start gap-6 lg:flex-row">
+        <Card className="w-full min-w-0 flex-1 space-y-5 p-6">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Name"><input className={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Bar Raiser" maxLength={32} /></Field>
             <Field label="Ticker"><input className={`${input} num uppercase`} value={ticker} onChange={(e) => setTicker(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} placeholder="RAISE" maxLength={10} /></Field>
@@ -106,7 +106,7 @@ export default function LaunchPage() {
           <Button className="w-full" disabled={!name || !ticker || busy} onClick={submit}>{busy ? "Launching…" : "Launch"}</Button>
           {msg && <p className="text-sm text-ink-2">{msg}</p>}
         </Card>
-        <div className="w-full max-w-[360px] lg:sticky lg:top-4">
+        <div className="w-full lg:sticky lg:top-4 lg:w-[360px] lg:shrink-0">
           <div className="mb-2 text-[13px] text-ink-3">Preview</div>
           <Card highlight className="p-5">
             <div className="flex items-center gap-3">

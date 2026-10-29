@@ -25,10 +25,10 @@ export function TopBar({ search, onSearch }: { search?: string; onSearch?: (v: s
   );
 }
 
-/** Cream block at top of each page: header row + optional content (stats). */
+/** Page header: search row + title + optional content. No horizontal inset, so it lines up with page cards. */
 export function TopBlock({ title, children, search, onSearch }: { title?: string; children?: ReactNode; search?: string; onSearch?: (v: string) => void }) {
   return (
-    <section className="rounded-lg bg-bg px-6 pb-6">
+    <section className="pb-2">
       <TopBar search={search} onSearch={onSearch} />
       {title && <h1 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h1>}
       {children}

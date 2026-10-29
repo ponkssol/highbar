@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Sidebar } from "@/components/Sidebar";
+import { PageShell } from "@/components/PageShell";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Providers reownProjectId={process.env.REOWN_PROJECT_ID} rpcUrl={process.env.RPC_URL}>
           <Sidebar />
-          <main className="ml-sidebar min-h-screen p-4">{children}</main>
+          <main className="ml-sidebar min-h-screen p-4"><PageShell>{children}</PageShell></main>
         </Providers>
       </body>
     </html>

@@ -52,6 +52,10 @@ export function Providers({ children, reownProjectId, rpcUrl }: { children: Reac
   const ready = !!reownProjectId;
   if (ready) initAppKit(reownProjectId!);
 
+  // Re-apply the saved theme after hydration (e.g. the 404 boundary re-renders <html> and drops the class set by the head script).
+  useEffect(() => {
+    try { const t = localStorage.getItem("hb-theme"); const dark = t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.classList.toggle("dark", dark); } catch {}
+  }, []);
   useEffect(() => {
     if (!ready) { console.warn("[Higher Bar] REOWN_PROJECT_ID is not set; wallet connect disabled. Get one at https://cloud.reown.com"); return; }
     const sync = () => { modal?.setThemeMode(isDark() ? "dark" : "light"); modal?.setThemeVariables(themeVars()); };
