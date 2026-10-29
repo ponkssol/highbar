@@ -6,7 +6,7 @@ import { store } from "../store.js";
 
 const U64_MAX = new BN("18446744073709551615");
 const LAMPORTS = 1e9, BASE_DEC = 1e6;
-/** DBC migrationFeeWithdrawStatus bit for the creator (partner = 0b001? creator = 0b010). Best effort; the program rejects double-withdraws anyway. */
+/** DBC migrationFeeWithdrawStatus: bit 1 (0b010) = creator, bit 2 (0b100) = partner (verified in SDK 2.0.0 IDL). */
 const CREATOR_WITHDRAWN_MASK = 0b010;
 const num = (b: BN, d: number) => Number(b.toString()) / d;
 
@@ -70,6 +70,12 @@ export function registerClaim(app: FastifyInstance) {
       const t = store.tokens().find((x) => x.pool === pool.toBase58());
       if (t && t.creator !== creator.toBase58()) return reply.code(403).send({ error: "wallet is not the creator of this pool" });
       const client = getClient();
+      if (b.kind === "migration") {
+        const rawPs: any = await client.state.getPool(pool); const ps: any = rawPs?.poolState ?? rawPs;
+        if (!ps) return reply.code(404).send({ error: "pool not found" });
+        if (Number(ps.isMigrated) !== 1) return reply.code(400).send({ error: "pool has not migrated yet" });
+        if ((Number(ps.migrationFeeWithdrawStatus) & CREATOR_WITHDRAWN_MASK) !== 0) return reply.code(400).send({ error: "migration fee already withdrawn" });
+      }
       const tx = b.kind === "trading"
         ? await client.creator.claimCreatorTradingFee({ creator, payer: creator, pool, maxBaseAmount: U64_MAX, maxQuoteAmount: U64_MAX })
         : await client.creator.creatorWithdrawMigrationFee({ pool, sender: creator });
