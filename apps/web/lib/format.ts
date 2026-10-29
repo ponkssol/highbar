@@ -10,4 +10,4 @@ export function fmtAge(ts: number, now = Date.now()) {
   if (s < 86400) return `${Math.floor(s / 3600)}h`;
   return `${Math.floor(s / 86400)}d`;
 }
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+export const API_URL = "/hb-api"; // same-origin proxy -> server-only API_URL

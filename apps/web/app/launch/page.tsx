@@ -6,6 +6,7 @@ import { TopBlock } from "@/components/TopBar";
 import { Avatar, Button, Card, ProgressBar, TierBadge } from "@/components/ui";
 import { feeSplitPct } from "@/lib/fees";
 import { launchToken } from "@/lib/launch";
+import { useHbWallet } from "@/lib/wallet";
 
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -23,6 +24,7 @@ export default function LaunchPage() {
   const [anti, setAnti] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const wallet = useHbWallet();
   const f = feeSplitPct(tier);
 
   const onFile = (file?: File) => {
@@ -33,8 +35,11 @@ export default function LaunchPage() {
   const submit = async () => {
     setBusy(true); setMsg("");
     try {
-      const r = await launchToken({ name, ticker, description: desc, image, ...socials, tier, antiSniper: anti });
-      setMsg(`Stub launch ok (mint ${r.mint.slice(0, 8)}…). API not wired yet.`);
+      if (!wallet.publicKey) { setMsg("Connect wallet dulu."); return; }
+      const r = await launchToken({ name, ticker, description: desc, image, ...socials, tier, antiSniper: anti }, wallet.publicKey.toBase58(), (tx) => wallet.sendTransaction(tx));
+      setMsg(`Launched: mint ${r.mint.slice(0, 8)}, tx ${r.signature.slice(0, 8)}`);
+    } catch (e) {
+      setMsg(`Launch gagal: ${(e as Error).message}`);
     } finally { setBusy(false); }
   };
 

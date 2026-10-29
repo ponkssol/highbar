@@ -8,7 +8,7 @@ import { KpiGrid } from "@/components/StatsPanel";
 import { ActivityGrid } from "@/components/ActivityGrid";
 import { TokenTable } from "@/components/TokenTable";
 import { BurnBadge } from "@/components/ui";
-import { STATS, TOKENS } from "@/lib/mock";
+import { useStats, useTokens } from "@/lib/useApi";
 
 function BigStat({ value, unit, label, delta, href, badge }: { value: string; unit?: string; label: string; delta: number; href: string; badge?: React.ReactNode }) {
   return (
@@ -29,6 +29,8 @@ function BigStat({ value, unit, label, delta, href, badge }: { value: string; un
 
 export default function Home() {
   const [search, setSearch] = useState("");
+  const STATS = useStats();
+  const { tokens: TOKENS } = useTokens();
   return (
     <div className="flex flex-col gap-4">
       <TopBar search={search} onSearch={setSearch} />

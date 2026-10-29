@@ -1,14 +1,20 @@
+import { Transaction } from "@solana/web3.js";
 import type { TierId } from "@hb/shared";
-import { API_URL } from "./format";
+import { post } from "./api";
 
 export interface LaunchInput {
   name: string; ticker: string; description: string; image?: File | null;
   website?: string; twitter?: string; telegram?: string; tier: TierId; antiSniper: boolean;
 }
+type Sender = (tx: Transaction) => Promise<string>;
 
-/** Stub: will POST to `${NEXT_PUBLIC_API_URL}/launch` and sign the returned tx. */
-export async function launchToken(input: LaunchInput): Promise<{ mint: string; stub: true }> {
-  console.info("launchToken stub", { api: API_URL, ...input, image: input.image?.name });
-  await new Promise((r) => setTimeout(r, 600));
-  return { mint: "StubMint1111111111111111111111111111111111", stub: true };
+/** Builds createPool via the API (baseMint keypair pre-signs server-side), wallet signs + sends.
+ *  TODO: image/metadata upload (Pinata) -> uri; for now uri is empty. */
+export async function launchToken(input: LaunchInput, creator: string, send: Sender): Promise<{ mint: string; pool: string; signature: string }> {
+  const r = await post<{ tx: string; mint: string; pool: string }>("/tx/launch", {
+    creator, name: input.name, symbol: input.ticker, uri: "", tier: input.tier, antiSniper: input.antiSniper,
+  });
+  const tx = Transaction.from(Uint8Array.from(atob(r.tx), (c) => c.charCodeAt(0)));
+  const signature = await send(tx);
+  return { mint: r.mint, pool: r.pool, signature };
 }
