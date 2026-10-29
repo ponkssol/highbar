@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ShieldCheck } from "lucide-react";
 import { TIERS } from "@hb/shared";
 import { progressOf, type TokenRow } from "@/lib/mock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
@@ -20,7 +20,19 @@ const TIER_ORDER = { standard: 0, higher: 1, max: 2 };
 const val = (t: TokenRow, k: SortKey): number | string =>
   k === "name" ? t.name : k === "tier" ? TIER_ORDER[t.tier] : k === "mcap" ? t.mcapUsd : k === "progress" ? progressOf(t) : k === "volume" ? t.volume24hSol : -t.createdAt;
 
-export function TokenTable({ tokens, search = "" }: { tokens: TokenRow[]; search?: string }) {
+export const PAGE_SIZE = 15;
+
+/** Page numbers with ellipses: 1 … 4 5 6 … 12 */
+function pageList(page: number, pages: number): (number | "gap")[] {
+  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+  const set = new Set([1, pages, page - 1, page, page + 1].filter((n) => n >= 1 && n <= pages));
+  const sorted = [...set].sort((a, b) => a - b);
+  const out: (number | "gap")[] = [];
+  sorted.forEach((n, i) => { if (i && n - sorted[i - 1] > 1) out.push("gap"); out.push(n); });
+  return out;
+}
+
+export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { tokens: TokenRow[]; search?: string; pageSize?: number }) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: "age", dir: -1 });
@@ -34,6 +46,16 @@ export function TokenTable({ tokens, search = "" }: { tokens: TokenRow[]; search
         return (va < vb ? -1 : va > vb ? 1 : 0) * sort.dir;
       });
   }, [tokens, filter, sort, search]);
+  // Page is tied to the current view: any change to filter/sort/search resets it to 1 in the same render.
+  const viewKey = `${filter}|${sort.k}|${sort.dir}|${search.trim().toLowerCase()}|${pageSize}`;
+  const [pg, setPg] = useState({ key: viewKey, page: 1 });
+  const page = pg.key === viewKey ? pg.page : 1;
+  const setPage = (n: number) => setPg({ key: viewKey, page: n });
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const cur = Math.min(page, pages);
+  const start = (cur - 1) * pageSize;
+  const pageRows = rows.slice(start, start + pageSize);
+  const pgBtn = "num inline-flex h-8 min-w-8 items-center justify-center rounded-sm px-2 text-sm";
 
   const Th = ({ k, children, right }: { k?: SortKey; children: React.ReactNode; right?: boolean }) => (
     <th className={`px-4 py-3 text-xs font-medium text-ink-3 ${right ? "text-right" : "text-left"}`}>
@@ -70,7 +92,7 @@ export function TokenTable({ tokens, search = "" }: { tokens: TokenRow[]; search
             </tr>
           </thead>
           <tbody>
-            {rows.map((t) => {
+            {pageRows.map((t) => {
               const p = progressOf(t);
               return (
                 <tr key={t.mint} onClick={() => router.push(`/token/${t.mint}`)}
@@ -105,6 +127,26 @@ export function TokenTable({ tokens, search = "" }: { tokens: TokenRow[]; search
           </tbody>
         </table>
       </div>
+      {rows.length > 0 && (
+        <nav aria-label="Tokens pagination" data-testid="token-pagination"
+          className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+          <span className="num text-sm text-ink-3">Showing {start + 1}-{start + pageRows.length} of {rows.length}</span>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(cur - 1)} disabled={cur <= 1} aria-label="Previous page"
+              className={`${pgBtn} gap-1 border border-border text-ink-2 hover:bg-muted disabled:pointer-events-none disabled:opacity-40`}>
+              <ChevronLeft size={14} /> Prev
+            </button>
+            {pageList(cur, pages).map((n, i) => n === "gap"
+              ? <span key={`g${i}`} className="px-1 text-sm text-ink-3">...</span>
+              : <button key={n} onClick={() => setPage(n)} aria-current={n === cur ? "page" : undefined}
+                  className={`${pgBtn} ${n === cur ? "bg-ink text-on-ink" : "border border-border text-ink-2 hover:bg-muted"}`}>{n}</button>)}
+            <button onClick={() => setPage(cur + 1)} disabled={cur >= pages} aria-label="Next page"
+              className={`${pgBtn} gap-1 border border-border text-ink-2 hover:bg-muted disabled:pointer-events-none disabled:opacity-40`}>
+              Next <ChevronRight size={14} />
+            </button>
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
