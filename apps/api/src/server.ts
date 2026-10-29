@@ -10,6 +10,7 @@ import { indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
 import { registerPages } from "./routes/pages.js";
 import { registerAuth } from "./auth.js";
+import { registerClaim } from "./routes/claim.js";
 
 const SOL_USD = Number(process.env.SOL_USD ?? 150);
 const DRY_RUN = process.env.DRY_RUN !== "false";
@@ -20,6 +21,7 @@ const view = (t: Token) => ({ ...t, mcapUsd: t.mcapSol * SOL_USD });
 
 registerAuth(app);
 registerPages(app);
+registerClaim(app);
 app.get("/health", async () => ({ ok: true, tokens: store.tokens().length, dryRun: DRY_RUN, time: Date.now() }));
 
 app.get("/tokens", async (req) => {

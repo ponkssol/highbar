@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ExternalLink, Wallet } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
 import { TopBlock } from "@/components/TopBar";
-import { Button, Card, TierBadge } from "@/components/ui";
+import { Button, Card, LinkButton, TierBadge } from "@/components/ui";
 import { Empty, Loading, OfflineNote, TD, TH } from "@/components/PageStates";
 import { useApiData } from "@/lib/pagesData";
 import { useHbWallet, useSolBalance, useWalletModal } from "@/lib/wallet";
@@ -13,7 +13,7 @@ import { explorerTx } from "@/lib/settings";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 type WTrade = { sig: string; mint: string; symbol: string; side: "buy" | "sell"; sol: number; tokens: number; ts: number };
-const SPL = new PublicKey("TokenkegQfeZyiNwAJbNbGkPFXZQdTxzWzKs3qrQjqp");
+const SPL = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const T22 = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 const SOL_USD = 150;
 
@@ -98,8 +98,7 @@ export default function PortfolioPage() {
         <Card className="overflow-x-auto p-0">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <h3 className="font-semibold">Created tokens</h3>
-            {/* TODO: wire claimCreatorTradingFee via SDK once creator claim flow is built */}
-            <Button variant="secondary" className="h-8" disabled title="Coming soon">Claim fees</Button>
+            <LinkButton href="/claim" variant="secondary" className="h-8">Claim fees</LinkButton>
           </div>
           {created.loading && !created.data ? <Loading /> : !created.data?.length ? (
             <Empty title="You haven't launched a token yet" action={<Link href="/launch" className="text-sm underline">Launch one</Link>} />
