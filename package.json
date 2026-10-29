@@ -1,0 +1,14 @@
+﻿{
+  "name": "heiger-bar",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0",
+    "prettier": "^3.3.0"
+  }
+}
