@@ -55,7 +55,7 @@ export const TIERS: Record<TierId, Tier> = {
     migrationQuoteThresholdSol: 100,
     creatorTradingFeePercentage: 75,
     migrationFeePercentage: 0,
-    creatorMigrationFeePercentage: 50,
+    creatorMigrationFeePercentage: 0,
     lpCreatorPercentage: 50,
     lpPlatformPercentage: 50,
   },
@@ -78,4 +78,5 @@ export function curveFeeSplit(tier: Tier) {
   const creator = (rest * tier.creatorTradingFeePercentage) / 100;
   return { total, protocol, creator, platform: rest - creator };
 }
+
 
