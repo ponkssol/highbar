@@ -1,3 +1,4 @@
+import { TokenLogo } from "@/components/TokenLogo";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -40,7 +41,7 @@ export default async function LockSharePage({ params }: { params: Promise<{ id: 
       <div className="rounded-lg border border-border bg-surface p-6 shadow-card">
         <Link href="/locks" className="inline-flex items-center gap-1 text-sm text-ink-3 hover:text-ink"><ArrowLeft size={14} />All locks</Link>
         <div className="mt-4 flex flex-wrap items-center gap-4">
-          <span className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-ink text-on-ink"><Lock size={20} /></span>
+          {l.token?.image ? <TokenLogo src={l.token.image} name={sym} size={48} radius={12} /> : <span className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-ink text-on-ink"><Lock size={20} /></span>}
           <div className="min-w-0">
             <h2 className="text-2xl font-semibold tracking-tight">{l.token?.name || shortAddr(l.mint)} <span className="num text-ink-3">${sym}</span></h2>
             <p className="text-sm text-ink-3">{text}</p>

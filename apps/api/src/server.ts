@@ -14,6 +14,7 @@ import { registerAuth } from "./auth.js";
 import { buildLaunchTx, quoteDevBuy, DEV_BUY_MAX_SOL, type LaunchReq } from "./launchTx.js";
 import { registerClaim } from "./routes/claim.js";
 import { backfill, registerCandles } from "./candles/index.js";
+import { imageUrl, registerMedia } from "./media.js";
 
 const SOL_USD = Number(process.env.SOL_USD ?? 150);
 const DRY_RUN = process.env.DRY_RUN !== "false";
@@ -26,7 +27,7 @@ function devLock(mint: string) {
   const act = Object.values(store.db.lockMeta ?? {}).filter((m) => m.mint === mint && !m.cancelled && BigInt(m.locked) > 0n && now < m.endTime);
   return act.length ? { devLocked: true, unlockAt: Math.max(...act.map((m) => m.cliffTime)) } : { devLocked: false, unlockAt: null as number | null };
 }
-const view = (t: Token) => ({ ...t, mcapUsd: t.mcapSol * SOL_USD, ...devLock(t.mint) });
+const view = (t: Token) => ({ ...t, mcapUsd: t.mcapSol * SOL_USD, image: imageUrl(t.mint, t.uri), ...devLock(t.mint) });
 function recordLocks(infos: LockInfo[]) {
   if (!infos.length) return;
   const meta = { ...(store.db.lockMeta ?? {}) }, locks = { ...(store.db.locks ?? {}) };
@@ -41,6 +42,7 @@ registerAuth(app);
 registerPages(app);
 registerClaim(app);
 registerCandles(app);
+registerMedia(app);
 app.log.info(`candles: backfilled ${backfill(Object.values(store.db.trades))} trades`);
 app.get("/health", async () => ({ ok: true, tokens: store.tokens().length, dryRun: DRY_RUN, time: Date.now() }));
 
@@ -211,7 +213,7 @@ const lockView = (l: LockInfo) => {
     supplyPct: (total / TOTAL_SUPPLY) * 100, unlockedPct: total ? (Number(l.unlocked) / Number(l.total)) * 100 : 0,
     status: l.cancelled ? "cancelled" : now < l.cliffTime ? "locked" : now < vestEnd ? "vesting" : "unlocked",
     lockedAt: lockedAt[l.escrow] ?? null,
-    token: t ? { name: t.name, symbol: t.symbol, tier: t.tier, creator: t.creator } : null,
+    token: t ? { name: t.name, symbol: t.symbol, tier: t.tier, creator: t.creator, image: imageUrl(t.mint, t.uri) } : null,
   };
 };
 const lockedAt: Record<string, number> = {};

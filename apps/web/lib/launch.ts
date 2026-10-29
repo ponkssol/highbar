@@ -19,13 +19,19 @@ export async function quoteDevBuy(tier: TierId, antiSniper: boolean, devBuySol: 
 }
 
 /** Builds createPool (+ optional dev buy in the same tx) via the API; the baseMint keypair pre-signs server-side, the wallet signs + sends.
- *  TODO: image/metadata upload (Pinata) -> uri; for now uri is empty. */
+ *  Metadata (name, symbol, description, links, logo) is hosted by the API first; its uri goes on-chain. */
 export async function launchToken(input: LaunchInput, creator: string, send: Sender): Promise<{ mint: string; pool: string; signature: string }> {
+  const image = input.image ? await toDataUrl(input.image) : undefined;
+  const meta = await post<{ uri: string }>("/metadata", { name: input.name, symbol: input.ticker, description: input.description, website: input.website, twitter: input.twitter, telegram: input.telegram, image });
   const r = await post<{ tx: string; mint: string; pool: string }>("/tx/launch", {
-    creator, name: input.name, symbol: input.ticker, uri: "", tier: input.tier, antiSniper: input.antiSniper,
+    creator, name: input.name, symbol: input.ticker, uri: meta.uri, tier: input.tier, antiSniper: input.antiSniper,
     devBuySol: input.devBuySol ?? 0, slippageBps: input.slippageBps ?? 100,
   });
   const tx = Transaction.from(Uint8Array.from(atob(r.tx), (c) => c.charCodeAt(0)));
   const signature = await send(tx);
   return { mint: r.mint, pool: r.pool, signature };
+}
+function toDataUrl(f: File): Promise<string> {
+  if (f.size > 2 * 1024 * 1024) return Promise.reject(new Error("Image must be 2 MB or smaller"));
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error("Could not read image")); r.readAsDataURL(f); });
 }

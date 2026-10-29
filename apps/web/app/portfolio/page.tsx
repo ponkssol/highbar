@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ExternalLink, Wallet } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
 import { TopBlock } from "@/components/TopBar";
-import { Button, Card, LinkButton, TierBadge } from "@/components/ui";
+import { Button, Card, LinkButton, Price, TierBadge } from "@/components/ui";
 import { Empty, Loading, OfflineNote, TD, TH } from "@/components/PageStates";
 import { useApiData } from "@/lib/pagesData";
 import { useHbWallet, useSolBalance, useWalletModal } from "@/lib/wallet";
@@ -88,7 +88,7 @@ export default function PortfolioPage() {
                 <tr key={t.mint} className="border-b border-border last:border-0 hover:bg-muted">
                   <td className={TD}><Link href={`/token/${t.mint}`} className="font-medium hover:underline">{t.name || shortAddr(t.mint)}</Link> <span className="num text-ink-3">${t.symbol}</span></td>
                   <td className={`${TD} num text-right`}>{amount.toLocaleString("en-US", { maximumFractionDigits: 0 })}</td>
-                  <td className={`${TD} num text-right text-ink-3`}>{t.priceSol.toExponential(2)}</td>
+                  <td className={`${TD} num text-right text-ink-3`}><Price v={t.priceSol} /></td>
                   <td className={`${TD} num text-right`}>{valueSol.toFixed(4)} SOL</td>
                 </tr>))}</tbody>
             </table>

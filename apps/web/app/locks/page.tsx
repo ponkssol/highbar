@@ -6,6 +6,7 @@ import { TopBlock } from "@/components/TopBar";
 import { Pagination } from "@/components/Pagination";
 import { fetchLockList, fmtLockDate, type LockView } from "@/lib/lockData";
 import { shortAddr } from "@/lib/format";
+import { TokenLogo } from "@/components/TokenLogo";
 
 const PAGE_SIZE = 15;
 const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -34,6 +35,7 @@ export default function LocksPage() {
             <li key={l.id}>
               <Link href={`/locks/${l.id}`} className="block rounded-[12px] border border-border p-3 active:bg-muted">
                 <div className="flex items-center gap-3">
+                  <TokenLogo src={l.token?.image} name={l.token?.symbol || "?"} size={32} />
                   <span className="min-w-0 flex-1"><span className="block truncate font-medium">{l.token?.name || shortAddr(l.mint)}</span><span className="num text-xs text-ink-3">${l.token?.symbol || "?"}</span></span>
                   <span className="num text-right text-sm">{fmtTok(l.totalTokens)}<span className="block text-xs text-ink-3">{l.supplyPct.toFixed(2)}% of supply</span></span>
                 </div>
@@ -55,7 +57,7 @@ export default function LocksPage() {
             <tbody>
               {data?.items.map((l) => (
                 <tr key={l.id} className="border-b border-border last:border-0 transition-colors hover:bg-muted">
-                  <td className="px-4 py-3"><Link href={`/token/${l.mint}`} className="block"><span className="block font-medium">{l.token?.name || shortAddr(l.mint)}</span><span className="num text-xs text-ink-3">${l.token?.symbol || "?"}</span></Link></td>
+                  <td className="px-4 py-3"><Link href={`/token/${l.mint}`} className="flex items-center gap-3"><TokenLogo src={l.token?.image} name={l.token?.symbol || "?"} size={32} /><span className="min-w-0"><span className="block font-medium">{l.token?.name || shortAddr(l.mint)}</span><span className="num text-xs text-ink-3">${l.token?.symbol || "?"}</span></span></Link></td>
                   <td className="num px-4 py-3 text-right">{fmtTok(l.totalTokens)}</td>
                   <td className="num px-4 py-3 text-right">{l.supplyPct.toFixed(2)}%</td>
                   <td className="num px-4 py-3 text-ink-2">{l.lockedAt ? fmtLockDate(l.lockedAt) : "-"}</td>

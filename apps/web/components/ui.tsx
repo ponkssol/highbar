@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { TIERS, type TierId } from "@hb/shared";
+import { fmtPrice } from "@/lib/format";
 
 type Variant = "primary" | "secondary" | "ghost";
 const VAR: Record<Variant, string> = {
@@ -75,4 +76,12 @@ export function BurnBadge({ children = "burn" }: { children?: ReactNode }) {
 
 export function SectionLabel({ children }: { children: ReactNode }) {
   return <div className="text-[13px] text-ink-3">{children}</div>;
+}
+/** Price with a real subscript zero count (0.0<sub>7</sub>2535) so it stays legible in any font. */
+export function Price({ v, prefix = "" }: { v: number; prefix?: string }) {
+  const s = fmtPrice(v);
+  const m = s.match(/^(-?0\.0)([\u2080-\u2089]+)(\d+)$/);
+  if (!m) return <>{prefix}{s}</>;
+  const n = [...m[2]].map((ch) => ch.charCodeAt(0) - 0x2080).join("");
+  return <span title={`${prefix}${v.toFixed(Math.min(20, n.length + 12)).replace(/0+$/, "")}`}>{prefix}{m[1]}<sub className="mx-[1px] align-[-0.25em] text-[0.62em] leading-none">{n}</sub>{m[3]}</span>;
 }

@@ -1,4 +1,5 @@
 "use client";
+import { TokenLogo } from "./TokenLogo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -81,7 +82,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
             <li key={t.mint}>
               <Link href={`/token/${t.mint}`} className="block rounded-[12px] border border-border p-3 active:bg-muted">
                 <div className="flex items-center gap-3">
-                  <Avatar name={t.name} />
+                  <TokenLogo src={t.image} name={t.name} />
                   <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></span></span>
                   <TierBadge tier={t.tier} />
                   <span className="num text-right text-sm">{fmtUsd(t.mcapUsd)}</span>
@@ -111,7 +112,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
                   className="cursor-pointer border-b border-border last:border-0 transition-colors hover:bg-muted">
                   <td className="px-4 py-3">
                     <Link href={`/token/${t.mint}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                      <Avatar name={t.name} />
+                      <TokenLogo src={t.image} name={t.name} />
                       <span><span className="block font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></span></span>
                     </Link>
                   </td>

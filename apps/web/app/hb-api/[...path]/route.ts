@@ -13,7 +13,9 @@ async function proxy(req: Request, ctx: { params: Promise<{ path: string[] }> })
       body: req.method === "GET" || req.method === "HEAD" ? undefined : await req.text(),
       cache: "no-store",
     });
-    return new Response(res.body, { status: res.status, headers: { "content-type": res.headers.get("content-type") ?? "application/json" } });
+    const headers: Record<string, string> = { "content-type": res.headers.get("content-type") ?? "application/json" };
+    for (const h of ["cache-control", "x-content-type-options", "content-security-policy"]) { const v = res.headers.get(h); if (v) headers[h] = v; }
+    return new Response(res.body, { status: res.status, headers });
   } catch {
     return Response.json({ error: "api unreachable" }, { status: 502 });
   }

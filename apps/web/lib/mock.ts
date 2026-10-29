@@ -1,6 +1,7 @@
 import { TIERS, type TierId } from "@hb/shared";
 
 export interface TokenRow {
+  image?: string | null;
   devLocked?: boolean;
   unlockAt?: number | null;
   mint: string;

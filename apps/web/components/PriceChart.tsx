@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { fmtPrice } from "@/lib/format";
 import type { IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
 import { apiBase } from "@/lib/api";
 
@@ -15,7 +16,7 @@ function theme() {
   const v = (n: string) => s.getPropertyValue(n).trim();
   return { bg: v("--hb-surface"), ink: v("--hb-ink"), ink3: v("--hb-ink-3"), border: v("--hb-border"), buy: v("--hb-buy"), sell: v("--hb-sell") };
 }
-const fmtP = (p: number) => (p === 0 ? "0" : p < 0.001 ? p.toExponential(3) : p.toPrecision(4));
+const fmtP = (p: number) => fmtPrice(p);
 
 export function PriceChart({ mint, className = "" }: { mint: string; className?: string }) {
   const [tf, setTf] = useState<TF>("15m");

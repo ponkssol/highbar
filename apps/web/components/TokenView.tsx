@@ -9,7 +9,8 @@ import { FeeBreakdown } from "./FeeBreakdown";
 import dynamic from "next/dynamic";
 const PriceChart = dynamic(() => import("./PriceChart").then((m) => m.PriceChart), { ssr: false, loading: () => <div className="h-[300px] rounded-lg border border-border bg-surface md:h-[420px]" /> });
 import { TradePanel } from "./TradePanel";
-import { TierBadge, TierDot } from "./ui";
+import { TokenLogo } from "./TokenLogo";
+import { Price, TierBadge, TierDot } from "./ui";
 import { DevLock, LockedBadge } from "./DevLock";
 import { DevLockedBadge } from "./DevLockedBadge";
 import { useLocks, type LocksResp } from "@/lib/lock";
@@ -17,42 +18,55 @@ import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
-  mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; change24h: number; holders: number; now: number; devLocked?: boolean; unlockAt?: number | null;
+  mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; priceUsd?: number; image?: string | null; change24h: number; holders: number; now: number; devLocked?: boolean; unlockAt?: number | null;
   trades: { sig: string; side: "buy" | "sell"; sol: number; tokens: number; wallet: string; ts: number; devBuy?: boolean }[];
 }
 
 function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
   const [copied, setCopied] = useState(false);
   const copy = () => { navigator.clipboard?.writeText(t.mint); setCopied(true); setTimeout(() => setCopied(false), 1200); };
+  const up = t.change24h >= 0;
+  const chip = "inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-full bg-[color-mix(in_srgb,var(--hb-ink)_8%,transparent)] px-2 text-[11px] font-medium leading-none text-ink-2";
   return (
-    <div className="col-span-12 rounded-lg border border-border bg-bg p-4">
-      <Link href="/" className="inline-flex items-center gap-1 text-sm text-ink-3 hover:text-ink"><ArrowLeft size={14} />All tokens</Link>
-      <div className="mt-3 flex flex-wrap items-center gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] bg-ink text-sm font-semibold text-on-ink">{t.ticker.slice(0, 2)}</span>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{t.name}</h1>
-            <span className="num text-ink-3">${t.ticker}</span>
-            <TierBadge tier={t.tier} />
-            {t.antiSniper && <span title="Anti-sniper" className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-ink-2"><ShieldCheck size={13} strokeWidth={1.5} />anti-sniper</span>}
-            {t.devLocked ? <span data-testid="locked-badge"><DevLockedBadge devLocked unlockAt={t.unlockAt} size="md" /></span> : <LockedBadge data={locks} />}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-ink-3">
-            <button onClick={copy} className="num inline-flex items-center gap-1 hover:text-ink">{shortAddr(t.mint, 5)}{copied ? <Check size={13} /> : <Copy size={13} />}</button>
-            <span className="flex items-center gap-2">
-              {[Globe, XIcon, Send].map((I, i) => <a key={i} href="#" className="rounded-md border border-border p-1 hover:text-ink"><I size={13} strokeWidth={1.5} /></a>)}
-            </span>
+    <div data-testid="token-header" className="col-span-12 rounded-lg border border-border bg-bg p-3 md:p-4">
+      <Link href="/" className="inline-flex items-center gap-1 text-[13px] text-ink-3 hover:text-ink"><ArrowLeft size={14} />All tokens</Link>
+      <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="md:hidden"><TokenLogo src={t.image} name={t.ticker} size={40} radius={10} /></span><span className="hidden md:inline-flex"><TokenLogo src={t.image} name={t.ticker} size={48} radius={12} /></span>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-[17px] font-semibold leading-tight tracking-tight md:text-2xl">{t.name}</h1>
+            <div className="num text-[12px] text-ink-3">${t.ticker}</div>
           </div>
         </div>
-        <div className="ml-auto text-right">
-          <div className="num text-[32px] font-semibold leading-tight">{t.priceSol.toExponential(3)}<span className="ml-1 text-sm text-ink-3">SOL</span></div>
-          <div className={`num text-sm ${t.change24h >= 0 ? "text-buy" : "text-sell"}`}>{t.change24h >= 0 ? "+" : ""}{t.change24h.toFixed(2)}% 24h</div>
+        <div className="flex flex-wrap items-center gap-1.5 md:order-none">
+          <span className={chip}><TierDot tier={t.tier} />{TIERS[t.tier].label}</span>
+          {t.antiSniper && <span title="Anti-sniper" className={chip}><ShieldCheck size={12} strokeWidth={1.75} />anti-sniper</span>}
+          {t.devLocked ? <span data-testid="locked-badge"><DevLockedBadge devLocked unlockAt={t.unlockAt} size="md" /></span> : <LockedBadge data={locks} />}
+        </div>
+        <div className="flex items-center gap-1.5 text-[12px] text-ink-3 md:hidden">
+          <Addr t={t} copied={copied} copy={copy} />
+        </div>
+        <div className="md:ml-auto md:text-right">
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            <span data-testid="token-price" className="num whitespace-nowrap text-[22px] font-semibold leading-tight md:text-[28px]"><Price v={t.priceSol} /><span className="ml-1 text-[12px] font-normal text-ink-3">SOL</span></span>
+            <span className={`num inline-flex h-5 items-center whitespace-nowrap rounded-full bg-[color-mix(in_srgb,var(--hb-ink)_8%,transparent)] px-1.5 text-[11px] font-medium leading-none ${up ? "text-buy" : "text-sell"}`}>{up ? "+" : ""}{t.change24h.toFixed(2)}% 24h</span>
+          </div>
+          {t.priceUsd != null && <div data-testid="token-price-usd" className="num mt-0.5 text-[12px] text-ink-3"><Price v={t.priceUsd} prefix="$" /></div>}
+          <div className="mt-1 hidden items-center gap-1.5 text-[12px] text-ink-3 md:flex md:justify-end"><Addr t={t} copied={copied} copy={copy} /></div>
         </div>
       </div>
     </div>
   );
 }
 
+function Addr({ t, copied, copy }: { t: TokenViewData; copied: boolean; copy: () => void }) {
+  return (
+    <>
+      <button type="button" onClick={copy} aria-label="Copy address" className="num inline-flex h-7 items-center gap-1 rounded-md px-1.5 hover:bg-muted hover:text-ink">{shortAddr(t.mint, 5)}{copied ? <Check size={12} /> : <Copy size={12} />}</button>
+      {([[Globe, "Website"], [XIcon, "X"], [Send, "Telegram"]] as const).map(([I, l]) => <a key={l} href="#" aria-label={l} className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--hb-ink)_6%,transparent)] hover:text-ink"><I size={13} strokeWidth={1.5} /></a>)}
+    </>
+  );
+}
 function Bonding({ t }: { t: TokenViewData }) {
   const target = TIERS[t.tier].migrationQuoteThresholdSol;
   const p = Math.min(1, t.raisedSol / target);
