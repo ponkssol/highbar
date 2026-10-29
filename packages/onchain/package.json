@@ -4,7 +4,8 @@
     "private":  true,
     "type":  "module",
     "main":  "src/index.ts",
-    "types":  "src/index.ts",
+    "types": "src/index.ts",
+    "exports": { ".": "./src/index.ts", "./browser": "./src/browser.ts" },
     "scripts":  {
                     "typecheck":  "tsc --noEmit -p .",
                     "configs:dry":  "tsx src/createConfigs.ts --dry-run",
@@ -21,7 +22,8 @@
                          "@meteora-ag/dynamic-bonding-curve-sdk":  "^2.0.0",
                          "@solana/web3.js":  "^1.99.0",
                          "bn.js":  "^5.2.5",
-                         "dotenv":  "^18.0.9"
+                         "dotenv":  "^18.0.9",
+                         "@solana/spl-token":  "^0.4.9"
                      },
     "devDependencies":  {
                             "@types/bn.js":  "^5.2.0",

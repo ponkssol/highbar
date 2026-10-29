@@ -1,4 +1,4 @@
-import { DAMM_V2_MIGRATION_FEE_ADDRESS, MigrationFeeOption } from "@meteora-ag/dynamic-bonding-curve-sdk";
+import { DAMM_V2_MIGRATION_FEE_ADDRESS } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { PublicKey } from "@solana/web3.js";
 import { deriveBaseKeyForLocker, deriveLockerEscrowAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { getClient, getConnection, isMain, loadConfigs, loadPlatformKeypair, sendTx } from "./client.js";
@@ -9,8 +9,9 @@ export const DRY_RUN = (process.env.DRY_RUN ?? "true").toLowerCase() !== "false"
 export interface KeeperResult { pool: string; action: string; signature?: string; error?: string }
 
 /** DAMM v2 config to migrate into; set DAMM_V2_CONFIG in .env (depends on migrationFeeOption). */
-function dammV2Config(): PublicKey | null {
-  return process.env.DAMM_V2_CONFIG ? new PublicKey(process.env.DAMM_V2_CONFIG) : (DAMM_V2_MIGRATION_FEE_ADDRESS[MigrationFeeOption.Customizable] ?? null);
+function dammV2Config(migrationFeeOption: number): PublicKey | null {
+  // env override, else the SDK DAMM v2 config matching the pool config's on-chain migrationFeeOption
+  return process.env.DAMM_V2_CONFIG ? new PublicKey(process.env.DAMM_V2_CONFIG) : (DAMM_V2_MIGRATION_FEE_ADDRESS[migrationFeeOption] ?? null);
 }
 
 export async function runKeeperOnce(): Promise<KeeperResult[]> {
@@ -43,7 +44,7 @@ export async function runKeeperOnce(): Promise<KeeperResult[]> {
           const ltx = await client.migration.createLocker({ payer: payer.publicKey, pool: publicKey });
           await sendTx(ltx, [payer]);
         }
-        const dammConfig = dammV2Config();
+        const dammConfig = dammV2Config(Number(config.migrationFeeOption));
         if (!dammConfig) throw new Error("DAMM_V2_CONFIG not set");
         const { transaction, firstPositionNftKeypair, secondPositionNftKeypair } =
           await client.migration.migrateToDammV2({ payer: payer.publicKey, pool: publicKey, dammConfig });
