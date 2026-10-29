@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useHbWallet } from "@/lib/wallet";
 import { ShieldCheck } from "lucide-react";
 import type { TierId } from "@hb/shared";
 import { ANTI_SNIPER, antiSniperFeeBps, feeSplitPct } from "@/lib/fees";
 import { buildSwapTx } from "@/lib/tx";
 
 export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSide = "buy", bare = false }: { mint: string; ticker: string; tier: TierId; antiSniper: boolean; priceSol: number; initialSide?: "buy" | "sell"; bare?: boolean }) {
-  const { publicKey } = useWallet();
+  const { publicKey, sendTransaction } = useHbWallet();
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [amount, setAmount] = useState("0.5");
   const [slip, setSlip] = useState("1");
@@ -34,9 +34,14 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
   const submit = async () => {
     if (!publicKey) return setMsg("Connect wallet dulu.");
     setBusy(true);
-    const r = await buildSwapTx({ mint, side, amount: amt, slippageBps: slipBps, owner: publicKey.toBase58() });
-    setBusy(false);
-    setMsg(r.ok ? "Tx siap ditandatangani." : r.reason);
+    try {
+      const r = await buildSwapTx({ mint, side, amount: amt, slippageBps: slipBps, owner: publicKey.toBase58() });
+      if (!r.ok) return setMsg(r.reason);
+      const sig = await sendTransaction(r.transaction);
+      setMsg(`Tx terkirim: ${sig.slice(0, 8)}`);
+    } catch (e) {
+      setMsg(`Gagal: ${(e as Error).message}`);
+    } finally { setBusy(false); }
   };
 
   return (

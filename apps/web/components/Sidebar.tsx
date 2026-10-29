@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useHbWallet, useSolBalance } from "@/lib/wallet";
+import { AddrDot, WalletButton } from "./WalletButton";
 import { Flame, LayoutGrid, Rocket, Settings, Trophy, Wallet } from "lucide-react";
 import { tierCounts } from "@/lib/mock";
 import { TIERS } from "@hb/shared";
@@ -20,7 +21,8 @@ const NAV = [
 
 export function Sidebar() {
   const path = usePathname();
-  const { publicKey } = useWallet();
+  const { publicKey, address, isConnected, connection } = useHbWallet();
+  const bal = useSolBalance(publicKey, connection);
   const isActive = (h: string) => (h === "/" ? path === "/" || path.startsWith("/token") : path.startsWith(h));
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-sidebar flex-col border-r border-border bg-surface px-4 py-5">
@@ -48,13 +50,19 @@ export function Sidebar() {
       </div>
       <div className="mt-auto" />
       <ThemeToggle />
-      <div className="flex items-center gap-3 rounded border border-border p-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted ring-1 ring-border"><Wallet size={16} strokeWidth={1.5} /></span>
-        <div className="min-w-0">
-          <div className="text-sm font-medium">{publicKey ? "My wallet" : "Not connected"}</div>
-          <div className="num truncate text-xs text-ink-3">{publicKey ? shortAddr(publicKey.toBase58()) : "devnet"}</div>
+      {isConnected && address ? (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3">
+          <AddrDot address={address} size={28} />
+          <div className="min-w-0">
+            <div className="num truncate text-sm font-medium">{shortAddr(address)}</div>
+            <div className="num text-xs text-ink-3">{bal != null ? `${bal.toFixed(3)} SOL` : "…"} · devnet</div>
+          </div>
         </div>
-      </div>
-    </aside>
+      ) : (
+        <div className="rounded-lg border border-border bg-surface p-3">
+          <div className="mb-2 text-xs text-ink-3">Connect a wallet to trade &amp; launch</div>
+          <WalletButton full />
+        </div>
+      )}    </aside>
   );
 }
