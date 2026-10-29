@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
 import { TIERS } from "@hb/shared";
-import { NOW_TS, progressOf, type TokenRow } from "@/lib/mock";
+import { progressOf, type TokenRow } from "@/lib/mock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 import { Avatar, ProgressBar, TierBadge } from "./ui";
 
@@ -91,7 +91,7 @@ export function TokenTable({ tokens, search = "" }: { tokens: TokenRow[]; search
                     </div>
                   </td>
                   <td className="num px-4 py-3 text-right">{fmtSol(t.volume24hSol, 1)} SOL</td>
-                  <td className="num px-4 py-3 text-right text-ink-2">{fmtAge(t.createdAt, NOW_TS)}</td>
+                  <td className="num px-4 py-3 text-right text-ink-2">{fmtAge(t.createdAt, Date.now())}</td>
                   <td className="num px-4 py-3 text-ink-2">{shortAddr(t.creator)}</td>
                   <td className="px-2 py-3">{t.antiSniper && <span title="Anti-sniper on"><ShieldCheck size={16} strokeWidth={1.5} className="text-ink-2" /></span>}</td>
                   <td className="px-4 py-3 text-right">

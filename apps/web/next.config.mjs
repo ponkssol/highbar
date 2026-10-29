@@ -1,5 +1,12 @@
+import path from "path";
+import { fileURLToPath } from "url";
+
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingRoot: root,
+  experimental: { devtoolSegmentExplorer: false },
   reactStrictMode: true,
   transpilePackages: ["@hb/shared"],
   webpack: (config) => {

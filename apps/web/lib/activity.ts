@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 export type ActivityType = "launch" | "burn" | "graduate" | "trade";
 export interface ActivityEvent { id: string; type: ActivityType; mint: string; symbol: string; ts: number; amount?: number }
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const ENDPOINT = "/hb-api/activity";
 const MAX = 200;
 const SYMS = ["PEPE2", "MOON", "BARK", "HIGH", "SOLX", "FROG", "ZAP", "LUNA", "GIGA", "WAGMI", "DOGE9", "RAY"];
 let seq = 0;
@@ -21,7 +21,7 @@ function seedMock(): ActivityEvent[] {
   return Array.from({ length: 90 }, (_, i) => mockEvent(now - (90 - i) * 45_000));
 }
 
-/** Live protocol activity, oldest first. Tries GET /activity (then SSE /activity/stream, else 3s polling); falls back to a mock generator. */
+/** Live protocol activity, oldest first. Polls same-origin /hb-api/activity every 3s (?since=); falls back to a mock generator. */
 export function useActivity() {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [source, setSource] = useState<"api" | "mock">("mock");
@@ -31,7 +31,7 @@ export function useActivity() {
     let alive = true;
     let poll: ReturnType<typeof setInterval> | undefined;
     let mock: ReturnType<typeof setTimeout> | undefined;
-    let es: EventSource | undefined;
+    let lastTs = 0;
     let initial = true;
 
     const merge = (list: ActivityEvent[]) => {
@@ -56,10 +56,11 @@ export function useActivity() {
     };
 
     const fetchOnce = async () => {
-      const res = await fetch(`${API_URL}/activity`, { cache: "no-store" });
+      const res = await fetch(lastTs ? `${ENDPOINT}?since=${lastTs}` : ENDPOINT, { cache: "no-store" });
       if (!res.ok) throw new Error(String(res.status));
       const j = await res.json();
       const list: ActivityEvent[] = Array.isArray(j) ? j : j.events ?? j.items ?? [];
+      for (const e of list) if (e?.ts > lastTs) lastTs = e.ts;
       merge(list);
     };
 
@@ -68,19 +69,13 @@ export function useActivity() {
         await fetchOnce();
         if (!alive) return;
         setSource("api");
-        try {
-          es = new EventSource(`${API_URL}/activity/stream`);
-          es.onmessage = (m) => { try { const d = JSON.parse(m.data); merge(Array.isArray(d) ? d : [d]); } catch {} };
-          es.onerror = () => { es?.close(); es = undefined; if (!poll) poll = setInterval(() => fetchOnce().catch(() => {}), 3000); };
-        } catch {
-          poll = setInterval(() => fetchOnce().catch(() => {}), 3000);
-        }
+        poll = setInterval(() => fetchOnce().catch(() => {}), 3000);
       } catch {
         startMock();
       }
     })();
 
-    return () => { alive = false; if (poll) clearInterval(poll); if (mock) clearTimeout(mock); es?.close(); };
+    return () => { alive = false; if (poll) clearInterval(poll); if (mock) clearTimeout(mock); };
   }, []);
 
   return { events, source, isFresh: (id: string) => fresh.current.has(id) };
