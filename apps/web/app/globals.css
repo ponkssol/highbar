@@ -16,3 +16,9 @@ body{font-family:var(--font-inter),Inter,system-ui,sans-serif;-webkit-font-smoot
 @media (prefers-reduced-motion:reduce){.hb-cell-pop{animation:none}}
 
 .hb-tip{position:relative}.hb-tip:hover::after{content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;background:var(--hb-tip-bg);color:var(--hb-tip-fg);font-size:11px;line-height:1;padding:6px 8px;border-radius:6px;z-index:30;pointer-events:none}
+
+.hb-scrim{background:rgba(14,14,14,.4)}
+.dark .hb-scrim{background:rgba(14,14,14,.6)}
+@keyframes hb-sheet-in{from{transform:translateY(100%)}to{transform:none}}
+.hb-sheet{animation:hb-sheet-in .2s ease-out}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}

@@ -138,7 +138,7 @@ export function TokenView({ t }: { t: TokenViewData }) {
   const locks = useLocks(t.mint);
   const panel = (side: "buy" | "sell" = "buy", bare = false) => <TradePanel mint={t.mint} ticker={t.ticker} tier={t.tier} antiSniper={t.antiSniper} priceSol={t.priceSol} initialSide={side} bare={bare} />;
   return (
-    <div className="grid grid-cols-12 gap-4 pb-20 md:pb-0">
+    <div className="grid grid-cols-12 gap-3 pb-20 md:gap-4 md:pb-0">
       <div className="col-span-12"><TopBar /></div>
       <Header t={t} locks={locks.data} />
       {/* tablet: right column under header (trade first); desktop: right 4 cols sticky */}
@@ -156,14 +156,14 @@ export function TokenView({ t }: { t: TokenViewData }) {
         <Tabs t={t} />
       </section>
       {/* mobile sticky actions + bottom sheet */}
-      <div className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-2 gap-2 border-t border-border bg-surface p-3 md:hidden">
+      <div className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 grid grid-cols-2 gap-2 border-t border-border bg-surface p-3 md:hidden">
         <button onClick={() => setSheet("buy")} className="h-12 rounded-md bg-buy font-semibold text-white">Buy</button>
         <button onClick={() => setSheet("sell")} className="h-12 rounded-md bg-sell font-semibold text-white">Sell</button>
       </div>
       {sheet && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSheet(null)} />
-          <div className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl border-t border-border bg-surface p-4">
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="hb-scrim absolute inset-0" onClick={() => setSheet(null)} />
+          <div className="absolute inset-x-0 bottom-0 hb-sheet max-h-[85vh] overflow-y-auto rounded-t-[20px] border-t border-border bg-surface p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
             {panel(sheet, true)}
           </div>

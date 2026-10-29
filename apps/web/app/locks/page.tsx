@@ -27,9 +27,25 @@ export default function LocksPage() {
       <div className="rounded-lg border border-border bg-surface shadow-card">
         <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
           <h2 className="flex items-center gap-2 text-lg font-semibold"><Lock size={16} strokeWidth={1.5} />All locks</h2>
-          <span className="text-sm text-ink-3">Permanent locks via Jupiter Lock</span>
+          <span className="text-sm text-ink-3 max-md:hidden">Permanent locks via Jupiter Lock</span>
         </div>
-        <div className="overflow-x-auto">
+        <ul className="flex flex-col gap-3 p-3 md:hidden" data-testid="lock-cards">
+          {data?.items.map((l) => (
+            <li key={l.id}>
+              <Link href={`/locks/${l.id}`} className="block rounded-[12px] border border-border p-3 active:bg-muted">
+                <div className="flex items-center gap-3">
+                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{l.token?.name || shortAddr(l.mint)}</span><span className="num text-xs text-ink-3">${l.token?.symbol || "?"}</span></span>
+                  <span className="num text-right text-sm">{fmtTok(l.totalTokens)}<span className="block text-xs text-ink-3">{l.supplyPct.toFixed(2)}% of supply</span></span>
+                </div>
+                <div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 rounded-full bg-border"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${Math.min(100, l.unlockedPct)}%` }} /></div><span className="num text-xs">{l.unlockedPct.toFixed(0)}%</span></div>
+                <div className="num mt-2 flex justify-between text-xs text-ink-3"><span>{STATUS[l.status]}</span><span>Unlocks {fmtLockDate(l.cliffTime)}</span><span>{shortAddr(l.creator)}</span></div>
+              </Link>
+            </li>
+          ))}
+          {data && data.items.length === 0 && <li className="py-10 text-center text-ink-3">No locks yet.</li>}
+          {!data && <li className="py-10 text-center text-ink-3">{err ? "Could not load locks." : "Loading..."}</li>}
+        </ul>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[960px] text-sm">
             <thead className="border-b border-border"><tr>
               <th className={`${th} text-left`}>Token</th><th className={`${th} text-right`}>Amount</th><th className={`${th} text-right`}>% of supply</th>

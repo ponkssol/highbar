@@ -10,7 +10,7 @@ export function pageList(page: number, pages: number): (number | "gap")[] {
   return out;
 }
 
-const pgBtn = "num inline-flex h-8 min-w-8 items-center justify-center rounded-sm px-2 text-sm";
+const pgBtn = "num inline-flex h-11 min-w-11 md:h-8 md:min-w-8 items-center justify-center rounded-sm px-2 text-sm";
 
 /** Footer row for table cards: "Showing a-b of N" + Prev / numbers / Next. */
 export function Pagination({ page, pageSize, total, onPage, label = "Pagination", testId }: { page: number; pageSize: number; total: number; onPage: (n: number) => void; label?: string; testId?: string }) {
