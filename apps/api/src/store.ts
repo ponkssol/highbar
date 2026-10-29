@@ -10,7 +10,7 @@ export interface Token {
 export interface TradeRow { sig: string; pool: string; mint: string; side: "buy" | "sell"; sol: number; tokens: number; feeSol: number; wallet: string; viaUi: boolean; ts: number; /** first buy inside the pool-creation tx (Block 0) */ devBuy?: boolean }
 export type ActivityType = "launch" | "burn" | "graduate" | "trade";
 export interface Activity { id: string; type: ActivityType; mint: string; symbol: string; ts: number; amount?: number; side?: "buy" | "sell"; wallet?: string; sig?: string }
-interface Db { tokens: Record<string, Token>; trades: Record<string, TradeRow>; lastSig: Record<string, string>; activity: Activity[]; burns: Activity[] }
+interface Db { tokens: Record<string, Token>; trades: Record<string, TradeRow>; lastSig: Record<string, string>; activity: Activity[]; burns: Activity[]; /** Jupiter Lock escrows per mint (built via /tx/lock or found on-chain) */ locks?: Record<string, string[]> }
 
 const file = path.resolve(process.env.DATA_FILE ?? "./data/db.json");
 const db: Db = { tokens: {}, trades: {}, lastSig: {}, activity: [], burns: [] };
@@ -19,6 +19,7 @@ try { Object.assign(db, JSON.parse(fs.readFileSync(file, "utf8"))); } catch {}
 let dirty = false;
 export const store = {
   db,
+  markDirty() { dirty = true; },
   upsertToken(t: Token) { db.tokens[t.mint] = t; dirty = true; },
   addTrade(t: TradeRow) { if (db.trades[t.sig]) return false; db.trades[t.sig] = t; dirty = true; return true; },
   addActivity(a: Activity) {

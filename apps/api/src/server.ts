@@ -3,8 +3,9 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import BN from "bn.js";
 import { Keypair, PublicKey, type Transaction } from "@solana/web3.js";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { deriveDbcPoolAddress, SwapMode } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { configPubkey, getClient, getConnection, quote, referralAta } from "@hb/onchain";
+import { buildClaimTx, buildLockTx, configPubkey, fetchEscrows, fetchLocks, getClient, getConnection, JUP_LOCK_PROGRAM_ID, quote, referralAta, type LockInfo } from "@hb/onchain";
 import { store, type Token } from "./store.js";
 import { indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
@@ -128,6 +129,64 @@ app.get("/tx/launch/quote", async (req, reply) => {
     const r = await quoteDevBuy(String(q.tier), q.antiSniper === "true" || q.antiSniper === "1", sol, Number(q.slippageBps ?? 100));
     return { devBuySol: sol, estTokens: r.outTokens, minTokens: Number(r.minOut.toString()) / 1e6, supplyPct: r.supplyPct, feeSol: r.feeSol, feePct: r.feePct,
       minFeeApplied: r.minFeeEligible, thresholdSol: r.thresholdSol, maxDevBuySol: Math.min(r.thresholdSol, DEV_BUY_MAX_SOL) };
+  } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+});
+
+// ---- Jupiter Lock: optional permanent lock of the creator's tokens ----
+const BASE_DECIMALS = 1e6;
+const lockCache = new Map<string, { at: number; v: LockInfo[] }>();
+async function locksFor(mint: string, fresh = false) {
+  const c = lockCache.get(mint);
+  if (!fresh && c && Date.now() - c.at < 20_000) return c.v;
+  const t = store.db.tokens[mint];
+  const known = (store.db.locks?.[mint] ?? []).map((e) => new PublicKey(e));
+  let v: LockInfo[];
+  try {
+    v = await fetchLocks(new PublicKey(mint), t ? new PublicKey(t.creator) : undefined);
+    if (v.length) { store.db.locks = { ...(store.db.locks ?? {}), [mint]: [...new Set([...(store.db.locks?.[mint] ?? []), ...v.map((l) => l.escrow)])] }; store.markDirty(); }
+  } catch (e) {
+    if (!known.length && c) return c.v; // RPC rate-limited: serve stale
+    v = await fetchEscrows(known); // fall back to escrows we built for this mint
+  }
+  lockCache.set(mint, { at: Date.now(), v });
+  return v;
+}
+app.get("/tokens/:mint/locks", async (req, reply) => {
+  const { mint } = req.params as { mint: string };
+  const { fresh } = req.query as { fresh?: string };
+  try {
+    const locks = await locksFor(new PublicKey(mint).toBase58(), fresh === "1");
+    const sum = (k: "total" | "locked" | "claimable") => locks.reduce((a, l) => a + Number(l[k]), 0) / BASE_DECIMALS;
+    return { programId: JUP_LOCK_PROGRAM_ID.toBase58(), locks, totalTokens: sum("total"), lockedTokens: sum("locked"), claimableTokens: sum("claimable") };
+  } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+});
+app.post("/tx/lock", async (req, reply) => {
+  const b = req.body as { creator?: string; mint?: string; amount?: number; unlockAt?: number; vestingDays?: number };
+  try {
+    const creator = new PublicKey(String(b.creator)), mint = new PublicKey(String(b.mint));
+    const t = store.db.tokens[mint.toBase58()];
+    if (!t) return reply.code(404).send({ error: "token not found" });
+    if (t.creator !== creator.toBase58()) return reply.code(403).send({ error: "only the token creator can lock dev tokens here" });
+    const amount = Number(b.amount), unlockAt = Math.floor(Number(b.unlockAt)), vestingDays = Number(b.vestingDays ?? 0);
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isFinite(amount) || amount <= 0) return reply.code(400).send({ error: "amount must be a positive number" });
+    if (!Number.isFinite(unlockAt) || unlockAt < now + 60 || unlockAt > now + 10 * 365 * 86_400) return reply.code(400).send({ error: "unlock date must be between 1 minute and 10 years from now" });
+    if (!Number.isInteger(vestingDays) || vestingDays < 0 || vestingDays > 3650) return reply.code(400).send({ error: "vestingDays must be an integer between 0 and 3650" });
+    const raw = new BN(Math.floor(amount * BASE_DECIMALS).toString());
+    const ata = getAssociatedTokenAddressSync(mint, creator);
+    const bal = await getConnection().getTokenAccountBalance(ata).then((r) => new BN(r.value.amount)).catch(() => new BN(0));
+    if (raw.gt(bal)) return reply.code(400).send({ error: `amount exceeds wallet balance (${Number(bal.toString()) / BASE_DECIMALS})` });
+    const r = await buildLockTx({ creator, mint, amount: raw, unlockAt, vestingSeconds: vestingDays * 86_400 });
+    lockCache.delete(mint.toBase58());
+    store.db.locks = { ...(store.db.locks ?? {}), [mint.toBase58()]: [...(store.db.locks?.[mint.toBase58()] ?? []), r.escrow.toBase58()] }; store.markDirty();
+    return { tx: ser(r.tx), escrow: r.escrow.toBase58(), schedule: { ...r.schedule, cliffUnlockAmount: r.schedule.cliffUnlockAmount.toString(), amountPerPeriod: r.schedule.amountPerPeriod.toString() }, permanent: true };
+  } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+});
+app.post("/tx/lock/claim", async (req, reply) => {
+  const b = req.body as { recipient?: string; escrow?: string };
+  try {
+    const r = await buildClaimTx({ recipient: new PublicKey(String(b.recipient)), escrow: new PublicKey(String(b.escrow)) });
+    return { tx: ser(r.tx) };
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
 

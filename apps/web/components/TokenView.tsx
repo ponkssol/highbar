@@ -9,6 +9,8 @@ import { FeeBreakdown } from "./FeeBreakdown";
 import { PriceChart } from "./PriceChart";
 import { TradePanel } from "./TradePanel";
 import { TierBadge, TierDot } from "./ui";
+import { DevLock, LockedBadge } from "./DevLock";
+import { useLocks, type LocksResp } from "@/lib/lock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 export interface TokenViewData {
@@ -17,7 +19,7 @@ export interface TokenViewData {
   trades: { sig: string; side: "buy" | "sell"; sol: number; tokens: number; wallet: string; ts: number; devBuy?: boolean }[];
 }
 
-function Header({ t }: { t: TokenViewData }) {
+function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
   const [copied, setCopied] = useState(false);
   const copy = () => { navigator.clipboard?.writeText(t.mint); setCopied(true); setTimeout(() => setCopied(false), 1200); };
   return (
@@ -31,6 +33,7 @@ function Header({ t }: { t: TokenViewData }) {
             <span className="num text-ink-3">${t.ticker}</span>
             <TierBadge tier={t.tier} />
             {t.antiSniper && <span title="Anti-sniper" className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-ink-2"><ShieldCheck size={13} strokeWidth={1.5} />anti-sniper</span>}
+            <LockedBadge data={locks} />
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-ink-3">
             <button onClick={copy} className="num inline-flex items-center gap-1 hover:text-ink">{shortAddr(t.mint, 5)}{copied ? <Check size={13} /> : <Copy size={13} />}</button>
@@ -121,7 +124,7 @@ function Tabs({ t }: { t: TokenViewData }) {
       )}
       {tab === "info" && (
         <dl className="p-4 text-sm">
-          {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% → 1% in 60s)" : "Off"], ["Graduation", `${TIERS[t.tier].migrationQuoteThresholdSol} SOL → Meteora DAMM v2`]].map(([k, v]) => (
+          {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s)" : "Off"], ["Graduation", `${TIERS[t.tier].migrationQuoteThresholdSol} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 border-b border-border py-2 last:border-0"><dt className="text-ink-3">{k}</dt><dd className="num truncate">{v}</dd></div>
           ))}
         </dl>
@@ -132,15 +135,17 @@ function Tabs({ t }: { t: TokenViewData }) {
 
 export function TokenView({ t }: { t: TokenViewData }) {
   const [sheet, setSheet] = useState<null | "buy" | "sell">(null);
+  const locks = useLocks(t.mint);
   const panel = (side: "buy" | "sell" = "buy", bare = false) => <TradePanel mint={t.mint} ticker={t.ticker} tier={t.tier} antiSniper={t.antiSniper} priceSol={t.priceSol} initialSide={side} bare={bare} />;
   return (
     <div className="grid grid-cols-12 gap-4 pb-20 md:pb-0">
       <div className="col-span-12"><TopBar /></div>
-      <Header t={t} />
+      <Header t={t} locks={locks.data} />
       {/* tablet: right column under header (trade first); desktop: right 4 cols sticky */}
       <aside className="col-span-12 lg:order-last lg:col-span-4 lg:min-w-[360px]">
         <div className="grid gap-4 md:grid-cols-2 lg:sticky lg:top-20 lg:grid-cols-1">
           <div className="hidden md:block">{panel()}</div>
+          <DevLock mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks.data} reload={locks.reload} />
           <Bonding t={t} />
           <FeeBreakdown tier={t.tier} />
           <Stats t={t} />

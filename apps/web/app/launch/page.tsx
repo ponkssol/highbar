@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 import { Check, ImagePlus, ShieldCheck } from "lucide-react";
 import { TIERS, type TierId } from "@hb/shared";
 import { TopBlock } from "@/components/TopBar";
@@ -31,6 +33,7 @@ export default function LaunchPage() {
   const [qErr, setQErr] = useState("");
   const [launched, setLaunched] = useState<{ mint: string; signature: string } | null>(null);
   const wallet = useHbWallet();
+  const router = useRouter();
   const auth = useAuth();
   const f = feeSplitPct(tier);
   const balance = useSolBalance(wallet.publicKey, wallet.connection);
@@ -63,7 +66,10 @@ export default function LaunchPage() {
       if (overMax) { setMsg(`Dev buy is capped at ${q?.maxDevBuySol} SOL.`); return; }
       const r = await launchToken({ name, ticker, description: desc, image, ...socials, tier, antiSniper: anti, devBuySol: devSol }, wallet.publicKey.toBase58(), (tx) => wallet.sendTransaction(tx));
       setLaunched({ mint: r.mint, signature: r.signature });
-      setMsg(`Launched ${devSol > 0 ? `with a ${devSol} SOL dev buy ` : ""}(tx ${r.signature.slice(0, 8)}).`);
+      setMsg(`Launched ${devSol > 0 ? `with a ${devSol} SOL dev buy ` : ""}(tx ${r.signature.slice(0, 8)}). Opening the token page...`);
+      // Wait (max ~20s) until the indexer has the new pool so the token page shows live data, then redirect.
+      for (let i = 0; i < 10; i++) { if (await api.token(r.mint).then(() => true).catch(() => false)) break; await new Promise((res) => setTimeout(res, 2000)); }
+      router.push(`/token/${r.mint}`);
     } catch (e) {
       setMsg(`Launch failed: ${(e as Error).message}`);
     } finally { setBusy(false); }
