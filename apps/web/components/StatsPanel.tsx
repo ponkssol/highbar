@@ -82,10 +82,10 @@ export function LaunchChart() {
   );
 }
 
-export function KpiCard({ label, value, unit, delta, spark, href, badge }: { label: string; value: string; unit?: string; delta: number; spark: number[]; href: string; badge?: React.ReactNode }) {
+export function KpiCell({ label, value, unit, delta, spark, href, badge, className = "" }: { label: string; value: string; unit?: string; delta: number; spark: number[]; href: string; badge?: React.ReactNode; className?: string }) {
   return (
-    <Link href={href} className="flex flex-col justify-between gap-2 rounded-lg border border-border bg-surface p-3.5 transition-colors hover:border-border-strong">
-      <div className="flex items-center justify-between gap-2 text-[13px] text-ink-3"><span className="flex items-center gap-1.5">{label}{badge}</span><DeltaPill v={delta} /></div>
+    <Link href={href} className={`flex flex-col justify-between gap-3 p-5 transition-colors hover:bg-muted ${className}`}>
+      <div className="flex items-center justify-between gap-2 text-[13px] text-ink-3"><span className="flex items-center gap-1.5 truncate">{label}{badge}</span><DeltaPill v={delta} /></div>
       <div className="flex items-end justify-between gap-2">
         <div className="flex items-baseline gap-1"><span className="num text-2xl font-semibold tracking-tight">{value}</span>{unit && <span className="text-xs text-ink-3">{unit}</span>}</div>
         <Sparkline values={spark} />
@@ -94,13 +94,13 @@ export function KpiCard({ label, value, unit, delta, spark, href, badge }: { lab
   );
 }
 
-export function KpiGrid({ stats }: { stats: { totalVolumeSol: number; volumeDelta: number; creatorFeesSol: number; creatorDelta: number; barBurned: number; burnDelta: number } }) {
+export function KpiGrid({ stats, className = "" }: { stats: { totalVolumeSol: number; volumeDelta: number; creatorFeesSol: number; creatorDelta: number; barBurned: number; burnDelta: number }; className?: string }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <KpiCard label="Total volume" value={stats.totalVolumeSol.toLocaleString("en-US", { maximumFractionDigits: 0 })} unit="SOL" delta={stats.volumeDelta} spark={seeded(14, 50, 40, 3)} href="/" />
-      <KpiCard label="Fees to creators" value={stats.creatorFeesSol.toFixed(1)} unit="SOL" delta={stats.creatorDelta} spark={seeded(14, 50, 40, 5)} href="/leaderboard" />
-      <KpiCard label="$BAR burned" value={`${(stats.barBurned / 1e6).toFixed(2)}M`} delta={stats.burnDelta} spark={seeded(14, 50, 40, 11)} href="/burn" badge={<BurnBadge />} />
-      <KpiCard label="Active traders 24h" value="1,284" delta={6.3} spark={seeded(14, 50, 40, 17)} href="/leaderboard" />
+    <div className={`grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-surface sm:grid-cols-2 [&>*]:border-border max-sm:[&>*:not(:last-child)]:border-b sm:[&>*:nth-child(-n+2)]:border-b sm:[&>*:nth-child(odd)]:border-r ${className}`}>
+      <KpiCell label="Total volume" value={stats.totalVolumeSol.toLocaleString("en-US", { maximumFractionDigits: 0 })} unit="SOL" delta={stats.volumeDelta} spark={seeded(14, 50, 40, 3)} href="/" />
+      <KpiCell label="Fees to creators" value={stats.creatorFeesSol.toFixed(1)} unit="SOL" delta={stats.creatorDelta} spark={seeded(14, 50, 40, 5)} href="/leaderboard" />
+      <KpiCell label="$BAR burned" value={`${(stats.barBurned / 1e6).toFixed(2)}M`} delta={stats.burnDelta} spark={seeded(14, 50, 40, 11)} href="/burn" badge={<BurnBadge />} />
+      <KpiCell label="Active traders 24h" value="1,284" delta={6.3} spark={seeded(14, 50, 40, 17)} href="/leaderboard" />
     </div>
   );
 }

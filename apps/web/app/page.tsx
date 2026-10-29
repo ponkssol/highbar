@@ -32,12 +32,12 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-4">
       <TopBlock search={search} onSearch={setSearch}>
-        <div className="mt-4 grid grid-cols-1 items-center gap-6 lg:grid-cols-2 xl:grid-cols-[1.25fr_auto_1fr]">
-          <ActivityGrid />
-          <div className="flex justify-center lg:order-last lg:col-span-2 xl:order-none xl:col-span-1">
+        <div className="mt-4 grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2 xl:grid-cols-[5fr_2.4fr_4.6fr]">
+          <ActivityGrid className="h-full lg:col-span-2 xl:col-span-1" />
+          <div className="flex h-full items-center justify-center rounded-lg border border-border bg-surface p-5">
             <TickGauge value={STATS.graduatedPct} label="Graduated" sub={`${STATS.graduated} / ${STATS.totalTokens} tokens`} />
           </div>
-          <KpiGrid stats={STATS} />
+          <KpiGrid stats={STATS} className="h-full" />
         </div>
       </TopBlock>
       <TokenTable tokens={TOKENS} search={search} />
