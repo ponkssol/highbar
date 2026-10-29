@@ -15,3 +15,6 @@ body{font-family:var(--font-inter),Inter,system-ui,sans-serif;-webkit-font-smoot
 .wallet-adapter-button.hb-wallet{background:var(--hb-surface);color:var(--hb-ink);border:1px solid var(--hb-border);height:40px;border-radius:12px;font-family:inherit;font-size:14px;font-weight:500;padding:0 14px;line-height:40px}
 .wallet-adapter-button.hb-wallet:not([disabled]):hover{background:var(--hb-surface-muted)}
 .wallet-adapter-button.hb-wallet .wallet-adapter-button-start-icon{width:18px;height:18px;margin-right:8px}
+@keyframes hb-pop{0%{transform:scale(.2);box-shadow:0 0 0 0 var(--glow)}45%{transform:scale(1.35);box-shadow:0 0 10px 3px var(--glow)}100%{transform:scale(1);box-shadow:0 0 0 0 transparent}}
+.hb-cell-pop{animation:hb-pop .9s ease-out}
+@media (prefers-reduced-motion:reduce){.hb-cell-pop{animation:none}}

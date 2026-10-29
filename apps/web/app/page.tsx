@@ -4,7 +4,8 @@ import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { TopBlock } from "@/components/TopBar";
 import { TickGauge } from "@/components/charts";
-import { KpiGrid, LaunchChart } from "@/components/StatsPanel";
+import { KpiGrid } from "@/components/StatsPanel";
+import { ActivityGrid } from "@/components/ActivityGrid";
 import { TokenTable } from "@/components/TokenTable";
 import { BurnBadge } from "@/components/ui";
 import { STATS, TOKENS } from "@/lib/mock";
@@ -32,7 +33,7 @@ export default function Home() {
     <div className="flex flex-col gap-4">
       <TopBlock search={search} onSearch={setSearch}>
         <div className="mt-4 grid grid-cols-1 items-center gap-6 lg:grid-cols-2 xl:grid-cols-[1.25fr_auto_1fr]">
-          <LaunchChart />
+          <ActivityGrid />
           <div className="flex justify-center lg:order-last lg:col-span-2 xl:order-none xl:col-span-1">
             <TickGauge value={STATS.graduatedPct} label="Graduated" sub={`${STATS.graduated} / ${STATS.totalTokens} tokens`} />
           </div>
