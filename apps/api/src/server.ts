@@ -100,7 +100,10 @@ app.post("/tx/swap", async (req, reply) => {
   const b = req.body as { owner: string; pool: string; side: "buy" | "sell"; amount: string | number; slippageBps?: number };
   try {
     const pool = new PublicKey(b.pool), owner = new PublicKey(b.owner), sell = b.side === "sell";
-    const amountIn = new BN(Math.floor(Number(b.amount) * (sell ? 1e6 : 1e9)).toString());
+    const amt = Number(b.amount);
+    if (!Number.isFinite(amt) || amt <= 0) return reply.code(400).send({ error: "amount must be a positive number" });
+    if (b.side !== "buy" && b.side !== "sell") return reply.code(400).send({ error: "side must be buy|sell" });
+    const amountIn = new BN(Math.floor(amt * (sell ? 1e6 : 1e9)).toString());
     const q = await quote({ pool, amountIn, sell, slippageBps: b.slippageBps ?? 100 });
     const minimumAmountOut = q.minimumAmountOut ?? new BN(0);
     const tx = await getClient().pool.swap2({ owner, pool, swapBaseForQuote: sell, referralTokenAccount: referralAta(), swapMode: SwapMode.ExactIn, amountIn, minimumAmountOut });
