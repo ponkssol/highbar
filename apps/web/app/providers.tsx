@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { createAppKit, type AppKit } from "@reown/appkit/react";
 import { SolanaAdapter } from "@reown/appkit-adapter-solana/react";
 import { solana, solanaDevnet } from "@reown/appkit/networks";
+import { AuthProvider } from "@/lib/auth";
 
 // Node 25 exposes localStorage without a file path. Reading it during SSR warns.
 if (typeof window === "undefined") {
@@ -58,5 +59,5 @@ export function Providers({ children, reownProjectId }: { children: ReactNode; r
     return () => mo.disconnect();
   }, [ready]);
 
-  return <WalletReady.Provider value={ready}>{children}</WalletReady.Provider>;
+  return <WalletReady.Provider value={ready}><AuthProvider>{children}</AuthProvider></WalletReady.Provider>;
 }

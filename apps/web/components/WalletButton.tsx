@@ -1,5 +1,6 @@
 "use client";
-import { ChevronDown, Wallet } from "lucide-react";
+import { Check, ChevronDown, Wallet } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { useHbWallet, useSolBalance, useWalletModal } from "@/lib/wallet";
 import { shortAddr } from "@/lib/format";
 
@@ -12,12 +13,14 @@ export function WalletButton({ full = false }: { full?: boolean }) {
   const { ready, address, publicKey, isConnected, connection } = useHbWallet();
   const bal = useSolBalance(publicKey, connection);
   const open = useWalletModal();
+  const { status, signIn } = useAuth();
   const base = `inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium transition-opacity ${full ? "w-full justify-center" : ""}`;
   if (isConnected && address) {
     return (
       <button onClick={() => open("Account")} className={`${base} border border-border bg-surface text-ink hover:bg-muted`}>
         <AddrDot address={address} />
         <span className="num">{shortAddr(address)}</span>
+        {status === "verified" ? <Check size={13} strokeWidth={2} className="text-buy" aria-label="Verified" /> : <span title={status === "signing" ? "Signing in…" : "Unverified, click to sign in"} onClick={(e) => { e.stopPropagation(); if (status !== "signing") void signIn(); }} className={`h-2 w-2 rounded-full ${status === "signing" ? "animate-pulse bg-ink-3" : "bg-burn"}`} />}
         {bal != null && <span className="num text-ink-3">{bal.toFixed(2)} SOL</span>}
         <ChevronDown size={14} strokeWidth={1.5} className="text-ink-3" />
       </button>

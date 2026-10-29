@@ -8,6 +8,8 @@ import { configPubkey, getClient, getConnection, quote, referralAta } from "@hb/
 import { store, type Token } from "./store.js";
 import { indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
+import { registerPages } from "./routes/pages.js";
+import { registerAuth } from "./auth.js";
 
 const SOL_USD = Number(process.env.SOL_USD ?? 150);
 const DRY_RUN = process.env.DRY_RUN !== "false";
@@ -16,6 +18,8 @@ await app.register(cors, { origin: (process.env.CORS_ORIGIN ?? "http://localhost
 
 const view = (t: Token) => ({ ...t, mcapUsd: t.mcapSol * SOL_USD });
 
+registerAuth(app);
+registerPages(app);
 app.get("/health", async () => ({ ok: true, tokens: store.tokens().length, dryRun: DRY_RUN, time: Date.now() }));
 
 app.get("/tokens", async (req) => {

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useHbWallet } from "@/lib/wallet";
+import { useAuth } from "@/lib/auth";
 import { ShieldCheck } from "lucide-react";
 import type { TierId } from "@hb/shared";
 import { ANTI_SNIPER, antiSniperFeeBps, feeSplitPct } from "@/lib/fees";
@@ -8,6 +9,7 @@ import { buildSwapTx } from "@/lib/tx";
 
 export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSide = "buy", bare = false }: { mint: string; ticker: string; tier: TierId; antiSniper: boolean; priceSol: number; initialSide?: "buy" | "sell"; bare?: boolean }) {
   const { publicKey, sendTransaction } = useHbWallet();
+  const auth = useAuth();
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [amount, setAmount] = useState("0.5");
   const [slip, setSlip] = useState("1");
@@ -33,6 +35,7 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
 
   const submit = async () => {
     if (!publicKey) return setMsg("Connect wallet dulu.");
+    if (!(await auth.ensureVerified())) return setMsg("Sign-in dulu untuk trading.");
     setBusy(true);
     try {
       const r = await buildSwapTx({ mint, side, amount: amt, slippageBps: slipBps, owner: publicKey.toBase58() });
