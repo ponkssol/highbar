@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { AlertTriangle, Lock, Unlock } from "lucide-react";
 import { useHbWallet } from "@/lib/wallet";
+import { api } from "@/lib/api";
 import { buildClaimLockTx, buildLockTx, toUi, type LocksResp } from "@/lib/lock";
 
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
@@ -66,6 +67,7 @@ export function DevLock({ mint, ticker, creator, data, reload }: { mint: string;
       const r = await buildLockTx({ creator: publicKey.toBase58(), mint, amount: amt, unlockAt, vestingDays: vd });
       const sig = await sendTransaction(r.transaction);
       await connection.confirmTransaction(sig, "confirmed");
+      await api.confirmLock(r.escrow).catch(() => {});
       setMsg(`Locked. Tx ${sig.slice(0, 8)}`); setOpen(false); setAck(false); reload();
     } catch (e) { setMsg(`Lock failed: ${(e as Error).message}`); } finally { setBusy(false); }
   };

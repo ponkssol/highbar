@@ -19,7 +19,22 @@ const DRY_RUN = process.env.DRY_RUN !== "false";
 const app = Fastify({ logger: { level: "info" } });
 await app.register(cors, { origin: (process.env.CORS_ORIGIN ?? "http://localhost:3000").split(",") });
 
-const view = (t: Token) => ({ ...t, mcapUsd: t.mcapSol * SOL_USD });
+/** Dev-lock status from our own lock records (no RPC): active = not cancelled and tokens still locked. */
+function devLock(mint: string) {
+  const now = Date.now() / 1000;
+  const act = Object.values(store.db.lockMeta ?? {}).filter((m) => m.mint === mint && !m.cancelled && BigInt(m.locked) > 0n && now < m.endTime);
+  return act.length ? { devLocked: true, unlockAt: Math.max(...act.map((m) => m.cliffTime)) } : { devLocked: false, unlockAt: null as number | null };
+}
+const view = (t: Token) => ({ ...t, mcapUsd: t.mcapSol * SOL_USD, ...devLock(t.mint) });
+function recordLocks(infos: LockInfo[]) {
+  if (!infos.length) return;
+  const meta = { ...(store.db.lockMeta ?? {}) }, locks = { ...(store.db.locks ?? {}) };
+  for (const l of infos) {
+    meta[l.escrow] = { mint: l.mint, creator: l.creator, cliffTime: l.cliffTime, endTime: l.endTime, total: String(l.total), locked: String(l.locked), cancelled: !!l.cancelled, seenAt: Date.now() };
+    locks[l.mint] = [...new Set([...(locks[l.mint] ?? []), l.escrow])];
+  }
+  store.db.lockMeta = meta; store.db.locks = locks; store.markDirty();
+}
 
 registerAuth(app);
 registerPages(app);
@@ -143,11 +158,12 @@ async function locksFor(mint: string, fresh = false) {
   let v: LockInfo[];
   try {
     v = await fetchLocks(new PublicKey(mint), t ? new PublicKey(t.creator) : undefined);
-    if (v.length) { store.db.locks = { ...(store.db.locks ?? {}), [mint]: [...new Set([...(store.db.locks?.[mint] ?? []), ...v.map((l) => l.escrow)])] }; store.markDirty(); }
+    recordLocks(v);
   } catch (e) {
     if (!known.length && c) return c.v; // RPC rate-limited: serve stale
     v = await fetchEscrows(known); // fall back to escrows we built for this mint
   }
+  recordLocks(v);
   lockCache.set(mint, { at: Date.now(), v });
   return v;
 }
@@ -201,6 +217,7 @@ async function allLocks() {
   if (allLocksCache && Date.now() - allLocksCache.at < 20_000) return allLocksCache.v;
   const known = Object.values(store.db.locks ?? {}).flat();
   const infos = await fetchEscrows(known.map((e) => new PublicKey(e)));
+  recordLocks(infos);
   // creation time = block time of the escrow's oldest signature (cached forever)
   for (const l of infos) if (!(l.escrow in lockedAt)) {
     const sigs = await getConnection().getSignaturesForAddress(new PublicKey(l.escrow), { limit: 20 }).catch(() => []);
@@ -223,10 +240,28 @@ app.get("/locks/:id", async (req, reply) => {
   try {
     const l = await fetchEscrow(new PublicKey(id));
     if (!l) return reply.code(404).send({ error: "lock not found" });
+    recordLocks([l]);
     if (!(l.escrow in lockedAt)) { const s = await getConnection().getSignaturesForAddress(new PublicKey(id), { limit: 20 }).catch(() => []); const f = s[s.length - 1]; if (f?.blockTime) lockedAt[id] = f.blockTime; }
     return lockView(l);
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
+/** Called by the web app after a lock tx confirms: reads the escrow on-chain once and records it. */
+app.post("/tx/lock/confirm", async (req, reply) => {
+  const b = req.body as { escrow?: string };
+  try {
+    const l = await fetchEscrow(new PublicKey(String(b.escrow)));
+    if (!l) return reply.code(404).send({ error: "escrow not found on-chain yet" });
+    recordLocks([l]); lockCache.delete(l.mint); allLocksCache = null;
+    return { ok: true, ...devLock(l.mint) };
+  } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+});
+// Locks indexer: refresh every known escrow (one batched getMultipleAccounts) so devLocked/unlockAt stay current.
+async function indexLocks() {
+  const known = Object.values(store.db.locks ?? {}).flat();
+  if (known.length) recordLocks(await fetchEscrows(known.map((e) => new PublicKey(e))));
+}
+setTimeout(() => indexLocks().catch(() => {}), 5_000);
+setInterval(() => indexLocks().catch(() => {}), Number(process.env.LOCKS_INDEX_MS ?? 120_000)).unref();
 app.post("/tx/lock/claim", async (req, reply) => {
   const b = req.body as { recipient?: string; escrow?: string };
   try {

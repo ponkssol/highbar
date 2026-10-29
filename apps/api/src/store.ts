@@ -10,7 +10,8 @@ export interface Token {
 export interface TradeRow { sig: string; pool: string; mint: string; side: "buy" | "sell"; sol: number; tokens: number; feeSol: number; wallet: string; viaUi: boolean; ts: number; /** first buy inside the pool-creation tx (Block 0) */ devBuy?: boolean }
 export type ActivityType = "launch" | "burn" | "graduate" | "trade";
 export interface Activity { id: string; type: ActivityType; mint: string; symbol: string; ts: number; amount?: number; side?: "buy" | "sell"; wallet?: string; sig?: string }
-interface Db { tokens: Record<string, Token>; trades: Record<string, TradeRow>; lastSig: Record<string, string>; activity: Activity[]; burns: Activity[]; /** Jupiter Lock escrows per mint (built via /tx/lock or found on-chain) */ locks?: Record<string, string[]> }
+interface Db { tokens: Record<string, Token>; trades: Record<string, TradeRow>; lastSig: Record<string, string>; activity: Activity[]; burns: Activity[]; /** Jupiter Lock escrows per mint (built via /tx/lock or found on-chain) */ locks?: Record<string, string[]>; /** confirmed lock records (escrow -> summary), written by /tx/lock/confirm and the locks indexer */ lockMeta?: Record<string, LockMeta> }
+export interface LockMeta { mint: string; creator: string; cliffTime: number; endTime: number; total: string; locked: string; cancelled: boolean; seenAt: number }
 
 const file = path.resolve(process.env.DATA_FILE ?? "./data/db.json");
 const db: Db = { tokens: {}, trades: {}, lastSig: {}, activity: [], burns: [] };

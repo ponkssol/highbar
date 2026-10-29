@@ -6,9 +6,10 @@ import { ShieldCheck } from "lucide-react";
 import type { TierId } from "@hb/shared";
 import { ANTI_SNIPER, antiSniperFeeBps, feeSplitPct } from "@/lib/fees";
 import { buildSwapTx } from "@/lib/tx";
+import { PublicKey } from "@solana/web3.js";
 
 export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSide = "buy", bare = false }: { mint: string; ticker: string; tier: TierId; antiSniper: boolean; priceSol: number; initialSide?: "buy" | "sell"; bare?: boolean }) {
-  const { publicKey, sendTransaction } = useHbWallet();
+  const { publicKey, sendTransaction, connection } = useHbWallet();
   const auth = useAuth();
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [amount, setAmount] = useState("0.5");
@@ -16,7 +17,17 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
   const [slipAuto, setSlipAuto] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const balance = 12_500_000; // mock token balance
+  // Real token balance of the connected wallet (0 when not connected / no account).
+  const [balance, setBalance] = useState(0);
+  useEffect(() => {
+    if (!publicKey) { setBalance(0); return; }
+    let alive = true;
+    const load = () => connection.getParsedTokenAccountsByOwner(publicKey, { mint: new PublicKey(mint) })
+      .then((r) => alive && setBalance(r.value.reduce((a, x) => a + Number(x.account.data.parsed?.info?.tokenAmount?.uiAmount ?? 0), 0))).catch(() => {});
+    load();
+    const id = setInterval(load, 20_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [publicKey, connection, mint]);
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     if (!antiSniper) return;

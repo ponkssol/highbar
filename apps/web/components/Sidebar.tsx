@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useHbWallet, useSolBalance } from "@/lib/wallet";
 import { AddrDot, WalletButton } from "./WalletButton";
 import { Coins, Flame, LayoutGrid, Lock, Rocket, Settings, Trophy, Wallet } from "lucide-react";
-import { tierCounts } from "@/lib/mock";
+import { useTokens } from "@/lib/useApi";
 import { TIERS } from "@hb/shared";
 import { TierDot } from "./ui";
 import { shortAddr } from "@/lib/format";
@@ -25,9 +25,11 @@ export function Sidebar() {
   const path = usePathname();
   const { publicKey, address, isConnected, connection } = useHbWallet();
   const bal = useSolBalance(publicKey, connection);
+  const { tokens } = useTokens();
+  const tierCounts = () => (["standard", "higher", "max"] as const).map((tier) => ({ tier, count: tokens.filter((t) => t.tier === tier).length }));
   const isActive = (h: string) => (h === "/" ? path === "/" || path.startsWith("/token") : path.startsWith(h));
   return (
-    <aside className="fixed inset-y-0 left-0 z-20 flex w-sidebar flex-col border-r border-border bg-surface px-4 py-5">
+    <aside className="fixed inset-y-0 left-0 z-20 hidden w-sidebar md:flex flex-col border-r border-border bg-surface px-4 py-5">
       <Link href="/" className="mb-8 flex items-center gap-2 px-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-sm bg-ink text-sm font-semibold text-on-ink">HB</span>
         <span className="text-lg font-semibold tracking-tight">Higher Bar</span>
@@ -65,6 +67,7 @@ export function Sidebar() {
           <div className="mb-2 text-xs text-ink-3">Connect a wallet to trade &amp; launch</div>
           <WalletButton full />
         </div>
-      )}    </aside>
+      )}
+    </aside>
   );
 }

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
+import { ChevronDown, ChevronUp, Lock, ShieldCheck } from "lucide-react";
 import { TIERS } from "@hb/shared";
 import { progressOf, type TokenRow } from "@/lib/mock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
@@ -22,6 +22,13 @@ const val = (t: TokenRow, k: SortKey): number | string =>
   k === "name" ? t.name : k === "tier" ? TIER_ORDER[t.tier] : k === "mcap" ? t.mcapUsd : k === "progress" ? progressOf(t) : k === "volume" ? t.volume24hSol : -t.createdAt;
 
 export const PAGE_SIZE = 15;
+
+/** "Dev locked" pill from the token list API (devLocked/unlockAt come from our lock records). */
+function DevLockedBadge({ t }: { t: TokenRow }) {
+  if (!t.devLocked) return null;
+  const until = t.unlockAt ? new Date(t.unlockAt * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "";
+  return <span data-testid="dev-locked" title={until ? `Dev tokens locked until ${until}` : "Dev tokens locked"} className="inline-flex items-center gap-1 rounded-full border border-ink px-1.5 text-[10px] font-medium leading-4"><Lock size={10} strokeWidth={2} />Dev locked</span>;
+}
 
 export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { tokens: TokenRow[]; search?: string; pageSize?: number }) {
   const router = useRouter();
@@ -61,18 +68,38 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
 
   return (
     <div className="rounded-lg border border-border bg-surface shadow-card">
-      <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3">
         <h2 className="text-lg font-semibold">New tokens</h2>
-        <div className="flex gap-1">
+        <div className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1">
           {FILTERS.map((f) => (
             <button key={f.id} onClick={() => setFilter(f.id)}
-              className={`h-8 rounded-full px-3 text-sm ${filter === f.id ? "bg-ink text-on-ink" : "border border-border text-ink-2 hover:bg-muted"}`}>
+              className={`h-11 shrink-0 whitespace-nowrap rounded-full px-3 text-sm md:h-8 ${filter === f.id ? "bg-ink text-on-ink" : "border border-border text-ink-2 hover:bg-muted"}`}>
               {f.label} <span className="num ml-1 text-xs opacity-60">{tokens.filter(f.test).length}</span>
             </button>
           ))}
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <ul className="flex flex-col gap-3 p-3 md:hidden" data-testid="token-cards">
+        {pageRows.map((t) => {
+          const p = progressOf(t);
+          return (
+            <li key={t.mint}>
+              <Link href={`/token/${t.mint}`} className="block rounded-[12px] border border-border p-3 active:bg-muted">
+                <div className="flex items-center gap-3">
+                  <Avatar name={t.name} />
+                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><DevLockedBadge t={t} /></span></span>
+                  <TierBadge tier={t.tier} />
+                  <span className="num text-right text-sm">{fmtUsd(t.mcapUsd)}</span>
+                </div>
+                <div className="mt-3 flex items-center gap-3"><div className="flex-1"><ProgressBar value={p} tier={t.tier} /></div><span className="num w-10 text-right text-xs">{Math.round(p * 100)}%</span></div>
+                <div className="num mt-2 flex justify-between text-xs text-ink-3"><span>Vol {fmtSol(t.volume24hSol, 1)} SOL</span><span>{fmtAge(t.createdAt, Date.now())}</span><span>{shortAddr(t.creator)}</span></div>
+              </Link>
+            </li>
+          );
+        })}
+        {rows.length === 0 && <li className="py-10 text-center text-ink-3">No tokens match.</li>}
+      </ul>
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[960px] text-sm">
           <thead className="border-b border-border">
             <tr>
@@ -90,7 +117,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
                   <td className="px-4 py-3">
                     <Link href={`/token/${t.mint}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                       <Avatar name={t.name} />
-                      <span><span className="block font-medium">{t.name}</span><span className="num text-xs text-ink-3">${t.ticker}</span></span>
+                      <span><span className="block font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><DevLockedBadge t={t} /></span></span>
                     </Link>
                   </td>
                   <td className="px-4 py-3"><TierBadge tier={t.tier} /></td>

@@ -6,7 +6,6 @@ import { TopBlock } from "@/components/TopBar";
 import { Card, ProgressBar, TierBadge } from "@/components/ui";
 import { Empty, Loading, OfflineNote, Tabs, TD, TH } from "@/components/PageStates";
 import { useApiData } from "@/lib/pagesData";
-import { TOKENS } from "@/lib/mock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 type Kind = "tokens" | "creators" | "traders";
@@ -15,18 +14,15 @@ type TokRow = { mint: string; name: string; symbol: string; tier: TierId; mcapUs
 type CreRow = { creator: string; tokens: number; graduated: number; volumeSol: number; feesEarnedSol: number };
 type TraRow = { wallet: string; volumeSol: number; trades: number; buys: number; sells: number; lastTs: number };
 
-const MOCK: { tokens: TokRow[]; creators: CreRow[]; traders: TraRow[] } = {
-  tokens: TOKENS.map((t) => ({ mint: t.mint, name: t.name, symbol: t.ticker, tier: t.tier, mcapUsd: t.mcapUsd, progress: 0.5, isMigrated: false, volumeSol: t.volume24hSol, trades: 0 })),
-  creators: TOKENS.slice(0, 8).map((t, i) => ({ creator: t.creator, tokens: 1 + (i % 3), graduated: i % 4 === 0 ? 1 : 0, volumeSol: t.volume24hSol, feesEarnedSol: t.volume24hSol * 0.004 })),
-  traders: TOKENS.slice(0, 8).map((t, i) => ({ wallet: t.creator, volumeSol: t.volume24hSol / (i + 1), trades: 20 - i, buys: 12 - i, sells: 8, lastTs: t.createdAt })),
-};
+/** No mock rows: empty until the API answers. */
+const EMPTY: { tokens: TokRow[]; creators: CreRow[]; traders: TraRow[] } = { tokens: [], creators: [], traders: [] };
 type SortTok = "volumeSol" | "mcapUsd" | "progress";
 
 export default function LeaderboardPage() {
   const [kind, setKind] = useState<Kind>("tokens");
   const [win, setWin] = useState<Win>("24h");
   const [sortTok, setSortTok] = useState<SortTok>("volumeSol");
-  const { data, loading, error } = useApiData<unknown[]>(`/leaderboard/${kind}?window=${win}&limit=100`, MOCK[kind] as unknown[]);
+  const { data, loading, error } = useApiData<unknown[]>(`/leaderboard/${kind}?window=${win}&limit=100`, EMPTY[kind] as unknown[]);
   const rows = data ?? [];
   const rank = (i: number) => <span className={`num inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${i < 3 ? "bg-ink text-on-ink" : "bg-muted text-ink-2"}`}>{i + 1}</span>;
 

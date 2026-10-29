@@ -94,13 +94,13 @@ export function KpiCell({ label, value, unit, delta, spark, href, badge, classNa
   );
 }
 
-export function KpiGrid({ stats, className = "", bare = false }: { stats: { totalVolumeSol: number; volumeDelta: number; creatorFeesSol: number; creatorDelta: number; barBurned: number; burnDelta: number }; className?: string; bare?: boolean }) {
+export function KpiGrid({ stats, className = "", bare = false }: { stats: { totalVolumeSol: number; volumeDelta: number; creatorFeesSol: number; creatorDelta: number; barBurned: number; burnDelta: number; activeTraders24h?: number }; className?: string; bare?: boolean }) {
   return (
-    <div className={`grid min-w-0 grid-cols-1 overflow-hidden sm:grid-cols-2 ${bare ? "" : "rounded-lg border border-border bg-surface"} [&>*]:border-border max-sm:[&>*:not(:last-child)]:border-b sm:[&>*:nth-child(-n+2)]:border-b sm:[&>*:nth-child(odd)]:border-r ${className}`}>
+    <div className={`grid min-w-0 grid-cols-2 overflow-hidden ${bare ? "" : "rounded-lg border border-border bg-surface"} [&>*]:border-border [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(odd)]:border-r ${className}`}>
       <KpiCell label="Total volume" value={stats.totalVolumeSol.toLocaleString("en-US", { maximumFractionDigits: 0 })} unit="SOL" delta={stats.volumeDelta} spark={seeded(14, 50, 40, 3)} href="/" />
       <KpiCell label="Fees to creators" value={stats.creatorFeesSol.toFixed(1)} unit="SOL" delta={stats.creatorDelta} spark={seeded(14, 50, 40, 5)} href="/leaderboard" />
       <KpiCell label="$BAR burned" value={`${(stats.barBurned / 1e6).toFixed(2)}M`} delta={stats.burnDelta} spark={seeded(14, 50, 40, 11)} href="/burn" badge={<BurnBadge />} />
-      <KpiCell label="Active traders 24h" value="1,284" delta={6.3} spark={seeded(14, 50, 40, 17)} href="/leaderboard" />
+      <KpiCell label="Active traders 24h" value={(stats.activeTraders24h ?? 0).toLocaleString("en-US")} delta={0} spark={seeded(14, 50, 40, 17)} href="/leaderboard" />
     </div>
   );
 }

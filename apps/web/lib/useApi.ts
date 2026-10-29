@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api, statsView, toRow, type ApiStats, type ApiTrade } from "./api";
-import { TOKENS, type TokenRow } from "./mock";
+import type { TokenRow } from "./mock";
 
 function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
@@ -17,11 +17,12 @@ function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []) {
   return { data, error };
 }
 
-/** Home table: live tokens from API; mock rows if the API is unreachable. */
+/** Live tokens from the API (no mock fallback). */
 export function useTokens(): { tokens: TokenRow[]; live: boolean } {
   const { data, error } = usePoll(() => api.tokens({ limit: 200 }), 15_000);
   if (data) return { tokens: data.items.map(toRow), live: true };
-  return { tokens: error ? TOKENS : [], live: false };
+  void error;
+  return { tokens: [], live: false };
 }
 
 export function useStats() {
