@@ -2,7 +2,7 @@ import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { getPriceFromSqrtPrice } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { TIERS, type TierId } from "@hb/shared";
-import { getClient, getConnection, allTierConfigEntries, sleep, withRetry } from "@hb/onchain";
+import { getClient, getConnection, allTierConfigEntries, referralAta, sleep, withRetry } from "@hb/onchain";
 import { decodeDbcEvents, type RawTx } from "./decode.js";
 import { store, type Token } from "../store.js";
 import { recordTrade } from "../candles/index.js";
@@ -11,7 +11,7 @@ import { recordTrade } from "../candles/index.js";
 const METAPLEX = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 const SUPPLY = 1_000_000_000;
 const L = 1e9;
-const REFERRAL = process.env.PLATFORM_REFERRAL_TOKEN_ACCOUNT;
+const REFERRAL = process.env.PLATFORM_REFERRAL_TOKEN_ACCOUNT || referralAta().toBase58();
 
 export function tierConfigs() {
   return allTierConfigEntries()

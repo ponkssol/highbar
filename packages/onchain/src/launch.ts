@@ -1,7 +1,7 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { NATIVE_MINT_ADDR, } from "./constants.js";
-import { arg, configPubkey, getClient, isMain, loadPlatformKeypair, referralAta, sendTx } from "./client.js";
+import { arg, configPubkey, getClient, isMain, loadPlatformKeypair, usableReferralAta, sendTx } from "./client.js";
 import { deriveDbcPoolAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
 
 export interface LaunchParams {
@@ -43,7 +43,7 @@ export async function launchToken(p: LaunchParams): Promise<LaunchResult> {
           buyer: p.creator.publicKey,
           buyAmount: p.firstBuyLamports,
           minimumAmountOut: p.minTokensOut ?? new BN(1),
-          referralTokenAccount: referralAta(),
+          referralTokenAccount: await usableReferralAta(),
         },
       })
     : await client.creator.createPool(createPoolParam);

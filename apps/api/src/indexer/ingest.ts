@@ -1,9 +1,10 @@
+import { referralAta } from "@hb/onchain";
 import { db } from "../db/pool.js";
 import { env } from "../lib/env.js";
 import { decodeDbcEvents, type DbcEvent, type RawTx } from "./decode.js";
 
 type Tx = { signature: string; slot: number };
-const PLATFORM_REFERRAL = env.PLATFORM_REFERRAL_TOKEN_ACCOUNT;
+const PLATFORM_REFERRAL = env.PLATFORM_REFERRAL_TOKEN_ACCOUNT || referralAta().toBase58();
 
 /** Idempotent: re-processing the same tx is a no-op thanks to (sig, ix_idx) PKs. */
 export async function ingestTx(raw: RawTx, finalized = false) {

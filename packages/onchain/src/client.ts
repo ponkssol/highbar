@@ -68,8 +68,34 @@ export function configPubkey(tier: string, antiSniper: boolean): PublicKey {
   return new PublicKey(v);
 }
 
+const TOKEN_PROGRAM = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const ATA_PROGRAM = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+const WSOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
+const wsolAta = (owner: PublicKey) => PublicKey.findProgramAddressSync([owner.toBuffer(), TOKEN_PROGRAM.toBuffer(), WSOL_MINT.toBuffer()], ATA_PROGRAM)[0];
+
+/** Platform referral wallet: env REFERRAL_WALLET, else configs.referral_wallet. */
+export function referralWallet(): PublicKey | null {
+  const w = process.env.REFERRAL_WALLET || loadConfigs().referral_wallet;
+  return w ? new PublicKey(w) : null;
+}
+
+/** Referral token account (quote/WSOL ATA of the referral wallet; legacy fallback: configs.referral_wsol_ata). */
 export function referralAta(): PublicKey {
-  return new PublicKey(loadConfigs().referral_wsol_ata);
+  const w = referralWallet();
+  return w ? wsolAta(w) : new PublicKey(loadConfigs().referral_wsol_ata);
+}
+
+let _refOk: { at: number; ok: boolean } | undefined;
+/** Referral account to put in a swap, or null if it does not exist on-chain (swap would fail with AccountNotInitialized). Cached 5 min when present, 30 s when missing. */
+export async function usableReferralAta(): Promise<PublicKey | null> {
+  const pk = referralAta();
+  const ttl = _refOk?.ok ? 300_000 : 30_000;
+  if (!_refOk || Date.now() - _refOk.at > ttl) {
+    try { _refOk = { at: Date.now(), ok: !!(await getConnection().getAccountInfo(pk, "confirmed")) }; }
+    catch { return _refOk?.ok ? pk : null; }
+    if (!_refOk.ok) console.warn(`[referral] ${pk.toBase58()} not initialized; swaps omit the referral`);
+  }
+  return _refOk.ok ? pk : null;
 }
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

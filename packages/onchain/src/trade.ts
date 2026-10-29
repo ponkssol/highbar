@@ -1,7 +1,7 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { SwapMode, getCurrentPoint, type SwapQuote2Result } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { arg, getClient, getConnection, isMain, loadPlatformKeypair, referralAta, sendTx } from "./client.js";
+import { arg, getClient, getConnection, isMain, loadPlatformKeypair, usableReferralAta, sendTx } from "./client.js";
 
 export interface QuoteParams {
   pool: PublicKey;
@@ -43,7 +43,7 @@ export async function trade(t: TradeParams): Promise<{ signature: string; minimu
     owner: t.owner.publicKey,
     pool: t.pool,
     swapBaseForQuote: t.sell,
-    referralTokenAccount: referralAta(),
+    referralTokenAccount: await usableReferralAta(),
     swapMode: SwapMode.ExactIn,
     amountIn: t.amountIn,
     minimumAmountOut,

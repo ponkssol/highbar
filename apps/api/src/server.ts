@@ -5,7 +5,7 @@ import BN from "bn.js";
 import { Keypair, PublicKey, type Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { deriveDbcPoolAddress, SwapMode } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { buildClaimTx, buildLockTx, configPubkey, fetchEscrow, fetchEscrows, fetchLocks, lockTip, getClient, getConnection, JUP_LOCK_PROGRAM_ID, quote, referralAta, type LockInfo } from "@hb/onchain";
+import { buildClaimTx, buildLockTx, configPubkey, fetchEscrow, fetchEscrows, fetchLocks, lockTip, getClient, getConnection, JUP_LOCK_PROGRAM_ID, quote, usableReferralAta, type LockInfo } from "@hb/onchain";
 import { store, type Token } from "./store.js";
 import { indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
@@ -130,7 +130,7 @@ app.post("/tx/swap", async (req, reply) => {
     const amountIn = new BN(Math.floor(amt * (sell ? 1e6 : 1e9)).toString());
     const q = await quote({ pool, amountIn, sell, slippageBps: b.slippageBps ?? 100 });
     const minimumAmountOut = q.minimumAmountOut ?? new BN(0);
-    const tx = await getClient().pool.swap2({ owner, pool, swapBaseForQuote: sell, referralTokenAccount: referralAta(), swapMode: SwapMode.ExactIn, amountIn, minimumAmountOut });
+    const tx = await getClient().pool.swap2({ owner, pool, swapBaseForQuote: sell, referralTokenAccount: await usableReferralAta(), swapMode: SwapMode.ExactIn, amountIn, minimumAmountOut });
     return { tx: ser(await finalize(tx, owner)), minimumAmountOut: minimumAmountOut.toString() };
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
