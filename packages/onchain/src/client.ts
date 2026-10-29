@@ -8,10 +8,30 @@ import { DynamicBondingCurveClient } from "@meteora-ag/dynamic-bonding-curve-sdk
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 export type DevnetConfigs = Record<string, string>;
+export type LegacyConfig = { key: string; address: string };
 
-export function loadConfigs(): DevnetConfigs {
+function readConfigFile(): Record<string, unknown> {
   const p = path.resolve(here, "..", "configs.devnet.json");
   return JSON.parse(fs.readFileSync(p, "utf8").replace(/^\uFEFF/, ""));
+}
+
+/** Active configs (string entries only). New launches use these. */
+export function loadConfigs(): DevnetConfigs {
+  return Object.fromEntries(Object.entries(readConfigFile()).filter(([, v]) => typeof v === "string")) as DevnetConfigs;
+}
+
+/** Retired configs: no new launches, but existing pools must still be indexed/cranked. */
+export function loadLegacyConfigs(): LegacyConfig[] {
+  const l = readConfigFile().legacy;
+  return Array.isArray(l) ? (l as LegacyConfig[]) : [];
+}
+
+/** Active + legacy tier configs, e.g. for indexer polling. */
+export function allTierConfigEntries(): [string, string][] {
+  const tier = /^(standard|higher|max)_(on|off)$/;
+  const active = Object.entries(loadConfigs()).filter(([k]) => tier.test(k));
+  const legacy = loadLegacyConfigs().filter((c) => tier.test(c.key)).map((c) => [c.key, c.address] as [string, string]);
+  return [...active, ...legacy];
 }
 
 export function rpcUrl(): string {
@@ -32,7 +52,7 @@ export function getClient(): DynamicBondingCurveClient {
 }
 
 export function loadPlatformKeypair(): Keypair {
-  const kpPath = process.env.PLATFORM_KEYPAIR_PATH ?? "./keys/platform.keypair.json";
+  const kpPath = process.env.PLATFORM_KEYPAIR_PATH ?? path.resolve(here, "..", "keys", "devnet.keypair.json");
   return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(path.resolve(kpPath), "utf8"))));
 }
 

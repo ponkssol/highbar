@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import { Connection, Keypair, PublicKey, sendAndConfirmTransaction } from "@solana/web3.js";
@@ -32,7 +32,7 @@ export function buildTierConfig(tierId: TierId, antiSniper: boolean) {
       collectFeeMode: CollectFeeMode.QuoteToken,
       creatorTradingFeePercentage: tier.creatorTradingFeePercentage,
       poolCreationFee: 0,
-      enableFirstSwapWithMinFee: false,
+      enableFirstSwapWithMinFee: antiSniper, // dev buy bundled with pool creation pays the min fee, not the anti-sniper fee
     },
     migration: {
       migrationOption: MigrationOption.MET_DAMM_V2,
@@ -55,9 +55,10 @@ export function buildTierConfig(tierId: TierId, antiSniper: boolean) {
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
-  if (dryRun) { for (const t of Object.keys(TIERS) as TierId[]) for (const on of [false, true]) { buildTierConfig(t, on); console.log(`${t}_${on ? "on" : "off"} ok (dry run)`); } return; }
+  const onlyOn = process.argv.includes("--only-on");
+  if (dryRun) { for (const t of Object.keys(TIERS) as TierId[]) for (const on of onlyOn ? [true] : [false, true]) { buildTierConfig(t, on); console.log(`${t}_${on ? "on" : "off"} ok (dry run)`); } return; }
   const rpc = process.env.RPC_URL ?? "https://api.devnet.solana.com";
-  const kpPath = process.env.PLATFORM_KEYPAIR_PATH ?? "./keys/platform.keypair.json";
+  const kpPath = process.env.PLATFORM_KEYPAIR_PATH ?? "./keys/devnet.keypair.json";
   const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(path.resolve(kpPath), "utf8"))));
   const feeClaimer = process.env.TREASURY_PUBKEY ? new PublicKey(process.env.TREASURY_PUBKEY) : payer.publicKey;
   const connection = new Connection(rpc, "confirmed");
@@ -65,7 +66,7 @@ async function main() {
   const out: Partial<Record<ConfigKey, string>> = {};
 
   for (const tierId of Object.keys(TIERS) as TierId[]) {
-    for (const on of [false, true]) {
+    for (const on of onlyOn ? [true] : [false, true]) {
       const key = `${tierId}_${on ? "on" : "off"}` as ConfigKey;
       const params = buildTierConfig(tierId, on);
       const config = Keypair.generate();
@@ -79,7 +80,11 @@ async function main() {
     }
   }
   if (!dryRun) {
-    fs.writeFileSync(path.resolve("configs.devnet.json"), JSON.stringify(out, null, 2));
+    const file = path.resolve("configs.devnet.json");
+    const prev = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "")) : {};
+    const legacy: { key: string; address: string }[] = Array.isArray(prev.legacy) ? prev.legacy : [];
+    for (const [k, v] of Object.entries(out)) if (typeof prev[k] === "string" && prev[k] !== v) legacy.push({ key: k, address: prev[k] });
+    fs.writeFileSync(file, JSON.stringify({ ...prev, ...out, legacy }, null, 2));
     console.log("Saved configs.devnet.json; copy into .env CONFIG_* vars");
   }
 }

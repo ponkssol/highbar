@@ -1,7 +1,7 @@
 import { DAMM_V2_MIGRATION_FEE_ADDRESS } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { PublicKey } from "@solana/web3.js";
 import { deriveBaseKeyForLocker, deriveLockerEscrowAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { getClient, getConnection, isMain, loadConfigs, loadPlatformKeypair, sendTx } from "./client.js";
+import { getClient, getConnection, isMain, loadConfigs, loadLegacyConfigs, loadPlatformKeypair, sendTx } from "./client.js";
 
 /** DRY_RUN defaults to true; set DRY_RUN=false to actually send. */
 export const DRY_RUN = (process.env.DRY_RUN ?? "true").toLowerCase() !== "false";
@@ -17,13 +17,12 @@ function dammV2Config(migrationFeeOption: number): PublicKey | null {
 export async function runKeeperOnce(): Promise<KeeperResult[]> {
   const client = getClient();
   const conn = getConnection();
-  const cfgs = loadConfigs();
-  const keys = Object.keys(cfgs).filter((k) => /_(on|off)$/.test(k));
+  const entries = [...Object.entries(loadConfigs()).filter(([k]) => /_(on|off)$/.test(k)), ...loadLegacyConfigs().map((c) => [c.key, c.address] as [string, string])];
   const results: KeeperResult[] = [];
   const payer = DRY_RUN ? null : loadPlatformKeypair();
 
-  for (const key of keys) {
-    const configPk = new PublicKey(cfgs[key]);
+  for (const [key, addr] of entries) {
+    const configPk = new PublicKey(addr);
     const config = await client.state.getPoolConfig(configPk);
     if (!config) continue;
     const pools = await client.state.getPoolsByConfig(configPk);
