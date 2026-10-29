@@ -1,4 +1,4 @@
-﻿{
+{
     "name":  "@hb/onchain",
     "version":  "0.1.0",
     "private":  true,
@@ -8,7 +8,12 @@
     "scripts":  {
                     "typecheck":  "tsc --noEmit -p .",
                     "configs:dry":  "tsx src/createConfigs.ts --dry-run",
-                    "configs:create":  "tsx src/createConfigs.ts"
+                    "configs:create":  "tsx src/createConfigs.ts",
+                    "launch":  "tsx src/launch.ts",
+                    "buy":  "tsx src/trade.ts buy",
+                    "sell":  "tsx src/trade.ts sell",
+                    "quote":  "tsx src/trade.ts buy --quote-only",
+                    "keeper":  "tsx src/keeper.ts"
                 },
     "dependencies":  {
                          "@coral-xyz/anchor":  "^0.32.1",
