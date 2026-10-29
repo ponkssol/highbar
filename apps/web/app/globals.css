@@ -22,3 +22,26 @@ body{font-family:var(--font-inter),Inter,system-ui,sans-serif;-webkit-font-smoot
 @keyframes hb-sheet-in{from{transform:translateY(100%)}to{transform:none}}
 .hb-sheet{animation:hb-sheet-in .2s ease-out}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* Horizontal scroll rows: scrollable, no visible scrollbar. */
+.no-scrollbar,.overflow-x-auto{scrollbar-width:none;-ms-overflow-style:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.no-scrollbar::-webkit-scrollbar,.overflow-x-auto::-webkit-scrollbar{display:none}
+
+/* Mobile (<768px): native-feel compact type and spacing. rem-based spacing scales with the root size. */
+@media (max-width:767px){
+  html{font-size:14px}
+  body{font-size:14px;line-height:1.4}
+  .text-xs{font-size:11px;line-height:15px}
+  .text-sm{font-size:13px;line-height:18px}
+  .text-base{font-size:14px;line-height:20px}
+  .text-lg{font-size:16px;line-height:22px}
+  .text-xl{font-size:17px;line-height:23px}
+  .text-2xl{font-size:18px;line-height:24px}
+  .text-3xl,.text-4xl{font-size:20px;line-height:26px}
+  .text-kpi{font-size:21px;line-height:1.15}
+  .rounded{border-radius:10px}
+  .rounded-lg{border-radius:12px}
+  .h-10,.h-11{height:40px}
+  .min-h-11{min-height:40px}
+  .w-10,.w-11{width:40px}
+}

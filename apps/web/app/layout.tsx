@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Providers reownProjectId={process.env.REOWN_PROJECT_ID} rpcUrl={process.env.RPC_URL}>
           <Sidebar />
-          <main className="min-h-screen p-4 pb-[calc(80px+env(safe-area-inset-bottom))] md:ml-sidebar md:pb-4"><PageShell><MobileHeader />{children}</PageShell></main>
+          <main className="min-h-screen p-[14px] pb-[calc(80px+env(safe-area-inset-bottom))] md:ml-sidebar md:p-4 md:pb-4"><PageShell><MobileHeader />{children}</PageShell></main>
           <BottomNav />
         </Providers>
       </body>

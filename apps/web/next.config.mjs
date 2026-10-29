@@ -8,6 +8,7 @@ const nextConfig = {
   outputFileTracingRoot: root,
   experimental: { devtoolSegmentExplorer: false },
   reactStrictMode: true,
+  devIndicators: false,
   transpilePackages: ["@hb/shared"],
   webpack: (config) => {
     config.resolve.extensionAlias = { ".js": [".ts", ".tsx", ".js"] };

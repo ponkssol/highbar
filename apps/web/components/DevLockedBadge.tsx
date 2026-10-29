@@ -18,10 +18,10 @@ export function DevLockedBadge({ devLocked, unlockAt, size = "sm" }: { devLocked
   if (!devLocked || !unlockAt) return null;
   const done = now != null && now >= unlockAt;
   const date = new Date(unlockAt * 1000).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
-  const cls = size === "md" ? "px-2 py-0.5 text-xs" : "px-1.5 text-[10px] leading-4";
+  const cls = size === "md" ? "h-5 px-2 text-[11px]" : "h-[18px] px-1.5 text-[10px]";
   return (
     <span data-testid="dev-locked" title={done ? `Dev tokens unlocked ${date}` : `Dev tokens locked until ${date}`} suppressHydrationWarning
-      className={`num inline-flex items-center gap-1 whitespace-nowrap rounded-full border font-medium ${done ? "border-border text-ink-3" : "border-ink text-ink"} ${cls}`}>
+      className={`num inline-flex items-center gap-1 whitespace-nowrap rounded-full font-medium leading-none bg-[color-mix(in_srgb,var(--hb-ink)_8%,transparent)] ${done ? "text-ink-3" : "text-ink-2"} ${cls}`}>
       {done ? <Unlock size={size === "md" ? 12 : 10} strokeWidth={2} /> : <Lock size={size === "md" ? 12 : 10} strokeWidth={2} />}
       {done ? "Dev unlocked" : now == null ? "Dev locked" : `Dev locked ${left(unlockAt - now)}`}
     </span>

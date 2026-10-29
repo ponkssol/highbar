@@ -19,7 +19,7 @@ export function LinkButton({ href, variant = "primary", className = "", children
 
 export function Card({ children, className = "", highlight = false }: { children: ReactNode; className?: string; highlight?: boolean }) {
   return (
-    <div className={`rounded border p-4 shadow-card ${highlight ? "bg-ink text-on-ink border-ink" : "bg-surface border-border"} ${className}`}>
+    <div className={`rounded border p-3 shadow-card md:p-4 ${highlight ? "bg-ink text-on-ink border-ink" : "bg-surface border-border"} ${className}`}>
       {children}
     </div>
   );

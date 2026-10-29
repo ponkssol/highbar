@@ -11,7 +11,7 @@ function seeded(n: number, base: number, spread: number, seed: number) {
 export function DeltaPill({ v }: { v: number }) {
   const up = v >= 0;
   return (
-    <span className={`num inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium ring-1 ${up ? "text-buy ring-border bg-muted" : "text-sell ring-border bg-muted"}`}>
+    <span className={`num inline-flex h-[18px] shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full px-1.5 text-[10px] font-medium leading-none md:text-[11px] bg-[color-mix(in_srgb,var(--hb-ink)_6%,transparent)] ${up ? "text-buy" : "text-sell"}`}>
       {up ? "▲" : "▼"} {Math.abs(v).toFixed(1)}%
     </span>
   );
@@ -40,7 +40,7 @@ export function LaunchChart() {
   const max = Math.ceil(Math.max(...data.map((d) => d.a)) / 10) * 10 || 10;
   const H = 130;
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-lg border border-border bg-surface p-3 md:p-4">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-[13px] text-ink-3">Tokens launched · {range === "7D" ? "this week" : "30 days"}</div>
@@ -84,11 +84,11 @@ export function LaunchChart() {
 
 export function KpiCell({ label, value, unit, delta, spark, href, badge, className = "" }: { label: string; value: string; unit?: string; delta: number; spark: number[]; href: string; badge?: React.ReactNode; className?: string }) {
   return (
-    <Link href={href} className={`flex flex-col justify-between gap-3 p-5 transition-colors hover:bg-muted ${className}`}>
-      <div className="flex items-center justify-between gap-2 text-[13px] text-ink-3"><span className="flex items-center gap-1.5 truncate">{label}{badge}</span><DeltaPill v={delta} /></div>
-      <div className="flex items-end justify-between gap-2">
+    <Link href={href} className={`flex min-w-0 flex-col justify-between gap-2 p-3 transition-colors md:gap-3 md:p-5 hover:bg-muted ${className}`}>
+      <div className="flex min-w-0 items-center justify-between gap-1.5 text-[12px] text-ink-3 md:text-[13px]"><span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{label}</span>{badge && <span className="hidden md:inline-flex">{badge}</span>}</span><DeltaPill v={delta} /></div>
+      <div className="flex min-w-0 items-end justify-between gap-2">
         <div className="flex items-baseline gap-1"><span className="num text-2xl font-semibold tracking-tight">{value}</span>{unit && <span className="text-xs text-ink-3">{unit}</span>}</div>
-        <Sparkline values={spark} />
+        <span className="hidden min-[400px]:block md:block"><Sparkline values={spark} /></span><span className="min-[400px]:hidden md:hidden"><Sparkline values={spark} w={48} h={20} /></span>
       </div>
     </Link>
   );

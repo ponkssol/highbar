@@ -1,5 +1,5 @@
 "use client";
-import { Check, ChevronDown, Wallet } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useHbWallet, useSolBalance, useWalletModal } from "@/lib/wallet";
 import { shortAddr } from "@/lib/format";
@@ -9,27 +9,31 @@ export function AddrDot({ address, size = 16 }: { address: string; size?: number
   return <span className="inline-block shrink-0 rounded-full ring-1 ring-border" style={{ width: size, height: size, background: `hsl(${h} 35% 55%)` }} />;
 }
 
-export function WalletButton({ full = false }: { full?: boolean }) {
+/** Compact single-line wallet pill. Custom button that opens the AppKit modal; never stacks or wraps.
+ *  compact: mobile header variant (30px tall, address only). The hit area is padded to 40px via ::after. */
+export function WalletButton({ full = false, compact = false }: { full?: boolean; compact?: boolean }) {
   const { ready, address, publicKey, isConnected, connection } = useHbWallet();
   const bal = useSolBalance(publicKey, connection);
   const open = useWalletModal();
   const { status, signIn } = useAuth();
-  const base = `inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium transition-opacity ${full ? "w-full justify-center" : ""}`;
+  const size = compact ? "h-[30px] px-2.5 text-[12px] gap-1.5" : "h-8 px-3 text-[13px] gap-2";
+  const base = `relative inline-flex shrink-0 items-center whitespace-nowrap rounded-full font-medium leading-none transition-opacity after:absolute after:inset-x-0 after:-inset-y-[6px] after:content-[''] ${size} ${full ? "w-full justify-center" : ""}`;
   if (isConnected && address) {
+    const unverified = status !== "verified";
     return (
-      <button onClick={() => open("Account")} className={`${base} border border-border bg-surface text-ink hover:bg-muted`}>
-        <AddrDot address={address} />
+      <button type="button" data-testid="wallet-pill" onClick={() => open("Account")} aria-label={`Wallet ${shortAddr(address)}`}
+        className={`${base} border border-border bg-surface text-ink hover:bg-muted`}>
+        <AddrDot address={address} size={compact ? 12 : 14} />
         <span className="num">{shortAddr(address)}</span>
-        {status === "verified" ? <Check size={13} strokeWidth={2} className="text-buy" aria-label="Verified" /> : <span title={status === "signing" ? "Signing in…" : "Unverified, click to sign in"} onClick={(e) => { e.stopPropagation(); if (status !== "signing") void signIn(); }} className={`h-2 w-2 rounded-full ${status === "signing" ? "animate-pulse bg-ink-3" : "bg-burn"}`} />}
-        {bal != null && <span className="num text-ink-3">{bal.toFixed(2)} SOL</span>}
-        <ChevronDown size={14} strokeWidth={1.5} className="text-ink-3" />
+        {!compact && unverified && <span title={status === "signing" ? "Signing in..." : "Unverified, click to sign in"} onClick={(e) => { e.stopPropagation(); if (status !== "signing") void signIn(); }} className={`h-1.5 w-1.5 shrink-0 rounded-full ${status === "signing" ? "animate-pulse bg-ink-3" : "bg-burn"}`} />}
+        {!compact && bal != null && <span className="num text-ink-3">{bal.toFixed(2)} SOL</span>}
       </button>
     );
   }
   return (
-    <button onClick={() => open("Connect")} disabled={!ready} title={ready ? undefined : "Set Reown project ID"}
+    <button type="button" data-testid="wallet-pill" onClick={() => open("Connect")} disabled={!ready} title={ready ? undefined : "Set Reown project ID"}
       className={`${base} bg-ink text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50`}>
-      <Wallet size={16} strokeWidth={1.5} />Connect wallet
+      <Wallet size={compact ? 13 : 14} strokeWidth={1.75} />{compact ? "Connect" : "Connect wallet"}
     </button>
   );
 }

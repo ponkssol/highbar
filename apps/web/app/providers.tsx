@@ -30,7 +30,8 @@ let modal: AppKit | undefined;
 const isDark = () => typeof document !== "undefined" && document.documentElement.classList.contains("dark");
 const themeVars = () => ({
   "--w3m-accent": isDark() ? "#F2F2EC" : "#0E0E0E",
-  "--w3m-border-radius-master": "3px",
+  "--w3m-border-radius-master": "2px",
+  "--w3m-font-size-master": "9px",
   "--w3m-font-family": "var(--font-inter), Inter, system-ui, sans-serif",
 });
 
