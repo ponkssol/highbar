@@ -10,6 +10,7 @@ import { indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
 import { registerPages } from "./routes/pages.js";
 import { registerAuth } from "./auth.js";
+import { buildLaunchTx, quoteDevBuy, DEV_BUY_MAX_SOL, type LaunchReq } from "./launchTx.js";
 import { registerClaim } from "./routes/claim.js";
 
 const SOL_USD = Number(process.env.SOL_USD ?? 150);
@@ -114,14 +115,19 @@ app.post("/tx/swap", async (req, reply) => {
 });
 
 app.post("/tx/launch", async (req, reply) => {
-  const b = req.body as { creator: string; name: string; symbol: string; uri?: string; tier: string; antiSniper: boolean };
+  const b = (req.body ?? {}) as LaunchReq;
+  try { return await buildLaunchTx(b); }
+  catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+});
+
+app.get("/tx/launch/quote", async (req, reply) => {
+  const q = req.query as { tier?: string; antiSniper?: string; devBuySol?: string; slippageBps?: string };
   try {
-    const creator = new PublicKey(b.creator), config = configPubkey(b.tier, !!b.antiSniper), baseMint = Keypair.generate();
-    const tx = await getClient().creator.createPool({ name: b.name, symbol: b.symbol, uri: b.uri ?? "", payer: creator, poolCreator: creator, config, baseMint: baseMint.publicKey });
-    await finalize(tx, creator);
-    tx.partialSign(baseMint);
-    const pool = deriveDbcPoolAddress(new PublicKey("So11111111111111111111111111111111111111112"), baseMint.publicKey, config);
-    return { tx: ser(tx), mint: baseMint.publicKey.toBase58(), pool: pool.toBase58() };
+    const sol = Number(q.devBuySol ?? 0);
+    if (!Number.isFinite(sol) || sol < 0) return reply.code(400).send({ error: "devBuySol must be >= 0" });
+    const r = await quoteDevBuy(String(q.tier), q.antiSniper === "true" || q.antiSniper === "1", sol, Number(q.slippageBps ?? 100));
+    return { devBuySol: sol, estTokens: r.outTokens, minTokens: Number(r.minOut.toString()) / 1e6, supplyPct: r.supplyPct, feeSol: r.feeSol, feePct: r.feePct,
+      minFeeApplied: r.minFeeEligible, thresholdSol: r.thresholdSol, maxDevBuySol: Math.min(r.thresholdSol, DEV_BUY_MAX_SOL) };
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
 

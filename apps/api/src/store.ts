@@ -7,7 +7,7 @@ export interface Token {
   isMigrated: boolean; priceSol: number; mcapSol: number; name: string; symbol: string; uri: string;
   volumeSol: number; volume24hSol: number; trades: number; creatorFeesSol: number; feesSol: number; updatedAt: number;
 }
-export interface TradeRow { sig: string; pool: string; mint: string; side: "buy" | "sell"; sol: number; tokens: number; feeSol: number; wallet: string; viaUi: boolean; ts: number }
+export interface TradeRow { sig: string; pool: string; mint: string; side: "buy" | "sell"; sol: number; tokens: number; feeSol: number; wallet: string; viaUi: boolean; ts: number; /** first buy inside the pool-creation tx (Block 0) */ devBuy?: boolean }
 export type ActivityType = "launch" | "burn" | "graduate" | "trade";
 export interface Activity { id: string; type: ActivityType; mint: string; symbol: string; ts: number; amount?: number; side?: "buy" | "sell"; wallet?: string; sig?: string }
 interface Db { tokens: Record<string, Token>; trades: Record<string, TradeRow>; lastSig: Record<string, string>; activity: Activity[]; burns: Activity[] }

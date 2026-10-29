@@ -14,7 +14,7 @@ import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
   mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; change24h: number; holders: number; now: number;
-  trades: { sig: string; side: "buy" | "sell"; sol: number; tokens: number; wallet: string; ts: number }[];
+  trades: { sig: string; side: "buy" | "sell"; sol: number; tokens: number; wallet: string; ts: number; devBuy?: boolean }[];
 }
 
 function Header({ t }: { t: TokenViewData }) {
@@ -101,7 +101,7 @@ function Tabs({ t }: { t: TokenViewData }) {
               {t.trades.map((tr) => (
                 <tr key={tr.sig} className="h-11 border-t border-border hover:bg-muted">
                   <td className="num px-4 text-ink-3">{fmtAge(tr.ts, t.now)} ago</td>
-                  <td className="px-4"><span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize text-white ${tr.side === "buy" ? "bg-buy" : "bg-sell"}`}>{tr.side}</span></td>
+                  <td className="px-4"><span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize text-white ${tr.side === "buy" ? "bg-buy" : "bg-sell"}`}>{tr.side}</span>{tr.devBuy && <span title="Creator buy in the launch transaction (Block 0)" className="ml-1.5 rounded-full border border-ink px-2 py-0.5 text-xs font-medium">Dev</span>}</td>
                   <td className="num px-4 text-right">{tr.sol}</td>
                   <td className="num px-4 text-right">{tr.tokens.toLocaleString("en-US")}</td>
                   <td className="num px-4 text-ink-2">{shortAddr(tr.wallet)}</td>

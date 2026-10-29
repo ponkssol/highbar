@@ -15,7 +15,7 @@ export interface ApiStats {
   totalVolumeSol: number; volumeDelta: number; creatorFeesSol: number; creatorDelta: number; barBurned: number; burnDelta: number;
   activeTraders24h: number; platformFeesSol: number;
 }
-export type ApiTrade = Trade & { feeSol?: number; viaUi?: boolean };
+export type ApiTrade = Trade & { feeSol?: number; viaUi?: boolean; devBuy?: boolean };
 
 async function get<T>(path: string, timeoutMs = 4000): Promise<T> {
   const res = await fetch(`${apiBase()}${path}`, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });

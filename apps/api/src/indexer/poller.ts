@@ -50,16 +50,17 @@ async function indexTrades(t: Token, limit: number) {
         loadedAddresses: tx.meta.loadedAddresses ? { writable: tx.meta.loadedAddresses.writable.map(String), readonly: tx.meta.loadedAddresses.readonly.map(String) } : null } : null,
     };
     const ts = (tx.blockTime ?? Date.now() / 1000) * 1000;
-    let i = 0;
+    let i = 0, initInTx = false, devTagged = false;
     for (const ev of decodeDbcEvents(raw)) {
       if (ev.kind === "init" && ev.pool === t.pool) {
-        t.createdAt = ts;
+        t.createdAt = ts; initInTx = true;
         if (ev.name && !t.name) Object.assign(t, { name: ev.name, symbol: ev.symbol, uri: ev.uri });
       }
       if (ev.kind !== "swap" || ev.pool !== t.pool) continue;
       const sig = `${s.signature}:${i++}`;
+      const devBuy = initInTx && !devTagged && ev.side === "buy"; if (devBuy) devTagged = true;
       const added = store.addTrade({ sig, pool: t.pool, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6,
-        feeSol: Number(ev.feeLamports) / L, wallet: ev.trader, viaUi: !!REFERRAL && ev.referralTokenAccount === REFERRAL, ts });
+        feeSol: Number(ev.feeLamports) / L, wallet: ev.trader, viaUi: !!REFERRAL && ev.referralTokenAccount === REFERRAL, ts, ...(devBuy ? { devBuy: true } : {}) });
       if (added) store.addActivity({ id: `trade:${sig}`, type: "trade", mint: t.mint, symbol: t.symbol, ts, amount: Number(ev.solLamports) / L, side: ev.side, wallet: ev.trader, sig: s.signature });
     }
   }

@@ -1,12 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Check, ImagePlus, ShieldCheck } from "lucide-react";
 import { TIERS, type TierId } from "@hb/shared";
 import { TopBlock } from "@/components/TopBar";
 import { Avatar, Button, Card, ProgressBar, TierBadge } from "@/components/ui";
 import { feeSplitPct } from "@/lib/fees";
-import { launchToken } from "@/lib/launch";
-import { useHbWallet } from "@/lib/wallet";
+import { launchToken, quoteDevBuy, type DevBuyQuote } from "@/lib/launch";
+import { useHbWallet, useSolBalance } from "@/lib/wallet";
 import { useAuth } from "@/lib/auth";
 
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
@@ -25,9 +26,28 @@ export default function LaunchPage() {
   const [anti, setAnti] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [devBuy, setDevBuy] = useState("0");
+  const [q, setQ] = useState<DevBuyQuote | null>(null);
+  const [qErr, setQErr] = useState("");
+  const [launched, setLaunched] = useState<{ mint: string; signature: string } | null>(null);
   const wallet = useHbWallet();
   const auth = useAuth();
   const f = feeSplitPct(tier);
+  const balance = useSolBalance(wallet.publicKey, wallet.connection);
+  const devSol = Number(devBuy) || 0;
+  const LAUNCH_COST_SOL = 0.03; // rent for mint, pool, vaults, metadata + network fees (simulated ~0.021)
+  const needSol = devSol + LAUNCH_COST_SOL;
+  const lowBalance = balance !== null && balance < needSol;
+  const overMax = q ? devSol > q.maxDevBuySol : false;
+  useEffect(() => {
+    let alive = true;
+    setQErr("");
+    if (!(devSol > 0)) { setQ(null); return; }
+    const id = setTimeout(() => {
+      quoteDevBuy(tier, anti, devSol).then((r) => alive && setQ(r)).catch((e) => alive && (setQ(null), setQErr((e as Error).message)));
+    }, 300);
+    return () => { alive = false; clearTimeout(id); };
+  }, [tier, anti, devSol]);
 
   const onFile = (file?: File) => {
     if (!file) return;
@@ -35,12 +55,15 @@ export default function LaunchPage() {
     setPreview(URL.createObjectURL(file));
   };
   const submit = async () => {
-    setBusy(true); setMsg("");
+    setBusy(true); setMsg(""); setLaunched(null);
     try {
       if (!wallet.publicKey) { setMsg("Connect your wallet first."); return; }
       if (!(await auth.ensureVerified())) { setMsg("Sign in with your wallet before launching."); return; }
-      const r = await launchToken({ name, ticker, description: desc, image, ...socials, tier, antiSniper: anti }, wallet.publicKey.toBase58(), (tx) => wallet.sendTransaction(tx));
-      setMsg(`Launched: mint ${r.mint.slice(0, 8)}, tx ${r.signature.slice(0, 8)}`);
+      if (lowBalance) { setMsg(`Not enough SOL: you need about ${needSol.toFixed(3)} SOL (dev buy + launch rent and fees).`); return; }
+      if (overMax) { setMsg(`Dev buy is capped at ${q?.maxDevBuySol} SOL.`); return; }
+      const r = await launchToken({ name, ticker, description: desc, image, ...socials, tier, antiSniper: anti, devBuySol: devSol }, wallet.publicKey.toBase58(), (tx) => wallet.sendTransaction(tx));
+      setLaunched({ mint: r.mint, signature: r.signature });
+      setMsg(`Launched ${devSol > 0 ? `with a ${devSol} SOL dev buy ` : ""}(tx ${r.signature.slice(0, 8)}).`);
     } catch (e) {
       setMsg(`Launch failed: ${(e as Error).message}`);
     } finally { setBusy(false); }
@@ -98,13 +121,43 @@ export default function LaunchPage() {
               <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface transition-all ${anti ? "left-[18px]" : "left-0.5"}`} />
             </button>
           </div>
-          <dl className="space-y-1.5 rounded border border-border bg-muted p-3 text-sm">
+          <div className="rounded border border-border p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Dev buy (optional)</span>
+              {balance !== null && <span className="num text-xs text-ink-3">Balance {balance.toFixed(3)} SOL</span>}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex h-10 flex-1 items-center rounded border border-border bg-surface px-3 focus-within:border-ink">
+                <input aria-label="Dev buy amount in SOL" className="num w-full bg-transparent text-sm outline-none" inputMode="decimal" value={devBuy}
+                  onChange={(e) => setDevBuy(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.0" />
+                <span className="text-sm text-ink-3">SOL</span>
+              </div>
+              {["0", "0.1", "0.5", "1"].map((p) => (
+                <button key={p} type="button" onClick={() => setDevBuy(p)}
+                  className={`num h-10 rounded-full border px-3 text-sm ${devBuy === p ? "border-ink" : "border-border hover:bg-muted"}`}>{p}</button>
+              ))}
+            </div>
+            {devSol > 0 && (
+              <div className="mt-2 space-y-0.5 text-[13px]">
+                {q ? (
+                  <>
+                    <div>You receive <span className="num font-medium">~{Math.floor(q.estTokens).toLocaleString("en-US")} ${ticker || "TOKEN"}</span> <span className="num text-ink-3">({q.supplyPct.toFixed(2)}% of supply)</span></div>
+                    <div className="num text-ink-3">Fee {q.feePct.toFixed(2)}% (~{q.feeSol.toFixed(4)} SOL){anti && !q.minFeeApplied ? " (anti-sniper starting fee applies to the dev buy)" : ""}</div>
+                  </>
+                ) : <div className="text-ink-3">{qErr ? `Quote unavailable: ${qErr}` : "Quoting…"}</div>}
+                {overMax && <div className="text-sell">Maximum dev buy is {q?.maxDevBuySol} SOL.</div>}
+                {lowBalance && <div className="text-sell">Not enough SOL: about {needSol.toFixed(3)} SOL needed including launch rent and fees.</div>}
+              </div>
+            )}
+            <div className="mt-2 text-xs text-ink-3">Bought in the same transaction as launch (Block 0), so nobody can buy before you.</div>
+          </div>          <dl className="space-y-1.5 rounded border border-border bg-muted p-3 text-sm">
             <div className="flex justify-between"><dt className="text-ink-3">Curve fee</dt><dd className="num">{f.total}%</dd></div>
             <div className="flex justify-between"><dt className="text-ink-3">Meteora / creator / platform</dt><dd className="num">{f.meteora}% / {f.creator}% / {f.platform}%</dd></div>
             <div className="flex justify-between"><dt className="text-ink-3">Graduates at</dt><dd className="num">{TIERS[tier].migrationQuoteThresholdSol} SOL</dd></div>
           </dl>
-          <Button className="w-full" disabled={!name || !ticker || busy} onClick={submit}>{busy ? "Launching…" : "Launch"}</Button>
+          <Button className="w-full" disabled={!name || !ticker || busy || overMax} onClick={submit}>{busy ? "Launching…" : "Launch"}</Button>
           {msg && <p className="text-sm text-ink-2">{msg}</p>}
+          {launched && <Link href={`/token/${launched.mint}`} className="inline-flex h-10 items-center rounded bg-ink px-4 text-sm font-medium text-on-ink hover:opacity-90">View token page</Link>}
         </Card>
         <div className="w-full lg:sticky lg:top-4 lg:w-[360px] lg:shrink-0">
           <div className="mb-2 text-[13px] text-ink-3">Preview</div>
