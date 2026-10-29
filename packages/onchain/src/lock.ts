@@ -1,6 +1,6 @@
 import BN from "bn.js";
 import { AnchorProvider, Program, utils, type Idl } from "@coral-xyz/anchor";
-import { ComputeBudgetProgram, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { ComputeBudgetProgram, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { createRequire } from "node:module";
 import { getConnection, withRetry } from "./client.js";
@@ -32,6 +32,13 @@ export function lockSchedule(amount: BN, unlockAt: number, vestingSeconds = 0): 
   return { vestingStartTime: unlockAt, cliffTime: unlockAt, frequency, cliffUnlockAmount: amount.sub(per.muln(n)), amountPerPeriod: per, numberOfPeriod: n };
 }
 
+/** Flat protocol tip per lock tx (server env LOCK_TIP_SOL, default 0.005) paid to LOCK_TIP_WALLET (default: platform wallet). */
+export function lockTip() {
+  const sol = Number(process.env.LOCK_TIP_SOL ?? "0.005");
+  const tipSol = Number.isFinite(sol) && sol >= 0 ? sol : 0.005;
+  return { tipSol, tipLamports: Math.round(tipSol * LAMPORTS_PER_SOL), tipWallet: new PublicKey(process.env.LOCK_TIP_WALLET || "87xbpDawHmNdmnWfZfXvLQyKbXhF2kck41NoPxTWB9sJ") };
+}
+
 export async function buildLockTx(p: { creator: PublicKey; mint: PublicKey; amount: BN; unlockAt: number; vestingSeconds?: number }) {
   const base = Keypair.generate();
   const escrow = escrowPda(base.publicKey);
@@ -51,10 +58,12 @@ export async function buildLockTx(p: { creator: PublicKey; mint: PublicKey; amou
     createAssociatedTokenAccountIdempotentInstruction(p.creator, escrowToken, escrow, p.mint),
     ix,
   );
+  const tip = lockTip();
+  if (tip.tipLamports > 0) tx.add(SystemProgram.transfer({ fromPubkey: p.creator, toPubkey: tip.tipWallet, lamports: tip.tipLamports }));
   tx.feePayer = p.creator;
   tx.recentBlockhash = (await getConnection().getLatestBlockhash("confirmed")).blockhash;
   tx.partialSign(base);
-  return { tx, escrow, schedule: s };
+  return { tx, escrow, schedule: s, tip };
 }
 
 export async function buildClaimTx(p: { recipient: PublicKey; escrow: PublicKey }) {

@@ -5,7 +5,7 @@ import BN from "bn.js";
 import { Keypair, PublicKey, type Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { deriveDbcPoolAddress, SwapMode } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { buildClaimTx, buildLockTx, configPubkey, fetchEscrows, fetchLocks, getClient, getConnection, JUP_LOCK_PROGRAM_ID, quote, referralAta, type LockInfo } from "@hb/onchain";
+import { buildClaimTx, buildLockTx, configPubkey, fetchEscrow, fetchEscrows, fetchLocks, lockTip, getClient, getConnection, JUP_LOCK_PROGRAM_ID, quote, referralAta, type LockInfo } from "@hb/onchain";
 import { store, type Token } from "./store.js";
 import { indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
@@ -157,7 +157,7 @@ app.get("/tokens/:mint/locks", async (req, reply) => {
   try {
     const locks = await locksFor(new PublicKey(mint).toBase58(), fresh === "1");
     const sum = (k: "total" | "locked" | "claimable") => locks.reduce((a, l) => a + Number(l[k]), 0) / BASE_DECIMALS;
-    return { programId: JUP_LOCK_PROGRAM_ID.toBase58(), locks, totalTokens: sum("total"), lockedTokens: sum("locked"), claimableTokens: sum("claimable") };
+    return { programId: JUP_LOCK_PROGRAM_ID.toBase58(), tipSol: lockTip().tipSol, locks, totalTokens: sum("total"), lockedTokens: sum("locked"), claimableTokens: sum("claimable") };
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
 app.post("/tx/lock", async (req, reply) => {
@@ -179,7 +179,52 @@ app.post("/tx/lock", async (req, reply) => {
     const r = await buildLockTx({ creator, mint, amount: raw, unlockAt, vestingSeconds: vestingDays * 86_400 });
     lockCache.delete(mint.toBase58());
     store.db.locks = { ...(store.db.locks ?? {}), [mint.toBase58()]: [...(store.db.locks?.[mint.toBase58()] ?? []), r.escrow.toBase58()] }; store.markDirty();
-    return { tx: ser(r.tx), escrow: r.escrow.toBase58(), schedule: { ...r.schedule, cliffUnlockAmount: r.schedule.cliffUnlockAmount.toString(), amountPerPeriod: r.schedule.amountPerPeriod.toString() }, permanent: true };
+    return { tx: ser(r.tx), escrow: r.escrow.toBase58(), tipSol: r.tip.tipSol, tipWallet: r.tip.tipWallet.toBase58(), schedule: { ...r.schedule, cliffUnlockAmount: r.schedule.cliffUnlockAmount.toString(), amountPerPeriod: r.schedule.amountPerPeriod.toString() }, permanent: true };
+  } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+});
+const TOTAL_SUPPLY = 1_000_000_000;
+const lockView = (l: LockInfo) => {
+  const t = store.db.tokens[l.mint];
+  const total = Number(l.total) / BASE_DECIMALS;
+  const vestEnd = l.endTime, now = Date.now() / 1000;
+  return {
+    ...l, id: l.escrow, totalTokens: total, lockedTokens: Number(l.locked) / BASE_DECIMALS, claimableTokens: Number(l.claimable) / BASE_DECIMALS,
+    supplyPct: (total / TOTAL_SUPPLY) * 100, unlockedPct: total ? (Number(l.unlocked) / Number(l.total)) * 100 : 0,
+    status: l.cancelled ? "cancelled" : now < l.cliffTime ? "locked" : now < vestEnd ? "vesting" : "unlocked",
+    lockedAt: lockedAt[l.escrow] ?? null,
+    token: t ? { name: t.name, symbol: t.symbol, tier: t.tier, creator: t.creator } : null,
+  };
+};
+const lockedAt: Record<string, number> = {};
+let allLocksCache: { at: number; v: ReturnType<typeof lockView>[] } | null = null;
+async function allLocks() {
+  if (allLocksCache && Date.now() - allLocksCache.at < 20_000) return allLocksCache.v;
+  const known = Object.values(store.db.locks ?? {}).flat();
+  const infos = await fetchEscrows(known.map((e) => new PublicKey(e)));
+  // creation time = block time of the escrow's oldest signature (cached forever)
+  for (const l of infos) if (!(l.escrow in lockedAt)) {
+    const sigs = await getConnection().getSignaturesForAddress(new PublicKey(l.escrow), { limit: 20 }).catch(() => []);
+    const first = sigs[sigs.length - 1]; if (first?.blockTime) lockedAt[l.escrow] = first.blockTime;
+  }
+  const v = infos.map(lockView).sort((a, b) => (b.lockedAt ?? 0) - (a.lockedAt ?? 0));
+  allLocksCache = { at: Date.now(), v };
+  return v;
+}
+app.get("/locks", async (req, reply) => {
+  const q = req.query as { page?: string; limit?: string };
+  const limit = Math.min(100, Math.max(1, Number(q.limit) || 15)), page = Math.max(1, Number(q.page) || 1);
+  try {
+    const all = await allLocks();
+    return { total: all.length, page, limit, tipSol: lockTip().tipSol, items: all.slice((page - 1) * limit, page * limit) };
+  } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+});
+app.get("/locks/:id", async (req, reply) => {
+  const { id } = req.params as { id: string };
+  try {
+    const l = await fetchEscrow(new PublicKey(id));
+    if (!l) return reply.code(404).send({ error: "lock not found" });
+    if (!(l.escrow in lockedAt)) { const s = await getConnection().getSignaturesForAddress(new PublicKey(id), { limit: 20 }).catch(() => []); const f = s[s.length - 1]; if (f?.blockTime) lockedAt[id] = f.blockTime; }
+    return lockView(l);
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
 app.post("/tx/lock/claim", async (req, reply) => {

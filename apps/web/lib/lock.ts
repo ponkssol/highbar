@@ -8,7 +8,7 @@ export interface LockInfo {
   cliffTime: number; frequency: number; numberOfPeriod: number; vestingStartTime: number; endTime: number;
   total: string; claimed: string; unlocked: string; claimable: string; locked: string; cancelled: boolean;
 }
-export interface LocksResp { programId: string; locks: LockInfo[]; totalTokens: number; lockedTokens: number; claimableTokens: number }
+export interface LocksResp { programId: string; tipSol?: number; locks: LockInfo[]; totalTokens: number; lockedTokens: number; claimableTokens: number }
 export const TOKEN_DECIMALS = 1e6;
 export const toUi = (raw: string) => Number(raw) / TOKEN_DECIMALS;
 
@@ -35,3 +35,5 @@ export async function buildClaimLockTx(p: { recipient: string; escrow: string })
   const r = await post<{ tx: string }>("/tx/lock/claim", p);
   return txFrom(r.tx);
 }
+export type { LockView } from "./lockData";
+export { fetchLockList, fetchLock, fmtLockDate } from "./lockData";

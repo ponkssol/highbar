@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { AlertTriangle, Lock, Unlock } from "lucide-react";
@@ -97,7 +98,7 @@ export function DevLock({ mint, ticker, creator, data, reload }: { mint: string;
               {l.numberOfPeriod > 0 && <div className="flex justify-between"><span className="text-ink-3">Vesting</span><span className="num">{l.numberOfPeriod} x {Math.round(l.frequency / 3600) >= 24 ? `${Math.round(l.frequency / 86400)}d` : `${Math.round(l.frequency / 60)}m`}, ends {fmtDate(l.endTime).split(",")[0]}</span></div>}
               <div className="flex justify-between"><span className="text-ink-3">Claimed / unlocked</span><span className="num">{fmtTok(toUi(l.claimed))} / {fmtTok(toUi(l.unlocked))}</span></div>
               <div className="flex justify-between"><span className="text-ink-3">Cancel / change recipient</span><span>None (permanent)</span></div>
-              <a href={`https://solscan.io/account/${l.escrow}?cluster=devnet`} target="_blank" rel="noreferrer" className="num text-xs text-ink-3 hover:text-ink">Escrow {l.escrow.slice(0, 6)}...</a>
+              <div className="flex justify-between"><a href={`https://solscan.io/account/${l.escrow}?cluster=devnet`} target="_blank" rel="noreferrer" className="num text-xs text-ink-3 hover:text-ink">Escrow {l.escrow.slice(0, 6)}...</a><Link href={`/locks/${l.escrow}`} className="text-xs font-medium hover:underline">Share lock</Link></div>
             </li>
           ))}
         </ul>
@@ -129,6 +130,7 @@ export function DevLock({ mint, ticker, creator, data, reload }: { mint: string;
             <button onClick={() => setOpen(false)} className="h-10 flex-1 rounded border border-border text-sm hover:bg-muted">Cancel</button>
             <button onClick={lock} disabled={busy || !!err} title={err || undefined} className="h-10 flex-1 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:opacity-40">{busy ? "Locking..." : "Lock tokens"}</button>
           </div>
+          <p className="text-xs text-ink-3" data-testid="lock-tip">Protocol tip: {data?.tipSol ?? 0.005} SOL</p>
           {err && <p className="text-xs text-ink-3">{err}</p>}
         </div>
       )}
