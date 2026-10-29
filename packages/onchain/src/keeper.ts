@@ -1,7 +1,7 @@
 import { DAMM_V2_MIGRATION_FEE_ADDRESS } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, type Keypair } from "@solana/web3.js";
 import { deriveBaseKeyForLocker, deriveLockerEscrowAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { getClient, getConnection, isMain, loadConfigs, loadLegacyConfigs, loadPlatformKeypair, sendTx } from "./client.js";
+import { getClient, getConnection, isMain, loadConfigs, loadLegacyConfigs, loadPlatformKeypair, sendTx, testConfigEntries, withRetry } from "./client.js";
 
 /** DRY_RUN defaults to true; set DRY_RUN=false to actually send. */
 export const DRY_RUN = (process.env.DRY_RUN ?? "true").toLowerCase() !== "false";
@@ -14,10 +14,33 @@ function dammV2Config(migrationFeeOption: number): PublicKey | null {
   return process.env.DAMM_V2_CONFIG ? new PublicKey(process.env.DAMM_V2_CONFIG) : (DAMM_V2_MIGRATION_FEE_ADDRESS[migrationFeeOption] ?? null);
 }
 
+/** Migrate one completed curve to DAMM v2 (createLocker first if vesting needs it). Used by the keeper loop and the devnet migration test. */
+export async function migratePool(publicKey: PublicKey, config: NonNullable<Awaited<ReturnType<ReturnType<typeof getClient>["state"]["getPoolConfig"]>>>, key: string, payer: Keypair | null): Promise<KeeperResult> {
+  const client = getClient(), conn = getConnection(), id = publicKey.toBase58();
+  try {
+    const lv = config.lockedVestingConfig;
+    const needsLocker = !lv.amountPerPeriod.isZero() || !lv.cliffUnlockAmount.isZero();
+    const escrow = deriveLockerEscrowAddress(deriveBaseKeyForLocker(publicKey));
+    const hasLocker = needsLocker ? !!(await conn.getAccountInfo(escrow)) : true;
+    if (DRY_RUN || !payer) return { pool: id, action: `DRY_RUN would ${hasLocker ? "" : "createLocker + "}migrateToDammV2 (${key})` };
+    if (!hasLocker) await sendTx(await client.migration.createLocker({ payer: payer.publicKey, pool: publicKey }), [payer]);
+    const dammConfig = dammV2Config(Number(config.migrationFeeOption));
+    if (!dammConfig) throw new Error("DAMM_V2_CONFIG not set");
+    const { transaction, firstPositionNftKeypair, secondPositionNftKeypair } =
+      await client.migration.migrateToDammV2({ payer: payer.publicKey, pool: publicKey, dammConfig });
+    const signature = await sendTx(transaction, [payer, firstPositionNftKeypair, secondPositionNftKeypair]);
+    return { pool: id, action: "migrated", signature };
+  } catch (e) {
+    return { pool: id, action: "error", error: (e as Error).message };
+  }
+}
+
 export async function runKeeperOnce(): Promise<KeeperResult[]> {
   const client = getClient();
   const conn = getConnection();
-  const entries = [...Object.entries(loadConfigs()).filter(([k]) => /_(on|off)$/.test(k)), ...loadLegacyConfigs().map((c) => [c.key, c.address] as [string, string])];
+  const only = (process.env.KEEPER_CONFIGS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const all: [string, string][] = [...Object.entries(loadConfigs()).filter(([k]) => /_(on|off)$/.test(k)), ...loadLegacyConfigs().map((c) => [c.key, c.address] as [string, string]), ...testConfigEntries()];
+  const entries = only.length ? all.filter(([k, a]) => only.includes(k) || only.includes(a)) : all;
   const results: KeeperResult[] = [];
   const payer = DRY_RUN ? null : loadPlatformKeypair();
 
@@ -25,33 +48,13 @@ export async function runKeeperOnce(): Promise<KeeperResult[]> {
     const configPk = new PublicKey(addr);
     const config = await client.state.getPoolConfig(configPk);
     if (!config) continue;
-    const pools = await client.state.getPoolsByConfig(configPk);
+    const pools = await withRetry(() => client.state.getPoolsByConfig(configPk), 6, 1500); // getProgramAccounts is rate-limited on public RPC
     for (const { publicKey, account } of pools) {
       const id = publicKey.toBase58();
       if (Number(account.poolState.isMigrated) !== 0) continue; // idempotent: already migrated
       if (account.poolState.quoteReserve.lt(config.migrationQuoteThreshold)) continue; // curve not complete
-      try {
-        const lv = config.lockedVestingConfig;
-        const needsLocker = !lv.amountPerPeriod.isZero() || !lv.cliffUnlockAmount.isZero();
-        const escrow = deriveLockerEscrowAddress(deriveBaseKeyForLocker(publicKey));
-        const hasLocker = needsLocker ? !!(await conn.getAccountInfo(escrow)) : true;
-        if (DRY_RUN || !payer) {
-          results.push({ pool: id, action: `DRY_RUN would ${hasLocker ? "" : "createLocker + "}migrateToDammV2 (${key})` });
-          continue;
-        }
-        if (!hasLocker) {
-          const ltx = await client.migration.createLocker({ payer: payer.publicKey, pool: publicKey });
-          await sendTx(ltx, [payer]);
-        }
-        const dammConfig = dammV2Config(Number(config.migrationFeeOption));
-        if (!dammConfig) throw new Error("DAMM_V2_CONFIG not set");
-        const { transaction, firstPositionNftKeypair, secondPositionNftKeypair } =
-          await client.migration.migrateToDammV2({ payer: payer.publicKey, pool: publicKey, dammConfig });
-        const signature = await sendTx(transaction, [payer, firstPositionNftKeypair, secondPositionNftKeypair]);
-        results.push({ pool: id, action: "migrated", signature });
-      } catch (e) {
-        results.push({ pool: id, action: "error", error: (e as Error).message });
-      }
+      results.push(await migratePool(publicKey, config, key, payer));
+
     }
   }
   return results;

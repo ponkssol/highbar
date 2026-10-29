@@ -10,7 +10,8 @@ import { TIERS, ANTI_SNIPER, CURVE_FEE_BPS, DAMM_V2_POOL_FEE_BPS, type TierId, t
 
 const WSOL = new PublicKey("So11111111111111111111111111111111111111112");
 
-export function buildTierConfig(tierId: TierId, antiSniper: boolean) {
+/** `thresholdSolOverride` is only for devnet test configs (e.g. the 1 SOL migration test). */
+export function buildTierConfig(tierId: TierId, antiSniper: boolean, thresholdSolOverride?: number) {
   const tier = TIERS[tierId];
   return buildCurve({
     token: {
@@ -49,7 +50,7 @@ export function buildTierConfig(tierId: TierId, antiSniper: boolean) {
     lockedVesting: { totalLockedVestingAmount: 0, numberOfVestingPeriod: 0, cliffUnlockAmount: 0, totalVestingDuration: 0, cliffDurationFromMigrationTime: 0 },
     activationType: ActivationType.Timestamp,
     percentageSupplyOnMigration: 20,
-    migrationQuoteThreshold: tier.migrationQuoteThresholdSol,
+    migrationQuoteThreshold: thresholdSolOverride ?? tier.migrationQuoteThresholdSol,
   });
 }
 

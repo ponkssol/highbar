@@ -26,12 +26,17 @@ export function loadLegacyConfigs(): LegacyConfig[] {
   return Array.isArray(l) ? (l as LegacyConfig[]) : [];
 }
 
-/** Active + legacy tier configs, e.g. for indexer polling. */
+/** Devnet-only test configs from env TEST_CONFIGS="higher_off=<config>,..." (never part of configs.devnet.json / the launch list). */
+export function testConfigEntries(): [string, string][] {
+  return (process.env.TEST_CONFIGS ?? "").split(",").map((s) => s.trim().split("=") as [string, string]).filter(([k, v]) => /^(standard|higher|max)_(on|off)$/.test(k ?? "") && !!v);
+}
+
+/** Active + legacy tier configs (+ env test configs), e.g. for indexer polling. */
 export function allTierConfigEntries(): [string, string][] {
   const tier = /^(standard|higher|max)_(on|off)$/;
   const active = Object.entries(loadConfigs()).filter(([k]) => tier.test(k));
   const legacy = loadLegacyConfigs().filter((c) => tier.test(c.key)).map((c) => [c.key, c.address] as [string, string]);
-  return [...active, ...legacy];
+  return [...active, ...legacy, ...testConfigEntries()];
 }
 
 export function rpcUrl(): string {
