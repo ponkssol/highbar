@@ -14,7 +14,7 @@ const PLURAL: Record<ActivityType, string> = { launch: "Launches", burn: "Burns"
 const ORDER: ActivityType[] = ["launch", "burn", "graduate", "trade"];
 const fmtTime = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-export function ActivityGrid({ className = "" }: { className?: string }) {
+export function ActivityGrid({ className = "", bare = false }: { className?: string; bare?: boolean }) {
   const { events, source, isFresh } = useActivity();
   const ref = useRef<HTMLDivElement>(null);
   const [cols, setCols] = useState(30);
@@ -34,8 +34,8 @@ export function ActivityGrid({ className = "" }: { className?: string }) {
   const lastIdx = shown.length - 1;
 
   return (
-    <div className={`flex flex-col rounded-lg border border-border bg-surface p-5 ${className}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className={`flex min-w-0 flex-col p-5 ${bare ? "" : "rounded-lg border border-border bg-surface"} ${className}`}>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">Protocol activity</h3>
           <span className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-ink-2">
@@ -45,7 +45,7 @@ export function ActivityGrid({ className = "" }: { className?: string }) {
         </div>
         <div className="flex flex-wrap gap-1.5">
           {ORDER.map((t) => (
-            <span key={t} className="flex items-center gap-1.5 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-ink-3">
+            <span key={t} className="flex items-center gap-1.5 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] text-ink-3">
               <span className="h-2 w-2 rounded-[2px]" style={{ background: COLOR[t] }} />{PLURAL[t]} <span className="num font-semibold text-ink">{count(t)}</span>
             </span>
           ))}

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
-import { TopBlock } from "@/components/TopBar";
+import { TopBar } from "@/components/TopBar";
 import { TickGauge } from "@/components/charts";
 import { KpiGrid } from "@/components/StatsPanel";
 import { ActivityGrid } from "@/components/ActivityGrid";
@@ -31,16 +31,14 @@ export default function Home() {
   const [search, setSearch] = useState("");
   return (
     <div className="flex flex-col gap-4">
-      <TopBlock search={search} onSearch={setSearch}>
-        <div className="mt-4 grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2 xl:grid-cols-[5fr_2.4fr_4.6fr]">
-          <ActivityGrid className="h-full lg:col-span-2 xl:col-span-1" />
-          <div className="flex h-full items-center justify-center rounded-lg border border-border bg-surface p-5">
-            <TickGauge value={STATS.graduatedPct} label="Graduated" sub={`${STATS.graduated} / ${STATS.totalTokens} tokens`} />
-          </div>
-          <KpiGrid stats={STATS} className="h-full" />
+      <TopBar search={search} onSearch={setSearch} />
+      <section className="grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-surface shadow-card max-lg:divide-y max-lg:divide-border lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:divide-x lg:divide-border">
+        <ActivityGrid bare />
+        <div className="flex items-center justify-center p-5 lg:px-8">
+          <TickGauge value={STATS.graduatedPct} label="Graduated" sub={`${STATS.graduated} / ${STATS.totalTokens} tokens`} />
         </div>
-      </TopBlock>
-      <TokenTable tokens={TOKENS} search={search} />
+        <KpiGrid stats={STATS} bare />
+      </section>      <TokenTable tokens={TOKENS} search={search} />
     </div>
   );
 }
