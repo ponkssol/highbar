@@ -1,4 +1,4 @@
-﻿export type TierId = "standard" | "higher" | "max";
+export type TierId = "standard" | "higher" | "max";
 
 export interface Tier {
   id: TierId;
