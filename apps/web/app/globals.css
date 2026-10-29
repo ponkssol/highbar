@@ -3,6 +3,9 @@
 @tailwind utilities;
 
 :root{--hb-bg:#F4F4EE;--hb-surface:#FFFFFF;--hb-surface-muted:#FAFAF7;--hb-border:#E4E4DE;--hb-border-strong:#CFCFC8;--hb-ink:#0E0E0E;--hb-ink-2:#4A4A46;--hb-ink-3:#8A8A84;--hb-on-ink:#FFFFFF;--hb-highlight-bg:#0E0E0E;--hb-highlight-fg:#FFFFFF;--hb-highlight-sub:#A8A8A2;--hb-tier-standard:#5B7FA6;--hb-tier-higher:#6E8F5A;--hb-tier-max:#8A6BB0;--hb-buy:#2F7D4F;--hb-sell:#B4483C;--hb-burn:#C2662D;--hb-hatch:repeating-linear-gradient(135deg,var(--hb-ink) 0 1.5px,transparent 1.5px 6px);--hb-shadow:0 1px 2px rgba(14,14,14,.04);}
+.dark{color-scheme:dark;--hb-bg:#1C1B17;--hb-surface:#171716;--hb-surface-muted:#1F1F1D;--hb-border:#2A2A27;--hb-border-strong:#3A3A36;--hb-ink:#F2F2EC;--hb-ink-2:#B8B8B0;--hb-ink-3:#8E8E86;--hb-on-ink:#0F0F0E;--hb-highlight-bg:#F2F2EC;--hb-highlight-fg:#0F0F0E;--hb-highlight-sub:#5A5A55;--hb-tier-standard:#7FA0C6;--hb-tier-higher:#8DB07A;--hb-tier-max:#A98CD0;--hb-buy:#4CAF74;--hb-sell:#D9675A;--hb-burn:#E0824A;--hb-shadow:0 1px 2px rgba(0,0,0,.3);}
+html.dark,html.dark body{background:#0F0F0E;}
+html.dark main{background:#0F0F0E;}
 
 html,body{background:var(--hb-surface);color:var(--hb-ink);}
 body{font-family:var(--font-inter),Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}

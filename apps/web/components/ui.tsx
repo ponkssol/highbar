@@ -52,12 +52,12 @@ export function ProgressBar({ value, tier }: { value: number; tier?: TierId }) {
 }
 
 export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
-  const shades = ["#0E0E0E", "#4A4A46", "#8A8A84", "#CFCFC8"];
+  const shades = ["var(--hb-ink)", "var(--hb-ink-2)", "var(--hb-ink-3)", "var(--hb-border-strong)"];
   const i = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % shades.length;
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-      style={{ width: size, height: size, background: shades[i], color: i > 1 ? "#0E0E0E" : "#fff" }}
+      style={{ width: size, height: size, background: shades[i], color: i > 1 ? "var(--hb-ink)" : "var(--hb-on-ink)" }}
     >
       {name.slice(0, 2).toUpperCase()}
     </span>

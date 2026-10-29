@@ -7,6 +7,7 @@ import { tierCounts } from "@/lib/mock";
 import { TIERS } from "@hb/shared";
 import { TierDot } from "./ui";
 import { shortAddr } from "@/lib/format";
+import { ThemeToggle } from "./ThemeToggle";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutGrid },
@@ -45,7 +46,9 @@ export function Sidebar() {
           </div>
         ))}
       </div>
-      <div className="mt-auto flex items-center gap-3 rounded border border-border p-3">
+      <div className="mt-auto" />
+      <ThemeToggle />
+      <div className="flex items-center gap-3 rounded border border-border p-3">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted ring-1 ring-border"><Wallet size={16} strokeWidth={1.5} /></span>
         <div className="min-w-0">
           <div className="text-sm font-medium">{publicKey ? "My wallet" : "Not connected"}</div>
