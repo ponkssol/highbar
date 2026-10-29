@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export const TIMEFRAMES = ["1m", "5m", "15m", "1h", "1D"] as const;
 type TF = (typeof TIMEFRAMES)[number];
@@ -9,7 +9,7 @@ function genCandles(mint: string, tf: TF, n = 60): Candle[] {
   let s = [...mint + tf].reduce((a, c) => a + c.charCodeAt(0), 0) || 1;
   const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
   const step = { "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1D": 86400 }[tf] * 1000;
-  const now = Date.now();
+  const now = Math.floor(Date.now() / step) * step;
   let p = 0.00001;
   return Array.from({ length: n }, (_, i) => {
     const o = p;
@@ -26,6 +26,8 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
   const [mode, setMode] = useState<"line" | "candle">("line");
   const [tf, setTf] = useState<TF>("15m");
   const [hover, setHover] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const data = useMemo(() => genCandles(mint, tf), [mint, tf]);
   const H = 300, VH = 60, TOT = H + VH;
   const lo = Math.min(...data.map((d) => d.l)), hi = Math.max(...data.map((d) => d.h));
@@ -53,7 +55,7 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
         </div>
       </div>
       <div className="num mb-1 flex flex-wrap gap-3 text-[11px] text-ink-3">
-        <span>{new Date(hv.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+        <span suppressHydrationWarning>{mounted ? new Date(hv.t).toLocaleString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "\u00a0"}</span>
         <span>O <b className="font-medium text-ink">{fmtP(hv.o)}</b></span><span>H <b className="font-medium text-ink">{fmtP(hv.h)}</b></span>
         <span>L <b className="font-medium text-ink">{fmtP(hv.l)}</b></span><span>C <b className={`font-medium ${hv.buy ? "text-buy" : "text-sell"}`}>{fmtP(hv.c)}</b></span>
         <span>Vol <b className="font-medium text-ink">{hv.v.toFixed(2)} SOL</b></span>

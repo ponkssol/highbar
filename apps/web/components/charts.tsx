@@ -29,9 +29,9 @@ export function TickGauge({ value, size = 200, ticks = 48, label, sub }: { value
       <svg width={size} height={size / 2 + 4} viewBox={`0 0 ${size} ${size / 2 + 4}`}>
         {Array.from({ length: ticks + 1 }, (_, i) => {
           const a = Math.PI - (i / ticks) * Math.PI;
-          const c = Math.cos(a), s = Math.sin(a);
+          const c = Math.cos(a), s = Math.sin(a), q = (v: number) => Math.round(v * 100) / 100;
           return (
-            <line key={i} x1={cx + r0 * c} y1={cy - r0 * s} x2={cx + r1 * c} y2={cy - r1 * s}
+            <line key={i} x1={q(cx + r0 * c)} y1={q(cy - r0 * s)} x2={q(cx + r1 * c)} y2={q(cy - r1 * s)}
               stroke={i <= on ? "var(--hb-ink)" : "var(--hb-border-strong)"} strokeWidth={2} strokeLinecap="round" />
           );
         })}
