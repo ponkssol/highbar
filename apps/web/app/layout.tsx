@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("hb-theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark")}catch(e){}` }} />
       </head>
       <body>
-        <Providers reownProjectId={process.env.REOWN_PROJECT_ID}>
+        <Providers reownProjectId={process.env.REOWN_PROJECT_ID} rpcUrl={process.env.RPC_URL}>
           <Sidebar />
           <main className="ml-sidebar min-h-screen p-4">{children}</main>
         </Providers>

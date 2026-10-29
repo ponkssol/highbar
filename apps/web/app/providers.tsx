@@ -23,6 +23,8 @@ if (typeof window === "undefined") {
 const WalletReady = createContext(false);
 export const useWalletReady = () => useContext(WalletReady);
 export const getAppKitModal = () => modal;
+const RpcUrl = createContext<string | undefined>(undefined);
+export const useRpcUrl = () => useContext(RpcUrl);
 
 let modal: AppKit | undefined;
 const isDark = () => typeof document !== "undefined" && document.documentElement.classList.contains("dark");
@@ -46,7 +48,7 @@ function initAppKit(projectId: string) {
   });
 }
 
-export function Providers({ children, reownProjectId }: { children: ReactNode; reownProjectId?: string }) {
+export function Providers({ children, reownProjectId, rpcUrl }: { children: ReactNode; reownProjectId?: string; rpcUrl?: string }) {
   const ready = !!reownProjectId;
   if (ready) initAppKit(reownProjectId!);
 
@@ -59,5 +61,5 @@ export function Providers({ children, reownProjectId }: { children: ReactNode; r
     return () => mo.disconnect();
   }, [ready]);
 
-  return <WalletReady.Provider value={ready}><AuthProvider>{children}</AuthProvider></WalletReady.Provider>;
+  return <RpcUrl.Provider value={rpcUrl}><WalletReady.Provider value={ready}><AuthProvider>{children}</AuthProvider></WalletReady.Provider></RpcUrl.Provider>;
 }

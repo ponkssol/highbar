@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppKitAccount, useAppKitProvider } from "@reown/appkit/react";
 import { useAppKitConnection } from "@reown/appkit-adapter-solana/react";
 import { Connection, PublicKey, Transaction, VersionedTransaction, clusterApiUrl, type Signer } from "@solana/web3.js";
-import { getAppKitModal, useWalletReady } from "@/app/providers";
+import { getAppKitModal, useRpcUrl, useWalletReady } from "@/app/providers";
 
 type AnyTx = Transaction | VersionedTransaction;
 interface SolanaProvider {
@@ -11,7 +11,8 @@ interface SolanaProvider {
   signAndSendTransaction<T>(tx: T, opts?: unknown): Promise<string>;
 }
 
-const fallbackConn = new Connection(process.env.NEXT_PUBLIC_RPC_URL ?? clusterApiUrl("devnet"), "confirmed");
+const conns = new Map<string, Connection>();
+const connFor = (url: string) => { let c = conns.get(url); if (!c) { c = new Connection(url, "confirmed"); conns.set(url, c); } return c; };
 
 /** Wallet hook used across the app (Reown AppKit under the hood). */
 export function useHbWallet() {
@@ -19,6 +20,8 @@ export function useHbWallet() {
   const { address, isConnected } = useAppKitAccount({ namespace: "solana" });
   const { walletProvider } = useAppKitProvider<SolanaProvider>("solana");
   const { connection: akConn } = useAppKitConnection();
+  const rpcUrl = useRpcUrl();
+  const fallbackConn = useMemo(() => connFor(rpcUrl || clusterApiUrl("devnet")), [rpcUrl]);
   const connection = (akConn as unknown as Connection | undefined) ?? fallbackConn;
   const publicKey = useMemo(() => { try { return address ? new PublicKey(address) : null; } catch { return null; } }, [address]);
 
