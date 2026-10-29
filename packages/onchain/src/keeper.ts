@@ -1,3 +1,4 @@
+import { DAMM_V2_MIGRATION_FEE_ADDRESS, MigrationFeeOption } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { PublicKey } from "@solana/web3.js";
 import { deriveBaseKeyForLocker, deriveLockerEscrowAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { getClient, getConnection, isMain, loadConfigs, loadPlatformKeypair, sendTx } from "./client.js";
@@ -9,7 +10,7 @@ export interface KeeperResult { pool: string; action: string; signature?: string
 
 /** DAMM v2 config to migrate into; set DAMM_V2_CONFIG in .env (depends on migrationFeeOption). */
 function dammV2Config(): PublicKey | null {
-  return process.env.DAMM_V2_CONFIG ? new PublicKey(process.env.DAMM_V2_CONFIG) : null;
+  return process.env.DAMM_V2_CONFIG ? new PublicKey(process.env.DAMM_V2_CONFIG) : (DAMM_V2_MIGRATION_FEE_ADDRESS[MigrationFeeOption.Customizable] ?? null);
 }
 
 export async function runKeeperOnce(): Promise<KeeperResult[]> {
