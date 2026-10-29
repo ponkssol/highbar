@@ -6,16 +6,18 @@ import { ArrowLeft, Check, Copy, ExternalLink, Globe, Send, ShieldCheck, X as XI
 import { TIERS, type TierId } from "@hb/shared";
 import { ArcGauge } from "./charts";
 import { FeeBreakdown } from "./FeeBreakdown";
-import { PriceChart } from "./PriceChart";
+import dynamic from "next/dynamic";
+const PriceChart = dynamic(() => import("./PriceChart").then((m) => m.PriceChart), { ssr: false, loading: () => <div className="h-[300px] rounded-lg border border-border bg-surface md:h-[420px]" /> });
 import { TradePanel } from "./TradePanel";
 import { TierBadge, TierDot } from "./ui";
 import { DevLock, LockedBadge } from "./DevLock";
+import { DevLockedBadge } from "./DevLockedBadge";
 import { useLocks, type LocksResp } from "@/lib/lock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
-  mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; change24h: number; holders: number; now: number;
+  mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; change24h: number; holders: number; now: number; devLocked?: boolean; unlockAt?: number | null;
   trades: { sig: string; side: "buy" | "sell"; sol: number; tokens: number; wallet: string; ts: number; devBuy?: boolean }[];
 }
 
@@ -33,7 +35,7 @@ function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
             <span className="num text-ink-3">${t.ticker}</span>
             <TierBadge tier={t.tier} />
             {t.antiSniper && <span title="Anti-sniper" className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-ink-2"><ShieldCheck size={13} strokeWidth={1.5} />anti-sniper</span>}
-            <LockedBadge data={locks} />
+            {t.devLocked ? <span data-testid="locked-badge"><DevLockedBadge devLocked unlockAt={t.unlockAt} size="md" /></span> : <LockedBadge data={locks} />}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-ink-3">
             <button onClick={copy} className="num inline-flex items-center gap-1 hover:text-ink">{shortAddr(t.mint, 5)}{copied ? <Check size={13} /> : <Copy size={13} />}</button>

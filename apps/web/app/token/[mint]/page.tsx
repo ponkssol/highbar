@@ -17,7 +17,7 @@ export default async function TokenPage({ params }: { params: Promise<{ mint: st
         mint: live.mint, name: live.name || live.mint.slice(0, 6), ticker: live.symbol || "?", tier: live.tier, antiSniper: live.antiSniper,
         creator: live.creator, createdAt: live.createdAt, mcapUsd: live.mcapUsd, raisedSol: live.quoteReserveSol, volume24hSol: live.volume24hSol,
         priceSol: live.priceSol, change24h: prevPrice ? ((live.priceSol - prevPrice) / prevPrice) * 100 : 0,
-        holders, now: Date.now(), trades: trades.map(({ sig, side, sol, tokens, wallet, ts, devBuy }) => ({ sig, side, sol, tokens, wallet, ts, devBuy: !!devBuy })),
+        holders, now: Date.now(), devLocked: !!live.devLocked, unlockAt: live.unlockAt ?? null, trades: trades.map(({ sig, side, sol, tokens, wallet, ts, devBuy }) => ({ sig, side, sol, tokens, wallet, ts, devBuy: !!devBuy })),
       }} />
     );
   }

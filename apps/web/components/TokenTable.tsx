@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Lock, ShieldCheck } from "lucide-react";
+import { ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
 import { TIERS } from "@hb/shared";
 import { progressOf, type TokenRow } from "@/lib/mock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 import { Avatar, ProgressBar, TierBadge } from "./ui";
 import { Pagination } from "./Pagination";
+import { DevLockedBadge } from "./DevLockedBadge";
 
 type Filter = "all" | "bonding" | "almost" | "graduated";
 type SortKey = "name" | "tier" | "mcap" | "progress" | "volume" | "age";
@@ -23,12 +24,6 @@ const val = (t: TokenRow, k: SortKey): number | string =>
 
 export const PAGE_SIZE = 15;
 
-/** "Dev locked" pill from the token list API (devLocked/unlockAt come from our lock records). */
-function DevLockedBadge({ t }: { t: TokenRow }) {
-  if (!t.devLocked) return null;
-  const until = t.unlockAt ? new Date(t.unlockAt * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "";
-  return <span data-testid="dev-locked" title={until ? `Dev tokens locked until ${until}` : "Dev tokens locked"} className="inline-flex items-center gap-1 rounded-full border border-ink px-1.5 text-[10px] font-medium leading-4"><Lock size={10} strokeWidth={2} />Dev locked</span>;
-}
 
 export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { tokens: TokenRow[]; search?: string; pageSize?: number }) {
   const router = useRouter();
@@ -87,7 +82,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
               <Link href={`/token/${t.mint}`} className="block rounded-[12px] border border-border p-3 active:bg-muted">
                 <div className="flex items-center gap-3">
                   <Avatar name={t.name} />
-                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><DevLockedBadge t={t} /></span></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></span></span>
                   <TierBadge tier={t.tier} />
                   <span className="num text-right text-sm">{fmtUsd(t.mcapUsd)}</span>
                 </div>
@@ -117,7 +112,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
                   <td className="px-4 py-3">
                     <Link href={`/token/${t.mint}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                       <Avatar name={t.name} />
-                      <span><span className="block font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><DevLockedBadge t={t} /></span></span>
+                      <span><span className="block font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></span></span>
                     </Link>
                   </td>
                   <td className="px-4 py-3"><TierBadge tier={t.tier} /></td>

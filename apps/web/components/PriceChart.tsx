@@ -1,101 +1,115 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
+import { apiBase } from "@/lib/api";
 
-export const TIMEFRAMES = ["1m", "5m", "15m", "1h", "1D"] as const;
+export const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 type TF = (typeof TIMEFRAMES)[number];
-interface Candle { t: number; o: number; h: number; l: number; c: number; v: number; buy: boolean }
+interface Candle { t: number; o: number; h: number; l: number; c: number; v: number; vSol: number; n: number }
+const BUCKETS = 300;
+const STEP: Record<TF, number> = { "1m": 60e3, "5m": 300e3, "15m": 900e3, "1h": 3600e3, "4h": 14400e3, "1d": 86400e3 };
 
-function genCandles(mint: string, tf: TF, n = 60): Candle[] {
-  let s = [...mint + tf].reduce((a, c) => a + c.charCodeAt(0), 0) || 1;
-  const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  const step = { "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1D": 86400 }[tf] * 1000;
-  const now = Math.floor(Date.now() / step) * step;
-  let p = 0.00001;
-  return Array.from({ length: n }, (_, i) => {
-    const o = p;
-    const c = Math.max(0.000002, o * (0.95 + r() * 0.11));
-    const h = Math.max(o, c) * (1 + r() * 0.03), l = Math.min(o, c) * (1 - r() * 0.03);
-    p = c;
-    return { t: now - (n - i) * step, o, h, l, c, v: 0.2 + r() * 3, buy: c >= o };
-  });
+/** Theme colors from --hb-* tokens (lightweight-charts needs concrete colors). */
+function theme() {
+  const s = getComputedStyle(document.documentElement);
+  const v = (n: string) => s.getPropertyValue(n).trim();
+  return { bg: v("--hb-surface"), ink: v("--hb-ink"), ink3: v("--hb-ink-3"), border: v("--hb-border"), buy: v("--hb-buy"), sell: v("--hb-sell") };
 }
-
-const W = 800, PAD = 8;
+const fmtP = (p: number) => (p === 0 ? "0" : p < 0.001 ? p.toExponential(3) : p.toPrecision(4));
 
 export function PriceChart({ mint, className = "" }: { mint: string; className?: string }) {
-  const [mode, setMode] = useState<"line" | "candle">("line");
   const [tf, setTf] = useState<TF>("15m");
-  const [hover, setHover] = useState<number | null>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const data = useMemo(() => genCandles(mint, tf), [mint, tf]);
-  const H = 300, VH = 60, TOT = H + VH;
-  const lo = Math.min(...data.map((d) => d.l)), hi = Math.max(...data.map((d) => d.h));
-  const vmax = Math.max(...data.map((d) => d.v));
-  const bw = (W - PAD * 2) / data.length;
-  const x = (i: number) => PAD + i * bw + bw / 2;
-  const y = (v: number) => PAD + (1 - (v - lo) / (hi - lo || 1)) * (H - PAD * 2);
-  const line = data.map((d, i) => `${x(i)},${y(d.c)}`).join(" ");
-  const area = `${x(0)},${H} ${line} ${x(data.length - 1)},${H}`;
-  const hv = hover != null ? data[hover] : data[data.length - 1];
-  const fmtP = (v: number) => v.toExponential(3);
+  const [state, setState] = useState<"loading" | "ready" | "empty" | "error">("loading");
+  const [last, setLast] = useState<Candle | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const chart = useRef<IChartApi | null>(null);
+  const series = useRef<{ c: ISeriesApi<"Candlestick">; v: ISeriesApi<"Histogram"> } | null>(null);
+
+  // create chart once (client only: dynamic import, never during SSR)
+  useEffect(() => {
+    let disposed = false, mo: MutationObserver | null = null;
+    import("lightweight-charts").then(({ createChart, CrosshairMode }) => {
+      if (disposed || !box.current) return;
+      const th = theme();
+      const ch = createChart(box.current, {
+        autoSize: true,
+        layout: { background: { color: th.bg }, textColor: th.ink3, fontFamily: "var(--font-mono), monospace", fontSize: 11 },
+        grid: { vertLines: { color: th.border }, horzLines: { color: th.border } },
+        rightPriceScale: { borderColor: th.border }, timeScale: { borderColor: th.border, timeVisible: true, secondsVisible: false },
+        crosshair: { mode: CrosshairMode.Normal },
+      });
+      const c = ch.addCandlestickSeries({ upColor: th.buy, downColor: th.sell, borderVisible: false, wickUpColor: th.buy, wickDownColor: th.sell,
+        priceFormat: { type: "custom", minMove: 1e-12, formatter: fmtP } });
+      const v = ch.addHistogramSeries({ priceScaleId: "vol", priceFormat: { type: "volume" }, color: th.ink3 });
+      ch.priceScale("vol").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+      c.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.25 } });
+      chart.current = ch; series.current = { c, v };
+      const apply = () => {
+        const t = theme();
+        ch.applyOptions({ layout: { background: { color: t.bg }, textColor: t.ink3 }, grid: { vertLines: { color: t.border }, horzLines: { color: t.border } },
+          rightPriceScale: { borderColor: t.border }, timeScale: { borderColor: t.border } });
+        c.applyOptions({ upColor: t.buy, downColor: t.sell, wickUpColor: t.buy, wickDownColor: t.sell });
+      };
+      mo = new MutationObserver(apply);
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+      setReady((n) => n + 1);
+    }).catch(() => setState("error"));
+    return () => { disposed = true; mo?.disconnect(); chart.current?.remove(); chart.current = null; series.current = null; };
+  }, []);
+  const [ready, setReady] = useState(0);
+
+  // load + poll candles (10s)
+  useEffect(() => {
+    if (!ready) return;
+    let alive = true, first = true;
+    setState("loading");
+    const load = async () => {
+      try {
+        const to = Date.now(), from = to - (BUCKETS - 1) * STEP[tf];
+        const r = await fetch(`${apiBase()}/tokens/${mint}/candles?tf=${tf}&from=${from}&to=${to}`, { cache: "no-store" });
+        if (!r.ok) throw new Error(String(r.status));
+        const j = (await r.json()) as { candles: Candle[] };
+        if (!alive || !series.current) return;
+        const th = theme();
+        const cs = j.candles;
+        series.current.c.setData(cs.map((x) => ({ time: (x.t / 1000) as UTCTimestamp, open: x.o, high: x.h, low: x.l, close: x.c })));
+        series.current.v.setData(cs.map((x, i) => ({ time: (x.t / 1000) as UTCTimestamp, value: x.vSol, color: x.c >= (i ? cs[i - 1].c : x.o) ? th.buy : th.sell })));
+        if (first && cs.length) chart.current?.timeScale().fitContent();
+        first = false;
+        setLast(cs.length ? cs[cs.length - 1] : null);
+        setState(cs.some((x) => x.n > 0) || cs.length ? "ready" : "empty");
+      } catch { if (alive) setState((s) => (s === "ready" ? s : "error")); }
+    };
+    load();
+    const id = setInterval(load, 10_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [mint, tf, ready]);
 
   return (
-    <div className={`flex flex-col rounded-lg border border-border bg-surface p-4 ${className}`}>
+    <div data-testid="price-chart" className={`flex flex-col rounded-lg border border-border bg-surface p-4 ${className}`}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex rounded-full border border-border bg-muted p-0.5 text-xs">
-          {(["line", "candle"] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)} className={`rounded-full px-3 py-1 font-medium capitalize ${mode === m ? "bg-ink text-on-ink" : "text-ink-3 hover:text-ink"}`}>{m}</button>
-          ))}
+        <div className="num flex flex-wrap gap-3 text-[11px] text-ink-3">
+          {last ? (<>
+            <span>O <b className="font-medium text-ink">{fmtP(last.o)}</b></span><span>H <b className="font-medium text-ink">{fmtP(last.h)}</b></span>
+            <span>L <b className="font-medium text-ink">{fmtP(last.l)}</b></span><span>C <b className={`font-medium ${last.c >= last.o ? "text-buy" : "text-sell"}`}>{fmtP(last.c)}</b></span>
+            <span>Vol <b className="font-medium text-ink">{last.vSol.toFixed(3)} SOL</b></span>
+          </>) : <span>Price in SOL</span>}
         </div>
-        <div className="flex gap-1 text-xs">
+        <div className="flex gap-1 text-xs" role="tablist" aria-label="Timeframe">
           {TIMEFRAMES.map((t) => (
-            <button key={t} onClick={() => setTf(t)} className={`num rounded-md px-2 py-1 ${tf === t ? "bg-muted font-semibold text-ink ring-1 ring-border" : "text-ink-3 hover:text-ink"}`}>{t}</button>
+            <button key={t} role="tab" aria-selected={tf === t} onClick={() => setTf(t)}
+              className={`num h-11 min-w-11 rounded-md px-2 md:h-7 md:min-w-0 ${tf === t ? "bg-muted font-semibold text-ink ring-1 ring-border" : "text-ink-3 hover:text-ink"}`}>{t}</button>
           ))}
         </div>
       </div>
-      <div className="num mb-1 flex flex-wrap gap-3 text-[11px] text-ink-3">
-        <span suppressHydrationWarning>{mounted ? new Date(hv.t).toLocaleString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "\u00a0"}</span>
-        <span>O <b className="font-medium text-ink">{fmtP(hv.o)}</b></span><span>H <b className="font-medium text-ink">{fmtP(hv.h)}</b></span>
-        <span>L <b className="font-medium text-ink">{fmtP(hv.l)}</b></span><span>C <b className={`font-medium ${hv.buy ? "text-buy" : "text-sell"}`}>{fmtP(hv.c)}</b></span>
-        <span>Vol <b className="font-medium text-ink">{hv.v.toFixed(2)} SOL</b></span>
+      <div className="relative min-h-0 flex-1">
+        <div ref={box} className="absolute inset-0" />
+        {state !== "ready" && (
+          <div data-testid="chart-state" className="absolute inset-0 flex items-center justify-center bg-surface text-sm text-ink-3">
+            {state === "loading" ? "Loading chart..." : state === "empty" ? "No trades yet" : "Chart unavailable. Retrying..."}
+          </div>
+        )}
       </div>
-      <svg viewBox={`0 0 ${W} ${TOT}`} preserveAspectRatio="none" className="min-h-0 w-full flex-1"
-        onMouseLeave={() => setHover(null)}
-        onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); const i = Math.floor((((e.clientX - r.left) / r.width) * W - PAD) / bw); setHover(Math.max(0, Math.min(data.length - 1, i))); }}>
-        <defs>
-          <pattern id="hb-vhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line x1="0" y1="0" x2="0" y2="4" stroke="var(--hb-ink-3)" strokeWidth="1.5" />
-          </pattern>
-        </defs>
-        {[0.25, 0.5, 0.75].map((g) => <line key={g} x1={0} x2={W} y1={H * g} y2={H * g} stroke="var(--hb-border)" strokeWidth={1} vectorEffect="non-scaling-stroke" />)}
-        {mode === "line" ? (
-          <>
-            <polygon points={area} fill="var(--hb-ink)" fillOpacity={0.06} />
-            <polyline points={line} fill="none" stroke="var(--hb-ink)" strokeWidth={1.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-          </>
-        ) : (
-          data.map((d, i) => {
-            const col = d.buy ? "var(--hb-buy)" : "var(--hb-sell)";
-            return (
-              <g key={i}>
-                <line x1={x(i)} x2={x(i)} y1={y(d.h)} y2={y(d.l)} stroke={col} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-                <rect x={x(i) - bw * 0.35} width={bw * 0.7} y={Math.min(y(d.o), y(d.c))} height={Math.max(1, Math.abs(y(d.o) - y(d.c)))} fill={col} />
-              </g>
-            );
-          })
-        )}
-        {data.map((d, i) => {
-          const h = (d.v / vmax) * (VH - 6);
-          return <rect key={`v${i}`} x={x(i) - bw * 0.35} width={bw * 0.7} y={TOT - h} height={h} fill={d.buy ? "var(--hb-border-strong)" : "url(#hb-vhatch)"} stroke={d.buy ? "none" : "var(--hb-ink-3)"} strokeWidth={0.5} vectorEffect="non-scaling-stroke" />;
-        })}
-        {hover != null && (
-          <>
-            <line x1={x(hover)} x2={x(hover)} y1={0} y2={TOT} stroke="var(--hb-ink-3)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
-            <line x1={0} x2={W} y1={y(data[hover].c)} y2={y(data[hover].c)} stroke="var(--hb-ink-3)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
-          </>
-        )}
-      </svg>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { PublicKey } from "@solana/web3.js";
 import { AlertTriangle, Lock, Unlock } from "lucide-react";
 import { useHbWallet } from "@/lib/wallet";
 import { api } from "@/lib/api";
+import { DevLockedBadge } from "./DevLockedBadge";
 import { buildClaimLockTx, buildLockTx, toUi, type LocksResp } from "@/lib/lock";
 
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
@@ -12,16 +13,11 @@ const fmtDate = (s: number) => new Date(s * 1000).toLocaleString("en-GB", { day:
 const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const isoLocal = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
-/** "Locked" pill for the token header: earliest unlock among active locks. */
+/** Token header pill: live countdown to the latest cliff among active locks (same rule as the API's unlockAt). */
 export function LockedBadge({ data }: { data: LocksResp | null }) {
   if (!data || !(data.lockedTokens > 0)) return null;
-  const next = data.locks.filter((l) => Number(l.locked) > 0).map((l) => l.cliffTime).sort((a, b) => a - b)[0];
-  return (
-    <span title={`${fmtTok(data.lockedTokens)} dev tokens locked via Jupiter Lock`} data-testid="locked-badge"
-      className="inline-flex items-center gap-1 rounded-full border border-ink px-2 py-0.5 text-xs font-medium">
-      <Lock size={12} strokeWidth={2} />Dev locked{next ? ` until ${fmtDate(next).split(",")[0]}` : ""}
-    </span>
-  );
+  const at = Math.max(...data.locks.filter((l) => Number(l.locked) > 0).map((l) => l.cliffTime));
+  return <span data-testid="locked-badge" title={`${fmtTok(data.lockedTokens)} dev tokens locked via Jupiter Lock`}><DevLockedBadge devLocked unlockAt={Number.isFinite(at) ? at : null} size="md" /></span>;
 }
 
 /** Lock schedule (everyone), lock form + claim (creator only). */
