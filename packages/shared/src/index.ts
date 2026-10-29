@@ -25,7 +25,7 @@ export const ANTI_SNIPER = {
   /** Example only: starting fee that decays to CURVE_FEE_BPS */
   startFeeBps: 2500,
   endFeeBps: CURVE_FEE_BPS,
-  decaySeconds: 300,
+  decaySeconds: 60,
 } as const;
 
 export const TIERS: Record<TierId, Tier> = {
@@ -34,7 +34,7 @@ export const TIERS: Record<TierId, Tier> = {
     label: "Standard",
     migrationQuoteThresholdSol: 40,
     creatorTradingFeePercentage: 50,
-    migrationFeePercentage: 1.5,
+    migrationFeePercentage: 1,
     creatorMigrationFeePercentage: 0,
     lpCreatorPercentage: 20,
     lpPlatformPercentage: 80,
@@ -43,7 +43,7 @@ export const TIERS: Record<TierId, Tier> = {
     id: "higher",
     label: "Higher",
     migrationQuoteThresholdSol: 80,
-    creatorTradingFeePercentage: 62.5,
+    creatorTradingFeePercentage: 62,
     migrationFeePercentage: 1,
     creatorMigrationFeePercentage: 50,
     lpCreatorPercentage: 40,
@@ -54,7 +54,7 @@ export const TIERS: Record<TierId, Tier> = {
     label: "Max",
     migrationQuoteThresholdSol: 100,
     creatorTradingFeePercentage: 75,
-    migrationFeePercentage: 0.5,
+    migrationFeePercentage: 0,
     creatorMigrationFeePercentage: 50,
     lpCreatorPercentage: 50,
     lpPlatformPercentage: 50,
@@ -78,3 +78,4 @@ export function curveFeeSplit(tier: Tier) {
   const creator = (rest * tier.creatorTradingFeePercentage) / 100;
   return { total, protocol, creator, platform: rest - creator };
 }
+
