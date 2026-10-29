@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{--hb-bg:#F4F4EE;--hb-surface:#FFFFFF;--hb-surface-muted:#FAFAF7;--hb-border:#E4E4DE;--hb-border-strong:#CFCFC8;--hb-ink:#0E0E0E;--hb-ink-2:#4A4A46;--hb-ink-3:#8A8A84;--hb-on-ink:#FFFFFF;--hb-highlight-bg:#0E0E0E;--hb-highlight-fg:#FFFFFF;--hb-highlight-sub:#A8A8A2;--hb-tier-standard:#5B7FA6;--hb-tier-higher:#6E8F5A;--hb-tier-max:#8A6BB0;--hb-buy:#2F7D4F;--hb-sell:#B4483C;--hb-burn:#C2662D;--hb-hatch:repeating-linear-gradient(135deg,var(--hb-ink) 0 1.5px,transparent 1.5px 6px);--hb-shadow:0 1px 2px rgba(14,14,14,.04);}
+
+html,body{background:var(--hb-surface);color:var(--hb-ink);}
+body{font-family:var(--font-inter),Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+.num{font-family:var(--font-mono),"Geist Mono","JetBrains Mono",monospace;font-variant-numeric:tabular-nums;}
+
+/* wallet button to match */
+.wallet-adapter-button.hb-wallet{background:var(--hb-surface);color:var(--hb-ink);border:1px solid var(--hb-border);height:40px;border-radius:12px;font-family:inherit;font-size:14px;font-weight:500;padding:0 14px;line-height:40px}
+.wallet-adapter-button.hb-wallet:not([disabled]):hover{background:var(--hb-surface-muted)}
+.wallet-adapter-button.hb-wallet .wallet-adapter-button-start-icon{width:18px;height:18px;margin-right:8px}
