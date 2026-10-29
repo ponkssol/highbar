@@ -6,7 +6,7 @@ export interface SwapParams { mint: string; side: "buy" | "sell"; amount: number
 
 /** Builds a Meteora DBC swap2 tx via the API (quote + minOut + referral server-side). Returns the unsigned tx bytes. */
 export async function buildSwapTx(params: SwapParams): Promise<{ ok: false; reason: string } | { ok: true; tx: Uint8Array; transaction: Transaction }> {
-  if (!params.owner) return { ok: false, reason: "Connect wallet dulu." };
+  if (!params.owner) return { ok: false, reason: "Connect your wallet first." };
   try {
     const t = await api.token(params.mint);
     const r = await post<{ tx: string }>("/tx/swap", { owner: params.owner, pool: t.pool, side: params.side, amount: params.amount, slippageBps: params.slippageBps });
