@@ -13,11 +13,12 @@ export function registerPages(app: FastifyInstance) {
     const { kind } = req.params as { kind: string };
     const q = req.query as { window?: string; limit?: string };
     const limit = Math.min(200, Number(q.limit ?? 50));
-    const trades = store.allTrades().filter(inWin(q.window));
+    const trades = (await store.allTrades()).filter(inWin(q.window));
+    const tokens = await store.tokens();
     if (kind === "tokens") {
       const vol = new Map<string, number>(); const cnt = new Map<string, number>();
       for (const t of trades) { vol.set(t.mint, (vol.get(t.mint) ?? 0) + t.sol); cnt.set(t.mint, (cnt.get(t.mint) ?? 0) + 1); }
-      return store.tokens().map((t) => ({
+      return tokens.map((t) => ({
         mint: t.mint, name: t.name, symbol: t.symbol, tier: t.tier, mcapUsd: t.mcapSol * SOL_USD, progress: t.progress, isMigrated: t.isMigrated,
         volumeSol: vol.get(t.mint) ?? 0, trades: cnt.get(t.mint) ?? 0, volume24hSol: t.volume24hSol,
       })).sort((a, b) => b.volumeSol - a.volumeSol || b.mcapUsd - a.mcapUsd).slice(0, limit);
@@ -26,7 +27,7 @@ export function registerPages(app: FastifyInstance) {
       const by = new Map<string, { creator: string; tokens: number; graduated: number; volumeSol: number; feesEarnedSol: number }>();
       const vol = new Map<string, number>();
       for (const t of trades) vol.set(t.mint, (vol.get(t.mint) ?? 0) + t.sol);
-      for (const t of store.tokens()) {
+      for (const t of tokens) {
         const c = by.get(t.creator) ?? { creator: t.creator, tokens: 0, graduated: 0, volumeSol: 0, feesEarnedSol: 0 };
         const v = vol.get(t.mint) ?? 0;
         c.tokens++; c.graduated += t.isMigrated ? 1 : 0; c.volumeSol += v;
@@ -49,18 +50,17 @@ export function registerPages(app: FastifyInstance) {
 
   app.get("/wallet/:address/trades", async (req) => {
     const { address } = req.params as { address: string };
-    return store.allTrades().filter((t) => t.wallet === address).sort((a, b) => b.ts - a.ts).slice(0, 200)
-      .map((t) => ({ ...t, symbol: store.db.tokens[t.mint]?.symbol ?? "" }));
+    return store.walletTrades(address, 200);
   });
 
   app.get("/wallet/:address/created", async (req) => {
     const { address } = req.params as { address: string };
-    return store.tokens().filter((t) => t.creator === address).sort((a, b) => b.createdAt - a.createdAt)
+    return (await store.tokensByCreator(address))
       .map((t) => ({ ...t, mcapUsd: t.mcapSol * SOL_USD }));
   });
 
   app.get("/burn", async () => {
-    const toks = store.tokens();
+    const toks = await store.tokens();
     const fees = toks.reduce((a, t) => a + t.feesSol, 0), creator = toks.reduce((a, t) => a + t.creatorFeesSol, 0);
     const platform = BigInt(Math.floor(Math.max(0, fees * 0.8 - creator) * 1e9));
     const s = splitEpoch(platform, 0n);
@@ -69,7 +69,7 @@ export function registerPages(app: FastifyInstance) {
       barBurned: 0, platformFeesSol: Number(platform) / 1e9,
       split: { buyback: Number(s.buyback) / 1e9, ops: Number(s.ops) / 1e9, treasury: Number(s.treasury) / 1e9 },
       pendingBuybackSol: Number(s.buyback) / 1e9, maxOrderSol: 1, maxSlippageBps: 100,
-      runs: store.db.burns, // buyback runs (empty until buyback is live)
+      runs: await store.burns(), // buyback runs (empty until buyback is live)
     };
   });
 }

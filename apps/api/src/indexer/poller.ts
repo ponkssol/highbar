@@ -7,7 +7,7 @@ import { decodeDbcEvents, type RawTx } from "./decode.js";
 import { store, type Token } from "../store.js";
 import { recordTrade } from "../candles/index.js";
 
-/** RPC-polling indexer (no DB/webhook needed). Pool state via getPoolsByConfig; swaps via the backup's decode.ts (EvtSwap3). */
+/** RPC-polling indexer (state in Postgres). Pool state via getPoolsByConfig; swaps via the backup's decode.ts (EvtSwap3). */
 const METAPLEX = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 const SUPPLY = 1_000_000_000;
 const L = 1e9;
@@ -32,10 +32,10 @@ async function fetchMetadata(mint: string) {
 
 async function indexTrades(t: Token, limit: number) {
   const conn = getConnection();
-  const until = store.db.lastSig[t.pool];
+  const until = await store.lastSig(t.pool);
   const sigs = await withRetry(() => conn.getSignaturesForAddress(new PublicKey(t.pool), { limit, until }));
   if (!sigs.length) return;
-  store.db.lastSig[t.pool] = sigs[0].signature;
+  const newest = sigs[0].signature;
   for (const s of sigs.reverse()) {
     if (s.err) continue;
     const tx = await withRetry(() => conn.getTransaction(s.signature, { maxSupportedTransactionVersion: 0 })).catch(() => null);
@@ -59,12 +59,13 @@ async function indexTrades(t: Token, limit: number) {
       if (ev.kind !== "swap" || ev.pool !== t.pool) continue;
       const sig = `${s.signature}:${i++}`;
       const devBuy = initInTx && !devTagged && ev.side === "buy"; if (devBuy) devTagged = true;
-      const added = store.addTrade({ sig, pool: t.pool, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6,
+      const added = await store.addTrade({ sig, pool: t.pool, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6,
         feeSol: Number(ev.feeLamports) / L, wallet: ev.trader, viaUi: !!REFERRAL && ev.referralTokenAccount === REFERRAL, ts, ...(devBuy ? { devBuy: true } : {}) });
-      if (added) recordTrade({ sig, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6, ts });
-      if (added) store.addActivity({ id: `trade:${sig}`, type: "trade", mint: t.mint, symbol: t.symbol, ts, amount: Number(ev.solLamports) / L, side: ev.side, wallet: ev.trader, sig: s.signature });
+      if (added) await recordTrade({ sig, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6, ts });
+      if (added) await store.addActivity({ id: `trade:${sig}`, type: "trade", mint: t.mint, symbol: t.symbol, ts, amount: Number(ev.solLamports) / L, side: ev.side, wallet: ev.trader, sig: s.signature });
     }
   }
+  await store.setLastSig(t.pool, newest);
 }
 
 export async function indexOnce(log: (m: string) => void = console.log) {
@@ -78,7 +79,7 @@ export async function indexOnce(log: (m: string) => void = console.log) {
     for (const { publicKey, account } of pools) {
       const ps = account.poolState;
       const mint = ps.baseMint.toBase58();
-      const prev = store.db.tokens[mint];
+      const prev = await store.getToken(mint).then((x) => (x?.mint === mint ? x : null));
       const thresholdSol = config ? Number(config.migrationQuoteThreshold.toString()) / L : TIERS[cfg.tier].migrationQuoteThresholdSol;
       const quoteReserveSol = Number(ps.quoteReserve.toString()) / L;
       const priceSol = Number(getPriceFromSqrtPrice(ps.sqrtPrice, 6, 9).toString());
@@ -93,26 +94,23 @@ export async function indexOnce(log: (m: string) => void = console.log) {
       };
       await indexTrades(t, limit).catch((e) => log(`trades ${t.pool}: ${e.message}`));
       if (!t.createdAt) t.createdAt = Date.now();
-      if (!prev) store.addActivity({ id: `launch:${mint}`, type: "launch", mint, symbol: t.symbol, ts: t.createdAt });
-      if (isMigrated && !prev?.isMigrated) store.addActivity({ id: `graduate:${mint}`, type: "graduate", mint, symbol: t.symbol, ts: prev ? Date.now() : t.createdAt, amount: quoteReserveSol });
-      const trs = store.tradesFor(mint), dayAgo = Date.now() - 86400_000;
-      t.trades = trs.length;
-      t.volumeSol = trs.reduce((a, x) => a + x.sol, 0);
-      t.volume24hSol = trs.filter((x) => x.ts >= dayAgo).reduce((a, x) => a + x.sol, 0);
-      t.feesSol = trs.reduce((a, x) => a + x.feeSol, 0);
+      if (!prev) await store.addActivity({ id: `launch:${mint}`, type: "launch", mint, symbol: t.symbol, ts: t.createdAt });
+      if (isMigrated && !prev?.isMigrated) await store.addActivity({ id: `graduate:${mint}`, type: "graduate", mint, symbol: t.symbol, ts: prev ? Date.now() : t.createdAt, amount: quoteReserveSol });
+      const agg = await store.tradeAgg(mint, Date.now() - 86400_000);
+      t.trades = agg.n; t.volumeSol = agg.vol; t.volume24hSol = agg.vol24; t.feesSol = agg.fees;
       // creator share of the non-protocol (80%) part of curve fees
       t.creatorFeesSol = t.feesSol * 0.8 * (creatorPct / 100);
-      store.upsertToken(t);
+      await store.upsertToken(t);
     }
   }
-  store.flush();
+  await store.trimActivity();
 }
 
 export function startIndexer(log: (m: string) => void = console.log) {
   let running = false;
   const tick = async () => {
     if (running) return; running = true;
-    try { await indexOnce(log); log(`indexed ${store.tokens().length} tokens`); } catch (e) { log(`indexer: ${(e as Error).message}`); }
+    try { await indexOnce(log); log(`indexed ${await store.tokenCount()} tokens`); } catch (e) { log(`indexer: ${(e as Error).message}`); }
     finally { running = false; }
   };
   void tick();

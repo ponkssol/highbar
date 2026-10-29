@@ -22,7 +22,7 @@ export function registerClaim(app: FastifyInstance) {
     const { creator } = req.params as { creator: string };
     try { new PublicKey(creator); } catch { return reply.code(400).send({ error: "invalid creator address" }); }
     const client = getClient();
-    const mine = store.tokens().filter((t) => t.creator === creator);
+    const mine = await store.tokensByCreator(creator);
     const cfgCache = new Map<string, any>();
     const rows = await Promise.all(mine.map(async (t) => {
       const base = { mint: t.mint, pool: t.pool, name: t.name, symbol: t.symbol, tier: t.tier, image: (t as any).image ?? null };
@@ -67,7 +67,7 @@ export function registerClaim(app: FastifyInstance) {
     try {
       if (b.kind !== "trading" && b.kind !== "migration") return reply.code(400).send({ error: "kind must be trading|migration" });
       const creator = new PublicKey(String(b.creator)), pool = new PublicKey(String(b.pool));
-      const t = store.tokens().find((x) => x.pool === pool.toBase58());
+      const t = await store.getToken(pool.toBase58());
       if (t && t.creator !== creator.toBase58()) return reply.code(403).send({ error: "wallet is not the creator of this pool" });
       const client = getClient();
       if (b.kind === "migration") {

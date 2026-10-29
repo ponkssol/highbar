@@ -1,9 +1,9 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 
 export interface TradePoint { mint: string; sig: string; ixIdx: number; ts: number; priceSol: number; amount: number; side: "buy" | "sell"; /** SOL volume (optional, derived from priceSol*amount when absent) */ sol?: number }
 
-/** JSON-file trade store for candles. Dedupe on sig+ixIdx, atomic writes (tmp + rename), debounced flush. */
+/** In-memory/JSON trade store (tests + offline tools; the API reads candle points from Postgres trade_points). Dedupe on sig+ixIdx, atomic writes (tmp + rename), debounced flush. */
 export class TradeStore {
   private byMint = new Map<string, TradePoint[]>();
   private keys = new Set<string>();
@@ -50,5 +50,4 @@ export class TradeStore {
   }
 }
 
-export const tradeStore = new TradeStore(path.resolve(process.env.TRADES_FILE ?? "./data/trades.json"));
-process.on("exit", () => { try { tradeStore.flush(); } catch { /* ignore */ } });
+

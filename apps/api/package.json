@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "@hb/api",
   "version": "0.1.0",
   "private": true,
@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:import": "tsx scripts/importJson.ts",
     "typecheck": "tsc --noEmit -p .",
     "test": "tsx --test src/**/*.test.ts"
   },

@@ -10,32 +10,34 @@ import { store, type Token } from "./store.js";
 import { indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
 import { registerPages } from "./routes/pages.js";
-import { registerAuth } from "./auth.js";
+import { initAuth, registerAuth } from "./auth.js";
+import { migrate } from "./db/migrate.js";
+import { requireDb } from "./db/pool.js";
 import { buildLaunchTx, quoteDevBuy, DEV_BUY_MAX_SOL, type LaunchReq } from "./launchTx.js";
 import { registerClaim } from "./routes/claim.js";
-import { backfill, registerCandles } from "./candles/index.js";
-import { imageUrl, registerMedia } from "./media.js";
+import { registerCandles } from "./candles/index.js";
+import { imageUrl, initMedia, registerMedia } from "./media.js";
 
 const SOL_USD = Number(process.env.SOL_USD ?? 150);
 const DRY_RUN = process.env.DRY_RUN !== "false";
+requireDb();
+await migrate(() => {});
+await initAuth();
+await initMedia();
 const app = Fastify({ logger: { level: "info" } });
 await app.register(cors, { origin: (process.env.CORS_ORIGIN ?? "http://localhost:3000").split(",") });
 
-/** Dev-lock status from our own lock records (no RPC): active = not cancelled and tokens still locked. */
-function devLock(mint: string) {
-  const now = Date.now() / 1000;
-  const act = Object.values(store.db.lockMeta ?? {}).filter((m) => m.mint === mint && !m.cancelled && BigInt(m.locked) > 0n && now < m.endTime);
-  return act.length ? { devLocked: true, unlockAt: Math.max(...act.map((m) => m.cliffTime)) } : { devLocked: false, unlockAt: null as number | null };
+/** Dev-lock status from our own lock records in Postgres (no RPC): active = not cancelled and tokens still locked. */
+async function devLock(mint: string) {
+  const u = (await store.devLocks([mint])).get(mint);
+  return u !== undefined ? { devLocked: true, unlockAt: u } : { devLocked: false, unlockAt: null as number | null };
 }
-const view = (t: Token) => ({ ...t, mcapUsd: t.mcapSol * SOL_USD, image: imageUrl(t.mint, t.uri), ...devLock(t.mint) });
-function recordLocks(infos: LockInfo[]) {
-  if (!infos.length) return;
-  const meta = { ...(store.db.lockMeta ?? {}) }, locks = { ...(store.db.locks ?? {}) };
-  for (const l of infos) {
-    meta[l.escrow] = { mint: l.mint, creator: l.creator, cliffTime: l.cliffTime, endTime: l.endTime, total: String(l.total), locked: String(l.locked), cancelled: !!l.cancelled, seenAt: Date.now() };
-    locks[l.mint] = [...new Set([...(locks[l.mint] ?? []), l.escrow])];
-  }
-  store.db.lockMeta = meta; store.db.locks = locks; store.markDirty();
+async function views(ts: Token[]) {
+  const dl = await store.devLocks(ts.map((t) => t.mint));
+  return ts.map((t) => { const u = dl.get(t.mint); return { ...t, mcapUsd: t.mcapSol * SOL_USD, image: imageUrl(t.mint, t.uri), devLocked: u !== undefined, unlockAt: u ?? null }; });
+}
+async function recordLocks(infos: LockInfo[]) {
+  await store.recordLocks(infos.map((l) => ({ escrow: l.escrow, mint: l.mint, creator: l.creator, cliffTime: l.cliffTime, endTime: l.endTime, total: String(l.total), locked: String(l.locked), cancelled: !!l.cancelled, seenAt: Date.now() })));
 }
 
 registerAuth(app);
@@ -43,48 +45,35 @@ registerPages(app);
 registerClaim(app);
 registerCandles(app);
 registerMedia(app);
-app.log.info(`candles: backfilled ${backfill(Object.values(store.db.trades))} trades`);
-app.get("/health", async () => ({ ok: true, tokens: store.tokens().length, dryRun: DRY_RUN, time: Date.now() }));
+app.get("/health", async () => ({ ok: true, tokens: await store.tokenCount(), dryRun: DRY_RUN, time: Date.now() }));
 
 app.get("/tokens", async (req) => {
   const q = req.query as Record<string, string | undefined>;
-  let rows = store.tokens();
-  if (q.tier) rows = rows.filter((t) => t.tier === q.tier);
-  if (q.status === "graduated") rows = rows.filter((t) => t.isMigrated);
-  if (q.status === "bonding") rows = rows.filter((t) => !t.isMigrated);
-  if (q.q) { const s = q.q.toLowerCase(); rows = rows.filter((t) => [t.name, t.symbol, t.mint].some((x) => x.toLowerCase().includes(s))); }
-  const key = (q.sort ?? "createdAt") as keyof Token;
-  const dir = q.order === "asc" ? 1 : -1;
-  rows.sort((a, b) => (a[key] > b[key] ? 1 : a[key] < b[key] ? -1 : 0) * dir);
-  const limit = Math.min(200, Number(q.limit ?? 50)), offset = Number(q.offset ?? 0);
-  return { total: rows.length, items: rows.slice(offset, offset + limit).map(view) };
+  const limit = Math.max(0, Math.min(200, Number(q.limit ?? 50) || 0)), offset = Math.max(0, Number(q.offset ?? 0) || 0);
+  const r = await store.listTokens({ tier: q.tier, status: q.status, q: q.q, sort: q.sort, order: q.order, limit, offset });
+  return { total: r.total, items: await views(r.items) };
 });
 
 app.get("/tokens/:mint", async (req, reply) => {
   const { mint } = req.params as { mint: string };
-  const t = store.db.tokens[mint] ?? store.tokens().find((x) => x.pool === mint);
-  return t ? view(t) : reply.code(404).send({ error: "not found" });
+  const t = await store.getToken(mint);
+  return t ? (await views([t]))[0] : reply.code(404).send({ error: "not found" });
 });
 
 app.get("/tokens/:mint/trades", async (req) => {
   const { mint } = req.params as { mint: string };
   const limit = Math.min(500, Number((req.query as any).limit ?? 100));
-  return store.tradesFor(mint).slice(0, limit);
+  return store.tradesFor(mint, limit);
 });
 
 app.get("/activity", async (req) => {
   const q = req.query as Record<string, string | undefined>;
   const since = Number(q.since ?? 0), limit = Math.min(500, Number(q.limit ?? 200));
-  const sym = (m: string) => store.db.tokens[m]?.symbol ?? "";
-  return [...store.db.activity, ...store.db.burns]
-    .filter((a) => a.ts > since)
-    .map((a) => ({ ...a, symbol: a.symbol || sym(a.mint) }))
-    .sort((a, b) => b.ts - a.ts)
-    .slice(0, limit);
+  return store.listActivity(since, limit);
 });
 
 app.get("/stats", async () => {
-  const toks = store.tokens(), trades = store.allTrades(), now = Date.now(), day = 86400_000;
+  const toks = await store.tokens(), trades = await store.allTrades(), now = Date.now(), day = 86400_000;
   const graduated = toks.filter((t) => t.isMigrated).length;
   const perDay = (n: number) => Array.from({ length: n }, (_, i) => {
     const d = new Date(now - (n - 1 - i) * day); d.setHours(0, 0, 0, 0);
@@ -158,17 +147,16 @@ const lockCache = new Map<string, { at: number; v: LockInfo[] }>();
 async function locksFor(mint: string, fresh = false) {
   const c = lockCache.get(mint);
   if (!fresh && c && Date.now() - c.at < 20_000) return c.v;
-  const t = store.db.tokens[mint];
-  const known = (store.db.locks?.[mint] ?? []).map((e) => new PublicKey(e));
+  const t = await store.getToken(mint);
+  const known = (await store.escrowsFor(mint)).map((e) => new PublicKey(e));
   let v: LockInfo[];
   try {
     v = await fetchLocks(new PublicKey(mint), t ? new PublicKey(t.creator) : undefined);
-    recordLocks(v);
   } catch (e) {
     if (!known.length && c) return c.v; // RPC rate-limited: serve stale
     v = await fetchEscrows(known); // fall back to escrows we built for this mint
   }
-  recordLocks(v);
+  await recordLocks(v);
   lockCache.set(mint, { at: Date.now(), v });
   return v;
 }
@@ -185,8 +173,8 @@ app.post("/tx/lock", async (req, reply) => {
   const b = req.body as { creator?: string; mint?: string; amount?: number; unlockAt?: number; vestingDays?: number };
   try {
     const creator = new PublicKey(String(b.creator)), mint = new PublicKey(String(b.mint));
-    const t = store.db.tokens[mint.toBase58()];
-    if (!t) return reply.code(404).send({ error: "token not found" });
+    const t = await store.getToken(mint.toBase58());
+    if (!t || t.mint !== mint.toBase58()) return reply.code(404).send({ error: "token not found" });
     if (t.creator !== creator.toBase58()) return reply.code(403).send({ error: "only the token creator can lock dev tokens here" });
     const amount = Number(b.amount), unlockAt = Math.floor(Number(b.unlockAt)), vestingDays = Number(b.vestingDays ?? 0);
     const now = Math.floor(Date.now() / 1000);
@@ -199,13 +187,13 @@ app.post("/tx/lock", async (req, reply) => {
     if (raw.gt(bal)) return reply.code(400).send({ error: `amount exceeds wallet balance (${Number(bal.toString()) / BASE_DECIMALS})` });
     const r = await buildLockTx({ creator, mint, amount: raw, unlockAt, vestingSeconds: vestingDays * 86_400 });
     lockCache.delete(mint.toBase58());
-    store.db.locks = { ...(store.db.locks ?? {}), [mint.toBase58()]: [...(store.db.locks?.[mint.toBase58()] ?? []), r.escrow.toBase58()] }; store.markDirty();
+    await store.addEscrow(mint.toBase58(), r.escrow.toBase58());
     return { tx: ser(r.tx), escrow: r.escrow.toBase58(), tipSol: r.tip.tipSol, tipWallet: r.tip.tipWallet.toBase58(), schedule: { ...r.schedule, cliffUnlockAmount: r.schedule.cliffUnlockAmount.toString(), amountPerPeriod: r.schedule.amountPerPeriod.toString() }, permanent: true };
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
 const TOTAL_SUPPLY = 1_000_000_000;
-const lockView = (l: LockInfo) => {
-  const t = store.db.tokens[l.mint];
+const lockView = (l: LockInfo, toks: Map<string, Token>) => {
+  const t = toks.get(l.mint);
   const total = Number(l.total) / BASE_DECIMALS;
   const vestEnd = l.endTime, now = Date.now() / 1000;
   return {
@@ -216,19 +204,26 @@ const lockView = (l: LockInfo) => {
     token: t ? { name: t.name, symbol: t.symbol, tier: t.tier, creator: t.creator, image: imageUrl(t.mint, t.uri) } : null,
   };
 };
-const lockedAt: Record<string, number> = {};
+let lockedAt: Record<string, number> = {};
+let lockedAtLoaded = false;
+async function loadLockedAt() { if (!lockedAtLoaded) { lockedAt = { ...(await store.lockedAt()), ...lockedAt }; lockedAtLoaded = true; } }
+async function noteLockedAt(escrow: string) {
+  if (escrow in lockedAt) return;
+  const sigs = await getConnection().getSignaturesForAddress(new PublicKey(escrow), { limit: 20 }).catch(() => []);
+  const first = sigs[sigs.length - 1]; if (first?.blockTime) { lockedAt[escrow] = first.blockTime; await store.setLockedAt(escrow, first.blockTime); }
+}
+const tokenMap = async () => new Map((await store.tokens()).map((t) => [t.mint, t]));
 let allLocksCache: { at: number; v: ReturnType<typeof lockView>[] } | null = null;
 async function allLocks() {
   if (allLocksCache && Date.now() - allLocksCache.at < 20_000) return allLocksCache.v;
-  const known = Object.values(store.db.locks ?? {}).flat();
+  const known = await store.allEscrows();
   const infos = await fetchEscrows(known.map((e) => new PublicKey(e)));
-  recordLocks(infos);
-  // creation time = block time of the escrow's oldest signature (cached forever)
-  for (const l of infos) if (!(l.escrow in lockedAt)) {
-    const sigs = await getConnection().getSignaturesForAddress(new PublicKey(l.escrow), { limit: 20 }).catch(() => []);
-    const first = sigs[sigs.length - 1]; if (first?.blockTime) lockedAt[l.escrow] = first.blockTime;
-  }
-  const v = infos.map(lockView).sort((a, b) => (b.lockedAt ?? 0) - (a.lockedAt ?? 0));
+  await recordLocks(infos);
+  // creation time = block time of the escrow's oldest signature (stored in lock_escrows.locked_at)
+  await loadLockedAt();
+  for (const l of infos) await noteLockedAt(l.escrow);
+  const toks = await tokenMap();
+  const v = infos.map((l) => lockView(l, toks)).sort((a, b) => (b.lockedAt ?? 0) - (a.lockedAt ?? 0));
   allLocksCache = { at: Date.now(), v };
   return v;
 }
@@ -245,9 +240,9 @@ app.get("/locks/:id", async (req, reply) => {
   try {
     const l = await fetchEscrow(new PublicKey(id));
     if (!l) return reply.code(404).send({ error: "lock not found" });
-    recordLocks([l]);
-    if (!(l.escrow in lockedAt)) { const s = await getConnection().getSignaturesForAddress(new PublicKey(id), { limit: 20 }).catch(() => []); const f = s[s.length - 1]; if (f?.blockTime) lockedAt[id] = f.blockTime; }
-    return lockView(l);
+    await recordLocks([l]);
+    await loadLockedAt(); await noteLockedAt(l.escrow);
+    return lockView(l, await tokenMap());
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
 /** Called by the web app after a lock tx confirms: reads the escrow on-chain once and records it. */
@@ -256,14 +251,14 @@ app.post("/tx/lock/confirm", async (req, reply) => {
   try {
     const l = await fetchEscrow(new PublicKey(String(b.escrow)));
     if (!l) return reply.code(404).send({ error: "escrow not found on-chain yet" });
-    recordLocks([l]); lockCache.delete(l.mint); allLocksCache = null;
-    return { ok: true, ...devLock(l.mint) };
+    await recordLocks([l]); lockCache.delete(l.mint); allLocksCache = null;
+    return { ok: true, ...(await devLock(l.mint)) };
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
 // Locks indexer: refresh every known escrow (one batched getMultipleAccounts) so devLocked/unlockAt stay current.
 async function indexLocks() {
-  const known = Object.values(store.db.locks ?? {}).flat();
-  if (known.length) recordLocks(await fetchEscrows(known.map((e) => new PublicKey(e))));
+  const known = await store.allEscrows();
+  if (known.length) await recordLocks(await fetchEscrows(known.map((e) => new PublicKey(e))));
 }
 setTimeout(() => indexLocks().catch(() => {}), 5_000);
 setInterval(() => indexLocks().catch(() => {}), Number(process.env.LOCKS_INDEX_MS ?? 120_000)).unref();
@@ -275,10 +270,9 @@ app.post("/tx/lock/claim", async (req, reply) => {
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
 
-app.post("/reindex", async () => { await indexOnce((m) => app.log.info(m)); return { ok: true, tokens: store.tokens().length }; });
+app.post("/reindex", async () => { await indexOnce((m) => app.log.info(m)); return { ok: true, tokens: await store.tokenCount() }; });
 
-// Fee claimer / cashback / buyback (from hb-backend backup) need Postgres (DATABASE_URL) + keypair; not started here.
-if (process.env.DATABASE_URL) app.log.warn("DATABASE_URL set: run services via src/jobs/run.ts (DRY_RUN=" + DRY_RUN + ")");
+// Fee claimer / cashback / buyback (from hb-backend backup) use legacy tables (db/legacy) and are not started here.
 
 await app.listen({ port: Number(process.env.PORT ?? 4000), host: "0.0.0.0" });
 if (process.env.NO_INDEXER !== "1") startIndexer((m) => app.log.info(m));
