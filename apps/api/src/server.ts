@@ -13,6 +13,7 @@ import { registerPages } from "./routes/pages.js";
 import { registerAuth } from "./auth.js";
 import { buildLaunchTx, quoteDevBuy, DEV_BUY_MAX_SOL, type LaunchReq } from "./launchTx.js";
 import { registerClaim } from "./routes/claim.js";
+import { backfill, registerCandles } from "./candles/index.js";
 
 const SOL_USD = Number(process.env.SOL_USD ?? 150);
 const DRY_RUN = process.env.DRY_RUN !== "false";
@@ -39,6 +40,8 @@ function recordLocks(infos: LockInfo[]) {
 registerAuth(app);
 registerPages(app);
 registerClaim(app);
+registerCandles(app);
+app.log.info(`candles: backfilled ${backfill(Object.values(store.db.trades))} trades`);
 app.get("/health", async () => ({ ok: true, tokens: store.tokens().length, dryRun: DRY_RUN, time: Date.now() }));
 
 app.get("/tokens", async (req) => {
