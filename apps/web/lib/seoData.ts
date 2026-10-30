@@ -3,6 +3,7 @@
 import { unstable_cache } from "next/cache";
 import { apiBase, apiHeaders, type ApiStats, type ApiToken, type ApiTrade } from "./api";
 import type { LockView } from "./lockData";
+import type { ObTokensPage, ObWindow, PlatformOpenBook } from "./openbook";
 
 export const REVALIDATE_S = 60;
 
@@ -26,6 +27,9 @@ export const getScore = orNull(cached("score", (mint: string) => getJson<ScoreRe
 export const getHomeTokens = orNull(cached("tokens-home", () => getJson<{ total: number; items: ApiToken[] }>("/tokens?limit=200")));
 export const getStats = orNull(cached("stats", () => getJson<ApiStats>("/stats")));
 export const getLock = orNull(cached("lock", (id: string) => getJson<LockView>(`/locks/${encodeURIComponent(id)}`)));
+/** Open Book platform totals for one window, and the first page of its token table (optionally searched). */
+export const getOpenBook = orNull(cached("openbook", (w: ObWindow) => getJson<PlatformOpenBook>(`/openbook?window=${w}`)));
+export const getOpenBookTokens = orNull(cached("openbook-tokens", (q: string) => getJson<ObTokensPage>(`/openbook/tokens?limit=25${q ? `&q=${encodeURIComponent(q)}` : ""}`)));
 
 /** Every token (paged through /tokens), newest first. Null when the API is down. */
 export const getAllTokens = orNull(cached("tokens-all", async () => {

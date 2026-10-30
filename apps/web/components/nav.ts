@@ -1,6 +1,6 @@
-import { Gift, LayoutGrid, Lock, Rocket, Settings, Trophy, Wallet, type LucideIcon } from "lucide-react";
+import { BookOpen, Gift, LayoutGrid, Lock, Rocket, Settings, Trophy, Wallet, type LucideIcon } from "lucide-react";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon; match?: string[] };
+export type NavItem = { href: string; label: string; icon: LucideIcon; match?: string[]; badge?: string };
 
 /** Single source for the sidebar and the mobile bottom nav. `match` lists old/merged paths that light up the same item. */
 export const NAV: NavItem[] = [
@@ -10,6 +10,7 @@ export const NAV: NavItem[] = [
   { href: "/locks", label: "Locks", icon: Lock },
   { href: "/portfolio", label: "Portfolio", icon: Wallet, match: ["/claim"] },
   { href: "/rewards", label: "Rewards", icon: Gift, match: ["/cashback", "/referral", "/milestones", "/bar", "/burn", "/higher"] },
+  { href: "/open-book", label: "Open Book", icon: BookOpen, badge: "New" },
   { href: "/settings", label: "Settings", icon: Settings, match: ["/about"] },
 ];
 

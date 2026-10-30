@@ -22,6 +22,8 @@ import { NETWORK, explorerTx } from "@/lib/settings";
 import { useLocks, type LocksResp } from "@/lib/lock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 import { pushHistory } from "@/lib/searchHistory";
+import { OpenBookTab } from "./openbook/OpenBookTab";
+import { NewBadge } from "./openbook/ObUi";
 
 export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
@@ -137,8 +139,8 @@ function holderRows(trades: TokenViewData["trades"]) {
 }
 
 
-type TabId = "trades" | "holders" | "score" | "fees" | "lock" | "info";
-const TAB_LABEL: Record<TabId, string> = { trades: "Trades", holders: "Holders", score: "Score", fees: "Fees", lock: "Dev lock", info: "Info" };
+type TabId = "trades" | "holders" | "score" | "fees" | "lock" | "openbook" | "info";
+const TAB_LABEL: Record<TabId, string> = { trades: "Trades", holders: "Holders", score: "Score", fees: "Fees", lock: "Dev lock", openbook: "Open Book", info: "Info" };
 const TAB_IDS = Object.keys(TAB_LABEL) as TabId[];
 
 /** Secondary info lives in tabs under the chart instead of a stack of side cards. The open tab is kept in ?tab= (replaceState). */
@@ -183,6 +185,7 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
     if (k === "score") return <ScoreCard mint={t.mint} />;
     if (k === "fees") return <FeeBreakdown tier={t.tier} />;
     if (k === "lock") return <DevLock mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks} reload={reloadLocks} mode="view" />;
+    if (k === "openbook") return <OpenBookTab mint={t.mint} ticker={t.ticker} onLockTab={() => setTab("lock")} />;
     return (
       <dl className="py-2 text-sm">
         {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s, exponential decay)" : "Off"], ["Migration", t.isMigrated ? `Migrated to Meteora DAMM v2 (target ${targetSol(t)} SOL)` : `${targetSol(t)} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
@@ -195,7 +198,7 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
     <section data-testid="token-tabs">
       <div className="no-scrollbar overflow-x-auto border-b border-border">
         <TabBar label="Token details" value={tab} onSelect={setTab}
-          items={TAB_IDS.map((k) => ({ id: k, label: k === "holders" ? <>{TAB_LABEL[k]}<span data-testid="holders-tab-count" className="num ml-1.5 text-xs text-ink-3">{t.holders.toLocaleString("en-US")}</span></> : TAB_LABEL[k] }))} />
+          items={TAB_IDS.map((k) => ({ id: k, label: k === "holders" ? <>{TAB_LABEL[k]}<span data-testid="holders-tab-count" className="num ml-1.5 text-xs text-ink-3">{t.holders.toLocaleString("en-US")}</span></> : k === "openbook" ? <>{TAB_LABEL[k]}<NewBadge className="ml-1.5" /></> : TAB_LABEL[k] }))} />
       </div>
       <TabPanels k={tab} className="pt-3">{panel(tab)}</TabPanels>
     </section>

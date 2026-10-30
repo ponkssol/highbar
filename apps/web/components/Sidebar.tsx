@@ -21,13 +21,14 @@ export function Sidebar() {
       </Link>
       <nav className="flex flex-col gap-0.5">
         {NAV.map((item) => {
-          const { href, label, icon: Icon } = item;
+          const { href, label, icon: Icon, badge } = item;
           const on = isNavActive(path, item);
           return (
             <Link key={href} href={href} aria-current={on ? "page" : undefined}
               className={`flex h-10 items-center gap-3 rounded-sm px-3 text-sm transition-colors ${on ? "bg-gold-soft font-medium text-ink" : "text-ink-2 hover:bg-control-hover hover:text-ink"}`}>
               <Icon size={18} strokeWidth={on ? 2 : 1.5} className={on ? "text-gold-text" : undefined} />
               {label}
+              {badge && <span className="ml-auto rounded-full border border-gold-line px-1.5 py-px text-[9.5px] font-medium uppercase tracking-[.12em] text-gold-text">{badge}</span>}
             </Link>
           );
         })}
