@@ -1,7 +1,7 @@
 import BN from "bn.js";
 import { PublicKey, type AccountInfo, type Transaction } from "@solana/web3.js";
 import { AccountLayout, ACCOUNT_SIZE, NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { getTokenProgram, getUnClaimLpFee, type PoolState, type PositionState } from "@meteora-ag/cp-amm-sdk";
+import { getTokenProgram, getUnClaimLpFee, type CpAmm, type PoolState, type PositionState } from "@meteora-ag/cp-amm-sdk";
 import { DAMM_V2_MIGRATION_FEE_ADDRESS, deriveDammV2PoolAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
 
 /** Creator side of the post-migration DAMM v2 LP fees (cp-amm-sdk 1.5.1).
@@ -17,6 +17,23 @@ export interface LpAmm {
   fetchPositionState(position: PublicKey): Promise<PositionState>;
   getPositionsByUserAndTokenMint(user: PublicKey, mint: PublicKey): Promise<Array<{ positionNftAccount: PublicKey; position: PublicKey; positionState: PositionState; pool: PublicKey; poolState: PoolState }>>;
   claimPositionFee(p: Parameters<import("@meteora-ag/cp-amm-sdk").CpAmm["claimPositionFee"]>[0]): Promise<Transaction>;
+}
+/** Build claimPositionFee for `owner` (signer, holds the position NFT), paying the fees out to `receiver` when it is a different wallet.
+ *  cp-amm-sdk 1.5.1: claimPositionFee({ receiver }) without a tempWSolAccount sets the SOL-side token account owner to undefined and
+ *  throws while building (setupFeeClaimAccounts). claimPositionFee2 is the receiver variant: the SOL side lands in the owner's WSOL ATA,
+ *  which is closed (unwrapped) to `receiver` in the same tx, and the token side goes to the receiver's ATA (created by `feePayer`).
+ *  No receiver (or receiver = owner): plain claimPositionFee, everything stays with the owner. Build only, no RPC. */
+export function claimPositionFeeTx(amm: Pick<CpAmm, "claimPositionFee" | "claimPositionFee2">, p: {
+  owner: PublicKey; feePayer?: PublicKey; receiver?: PublicKey; position: PublicKey; pool: PublicKey; positionNftAccount: PublicKey;
+  poolState: Pick<PoolState, "tokenAMint" | "tokenBMint" | "tokenAVault" | "tokenBVault" | "tokenAFlag" | "tokenBFlag">;
+}): Promise<Transaction> {
+  const st = p.poolState;
+  const common = {
+    owner: p.owner, feePayer: p.feePayer ?? p.owner, position: p.position, pool: p.pool, positionNftAccount: p.positionNftAccount,
+    tokenAMint: st.tokenAMint, tokenBMint: st.tokenBMint, tokenAVault: st.tokenAVault, tokenBVault: st.tokenBVault,
+    tokenAProgram: getTokenProgram(st.tokenAFlag), tokenBProgram: getTokenProgram(st.tokenBFlag),
+  };
+  return p.receiver && !p.receiver.equals(p.owner) ? amm.claimPositionFee2({ ...common, receiver: p.receiver }) : amm.claimPositionFee(common);
 }
 export interface LpConn { getAccountInfo(pk: PublicKey, commitment?: "confirmed"): Promise<AccountInfo<Buffer> | null> }
 

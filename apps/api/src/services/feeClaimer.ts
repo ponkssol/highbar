@@ -1,12 +1,12 @@
 import BN from "bn.js";
 import { PublicKey, type Keypair, type Transaction } from "@solana/web3.js";
 import { NATIVE_MINT, createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { CpAmm, getTokenProgram, getUnClaimLpFee } from "@meteora-ag/cp-amm-sdk";
+import { CpAmm, getUnClaimLpFee } from "@meteora-ag/cp-amm-sdk";
 import { getClient, getConnection } from "@hb/onchain";
 import { db } from "../db/pool.js";
 import { jobs } from "../jobs/config.js";
 import { sendOnce, simulate } from "../jobs/chain.js";
-import { canonicalDammPool } from "./creatorLp.js";
+import { canonicalDammPool, claimPositionFeeTx } from "./creatorLp.js";
 
 export type FeeSource = "dbc_trading" | "dbc_migration" | "dbc_surplus" | "damm_lp";
 export interface ClaimResult { source: FeeSource; pool: string; mint: string; lamports: bigint; baseAmount: bigint; sig?: string; status: "claimed" | "would-claim" | "skipped"; note?: string }
@@ -18,7 +18,9 @@ const big = (b: BN) => BigInt(b.toString());
  *  Verified against @meteora-ag/dynamic-bonding-curve-sdk 2.0.0 and @meteora-ag/cp-amm-sdk 1.5.1 typings:
  *  - DBC curve:  state.getPoolFeeMetrics(pool).current.partnerQuoteFee/partnerBaseFee -> partner.claimPartnerTradingFee({ feeClaimer, payer, pool, maxBaseAmount, maxQuoteAmount, receiver? })
  *  - migrated:   partner.partnerWithdrawMigrationFee({ pool, sender }), state.getPoolSurplus(pool) -> partner.partnerWithdrawSurplus({ feeClaimer, pool })
- *  - DAMM v2 LP: cpAmm.getPositionsByUserAndTokenMint(owner, mint) + getUnClaimLpFee(poolState, positionState) -> cpAmm.claimPositionFee({ owner, position, pool, positionNftAccount, tokenA/B Mint/Vault/Program, receiver?, feePayer? })
+ *  - DAMM v2 LP: cpAmm.getPositionsByUserAndTokenMint(owner, mint) + getUnClaimLpFee(poolState, positionState) -> claimPositionFeeTx (creatorLp.ts):
+ *    cpAmm.claimPositionFee2({ ..., receiver: treasury }) when the treasury is a different wallet (claimPositionFee with a receiver but
+ *    no tempWSolAccount throws in 1.5.1), else cpAmm.claimPositionFee({ owner, position, pool, positionNftAccount, tokenA/B Mint/Vault/Program, feePayer })
  *    getPositionsByUserAndTokenMint matches ANY pool containing the mint, so only positions in the token's own DAMM v2 pool (tokens.damm_pool,
  *    else the canonical pool derived from the config) are claimed. The recorded damm_lp amount is what actually left the pool's SOL vault
  *    in the claim tx (falls back to the pre-claim estimate only if the tx cannot be read back). Fee collect mode is OnlyB, so a base-token
@@ -80,10 +82,8 @@ export class FeeClaimer {
       const st = p.poolState;
       const quoteVault = quoteIsB ? st.tokenBVault : st.tokenAVault;
       const alert = baseAmount > 0n ? `ALERT base-side LP fee ${baseAmount} (pool should collect OnlyB; base fees are not rebated)` : undefined;
-      out.push(await this.exec({ pool: p.pool.toBase58(), mint, source: "damm_lp", lamports, baseAmount, measure: { vault: quoteVault }, alert }, () => this.amm.claimPositionFee({
-        owner: me, position: p.position, pool: p.pool, positionNftAccount: p.positionNftAccount,
-        tokenAMint: st.tokenAMint, tokenBMint: st.tokenBMint, tokenAVault: st.tokenAVault, tokenBVault: st.tokenBVault,
-        tokenAProgram: getTokenProgram(st.tokenAFlag), tokenBProgram: getTokenProgram(st.tokenBFlag), receiver: this.receiver, feePayer: me,
+      out.push(await this.exec({ pool: p.pool.toBase58(), mint, source: "damm_lp", lamports, baseAmount, measure: { vault: quoteVault }, alert }, () => claimPositionFeeTx(this.amm, {
+        owner: me, feePayer: me, receiver: this.receiver, position: p.position, pool: p.pool, positionNftAccount: p.positionNftAccount, poolState: st,
       })));
     }
     return out;
