@@ -6,11 +6,16 @@ import { JsonLd } from "@/components/JsonLd";
 import { getScore, getToken, getTrades, REVALIDATE_S } from "@/lib/seoData";
 import { absUrl, breadcrumbJsonLd, pageMeta } from "@/lib/seo";
 import { tokenDescription, tokenName, tokenSummary, tokenTicker, tokenTitle } from "@/lib/tokenSeo";
+import { TokenPending } from "./TokenPending";
 
 // API reads are cached for REVALIDATE_S (lib/seoData); the root layout renders per request (runtime env), so this is ISR at the data layer.
 export const revalidate = 60;
 
-type Params = { params: Promise<{ mint: string }> };
+type Params = { params: Promise<{ mint: string }>; searchParams: Promise<{ new?: string | string[] }> };
+/** /token/<mint>?new=1 is the launch page's redirect right after the tx confirms: an address the API has not indexed yet
+ *  gets the TokenPending state (client-side refetch) instead of a 404. middleware.ts lets these through. */
+const isAddress = (s: string) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
+const justLaunched = async (mint: string, sp: Params["searchParams"]) => isAddress(mint) && (await sp).new === "1";
 
 /** Holder count: the API's live count (GET /tokens/:mint/score breakdown.holders); unique net-positive wallets in the last trades as a fallback. */
 function tradeHolders(trades: { wallet: string; side: "buy" | "sell"; tokens: number }[]) {
@@ -27,10 +32,10 @@ async function load(mint: string) {
   return { live, trades: tr, holders: typeof apiHolders === "number" ? apiHolders : tradeHolders(tr), holdersFromApi: typeof apiHolders === "number" };
 }
 
-export async function generateMetadata({ params }: Params): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Params): Promise<Metadata> {
   const { mint } = await params;
   const d = await load(mint);
-  if (!d) return { title: { absolute: "Token not found | highbar" }, robots: { index: false, follow: true } };
+  if (!d) return { title: { absolute: (await justLaunched(mint, searchParams)) ? "Indexing token | highbar" : "Token not found | highbar" }, robots: { index: false, follow: true } };
   const t = d.live;
   return pageMeta({
     absoluteTitle: tokenTitle(t), description: tokenDescription(t, d.holders), path: `/token/${t.mint}`, images: false,
@@ -38,11 +43,15 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   });
 }
 
-export default async function TokenPage({ params }: Params) {
+export default async function TokenPage({ params, searchParams }: Params) {
   const { mint } = await params;
-  // Real data from the API (server-side, API_URL); unknown mint -> 404 (middleware.ts sets the status before streaming).
+  // Real data from the API (server-side, API_URL); unknown mint -> 404 (middleware.ts sets the status before streaming),
+  // except right after a launch (?new=1), where the indexer may still be catching up.
   const d = await load(mint);
-  if (!d) notFound();
+  if (!d) {
+    if (await justLaunched(mint, searchParams)) return <TokenPending mint={mint} />;
+    notFound();
+  }
   const { live, trades } = d;
   const name = tokenName(live), ticker = tokenTicker(live);
   const prevPrice = trades.length > 1 ? trades[trades.length - 1].sol / Math.max(1e-9, trades[trades.length - 1].tokens) : live.priceSol;

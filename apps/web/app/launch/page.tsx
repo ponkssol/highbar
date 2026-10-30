@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
 import { Check, ImagePlus, Lock, ShieldCheck } from "lucide-react";
 import { TIERS, thresholdSolFor, type TierId } from "@hb/shared";
 import { TopBlock } from "@/components/TopBar";
@@ -15,6 +14,7 @@ import {
 import { useHbWallet, useSolBalance } from "@/lib/wallet";
 import { useAuth } from "@/lib/auth";
 import { NETWORK } from "@/lib/settings";
+import { savePendingLaunch } from "@/lib/pendingLaunch";
 import { fmtBar, useBarInfo, useBarWallet } from "@/lib/bar";
 
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
@@ -118,14 +118,15 @@ export default function LaunchPage() {
       if (overMax) { setMsg(`Dev buy is capped at ${capSol} SOL.`); return; }
       if (lowBalance) { setMsg(`Not enough SOL: you need about ${needSol.toFixed(3)} SOL for the dev buy plus launch rent and fees.`); return; }
       if (tier === "max" && maxLocked) { setMsg(`${maxNeed}.`); return; }
-      const steps: Record<LaunchStep, string> = { metadata: "Uploading metadata…", mint: "Preparing your token address…", sign: "Approve the launch in your wallet…", cosign: "Finalizing your …high address…", send: "Sending…" };
+      const steps: Record<LaunchStep, string> = { metadata: "Uploading metadata…", mint: "Preparing your token address…", sign: "Approve the launch in your wallet…", cosign: "Finalizing your …high address…", send: "Sending…", confirm: "Confirming on Solana…" };
       const r = await launchToken({ name: cleanLabel(name), ticker: cleanLabel(ticker), description: desc, image, ...socials, tier, antiSniper: anti, devBuySol: devSol }, wallet.publicKey.toBase58(),
-        { sign: (tx) => wallet.signTransaction(tx), sendRaw: (b) => wallet.sendRaw(b) }, (s) => setMsg(steps[s]));
+        { sign: (tx) => wallet.signTransaction(tx), connection: wallet.connection }, (s) => setMsg(steps[s]));
       setLaunched({ mint: r.mint, signature: r.signature });
-      setMsg(`Launched ${devSol > 0 ? `with a ${devSol} SOL dev buy ` : ""}(tx ${r.signature.slice(0, 8)})${r.vanity ? "" : " with a standard (non-…high) address"}. Opening the token page...`);
-      // Wait (max ~20s) until the indexer has the new pool so the token page shows live data, then redirect.
-      for (let i = 0; i < 10; i++) { if (await api.token(r.mint).then(() => true).catch(() => false)) break; await new Promise((res) => setTimeout(res, 2000)); }
-      router.push(`/token/${r.mint}`);
+      setMsg(`Launched ${devSol > 0 ? `with a ${devSol} SOL dev buy ` : ""}(tx ${r.signature.slice(0, 8)})${r.vanity ? "" : " with a standard (non-…high) address"}. Opening the token page…`);
+      // The tx is confirmed: open the token page now. Until the indexer picks the pool up, the page shows an indexing state
+      // built from what we already know (?new=1 lets it skip the not-found check, see middleware.ts and TokenPending.tsx).
+      savePendingLaunch({ mint: r.mint, name: cleanLabel(name), symbol: cleanLabel(ticker), image: r.image, signature: r.signature, at: Date.now() });
+      router.push(`/token/${r.mint}?new=1`);
     } catch (e) {
       setMsg(`Launch failed. ${friendlyLaunchError((e as Error).message)}`);
     } finally { setBusy(false); }

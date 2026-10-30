@@ -1,6 +1,7 @@
-import { Transaction } from "@solana/web3.js";
+import { Transaction, type Connection } from "@solana/web3.js";
 import type { TierId } from "@hb/shared";
 import { post } from "./api";
+import { sendAndConfirmRaw } from "./confirmTx";
 
 export interface LaunchInput {
   name: string; ticker: string; description: string; image?: File | null;
@@ -9,9 +10,10 @@ export interface LaunchInput {
   devBuySol?: number; slippageBps?: number;
 }
 export interface DevBuyQuote { devBuySol: number; estTokens: number; minTokens: number; supplyPct: number; feeSol: number; feePct: number; minFeeApplied: boolean; thresholdSol: number; maxDevBuySol: number }
-/** Wallet half of the launch: sign only (the API co-signs with the vanity mint afterwards), then broadcast raw bytes. */
-export interface LaunchWallet { sign: (tx: Transaction) => Promise<Transaction>; sendRaw: (bytes: Uint8Array) => Promise<string> }
-export type LaunchStep = "metadata" | "mint" | "sign" | "cosign" | "send";
+/** Wallet half of the launch: sign only (the API co-signs with the vanity mint afterwards). The fully signed bytes are then
+ *  broadcast and confirmed on `connection` (lib/confirmTx.ts: "confirmed" commitment, same-bytes rebroadcast). */
+export interface LaunchWallet { sign: (tx: Transaction) => Promise<Transaction>; connection: Connection }
+export type LaunchStep = "metadata" | "mint" | "sign" | "cosign" | "send" | "confirm";
 
 export async function quoteDevBuy(tier: TierId, antiSniper: boolean, devBuySol: number, slippageBps = 100): Promise<DevBuyQuote> {
   const r = await fetch(`/hb-api/tx/launch/quote?tier=${tier}&antiSniper=${antiSniper}&devBuySol=${devBuySol}&slippageBps=${slippageBps}`);
@@ -29,17 +31,19 @@ const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
  *  2. POST /tx/launch                the API reserves a pre-ground "...high" mint (pubkey only) and builds the unsigned tx
  *  3. wallet signTransaction         the creator signs first (fee payer / pool creator)
  *  4. POST /tx/launch/sign           the API validates exactly these bytes and adds the mint signature
- *  5. sendRawTransaction + POST /mint/confirm
+ *  5. sendRawTransaction, wait for "confirmed", then POST /mint/confirm (fire and forget)
  * Random-mint path (server VANITY_MINTS=off, or fallback when the pool is empty): the response says vanity:false /
  * mintSource "random"|"random-fallback" and the tx is already signed by a fresh random mint; the wallet signs and it is
  * sent as-is (no co-sign, no /mint/confirm). With VANITY_MINTS=on an empty pool is an error instead.
  */
 export type MintSource = "pool" | "random" | "random-fallback";
-export interface LaunchResult { mint: string; pool: string; signature: string; vanity: boolean; mintSource: MintSource }
+/** Resolves once the launch tx is confirmed ("confirmed" commitment), so the caller can open the token page right away.
+ *  image is the hosted logo URL from POST /metadata (empty when none), for the token page's indexing state. */
+export interface LaunchResult { mint: string; pool: string; signature: string; vanity: boolean; mintSource: MintSource; image: string }
 export async function launchToken(input: LaunchInput, creator: string, wallet: LaunchWallet, onStep?: (s: LaunchStep) => void): Promise<LaunchResult> {
   onStep?.("metadata");
   const image = input.image ? await toDataUrl(input.image) : undefined;
-  const meta = await post<{ uri: string }>("/metadata", { name: input.name, symbol: input.ticker, description: input.description, website: input.website, twitter: input.twitter, telegram: input.telegram, image });
+  const meta = await post<{ uri: string; image?: string }>("/metadata", { name: input.name, symbol: input.ticker, description: input.description, website: input.website, twitter: input.twitter, telegram: input.telegram, image });
   onStep?.("mint");
   const r = await post<{ tx: string; mint: string; pool: string; vanity?: boolean; mintSource?: MintSource }>("/tx/launch", {
     creator, name: input.name, symbol: input.ticker, uri: meta.uri, tier: input.tier, antiSniper: input.antiSniper,
@@ -51,8 +55,8 @@ export async function launchToken(input: LaunchInput, creator: string, wallet: L
     onStep?.("sign");
     const signedRandom = await wallet.sign(Transaction.from(unb64(r.tx)));
     onStep?.("send");
-    const sig = await wallet.sendRaw(signedRandom.serialize());
-    return { mint: r.mint, pool: r.pool, signature: sig, vanity: false, mintSource: r.mintSource ?? "random" };
+    const sig = await sendAndConfirmRaw(wallet.connection, signedRandom.serialize(), { onSent: () => onStep?.("confirm") });
+    return { mint: r.mint, pool: r.pool, signature: sig, vanity: false, mintSource: r.mintSource ?? "random", image: meta.image ?? "" };
   }
   if (!r.mint.endsWith("high")) throw new Error("unexpected mint address from the server");
   onStep?.("sign");
@@ -60,15 +64,16 @@ export async function launchToken(input: LaunchInput, creator: string, wallet: L
   onStep?.("cosign");
   const full = await post<{ tx: string; signature: string }>("/tx/launch/sign", { mint: r.mint, tx: b64(signed.serialize({ requireAllSignatures: false, verifySignatures: false })) });
   onStep?.("send");
-  const signature = await wallet.sendRaw(unb64(full.tx));
+  const signature = await sendAndConfirmRaw(wallet.connection, unb64(full.tx), { onSent: () => onStep?.("confirm") });
   void confirmLater(r.mint);
-  return { mint: r.mint, pool: r.pool, signature, vanity: true, mintSource: "pool" };
+  return { mint: r.mint, pool: r.pool, signature, vanity: true, mintSource: "pool", image: meta.image ?? "" };
 }
 
-/** Best effort: mark the mint used once its account is visible (the server sweeper covers it otherwise). */
+/** Best effort, off the critical path: mark the mint used. The tx is already confirmed, so the first call normally succeeds
+ *  (retries cover an RPC node that lags behind, the server sweeper covers the rest). */
 async function confirmLater(mint: string) {
   for (let i = 0; i < 6; i++) {
-    await new Promise((res) => setTimeout(res, 3000));
+    if (i) await new Promise((res) => setTimeout(res, 3000));
     const ok = await post<{ used: boolean }>("/mint/confirm", { mint }).then((x) => x.used).catch(() => false);
     if (ok) return;
   }
@@ -127,6 +132,8 @@ export function friendlyLaunchError(raw: string): string {
   if (/has not launched yet/i.test(raw)) return "Max tier opens to $HIGHER holders once $HIGHER launches. Pick Standard or Higher for now.";
   if (/launches are paused/i.test(raw)) return "Launches are paused for a moment. Try again soon.";
   if (/name max 32 bytes|symbol max 10 bytes/i.test(raw)) return "Name fits 32 bytes and ticker fits 10 bytes. Shorten them and try again.";
-  if (/fetch|network/i.test(raw)) return "Could not reach highbar. Check your connection and try again.";
+  if (/blockhash not found|block height exceeded|expired/i.test(raw) && !/^The /.test(raw)) return "The launch took too long to approve and expired. Launch again to get a fresh transaction.";
+  if (/simulation failed/i.test(raw)) return "The network rejected the launch in simulation. Nothing was sent. Try again in a moment.";
+  if (/fetch|network|timed? ?out|\b(429|502|503|504)\b/i.test(raw) && !/^The /.test(raw)) return "Could not reach highbar or the Solana RPC. Check your connection and try again.";
   return raw ? raw[0].toUpperCase() + raw.slice(1) : "Something went wrong. Try again.";
 }
