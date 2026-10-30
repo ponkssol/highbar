@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { store } from "../store.js";
+import { officialMint } from "../services/officialToken.js";
 import { scoresStore } from "../services/scoresStore.js";
 import { survival, windowRange, SURVIVAL_MIN_RATIO } from "../services/leaderboard.js";
 
@@ -19,9 +20,10 @@ export function registerPages(app: FastifyInstance) {
     const scores = await scoresStore.scores();
     const sc = (mint: string) => scores.get(mint)?.score ?? null;
     const devLocks = await store.devLocks(tokens.map((t) => t.mint));
+    const om = officialMint();
     const base = (t: (typeof tokens)[number]) => ({
       mint: t.mint, name: t.name, symbol: t.symbol, tier: t.tier, mcapUsd: t.mcapSol * SOL_USD, progress: t.progress, isMigrated: t.isMigrated,
-      score: sc(t.mint), devLocked: devLocks.has(t.mint), unlockAt: devLocks.get(t.mint) ?? null,
+      score: sc(t.mint), devLocked: devLocks.has(t.mint), unlockAt: devLocks.get(t.mint) ?? null, official: !!om && t.mint === om,
     });
 
     if (kind === "scores") {

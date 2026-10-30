@@ -1,4 +1,4 @@
-/** Devnet only: create a mock $BAR mint (6 decimals, platform keypair = mint authority) for the mock buyback path.
+/** Devnet only: create a mock $HIGHER mint (6 decimals, platform keypair = mint authority) for the mock buyback path.
  *  pnpm --filter @hb/api bar:mock-mint   -> prints BAR_MINT=<mint> for apps/api/.env */
 import { Keypair } from "@solana/web3.js";
 import { createMint } from "@solana/spl-token";

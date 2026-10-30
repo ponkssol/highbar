@@ -2,7 +2,7 @@
  *  tsx src/jobs/run.ts <fees|cashback|buyback|epoch> [--period yesterday|YYYY-MM-DD] [--live | --dry-run] [--budget-sol 0.5] [--loop 3600]
  *  Dry-run (DRY_RUN unset/true, or --dry-run) simulates every tx and writes nothing. --live (or DRY_RUN=false) sends; mainnet also needs ALLOW_MAINNET=true.
  *  epoch = claim fees -> accrue + pay cashback for the closed period -> close the 40/50/10 split -> buy back & burn the buyback share.
- *  $BAR utility (step 8, BAR_MINT set): cashback adds the holder boost; barsnap = store a $BAR holder snapshot (run hourly);
+ *  $HIGHER utility (step 8, BAR_MINT set): cashback adds the holder boost; barsnap = store a $HIGHER holder snapshot (run hourly);
  *  feeshare = accrue the holder fee share for a closed period (after epoch) and pay it (payouts also need BAR_FEE_SHARE_LIVE=true). */
 import { referralWallet, loadPlatformKeypair } from "@hb/onchain";
 import { requireDb, db } from "../db/pool.js";
@@ -18,6 +18,7 @@ import { bar } from "./barConfig.js";
 import { barHolders, barMint, cashbackBoost, writeSnapshot } from "../services/bar.js";
 import { payFeeShare, planFeeShare, writeFeeShare } from "../services/barFeeShare.js";
 import { feeShareMinRaw } from "../services/barMath.js";
+import { refreshOfficial } from "../services/officialToken.js";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -28,6 +29,8 @@ const tag = live ? "" : "[DRY_RUN]";
 const log = (m: string) => console.log(new Date().toISOString(), tag, m);
 
 async function once() {
+  const o = await refreshOfficial(); // official $HIGHER: BAR_MINT override, else the detected official launch
+  log(o.mint ? `[official] $${o.symbol} ${o.mint} (${o.source})` : `[official] $${o.symbol} not launched yet`);
   const payer = loadPlatformKeypair();
   const p = period(opt("period"));
   const closed = isClosed(p);
@@ -55,7 +58,7 @@ async function once() {
     res.split = split;
     const budget = override !== undefined ? BigInt(Math.round(Number(override) * 1e9)) : split.buyback;
     if (override !== undefined && !(Number(override) >= 0)) throw new Error("--budget-sol must be >= 0");
-    res.buyback = jobs.barMint ? await runBuyback({ period: p.id, budget, payer, live, log }) : "BAR_MINT not set: buyback budget accrues only";
+    res.buyback = jobs.barMint ? await runBuyback({ period: p.id, budget, payer, live, log }) : "$HIGHER not launched yet: buyback budget accrues only";
   }
   if (cmd === "barsnap") {
     const m = await barMint(), holders = await barHolders(), at = Date.now();
@@ -79,8 +82,12 @@ async function main() {
   await assertCluster(live);
   if (live) await migrate(() => {});
   else if (!(await db.query("SELECT to_regclass('public.buybacks') AS t")).rows[0].t) throw new Error("jobs tables missing: run pnpm --filter @hb/api db:migrate");
-  if ((cmd === "barsnap" || cmd === "feeshare") && !bar.mint) throw new Error("BAR_MINT is not set (devnet: pnpm --filter @hb/api bar:mock-mint)");
-  if (!live && cmd === "feeshare" && !(await db.query("SELECT to_regclass('public.bar_fee_share_ledger') AS t")).rows[0].t) throw new Error("$BAR tables missing (0005): run pnpm --filter @hb/api db:migrate");
+  if ((cmd === "barsnap" || cmd === "feeshare") && !(await refreshOfficial()).mint) {
+    // cron-safe no-op before the official launch (exit 0): nothing to snapshot / share yet
+    log(`$HIGHER has not launched yet: ${cmd} skipped (set OFFICIAL_TOKEN_CREATOR for auto-detection, or BAR_MINT; devnet: pnpm --filter @hb/api bar:mock-mint)`);
+    await db.end(); return;
+  }
+  if (!live && cmd === "feeshare" && !(await db.query("SELECT to_regclass('public.bar_fee_share_ledger') AS t")).rows[0].t) throw new Error("$HIGHER tables missing (0005): run pnpm --filter @hb/api db:migrate");
   const loop = Number(opt("loop") ?? 0);
   do {
     try { await once(); } catch (e) { log(`ERROR ${(e as Error).message}`); if (!loop) process.exitCode = 1; }

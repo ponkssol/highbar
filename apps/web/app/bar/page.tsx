@@ -24,16 +24,16 @@ export default function BarPage() {
   const base = (i?.baseCashbackBps ?? 5) / 100;
   return (
     <div className="flex flex-col gap-4">
-      <TopBlock title="$BAR perks">
+      <TopBlock title="$HIGHER perks">
         <p className="mt-2 max-w-xl text-sm text-ink-2">
-          Holding $BAR raises your trader cashback, adds a fee rebate, unlocks Max tier launches and counts toward the holder fee share.
+          Holding $HIGHER raises your trader cashback, adds a fee rebate, unlocks Max tier launches and counts toward the holder fee share.
           Perks are utility for using highbar, not a promise about the token&apos;s price.
         </p>
         {i?.barMint ? (
           <a href={i.barMintUrl ?? "#"} target="_blank" rel="noreferrer" className="num mt-2 inline-flex items-center gap-1 text-xs text-ink-3 hover:underline">
-            $BAR mint {shortAddr(i.barMint, 6)} ({i.network})<ExternalLink size={12} />
+            $HIGHER mint {shortAddr(i.barMint, 6)} ({i.network})<ExternalLink size={12} />
           </a>
-        ) : <p className="mt-2 text-xs text-ink-3">$BAR has not launched yet, so every wallet is on the base tier for now.</p>}
+        ) : <p className="mt-2 text-xs text-ink-3">$HIGHER has not launched yet, so every wallet is on the base tier for now.</p>}
         <form className="mt-4 flex max-w-xl gap-2" onSubmit={(e) => { e.preventDefault(); const v = draft.trim(); if (ADDR.test(v)) setLookup(v); }}>
           <input aria-label="Wallet address" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={wallet.address ?? "Wallet address"}
             className="num h-10 min-w-0 flex-1 rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink" />
@@ -45,7 +45,7 @@ export default function BarPage() {
       {ok && d && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {([
-            ["$BAR balance", d.enabled ? fmtBar(d.balance) : "-"],
+            ["$HIGHER balance", d.enabled ? fmtBar(d.balance) : "Not launched yet"],
             ["Tier", d.tier.label],
             ["Next tier", d.next ? `${d.next.tier.label} (+${fmtBar(d.next.needBar)})` : "Top tier"],
             ["Fee share earned", `${tiny(d.paidSol + d.unpaidSol)} SOL`],
@@ -54,7 +54,7 @@ export default function BarPage() {
           ))}
         </div>
       )}
-      {!ok && <Card><Empty title="Connect a wallet" hint="Or paste an address to see its $BAR tier and perks." /></Card>}
+      {!ok && <Card><Empty title="Connect a wallet" hint="Or paste an address to see its $HIGHER tier and perks." /></Card>}
 
       <Card className="overflow-x-auto p-0">
         <h3 className="border-b border-border px-4 py-3 font-semibold">Tiers</h3>
@@ -66,7 +66,7 @@ export default function BarPage() {
           <tbody>{(i?.tiers ?? []).map((t) => (
             <tr key={t.id} className={`border-b border-border last:border-0 ${d?.tier.id === t.id ? "bg-muted font-medium" : ""}`}>
               <td className={TD}>{t.label}{d?.tier.id === t.id && <span className="ml-2 text-xs text-ink-3">you</span>}</td>
-              <td className={`${TD} num text-right`}>{t.minBar ? `${fmtBar(t.minBar)} $BAR` : "-"}</td>
+              <td className={`${TD} num text-right`}>{t.minBar ? `${fmtBar(t.minBar)} $HIGHER` : "-"}</td>
               <td className={`${TD} num text-right`}>{((base * t.cashbackMultiplierBps) / 10_000).toFixed(3)}%</td>
               <td className={`${TD} num text-right`}>{t.feeRebateBps ? `${t.feeRebateBps / 100}%` : "-"}</td>
               <td className={`${TD} text-center`}>{t.maxTierAccess ? <Check size={16} className="inline" /> : "-"}</td>
@@ -99,7 +99,7 @@ export default function BarPage() {
       <Card>
         <h3 className="font-semibold">How it works</h3>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-2">
-          <li>Tiers use the lowest $BAR balance your wallet held across the day&apos;s snapshots, so buying right before a payout does not count.</li>
+          <li>Tiers use the lowest $HIGHER balance your wallet held across the day&apos;s snapshots, so buying right before a payout does not count.</li>
           <li>Cashback and the fee rebate are paid together in SOL with the daily cashback.</li>
           <li>The holder fee share is {(i?.feeShareBps ?? 2000) / 100}% of the platform&apos;s operations share ({(i?.opsSplitBps ?? 5000) / 100}% of net platform fees), split by balance among Holder tier and up.</li>
           {(i?.limits ?? []).map((l) => <li key={l}>{l}</li>)}

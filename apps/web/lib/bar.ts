@@ -1,10 +1,10 @@
-/** $BAR utility (step 8) API shapes: GET /bar and GET /bar/:wallet. */
+/** $HIGHER utility (step 8) API shapes: GET /bar and GET /bar/:wallet. */
 import { BAR_TIERS, MAX_TIER_MIN_BAR, type BarTier } from "@hb/shared";
 import { useApiData } from "./pagesData";
 
 export type BarInfo = {
   network: "devnet" | "mainnet"; barMint: string | null; barMintUrl: string | null; enabled: boolean; tiers: BarTier[]; baseCashbackBps: number;
-  maxTierMinBar: number; gateMaxTier: boolean; feeShareBps: number; opsSplitBps: number; feeShareLive: boolean; limits: string[];
+  maxTierMinBar: number; gateMaxTier: boolean; symbol?: string; launched?: boolean; officialSource?: "env" | "override" | "detected" | null; feeShareBps: number; opsSplitBps: number; feeShareLive: boolean; limits: string[];
 };
 export type FeeShareRow = { period: string; balanceRaw: string; amountSol: number; poolSol: number; paidSig: string | null; paidAt: number | null; pending: boolean; paidUrl: string | null };
 export type BarWallet = {

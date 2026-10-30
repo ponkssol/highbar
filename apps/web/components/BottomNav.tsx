@@ -16,7 +16,7 @@ const MORE = [
   { href: "/claim", label: "Claim fees", icon: Coins },
   { href: "/burn", label: "Burn", icon: Flame },
   { href: "/cashback", label: "Cashback", icon: HandCoins },
-  { href: "/bar", label: "$BAR perks", icon: Gem },
+  { href: "/bar", label: "$HIGHER perks", icon: Gem },
   { href: "/referral", label: "Referral", icon: Users },
   { href: "/milestones", label: "Milestones", icon: Target },
   { href: "/about", label: "About", icon: Info },

@@ -6,13 +6,14 @@ import { TopBlock } from "@/components/TopBar";
 import { Card, ProgressBar, TierBadge } from "@/components/ui";
 import { Empty, Loading, OfflineNote, Tabs, TD, TH } from "@/components/PageStates";
 import { DevLockedBadge } from "@/components/DevLockedBadge";
+import { OfficialBadge } from "@/components/OfficialBadge";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useApiData } from "@/lib/pagesData";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 type Kind = "tokens" | "scores" | "creators" | "traders" | "migrations" | "survivors";
 type Win = "24h" | "7d" | "week" | "all";
-type Base = { mint: string; name: string; symbol: string; tier: TierId; mcapUsd: number; progress: number; isMigrated: boolean; score: number | null; devLocked: boolean; unlockAt: number | null };
+type Base = { mint: string; name: string; symbol: string; tier: TierId; mcapUsd: number; progress: number; isMigrated: boolean; score: number | null; devLocked: boolean; unlockAt: number | null; official?: boolean };
 type TokRow = Base & { volumeSol: number; trades: number };
 type ScoRow = Base & { label: string; volumeSol: number; breakdown: { tier: number; antiSniper: number; devLock: number; spread: number; holders: number; top10Pct: number } };
 type MigRow = Base & { migratedAt: number; createdAt: number; timeToMigrateMs: number; raisedSol: number; volumeSol: number };
@@ -38,7 +39,7 @@ export default function LeaderboardPage() {
     <td className={TD}>
       <span className="flex flex-wrap items-center gap-1.5">
         <Link href={`/token/${t.mint}`} className="font-medium hover:underline">{t.name || shortAddr(t.mint)}</Link> <span className="num text-ink-3">${t.symbol}</span>
-        <ScoreBadge score={t.score} /><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} />
+        <OfficialBadge official={t.official} /><ScoreBadge score={t.score} /><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} />
       </span>
     </td>
   );

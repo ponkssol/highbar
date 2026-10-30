@@ -61,15 +61,21 @@ spl-token address --token So11111111111111111111111111111111111111112 --owner <R
   - a **server** endpoint for api, keeper and jobs (`RPC_URL=https://<name>.solana-mainnet.quiknode.pro/<token>/`). Use it as `<QUICKNODE_SERVER_RPC_URL>` / `<QUICKNODE_RPC_URL>` in the commands here;
   - a **browser** endpoint for the web service's `RPC_URL`, locked to your web domain via the endpoint's **Security** settings (referrer/domain whitelist). The web RPC URL is visible to every visitor.
 - Check the plan:
-  - `getProgramAccounts` must be allowed. The indexer and the `$BAR` barsnap/feeshare jobs use it.
+  - `getProgramAccounts` must be allowed. The indexer and the `$HIGHER` barsnap/feeshare jobs use it.
   - The plan's requests-per-second limit must cover indexer polling (30 s), keeper (30 s), jobs and browser traffic.
 - WebSocket (`wss://…`) is not used by the code today, so `RPC_WS_URL` is optional.
-- The public `api.mainnet-beta.solana.com` is refused by the API startup check and by `createConfigs --send`. It also returns 429 on `getProgramAccounts`, which the indexer and the $BAR jobs need.
+- The public `api.mainnet-beta.solana.com` is refused by the API startup check and by `createConfigs --send`. It also returns 429 on `getProgramAccounts`, which the indexer and the $HIGHER jobs need.
 
-## 3. Real $BAR mint [BLOCKER]
+## 3. Official $HIGHER token (not a blocker for go-live)
 
-- `BAR_MINT=<real mint>` on api and jobs.
-- It is required by the startup check, the Max tier gate, the cashback boost and the buyback.
+The official ecosystem token is **$HIGHER**, launched on highbar itself by ONE dedicated dev wallet.
+- `OFFICIAL_TOKEN_CREATOR=<dev wallet pubkey>` on api and jobs (and keeper/web for consistency). Leave it **empty** until that wallet is final (not `<FILL_ME>`). While empty the startup check only warns, nothing is auto-detected, and every launch with symbol `HIGHER` is refused with 403.
+- `OFFICIAL_TOKEN_SYMBOL=HIGHER` (default; compared case-insensitively).
+- Set `OFFICIAL_TOKEN_CREATOR` and restart api + jobs **before** the dev wallet launches $HIGHER. The indexer then records the FIRST launch by that wallet with that symbol (migration 0006, `official_token`), once. Later launches never replace it.
+- Launches with symbol `HIGHER` from any other wallet get **403** ("reserved for the official highbar ecosystem token").
+- Only the admin endpoints change a recorded token: `POST /admin/official-token {"mint": "..."}` (override) and `DELETE /admin/official-token` (clear, back to auto-detection), both with header `x-admin-token: $ADMIN_TOKEN`. `GET /official-token` shows the current state.
+- `BAR_MINT` is now an optional manual override: if set it wins, otherwise the detected mint is used. Buyback, holder tiers/perks, fee share, the Max tier gate, `/stats` and `/burn` all use the same resolver.
+- Before $HIGHER exists every perk is off, the perks pages show "not launched yet", and the buyback budget only accrues.
 - Do **not** run `bar:mock-mint` on mainnet. It is devnet only.
 
 ## 4. Create the 6 mainnet DBC configs [BLOCKER]
@@ -148,7 +154,7 @@ For each service:
 | `deploy/mainnet/api.env.template` | api | — |
 | `deploy/mainnet/web.env.template` | web | `PROXY_SHARED_SECRET` (= api), `SITE_URL` (= api) |
 | `deploy/mainnet/keeper.env.template` | keeper | the 6 `CONFIG_*` (= api) |
-| `deploy/mainnet/jobs.env.template` | jobs-epoch **and** jobs-barsnap | `TREASURY_PUBKEY`, `REFERRAL_WALLET`, `BAR_MINT`, `CONFIG_*` (= api) |
+| `deploy/mainnet/jobs.env.template` | jobs-epoch **and** jobs-barsnap | `TREASURY_PUBKEY`, `REFERRAL_WALLET`, `OFFICIAL_TOKEN_CREATOR` (later), optional `BAR_MINT`, `CONFIG_*` (= api) |
 
 Also:
 - `SITE_URL` and `CORS_ORIGIN` are the final https web domain. Token metadata URIs are built from `SITE_URL`, so set the custom domain **before** the first launch.
@@ -190,7 +196,7 @@ Also:
     `pnpm --filter @hb/api jobs:buyback -- --live --budget-sol 0.01`
     Run it with mainnet env in the shell, `ALLOW_MAINNET=true` for that one command only.
   - Keep `BUYBACK_MAX_ORDER_SOL` small.
-- **$BAR fee share payouts** [NICE]: keep `BAR_FEE_SHARE_LIVE=false` until the legal review.
+- **$HIGHER fee share payouts** [NICE]: keep `BAR_FEE_SHARE_LIVE=false` until the legal review.
 - **Referral and milestone payouts** [NICE]: run them dry-run by hand first (`jobs:referral`, `jobs:milestone`). Add cron services later.
 
 ## 10. Rollback

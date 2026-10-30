@@ -6,13 +6,13 @@ import { jobs } from "../jobs/config.js";
 import { memoIx, sendOnce, sigState, simulate } from "../jobs/chain.js";
 import type { Period } from "../jobs/period.js";
 
-export interface Accrual { wallet: string; trades: number; volume: bigint; amount: bigint; /** $BAR holder extra included in amount (step 8) */ bonus?: bigint; barTier?: string; barRaw?: bigint }
-/** Optional per-wallet extra on top of the base cashback (step 8 $BAR holder boost, services/bar.ts). */
+export interface Accrual { wallet: string; trades: number; volume: bigint; amount: bigint; /** $HIGHER holder extra included in amount (step 8) */ bonus?: bigint; barTier?: string; barRaw?: bigint }
+/** Optional per-wallet extra on top of the base cashback (step 8 $HIGHER holder boost, services/bar.ts). */
 export type CashbackBoost = (wallet: string, volume: bigint) => Promise<{ bonus: bigint; tier: string; raw: bigint }>;
 export interface Payout { wallets: string[]; periods: string[]; lamports: bigint; sig?: string; status: "paid" | "would-pay" | "failed"; note?: string }
 
 /** Cashback = TRADER_CASHBACK_BPS (0.05%) of a wallet's via_ui volume in the period. Wallets in `exclude` (platform, treasury, referral) earn nothing.
- *  `boost` (optional) adds a per-wallet bonus ($BAR holder multiplier + fee rebate); without it the result is the plain base cashback. */
+ *  `boost` (optional) adds a per-wallet bonus ($HIGHER holder multiplier + fee rebate); without it the result is the plain base cashback. */
 export async function computeAccruals(p: Period, exclude: string[], boost?: CashbackBoost): Promise<Accrual[]> {
   const { rows } = await db.query<{ wallet: string; trades: number; vol: string }>(
     `SELECT wallet, count(*)::int AS trades, sum(round(sol * 1e9))::bigint::text AS vol

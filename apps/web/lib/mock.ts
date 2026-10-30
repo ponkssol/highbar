@@ -3,6 +3,8 @@ import { TIERS, type TierId } from "@hb/shared";
 export interface TokenRow {
   image?: string | null;
   devLocked?: boolean;
+  /** official ecosystem token ($HIGHER) */
+  official?: boolean;
   unlockAt?: number | null;
   mint: string;
   name: string;

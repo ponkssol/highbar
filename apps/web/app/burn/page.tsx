@@ -37,12 +37,12 @@ export default function BurnPage() {
       <TopBlock title="Burn">
         <div className="mt-3 grid grid-cols-1 gap-6 md:grid-cols-3">
           <div>
-            <div className="flex items-center gap-2 text-[13px] text-ink-3">$BAR burned <BurnBadge /></div>
+            <div className="flex items-center gap-2 text-[13px] text-ink-3">$HIGHER burned <BurnBadge /></div>
             <div className="num mt-1 text-kpi">{d.barBurned.toLocaleString("en-US")}</div>
-            {!d.barLaunched && <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-ink-2"><Flame size={12} />$BAR not launched yet</div>}
+            {!d.barLaunched && <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-ink-2"><Flame size={12} />$HIGHER not launched yet</div>}
             {d.barMint && (
               <a href={solscan("account", d.barMint, d.network)} target="_blank" rel="noreferrer" className="num mt-1 inline-flex items-center gap-1 text-xs text-ink-3 hover:underline">
-                {d.mode === "mock" ? "mock $BAR " : "$BAR "}{shortAddr(d.barMint, 4)}<ExternalLink size={12} />
+                {d.mode === "mock" ? "mock $HIGHER " : "$HIGHER "}{shortAddr(d.barMint, 4)}<ExternalLink size={12} />
               </a>
             )}
           </div>
@@ -62,7 +62,7 @@ export default function BurnPage() {
 
       <Card>
         <h3 className="mb-1 font-semibold">Where platform fees go</h3>
-        <p className="mb-4 text-sm text-ink-2">After trader cashback, platform income is split 40 / 50 / 10. The 40% share buys $BAR on the market and burns it on-chain.</p>
+        <p className="mb-4 text-sm text-ink-2">After trader cashback, platform income is split 40 / 50 / 10. The 40% share buys $HIGHER on the market and burns it on-chain.</p>
         <div className="flex h-3 overflow-hidden rounded-full border border-border">
           {PARTS.map((p) => <div key={p.key} className={p.cls} style={{ width: `${p.pct}%` }} />)}
         </div>
@@ -79,10 +79,10 @@ export default function BurnPage() {
       <Card className="overflow-x-auto p-0">
         <h3 className="border-b border-border px-4 py-3 font-semibold">Buyback &amp; burn history</h3>
         {loading && !data ? <Loading /> : d.runs.length === 0 ? (
-          <Empty title="No buybacks yet" hint={d.barLaunched ? "Buybacks run once enough fees accrue." : "Buybacks start after $BAR launches. Until then the 40% share accrues."} />
+          <Empty title="No buybacks yet" hint={d.barLaunched ? "Buybacks run once enough fees accrue." : "Buybacks start after $HIGHER launches. Until then the 40% share accrues."} />
         ) : (
           <table className="w-full min-w-[640px] text-sm">
-            <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} text-left`}>Buy</th><th className={`${TH} text-left`}>Burn</th><th className={`${TH} text-right`}>SOL spent</th><th className={`${TH} text-right`}>$BAR burned</th><th className={`${TH} text-right`}>Time</th></tr></thead>
+            <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} text-left`}>Buy</th><th className={`${TH} text-left`}>Burn</th><th className={`${TH} text-right`}>SOL spent</th><th className={`${TH} text-right`}>$HIGHER burned</th><th className={`${TH} text-right`}>Time</th></tr></thead>
             <tbody>{d.runs.map((r) => (
               <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted">
                 <td className={TD}><TxLink sig={r.buySig ?? (r.burnSig === undefined ? r.sig : null)} url={r.buyUrl} network={d.network} dot="bg-buy" /></td>

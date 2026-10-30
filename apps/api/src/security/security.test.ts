@@ -75,7 +75,7 @@ test("errors: no stack traces or paths; 5xx generic in production", () => {
 
 const goodMainnet = () => {
   const env: Record<string, string> = {
-    NETWORK: "mainnet", TREASURY_PUBKEY: pk(), REFERRAL_ACCOUNT: pk(), BAR_MINT: pk(), DATABASE_URL: "postgres://u:p@h/db",
+    NETWORK: "mainnet", TREASURY_PUBKEY: pk(), REFERRAL_ACCOUNT: pk(), OFFICIAL_TOKEN_CREATOR: pk(), DATABASE_URL: "postgres://u:p@h/db",
     RPC_URL: "https://example-name.solana-mainnet.quiknode.pro/0123abcd/", AUTH_SECRET: "x".repeat(40), SITE_URL: "https://highbar.example",
     CORS_ORIGIN: "https://highbar.example", PROXY_SHARED_SECRET: "y".repeat(40),
   };
@@ -97,7 +97,7 @@ test("checkEnv: QuickNode and Helius mainnet URLs pass the paid-RPC check", () =
 
 test("checkEnv: mainnet refuses missing env, public RPC, duplicate configs, mock buyback", () => {
   const r = checkEnv({ NETWORK: "mainnet" });
-  for (const k of ["TREASURY_PUBKEY", "REFERRAL_WALLET", "BAR_MINT", "DATABASE_URL", "RPC_URL", "CONFIG_STANDARD_OFF", "CONFIG_MAX_ON", "AUTH_SECRET", "SITE_URL", "CORS_ORIGIN"])
+  for (const k of ["TREASURY_PUBKEY", "REFERRAL_WALLET", "DATABASE_URL", "RPC_URL", "CONFIG_STANDARD_OFF", "CONFIG_MAX_ON", "AUTH_SECRET", "SITE_URL", "CORS_ORIGIN"])
     assert.ok(r.errors.some((e) => e.includes(k)), `missing ${k} must be an error`);
   const env = goodMainnet();
   env.RPC_URL = "https://api.mainnet-beta.solana.com"; env.CONFIG_MAX_ON = env.CONFIG_MAX_OFF; env.BUYBACK_MODE = "mock";
@@ -105,6 +105,18 @@ test("checkEnv: mainnet refuses missing env, public RPC, duplicate configs, mock
   assert.ok(r2.errors.some((e) => /public Solana endpoint/.test(e)));
   assert.ok(r2.errors.some((e) => /same DBC config/.test(e)));
   assert.ok(r2.errors.some((e) => /BUYBACK_MODE=mock/.test(e)));
+});
+
+test("checkEnv: OFFICIAL_TOKEN_CREATOR unset only warns; BAR_MINT is optional but must be valid", () => {
+  const env = goodMainnet(); delete env.OFFICIAL_TOKEN_CREATOR;
+  const r = checkEnv(env);
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.warnings.some((w) => /OFFICIAL_TOKEN_CREATOR unset/.test(w)));
+  assert.ok(!checkEnv({ NETWORK: "mainnet" }).errors.some((e) => /BAR_MINT/.test(e)), "BAR_MINT is no longer required");
+  const bad = goodMainnet(); bad.BAR_MINT = "nope"; bad.OFFICIAL_TOKEN_CREATOR = "nope";
+  const r2 = checkEnv(bad);
+  assert.ok(r2.errors.some((e) => /BAR_MINT is not a valid/.test(e)));
+  assert.ok(r2.errors.some((e) => /OFFICIAL_TOKEN_CREATOR is not a valid/.test(e)));
 });
 
 test("checkEnv: warns when the platform key is the referral wallet; devnet keypair refused on mainnet", () => {

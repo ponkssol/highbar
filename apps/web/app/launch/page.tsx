@@ -37,11 +37,11 @@ export default function LaunchPage() {
   const router = useRouter();
   const auth = useAuth();
   const f = feeSplitPct(tier);
-  // $BAR utility: Max tier launches need MAX_TIER_MIN_BAR (the API enforces it too on /tx/launch).
+  // $HIGHER utility: Max tier launches need MAX_TIER_MIN_BAR (the API enforces it too on /tx/launch).
   const barInfo = useBarInfo().data;
   const barWallet = useBarWallet(wallet.address).data;
   const maxLocked = !!barInfo?.gateMaxTier && !barWallet?.maxTierAccess;
-  const maxNeed = `Hold ${fmtBar(barInfo?.maxTierMinBar ?? 0)} $BAR to launch on Max`;
+  const maxNeed = `Hold ${fmtBar(barInfo?.maxTierMinBar ?? 0)} $HIGHER to launch on Max`;
   const balance = useSolBalance(wallet.publicKey, wallet.connection);
   const devSol = Number(devBuy) || 0;
   const LAUNCH_COST_SOL = 0.03; // rent for mint, pool, vaults, metadata + network fees (simulated ~0.021)

@@ -1,7 +1,7 @@
-# $BAR utility (BUILD_BRIEF step 8, section 7)
+# $HIGHER utility (BUILD_BRIEF step 8, section 7)
 
-Holder perks by $BAR balance: bigger cashback, fee discount (as a rebate), Max tier access, holder fee share.
-Everything here is **off-chain** (API + jobs). Without `BAR_MINT` every perk is off and the step 7 behaviour is unchanged.
+Holder perks by $HIGHER balance: bigger cashback, fee discount (as a rebate), Max tier access, holder fee share.
+Everything here is **off-chain** (API + jobs). The mint comes from one resolver (`src/services/officialToken.ts`): `BAR_MINT` when set (manual override), otherwise the first launch by `OFFICIAL_TOKEN_CREATOR` with symbol `OFFICIAL_TOKEN_SYMBOL` (default `HIGHER`), recorded once by the indexer (or set by the admin override). Until $HIGHER exists every perk is off and the step 7 behaviour is unchanged.
 
 ## Tiers (`packages/shared` `BAR_TIERS`, example thresholds)
 
@@ -64,5 +64,5 @@ sending and reconciled next run (never re-signed). Payout batches use `CASHBACK_
 
 ## Env
 
-`BAR_MINT`, `BAR_BALANCE_CACHE_MS` (60000), `BAR_GATE_MAX_TIER` (default: on when BAR_MINT is set), `BAR_CASHBACK_BOOST` (true),
+`BAR_MINT`, `BAR_BALANCE_CACHE_MS` (60000), `BAR_GATE_MAX_TIER` (default: on once $HIGHER exists), `OFFICIAL_TOKEN_CREATOR`, `OFFICIAL_TOKEN_SYMBOL` (HIGHER), `BAR_CASHBACK_BOOST` (true),
 `BAR_REQUIRE_SNAPSHOTS` (default true on mainnet), `BAR_FEE_SHARE_BPS` (2000), `BAR_FEE_SHARE_LIVE` (false), `BAR_FEE_SHARE_EXCLUDE_WALLETS`.

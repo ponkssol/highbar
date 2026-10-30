@@ -142,11 +142,11 @@ export const BUYBACK_DEFAULTS = { maxOrderSol: 1, maxSlippageBps: 100, maxPriceI
 /** Smallest cashback payout; smaller balances carry over to the next period. */
 export const CASHBACK_MIN_PAYOUT_SOL = 0.001;
 
-// ---- step 8: $BAR utility (holder tiers by $BAR balance; all perks are off-chain, see apps/api/BAR_UTILITY.md) ----
+// ---- step 8: $HIGHER utility (holder tiers by $HIGHER balance; all perks are off-chain, see apps/api/BAR_UTILITY.md) ----
 export type BarTierId = "none" | "holder" | "raiser" | "maxi";
 export interface BarTier {
   id: BarTierId; label: string;
-  /** Minimum balance in whole $BAR (example thresholds, final TBD). */
+  /** Minimum balance in whole $HIGHER (example thresholds, final TBD). */
   minBar: number;
   /** Cashback multiplier on TRADER_CASHBACK_BPS, in bps (10_000 = 1x). */
   cashbackMultiplierBps: number;
@@ -164,9 +164,9 @@ export const BAR_TIERS: readonly BarTier[] = [
   { id: "raiser", label: "Raiser", minBar: 100_000, cashbackMultiplierBps: 20_000, feeRebateBps: 5, maxTierAccess: true, feeShare: true },
   { id: "maxi", label: "Maxi", minBar: 1_000_000, cashbackMultiplierBps: 30_000, feeRebateBps: 10, maxTierAccess: true, feeShare: true },
 ];
-/** Share of each closed period's ops allocation (SPLIT_BPS.ops) accrued to $BAR holders, pro-rata by balance. Env override BAR_FEE_SHARE_BPS. */
+/** Share of each closed period's ops allocation (SPLIT_BPS.ops) accrued to $HIGHER holders, pro-rata by balance. Env override BAR_FEE_SHARE_BPS. */
 export const BAR_FEE_SHARE_BPS = 2000;
-/** On-chain $BAR balance cache TTL. */
+/** On-chain $HIGHER balance cache TTL. */
 export const BAR_BALANCE_CACHE_MS = 60_000;
 export const barTierOf = (balanceBar: number): BarTier => [...BAR_TIERS].reverse().find((t) => balanceBar >= t.minBar) ?? BAR_TIERS[0];
 /** Smallest tier that unlocks Max tier launches. */

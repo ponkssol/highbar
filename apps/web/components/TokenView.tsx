@@ -15,6 +15,7 @@ import { Price, TierBadge, TierDot } from "./ui";
 import { DeltaPill } from "./StatsPanel";
 import { DevLock, LockedBadge } from "./DevLock";
 import { DevLockedBadge } from "./DevLockedBadge";
+import { OfficialBadge } from "./OfficialBadge";
 import { ScoreBadge } from "./ScoreBadge";
 import { ScoreCard } from "./ScoreCard";
 import { explorerTx } from "@/lib/settings";
@@ -23,7 +24,7 @@ import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
-  mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; priceUsd?: number; image?: string | null; change24h: number; holders: number; now: number; devLocked?: boolean; unlockAt?: number | null; score?: number | null;
+  mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; priceUsd?: number; image?: string | null; change24h: number; holders: number; now: number; devLocked?: boolean; unlockAt?: number | null; official?: boolean; score?: number | null;
   trades: { sig: string; side: "buy" | "sell"; sol: number; tokens: number; wallet: string; ts: number; devBuy?: boolean }[];
 }
 
@@ -49,6 +50,7 @@ function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
               <h1 className="truncate text-lg font-semibold leading-none">{t.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="num text-xs text-ink-3">${t.ticker}</span>
+                <OfficialBadge official={t.official} size="md" />
                 <TierBadge tier={t.tier} />
                 {t.antiSniper && <span title="Anti-sniper" className="inline-flex items-center gap-1 text-xs text-ink-3"><ShieldCheck size={12} strokeWidth={1.75} />anti-sniper</span>}
                 {t.devLocked ? <span data-testid="locked-badge"><DevLockedBadge devLocked unlockAt={t.unlockAt} /></span> : <LockedBadge data={locks} />}

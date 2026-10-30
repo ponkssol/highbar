@@ -7,6 +7,7 @@ import { decodeDbcEvents, type RawTx } from "./decode.js";
 import { store, type Token } from "../store.js";
 import { recordTrade } from "../candles/index.js";
 import { scoresStore } from "../services/scoresStore.js";
+import { detectOfficial, officialConfig, pgOfficialRepo, refreshOfficial } from "../services/officialToken.js";
 
 /** RPC-polling indexer (state in Postgres). Pool state via getPoolsByConfig; swaps via the backup's decode.ts (EvtSwap3). */
 const METAPLEX = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
@@ -106,6 +107,17 @@ export async function indexOnce(log: (m: string) => void = console.log) {
     }
   }
   await store.trimActivity();
+  await detectOfficialLaunch(log).catch((e) => log(`official token: ${(e as Error).message}`));
+}
+
+/** Official $HIGHER: record the FIRST launch by OFFICIAL_TOKEN_CREATOR with symbol OFFICIAL_TOKEN_SYMBOL (once; see services/officialToken.ts). */
+export async function detectOfficialLaunch(log: (m: string) => void = console.log) {
+  const cfg = officialConfig();
+  if (cfg.creator) {
+    const row = await detectOfficial(await store.tokensByCreator(cfg.creator), cfg, pgOfficialRepo);
+    if (row) log(`official token detected: $${row.symbol} ${row.mint} (creator ${row.creator})`);
+  }
+  await refreshOfficial();
 }
 
 export function startIndexer(log: (m: string) => void = console.log) {

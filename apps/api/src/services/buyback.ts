@@ -13,15 +13,15 @@ const MIN_ORDER = 1_000_000n; // 0.001 SOL: smaller leftovers wait for the next 
 
 interface Bar { mint: PublicKey; decimals: number; program: PublicKey; authority: PublicKey | null }
 async function loadBar(): Promise<Bar> {
-  if (!jobs.barMint) throw new Error("BAR_MINT is not set (devnet: pnpm --filter @hb/api bar:mock-mint)");
+  if (!jobs.barMint) throw new Error("$HIGHER has not launched yet (BAR_MINT unset, no official launch detected; devnet: pnpm --filter @hb/api bar:mock-mint)");
   const conn = getConnection(), mint = new PublicKey(jobs.barMint);
   const info = await conn.getAccountInfo(mint);
-  if (!info) throw new Error(`BAR_MINT ${mint.toBase58()} not found on ${jobs.network}`);
+  if (!info) throw new Error(`$HIGHER mint ${mint.toBase58()} not found on ${jobs.network}`);
   const m = await getMint(conn, mint, "confirmed", info.owner);
   return { mint, decimals: m.decimals, program: info.owner, authority: m.mintAuthority };
 }
 
-/** Spend up to `budget` lamports for `period` on $BAR in capped orders (BUYBACK_MAX_ORDER_SOL, at most BUYBACK_MAX_ORDERS_PER_RUN per run), burn every buy.
+/** Spend up to `budget` lamports for `period` on $HIGHER in capped orders (BUYBACK_MAX_ORDER_SOL, at most BUYBACK_MAX_ORDERS_PER_RUN per run), burn every buy.
  *  Already-spent SOL for the period is subtracted, so re-runs continue where the last run stopped.
  *  mode "jupiter": Jupiter Swap API quote (slippage + price-impact caps) -> /swap -> actual received via balance delta -> burnChecked.
  *  mode "mock" (devnet only; Jupiter has no devnet): platform keypair is the mock BAR mint authority, "buys" by minting at BAR_MOCK_PRICE_SOL, then burns. */
@@ -97,7 +97,7 @@ async function jupiterOrder(bar: Bar, payer: Keypair, period: string, solIn: big
     const vtx = VersionedTransaction.deserialize(Buffer.from(swapTransaction, "base64"));
     const buySig = await sendVersionedOnce(vtx, [payer], lastValidBlockHeight, (s) => setOrder(id, { buy_sig: s }).then(() => {}));
     const barOut = await actualReceived(getConnection(), buySig, getAssociatedTokenAddressSync(bar.mint, payer.publicKey, false, bar.program).toBase58());
-    if (barOut <= 0n) throw new Error(`swap ${buySig}: no $BAR received`);
+    if (barOut <= 0n) throw new Error(`swap ${buySig}: no $HIGHER received`);
     await setOrder(id, { status: "bought", bar_bought: barOut.toString() });
     const burnSig = await burn(id, bar, payer, barOut, period);
     return { id, mode: "jupiter", solIn, barOut, buySig, burnSig, status: "burned" };

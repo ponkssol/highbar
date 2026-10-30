@@ -1,4 +1,4 @@
-# highbar ($BAR)
+# highbar ($HIGHER)
 
 pump.fun-style Solana launchpad on Meteora Dynamic Bonding Curve (DBC), migrating to DAMM v2.
 Concept and build plan: `BUILD_BRIEF.md`. Mainnet go-live: **`docs/MAINNET_CHECKLIST.md`**.
@@ -6,7 +6,7 @@ Concept and build plan: `BUILD_BRIEF.md`. Mainnet go-live: **`docs/MAINNET_CHECK
 | Package | What |
 |---|---|
 | `apps/web` | Next.js 15 frontend (Reown AppKit wallets). Browser calls go through its same-origin `/hb-api/*` proxy to the API. |
-| `apps/api` | Fastify API + indexer + Postgres store; payout jobs in `src/jobs` (fees, cashback, buyback, $BAR, referral, milestone). |
+| `apps/api` | Fastify API + indexer + Postgres store; payout jobs in `src/jobs` (fees, cashback, buyback, $HIGHER, referral, milestone). |
 | `packages/onchain` | DBC configs, launch/trade builders, migration keeper. |
 | `packages/shared` | Tiers, fee constants, shared math. |
 
@@ -27,7 +27,7 @@ Node >= 22, pnpm 11 (`packageManager` in package.json). Keypairs live in `packag
 
 - **devnet**: configs come from `packages/onchain/configs.devnet.json`; RPC = `DEVNET_RPC` / `RPC_URL` / public devnet; the devnet keypair fallback works.
 - **mainnet**: configs come only from `CONFIG_STANDARD_OFF … CONFIG_MAX_ON` env (or `configs.mainnet.json`), never the devnet file; RPC = `RPC_URL` only (public endpoint refused); the platform keypair must be given (`PLATFORM_KEYPAIR_JSON` or `PLATFORM_KEYPAIR_PATH`).
-- On mainnet the API **refuses to start** when required env is missing or unsafe (`apps/api/src/security/prodCheck.ts`): treasury, referral wallet, `BAR_MINT`, the 6 configs, paid RPC, `DATABASE_URL`, `AUTH_SECRET`, https `SITE_URL`, `CORS_ORIGIN`, any `<FILL_ME>` left over. It also reads every config on-chain and warns when its fee claimer is not the platform key or treasury. `SKIP_CHAIN_CHECK=1` skips only the on-chain part.
+- On mainnet the API **refuses to start** when required env is missing or unsafe (`apps/api/src/security/prodCheck.ts`): treasury, referral wallet, the 6 configs, paid RPC, `DATABASE_URL`, `AUTH_SECRET`, https `SITE_URL`, `CORS_ORIGIN`, any `<FILL_ME>` left over. It also reads every config on-chain and warns when its fee claimer is not the platform key or treasury. `SKIP_CHAIN_CHECK=1` skips only the on-chain part.
 - Mainnet env templates, one per Railway service: `deploy/mainnet/*.env.template` (Indonesian comments). Filled copies (`deploy/mainnet/*.env`) are gitignored.
 
 ## Database
@@ -48,8 +48,8 @@ Jobs (dry-run unless `--live` or `DRY_RUN=false`; live mainnet also needs `ALLOW
 
     pnpm --filter @hb/api jobs:epoch           # claim fees -> cashback -> 40/50/10 split -> buyback & burn
     pnpm --filter @hb/api jobs:fees | jobs:cashback | jobs:buyback
-    pnpm --filter @hb/api jobs:barsnap         # hourly $BAR holder snapshot
-    pnpm --filter @hb/api jobs:feeshare        # $BAR holder fee share (payouts also need BAR_FEE_SHARE_LIVE=true)
+    pnpm --filter @hb/api jobs:barsnap         # hourly $HIGHER holder snapshot
+    pnpm --filter @hb/api jobs:feeshare        # $HIGHER holder fee share (payouts also need BAR_FEE_SHARE_LIVE=true)
     pnpm --filter @hb/api jobs:referral | jobs:milestone
 
 DBC configs (`packages/onchain`):

@@ -13,7 +13,7 @@ export default function OgImage() {
           <div style={{ display: "flex", fontSize: 110, fontWeight: 700, letterSpacing: -3 }}>highbar</div>
           <div style={{ display: "flex", fontSize: 40, color: "#55524A", marginTop: 12 }}>Launch tokens on Solana. Fair curves, dev buy in block 0, optional dev lock.</div>
         </div>
-        <div style={{ display: "flex", fontSize: 24, color: "#55524A" }}>$BAR</div>
+        <div style={{ display: "flex", fontSize: 24, color: "#55524A" }}>$HIGHER</div>
       </div>
     ),
     size,

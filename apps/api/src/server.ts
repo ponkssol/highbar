@@ -7,12 +7,13 @@ import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { deriveDbcPoolAddress, SwapMode } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { buildClaimTx, buildLockTx, configPubkey, fetchEscrow, fetchEscrows, fetchLocks, lockTip, getClient, getConnection, JUP_LOCK_PROGRAM_ID, quote, usableReferralAta, type LockInfo } from "@hb/onchain";
 import { store, type Token } from "./store.js";
-import { indexOnce, startIndexer } from "./indexer/poller.js";
+import { detectOfficialLaunch, indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
 import { registerPages } from "./routes/pages.js";
 import { registerRewards } from "./routes/rewards.js";
 import { registerBar } from "./routes/bar.js";
 import { launchGate } from "./services/bar.js";
+import { clearOfficial, impersonationBlock, official, officialConfig, officialMint, overrideOfficial, refreshOfficial } from "./services/officialToken.js";
 import { registerReferralMilestone } from "./routes/referralMilestone.js";
 import { rewardsStore } from "./services/rewardsStore.js";
 import { initAuth, registerAuth } from "./auth.js";
@@ -37,6 +38,7 @@ await assertProductionConfig(); // mainnet: refuses to start on missing / unsafe
 await migrate(() => {});
 await initAuth();
 await initMedia();
+await refreshOfficial(); // official $HIGHER mint (BAR_MINT override, else the detected official launch)
 const trustProxy: boolean | number = process.env.TRUST_PROXY === "true" ? true : Number(process.env.TRUST_PROXY) > 0 ? Number(process.env.TRUST_PROXY) : false;
 // typed as the http/1 server options (a boolean|number trustProxy otherwise trips the http2 overload)
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" }, trustProxy: trustProxy as boolean, bodyLimit: 256 * 1024 });
@@ -57,7 +59,8 @@ async function devLock(mint: string) {
 async function views(ts: Token[]) {
   const dl = await store.devLocks(ts.map((t) => t.mint));
   const sc = await scoresStore.scores(ts.map((t) => t.mint));
-  return ts.map((t) => { const u = dl.get(t.mint); return { ...t, mcapUsd: t.mcapSol * SOL_USD, image: imageUrl(t.mint, t.uri), devLocked: u !== undefined, unlockAt: u ?? null,
+  const om = officialMint();
+  return ts.map((t) => { const u = dl.get(t.mint); return { ...t, mcapUsd: t.mcapSol * SOL_USD, image: imageUrl(t.mint, t.uri), devLocked: u !== undefined, unlockAt: u ?? null, official: !!om && t.mint === om,
     score: sc.get(t.mint)?.score ?? null, scoreLabel: sc.get(t.mint)?.breakdown.label ?? null }; });
 }
 async function recordLocks(infos: LockInfo[]) {
@@ -123,7 +126,7 @@ app.get("/stats", async () => {
     creatorFeesSol: creatorFees, creatorDelta: 0,
     platformFeesSol: Number(platformLamports) / 1e9,
     platformSplitSol: { buyback: Number(split.buyback) / 1e9, ops: Number(split.ops) / 1e9, treasury: Number(split.treasury) / 1e9 },
-    barBurned: (await rewardsStore.buybackTotals(process.env.BAR_MINT || null)).barBurned, burnDelta: 0,
+    barBurned: (await rewardsStore.buybackTotals(officialMint())).barBurned, burnDelta: 0,
     activeTraders24h: new Set(trades.filter((t) => t.ts >= now - day).map((t) => t.wallet)).size,
     updatedAt: now,
   };
@@ -166,7 +169,9 @@ app.post("/tx/launch", async (req, reply) => {
       devBuySol: raw.devBuySol === undefined ? 0 : Number(raw.devBuySol), slippageBps: raw.slippageBps === undefined ? 100 : Number(raw.slippageBps) };
     if (Buffer.byteLength(b.name) > 32 || Buffer.byteLength(b.symbol) > 10) throw new BadRequest("name max 32 bytes, symbol max 10 bytes");
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
-  const gate = await launchGate(b.tier, b.creator); // $BAR holders only for Max tier (step 8)
+  const fake = impersonationBlock(b.symbol, b.creator, officialConfig()); // HIGHER is reserved for the official dev wallet
+  if (fake) return reply.code(403).send({ error: fake });
+  const gate = await launchGate(b.tier, b.creator); // $HIGHER holders only for Max tier (step 8)
   if (gate) return reply.code(403).send({ error: gate });
   const spam = creatorLaunchGate(limits, b.creator); // anti-spam: launches per creator wallet per hour
   if (spam) return reply.code(429).send({ error: spam });
@@ -329,6 +334,28 @@ app.post("/reindex", async (req, reply) => {
   if (want ? got !== want : process.env.NETWORK === "mainnet" || process.env.NETWORK === "mainnet-beta") return reply.code(404).send({ error: "not found" });
   await indexOnce((m) => app.log.info(m)); return { ok: true, tokens: await store.tokenCount() };
 });
+
+// Official $HIGHER token: public read + admin-only override / clear (the only way to change a detected official token).
+const officialView = () => { const o = official(); return { ...o, launched: !!o.mint, verified: !!o.mint }; };
+app.get("/official-token", async () => officialView());
+const isAdmin = (req: { headers: Record<string, unknown> }) => { const want = process.env.ADMIN_TOKEN; return !!want && req.headers["x-admin-token"] === want; }; // no ADMIN_TOKEN = disabled
+app.post("/admin/official-token", async (req, reply) => {
+  if (!isAdmin(req)) return reply.code(404).send({ error: "not found" });
+  const b = (req.body ?? {}) as { mint?: string; symbol?: string };
+  const mint = address(b.mint, "mint");
+  const t = await store.getToken(mint);
+  const o = await overrideOfficial({ mint, symbol: b.symbol ? label(b.symbol, "symbol", 10) : t?.symbol, creator: t?.creator ?? null, pool: t?.pool ?? null, launchedAt: t?.createdAt ?? null });
+  app.log.warn(`[official] admin override -> ${mint}${t ? "" : " (not indexed)"}`);
+  return { ok: true, indexed: !!t, official: { ...o, launched: !!o.mint }, note: process.env.BAR_MINT ? "BAR_MINT is set and still wins over this override" : undefined };
+});
+app.delete("/admin/official-token", async (req, reply) => {
+  if (!isAdmin(req)) return reply.code(404).send({ error: "not found" });
+  const r = await clearOfficial();
+  app.log.warn("[official] admin clear");
+  await detectOfficialLaunch((m) => app.log.info(m)).catch(() => {}); // back to auto-detection (first official launch, if any)
+  return { ok: true, removed: r.removed, official: officialView() };
+});
+setInterval(() => { refreshOfficial().catch(() => {}); }, 60_000).unref(); // other replicas / NO_INDEXER
 
 // Fee claimer / cashback / buyback & burn run as separate jobs (src/jobs/run.ts: pnpm --filter @hb/api jobs:epoch -- --loop 3600), not in the API process.
 

@@ -49,7 +49,7 @@ export function registerRewards(app: FastifyInstance) {
     const est = splitEpoch(lam(estimate), 0n);
     const split = s.periods ? { buyback: s.buybackSol, ops: s.opsSol, treasury: s.treasurySol } : { buyback: Number(est.buyback) / 1e9, ops: Number(est.ops) / 1e9, treasury: Number(est.treasury) / 1e9 };
     return {
-      network: net, barMint: jobs.barMint, barLaunched: !!jobs.barMint, mode: buybackMode(), dryRun: jobs.dryRun, estimated: !s.claims,
+      network: net, barMint: jobs.barMint, barLaunched: !!jobs.barMint, barMintUrl: jobs.barMint ? solscanAccount(jobs.barMint, net) : null, mode: buybackMode(), dryRun: jobs.dryRun, estimated: !s.claims,
       barBurned: bt.barBurned, burnOrders: bt.orders, solSpent: bt.solSpent,
       platformFeesSol: s.claims ? s.claimedSol : estimate, unsplitFeesSol: s.unsplitSol, cashbackSol: s.cashbackSol, split,
       pendingBuybackSol: Math.max(0, (s.periods ? s.buybackSol : split.buyback) - bt.solSpent),

@@ -33,7 +33,7 @@ export function FeeBreakdown({ tier }: { tier: TierId }) {
       <div className="mt-4 text-xs font-medium text-ink-3">Platform fee split</div>
       <table className="mt-1 w-full text-sm">
         <tbody>
-          {[["Buyback + burn $BAR", PLATFORM_SPLIT.buyback], ["Operations", PLATFORM_SPLIT.ops], ["Treasury", PLATFORM_SPLIT.treasury]].map(([l, v]) => (
+          {[["Buyback + burn $HIGHER", PLATFORM_SPLIT.buyback], ["Operations", PLATFORM_SPLIT.ops], ["Treasury", PLATFORM_SPLIT.treasury]].map(([l, v]) => (
             <tr key={l as string} className="border-b border-border last:border-0">
               <td className="py-2 text-ink-2">{l}</td>
               <td className="num py-2 text-right">{Math.round((v as number) * 100)}%</td>

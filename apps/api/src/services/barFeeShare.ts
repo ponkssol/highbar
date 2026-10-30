@@ -1,4 +1,4 @@
-/** $BAR holder fee share (step 8): BAR_FEE_SHARE_BPS of a closed period's ops allocation, pro-rata by $BAR balance.
+/** $HIGHER holder fee share (step 8): BAR_FEE_SHARE_BPS of a closed period's ops allocation, pro-rata by $HIGHER balance.
  *  Accrual ledger + payout job with the cashback safety model (simulate first, sign once, pending_sig reconcile).
  *  Payouts additionally need BAR_FEE_SHARE_LIVE=true (legal review of fee-linked token payouts, BUILD_BRIEF section 6). */
 import { PublicKey, SystemProgram, Transaction, type Keypair } from "@solana/web3.js";
@@ -35,7 +35,7 @@ export async function planFeeShare(p: Period, exclude: string[], live: boolean):
   const split = await previewSplit(p);
   if (live && !split.existing) throw new Error(`treasury split for ${p.id} is not closed yet; run jobs:epoch (or jobs:buyback) --live for that period first`);
   const snap = await periodBalances(p);
-  if (!snap.snapshots && live && bar.requireSnapshots) throw new Error(`no $BAR snapshots in ${p.id} (BAR_REQUIRE_SNAPSHOTS); run jobs:barsnap --live during the period`);
+  if (!snap.snapshots && live && bar.requireSnapshots) throw new Error(`no $HIGHER snapshots in ${p.id} (BAR_REQUIRE_SNAPSHOTS); run jobs:barsnap --live during the period`);
   const holders = snap.snapshots ? snap.balances : await barHolders();
   const skip = new Set(exclude);
   const pool = feeSharePool(split.ops, bar.feeShareBps);

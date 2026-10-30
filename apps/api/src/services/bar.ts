@@ -1,4 +1,4 @@
-/** $BAR holder tiers (step 8): on-chain balance reads with caching, holder scans + snapshots, the Max tier launch gate and the cashback boost. */
+/** $HIGHER holder tiers (step 8): on-chain balance reads with caching, holder scans + snapshots, the Max tier launch gate and the cashback boost. */
 import { PublicKey } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, getMint } from "@solana/spl-token";
 import { MAX_TIER_MIN_BAR, type BarTier } from "@hb/shared";
@@ -9,24 +9,27 @@ import type { Period } from "../jobs/period.js";
 import { cashbackBonus, feeShareMinRaw, rawToBar, tierForRaw } from "./barMath.js";
 
 export interface BarMint { mint: PublicKey; decimals: number; program: PublicKey }
-let mintP: Promise<BarMint> | null = null;
-/** BAR_MINT decimals + token program (legacy SPL or Token-2022), read once. */
+let mintP: { key: string; p: Promise<BarMint> } | null = null;
+/** Official $HIGHER mint decimals + token program (legacy SPL or Token-2022), read once per resolved mint. */
 export function barMint(): Promise<BarMint> {
-  if (!bar.mint) return Promise.reject(new Error("BAR_MINT is not set"));
-  mintP ??= (async () => {
-    const conn = getConnection(), mint = new PublicKey(bar.mint!);
+  const key = bar.mint;
+  if (!key) return Promise.reject(new Error("$HIGHER has not launched yet (BAR_MINT unset and no official launch detected)"));
+  if (mintP?.key !== key) mintP = { key, p: (async () => {
+    const conn = getConnection(), mint = new PublicKey(key);
     const info = await withRetry(() => conn.getAccountInfo(mint, "confirmed"));
-    if (!info) throw new Error(`BAR_MINT ${mint.toBase58()} not found on this cluster`);
+    if (!info) throw new Error(`$HIGHER mint ${mint.toBase58()} not found on this cluster`);
     const m = await getMint(conn, mint, "confirmed", info.owner);
     return { mint, decimals: m.decimals, program: info.owner };
-  })().catch((e) => { mintP = null; throw e; });
-  return mintP;
+  })().catch((e) => { if (mintP?.key === key) mintP = null; throw e; }) };
+  return mintP.p;
 }
 
 // SPL token account layout (same base layout in Token-2022): mint 0..32, owner 32..64, amount u64 LE 64..72.
 const cache = new Map<string, { at: number; raw: bigint }>();
-/** Raw $BAR balance of a wallet (sum over all its token accounts for BAR_MINT), cached BAR_BALANCE_CACHE_MS. */
+/** Raw $HIGHER balance of a wallet (sum over all its token accounts for BAR_MINT), cached BAR_BALANCE_CACHE_MS. */
+let cacheMint: string | null = null;
 export async function barBalanceRaw(wallet: string, fresh = false): Promise<bigint> {
+  if (cacheMint !== bar.mint) { cache.clear(); cacheMint = bar.mint; } // official mint changed (detected / override)
   const hit = cache.get(wallet);
   if (!fresh && hit && Date.now() - hit.at < bar.cacheMs) return hit.raw;
   const m = await barMint();
@@ -43,7 +46,7 @@ export async function barStatus(wallet: string, fresh = false): Promise<BarStatu
   return { raw, decimals: m.decimals, balance: rawToBar(raw, m.decimals), tier: tierForRaw(raw, m.decimals) };
 }
 
-/** Every $BAR holder: owner -> raw balance (one getProgramAccounts on the mint's token program, owner+amount slice only). */
+/** Every $HIGHER holder: owner -> raw balance (one getProgramAccounts on the mint's token program, owner+amount slice only). */
 export async function barHolders(): Promise<Map<string, bigint>> {
   const m = await barMint();
   const filters = [{ memcmp: { offset: 0, bytes: m.mint.toBase58() } }, ...(m.program.equals(TOKEN_PROGRAM_ID) ? [{ dataSize: 165 }] : [])];
@@ -85,10 +88,10 @@ export async function periodBalances(p: Period): Promise<{ snapshots: number; ba
  *  Returns an error message when the creator may not launch on `tier`, null when allowed. Reads the balance fresh. */
 export async function launchGate(tier: string, creator: string): Promise<string | null> {
   if (tier !== "max" || !bar.gateMaxTier) return null;
-  if (!bar.mint) return "Max tier is gated on $BAR holdings but BAR_MINT is not configured";
+  if (!bar.mint) return "Max tier is gated on $HIGHER holdings, but $HIGHER has not launched yet";
   let s: BarStatus;
-  try { s = await barStatus(new PublicKey(creator).toBase58(), true); } catch (e) { return `could not verify $BAR balance: ${(e as Error).message}`; }
-  return s.tier.maxTierAccess ? null : `Max tier launches need at least ${MAX_TIER_MIN_BAR.toLocaleString("en-US")} $BAR in the creator wallet (it holds ${s.balance.toLocaleString("en-US")})`;
+  try { s = await barStatus(new PublicKey(creator).toBase58(), true); } catch (e) { return `could not verify $HIGHER balance: ${(e as Error).message}`; }
+  return s.tier.maxTierAccess ? null : `Max tier launches need at least ${MAX_TIER_MIN_BAR.toLocaleString("en-US")} $HIGHER in the creator wallet (it holds ${s.balance.toLocaleString("en-US")})`;
 }
 
 export type Boost = (wallet: string, volume: bigint) => Promise<{ bonus: bigint; tier: string; raw: bigint }>;
@@ -98,8 +101,8 @@ export async function cashbackBoost(p: Period, live: boolean, log: (m: string) =
   if (!bar.mint || !bar.cashbackBoost) return undefined;
   const m = await barMint();
   const snap = await periodBalances(p);
-  if (!snap.snapshots && live && bar.requireSnapshots) { log(`[bar] no $BAR snapshots in ${p.id} and BAR_REQUIRE_SNAPSHOTS: cashback boost skipped`); return undefined; }
-  log(snap.snapshots ? `[bar] cashback tiers = min balance over ${snap.snapshots} snapshot(s) in ${p.id}` : `[bar] no $BAR snapshots in ${p.id}: cashback tiers use current balances`);
+  if (!snap.snapshots && live && bar.requireSnapshots) { log(`[bar] no $HIGHER snapshots in ${p.id} and BAR_REQUIRE_SNAPSHOTS: cashback boost skipped`); return undefined; }
+  log(snap.snapshots ? `[bar] cashback tiers = min balance over ${snap.snapshots} snapshot(s) in ${p.id}` : `[bar] no $HIGHER snapshots in ${p.id}: cashback tiers use current balances`);
   return async (wallet, volume) => {
     const raw = snap.snapshots ? (snap.balances.get(wallet) ?? 0n) : await barBalanceRaw(wallet);
     const tier = tierForRaw(raw, m.decimals);

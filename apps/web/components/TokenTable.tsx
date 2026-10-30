@@ -10,6 +10,7 @@ import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 import { Avatar, ProgressBar, TierBadge } from "./ui";
 import { Pagination } from "./Pagination";
 import { DevLockedBadge } from "./DevLockedBadge";
+import { OfficialBadge } from "./OfficialBadge";
 
 type Filter = "all" | "bonding" | "almost" | "graduated";
 type SortKey = "name" | "tier" | "mcap" | "progress" | "volume" | "age";
@@ -83,7 +84,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
               <Link href={`/token/${t.mint}`} className="block rounded-[12px] border border-border p-3 active:bg-muted">
                 <div className="flex items-center gap-3">
                   <TokenLogo src={t.image} name={t.name} />
-                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></span></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><OfficialBadge official={t.official} /><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></span></span>
                   <TierBadge tier={t.tier} />
                   <span className="num text-right text-sm">{fmtUsd(t.mcapUsd)}</span>
                 </div>
@@ -113,7 +114,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
                   <td className="px-4 py-3">
                     <Link href={`/token/${t.mint}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                       <TokenLogo src={t.image} name={t.name} />
-                      <span><span className="block font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></span></span>
+                      <span><span className="block font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><OfficialBadge official={t.official} /><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></span></span>
                     </Link>
                   </td>
                   <td className="px-4 py-3"><TierBadge tier={t.tier} /></td>

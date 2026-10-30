@@ -1,4 +1,4 @@
-/** Pure $BAR utility math (no DB / RPC), shared by the jobs, the API and the tests. */
+/** Pure $HIGHER utility math (no DB / RPC), shared by the jobs, the API and the tests. */
 import { BAR_TIERS, BPS, TRADER_CASHBACK_BPS, type BarTier } from "@hb/shared";
 
 const unit = (decimals: number) => 10n ** BigInt(decimals);
@@ -11,7 +11,7 @@ export function tierForRaw(raw: bigint, decimals: number): BarTier {
   for (const t of BAR_TIERS) if (raw >= minRawOf(t, decimals)) best = t;
   return best;
 }
-/** Next tier up and how much more $BAR it needs (null at the top). */
+/** Next tier up and how much more $HIGHER it needs (null at the top). */
 export function nextTier(raw: bigint, decimals: number): { tier: BarTier; needBar: number } | null {
   const t = BAR_TIERS.find((x) => minRawOf(x, decimals) > raw);
   return t ? { tier: t, needBar: rawToBar(minRawOf(t, decimals) - raw, decimals) } : null;

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { BUYBACK_DEFAULTS, CASHBACK_MIN_PAYOUT_SOL, networkOf } from "@hb/shared";
+import { officialMint } from "../services/officialToken.js";
 
 const num = (k: string, d: number) => {
   const v = process.env[k], n = v === undefined || v === "" ? d : Number(v);
@@ -21,7 +22,8 @@ export const jobs = {
   cashbackBatch: Math.max(1, Math.min(10, num("CASHBACK_BATCH", 8))),
   /** Wallets that never earn cashback (platform, referral, treasury, ...), besides the ones the job adds itself. */
   cashbackExclude: list("CASHBACK_EXCLUDE_WALLETS"),
-  barMint: process.env.BAR_MINT || null,
+  /** Official $HIGHER mint (shared resolver: BAR_MINT override, else the detected official launch). */
+  get barMint(): string | null { return officialMint(); },
   /** jupiter | mock; default mock on devnet (Jupiter does not route devnet), jupiter on mainnet. */
   buybackMode: (process.env.BUYBACK_MODE === "jupiter" || process.env.BUYBACK_MODE === "mock" ? process.env.BUYBACK_MODE : undefined) as "jupiter" | "mock" | undefined,
   maxOrder: lamports("BUYBACK_MAX_ORDER_SOL", BUYBACK_DEFAULTS.maxOrderSol),
@@ -29,7 +31,7 @@ export const jobs = {
   orderDelayMs: num("BUYBACK_ORDER_DELAY_MS", 60_000),
   maxSlippageBps: num("BUYBACK_MAX_SLIPPAGE_BPS", BUYBACK_DEFAULTS.maxSlippageBps),
   maxPriceImpactBps: num("BUYBACK_MAX_PRICE_IMPACT_BPS", BUYBACK_DEFAULTS.maxPriceImpactBps),
-  /** Mock buyback (devnet): SOL per whole mock $BAR, and where the "spent" SOL goes (default: stays with the platform keypair). */
+  /** Mock buyback (devnet): SOL per whole mock $HIGHER, and where the "spent" SOL goes (default: stays with the platform keypair). */
   mockPriceSol: num("BAR_MOCK_PRICE_SOL", 0.000001),
   mockSolSink: process.env.BAR_MOCK_SOL_SINK || null,
   jupiterUrl: (process.env.JUPITER_API_URL || "https://api.jup.ag/swap/v1").replace(/\/$/, ""),

@@ -11,6 +11,8 @@ const nextConfig = {
   reactStrictMode: true,
   devIndicators: false,
   transpilePackages: ["@hb/shared"],
+  // $HIGHER perks page lives at /bar (kept for old links); /higher is the friendly alias.
+  async redirects() { return [{ source: "/higher", destination: "/bar", permanent: false }]; },
   webpack: (config) => {
     config.resolve.extensionAlias = { ".js": [".ts", ".tsx", ".js"] };
     config.externals = [...(config.externals || []), "pino-pretty", "lokijs", "encoding"];

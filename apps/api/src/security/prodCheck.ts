@@ -33,7 +33,7 @@ export function checkEnv(env: Env, ctx: { platformPubkey?: string | null; config
     req("TREASURY_PUBKEY", "treasury wallet (fee receiver)", isPk);
     if (!referral) errors.push("REFERRAL_WALLET (alias REFERRAL_ACCOUNT) is required on mainnet (platform referral account on every swap)");
     else if (!isPk(referral)) errors.push("REFERRAL_WALLET is not a valid public key");
-    req("BAR_MINT", "$BAR mint: buyback, $BAR tiers, Max tier gate", isPk);
+    if (env.BAR_MINT?.trim() && !isPk(env.BAR_MINT)) errors.push("BAR_MINT is not a valid public key (optional manual $HIGHER mint override)");
     req("DATABASE_URL", "mainnet Postgres");
     req("RPC_URL", "paid mainnet RPC");
     if (env.RPC_URL && PUBLIC_RPC.test(env.RPC_URL.trim())) errors.push("RPC_URL is a public Solana endpoint; use a paid RPC (Helius, Triton, QuickNode) on mainnet");
@@ -57,6 +57,9 @@ export function checkEnv(env: Env, ctx: { platformPubkey?: string | null; config
     if (env.RATE_LIMIT_OFF === "1") errors.push("RATE_LIMIT_OFF=1 is not allowed on mainnet");
     if (ctx.devnetPubkey && eq(ctx.platformPubkey, ctx.devnetPubkey)) errors.push("PLATFORM_KEYPAIR_PATH is the devnet keypair; use a dedicated mainnet key");
   }
+  // official $HIGHER token (optional): auto-detected from OFFICIAL_TOKEN_CREATOR; BAR_MINT is a manual override
+  if (env.OFFICIAL_TOKEN_CREATOR?.trim() && !isPk(env.OFFICIAL_TOKEN_CREATOR)) errors.push("OFFICIAL_TOKEN_CREATOR is not a valid public key (official $HIGHER dev wallet)");
+  else if (!env.OFFICIAL_TOKEN_CREATOR?.trim()) warnings.push(`OFFICIAL_TOKEN_CREATOR unset: the official $${(env.OFFICIAL_TOKEN_SYMBOL || "HIGHER").toUpperCase()} launch is not auto-detected and every launch with that symbol is refused${env.BAR_MINT?.trim() ? " (BAR_MINT override is set)" : "; set it to the dev wallet before the official launch"}`);
   // both networks: key-role sanity (warnings)
   if (eq(ctx.platformPubkey, referral)) warnings.push("platform keypair = referral wallet: the fee claimer / buyback (Jupiter wrapAndUnwrapSol) can close the referral WSOL account; use separate wallets");
   if (eq(env.TREASURY_PUBKEY, referral)) warnings.push("TREASURY_PUBKEY = referral wallet; keep them separate");

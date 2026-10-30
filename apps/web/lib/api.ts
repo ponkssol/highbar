@@ -10,7 +10,7 @@ export const apiHeaders = (): Record<string, string> =>
 export interface ApiToken {
   mint: string; pool: string; config: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
   quoteReserveSol: number; thresholdSol: number; progress: number; isMigrated: boolean; priceSol: number; mcapSol: number; mcapUsd: number;
-  name: string; symbol: string; uri: string; image?: string | null; devLocked?: boolean; unlockAt?: number | null; score?: number | null; scoreLabel?: string | null; volumeSol: number; volume24hSol: number; trades: number; creatorFeesSol: number;
+  name: string; symbol: string; uri: string; image?: string | null; devLocked?: boolean; unlockAt?: number | null; official?: boolean; score?: number | null; scoreLabel?: string | null; volumeSol: number; volume24hSol: number; trades: number; creatorFeesSol: number;
 }
 export interface ApiStats {
   totalTokens: number; graduated: number; graduatedPct: number;
@@ -36,7 +36,7 @@ export async function post<T>(path: string, body: unknown): Promise<T> {
 export const toRow = (t: ApiToken): TokenRow & { pool: string; progress: number; isMigrated: boolean; priceSol: number } => ({
   mint: t.mint, pool: t.pool, name: t.name || t.mint.slice(0, 6), ticker: t.symbol || "?", tier: t.tier, mcapUsd: t.mcapUsd,
   raisedSol: t.quoteReserveSol, volume24hSol: t.volume24hSol, createdAt: t.createdAt, creator: t.creator, antiSniper: t.antiSniper,
-  description: "", image: t.image ?? null, devLocked: !!t.devLocked, unlockAt: t.unlockAt ?? null, progress: t.progress, isMigrated: t.isMigrated, priceSol: t.priceSol,
+  description: "", image: t.image ?? null, devLocked: !!t.devLocked, unlockAt: t.unlockAt ?? null, official: !!t.official, progress: t.progress, isMigrated: t.isMigrated, priceSol: t.priceSol,
 });
 
 export const api = {
