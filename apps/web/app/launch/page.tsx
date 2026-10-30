@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { Check, ImagePlus, ShieldCheck } from "lucide-react";
+import { Check, ImagePlus, Lock, ShieldCheck } from "lucide-react";
 import { TIERS, type TierId } from "@hb/shared";
 import { TopBlock } from "@/components/TopBar";
 import { Avatar, Button, Card, ProgressBar, TierBadge } from "@/components/ui";
@@ -11,6 +11,7 @@ import { feeSplitPct } from "@/lib/fees";
 import { launchToken, quoteDevBuy, type DevBuyQuote } from "@/lib/launch";
 import { useHbWallet, useSolBalance } from "@/lib/wallet";
 import { useAuth } from "@/lib/auth";
+import { fmtBar, useBarInfo, useBarWallet } from "@/lib/bar";
 
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -36,6 +37,11 @@ export default function LaunchPage() {
   const router = useRouter();
   const auth = useAuth();
   const f = feeSplitPct(tier);
+  // $BAR utility: Max tier launches need MAX_TIER_MIN_BAR (the API enforces it too on /tx/launch).
+  const barInfo = useBarInfo().data;
+  const barWallet = useBarWallet(wallet.address).data;
+  const maxLocked = !!barInfo?.gateMaxTier && !barWallet?.maxTierAccess;
+  const maxNeed = `Hold ${fmtBar(barInfo?.maxTierMinBar ?? 0)} $BAR to launch on Max`;
   const balance = useSolBalance(wallet.publicKey, wallet.connection);
   const devSol = Number(devBuy) || 0;
   const LAUNCH_COST_SOL = 0.03; // rent for mint, pool, vaults, metadata + network fees (simulated ~0.021)
@@ -64,6 +70,7 @@ export default function LaunchPage() {
       if (!(await auth.ensureVerified())) { setMsg("Sign in with your wallet before launching."); return; }
       if (lowBalance) { setMsg(`Not enough SOL: you need about ${needSol.toFixed(3)} SOL (dev buy + launch rent and fees).`); return; }
       if (overMax) { setMsg(`Dev buy is capped at ${q?.maxDevBuySol} SOL.`); return; }
+      if (tier === "max" && maxLocked) { setMsg(`${maxNeed}.`); return; }
       const r = await launchToken({ name, ticker, description: desc, image, ...socials, tier, antiSniper: anti, devBuySol: devSol }, wallet.publicKey.toBase58(), (tx) => wallet.sendTransaction(tx));
       setLaunched({ mint: r.mint, signature: r.signature });
       setMsg(`Launched ${devSol > 0 ? `with a ${devSol} SOL dev buy ` : ""}(tx ${r.signature.slice(0, 8)}). Opening the token page...`);
@@ -104,13 +111,14 @@ export default function LaunchPage() {
             <span className="mb-1.5 block text-[13px] text-ink-2">Tier</span>
             <div role="radiogroup" className="grid grid-cols-3 gap-3">
               {(Object.keys(TIERS) as TierId[]).map((id) => {
-                const s = feeSplitPct(id); const sel = tier === id;
+                const s = feeSplitPct(id); const sel = tier === id; const locked = id === "max" && maxLocked;
                 return (
-                  <button key={id} role="radio" aria-checked={sel} onClick={() => setTier(id)}
-                    className={`relative rounded p-3 text-left ${sel ? "border-[1.5px] border-ink" : "border border-border hover:bg-muted"}`}>
+                  <button key={id} role="radio" aria-checked={sel} aria-disabled={locked} title={locked ? maxNeed : undefined} onClick={() => !locked && setTier(id)}
+                    className={`relative rounded p-3 text-left ${sel ? "border-[1.5px] border-ink" : "border border-border hover:bg-muted"} ${locked ? "cursor-not-allowed opacity-60" : ""}`}>
                     {sel && <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-on-ink"><Check size={12} /></span>}
                     <TierBadge tier={id} />
                     <div className="num mt-2 text-xl font-semibold">{TIERS[id].migrationQuoteThresholdSol} SOL</div>
+                    {locked && <div className="mt-1 flex items-center gap-1 text-xs text-ink-3"><Lock size={12} />{maxNeed}</div>}
                     <div className="num mt-1 text-xs text-ink-3">creator {s.creator}% · platform {s.platform}%</div>
                   </button>
                 );

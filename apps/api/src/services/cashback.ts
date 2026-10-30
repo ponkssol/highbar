@@ -6,27 +6,33 @@ import { jobs } from "../jobs/config.js";
 import { memoIx, sendOnce, sigState, simulate } from "../jobs/chain.js";
 import type { Period } from "../jobs/period.js";
 
-export interface Accrual { wallet: string; trades: number; volume: bigint; amount: bigint }
+export interface Accrual { wallet: string; trades: number; volume: bigint; amount: bigint; /** $BAR holder extra included in amount (step 8) */ bonus?: bigint; barTier?: string; barRaw?: bigint }
+/** Optional per-wallet extra on top of the base cashback (step 8 $BAR holder boost, services/bar.ts). */
+export type CashbackBoost = (wallet: string, volume: bigint) => Promise<{ bonus: bigint; tier: string; raw: bigint }>;
 export interface Payout { wallets: string[]; periods: string[]; lamports: bigint; sig?: string; status: "paid" | "would-pay" | "failed"; note?: string }
 
-/** Cashback = TRADER_CASHBACK_BPS (0.05%) of a wallet's via_ui volume in the period. Wallets in `exclude` (platform, treasury, referral) earn nothing. */
-export async function computeAccruals(p: Period, exclude: string[]): Promise<Accrual[]> {
+/** Cashback = TRADER_CASHBACK_BPS (0.05%) of a wallet's via_ui volume in the period. Wallets in `exclude` (platform, treasury, referral) earn nothing.
+ *  `boost` (optional) adds a per-wallet bonus ($BAR holder multiplier + fee rebate); without it the result is the plain base cashback. */
+export async function computeAccruals(p: Period, exclude: string[], boost?: CashbackBoost): Promise<Accrual[]> {
   const { rows } = await db.query<{ wallet: string; trades: number; vol: string }>(
     `SELECT wallet, count(*)::int AS trades, sum(round(sol * 1e9))::bigint::text AS vol
        FROM trades WHERE via_ui AND wallet IS NOT NULL AND wallet <> '' AND ts >= $1 AND ts < $2 AND NOT (wallet = ANY($3::text[]))
       GROUP BY wallet ORDER BY wallet`, [p.start, p.end, exclude]);
-  return rows.map((r) => { const volume = BigInt(r.vol); return { wallet: r.wallet, trades: r.trades, volume, amount: (volume * BigInt(TRADER_CASHBACK_BPS)) / BigInt(BPS) }; }).filter((a) => a.amount > 0n);
+  const out = rows.map((r): Accrual => { const volume = BigInt(r.vol); return { wallet: r.wallet, trades: r.trades, volume, amount: (volume * BigInt(TRADER_CASHBACK_BPS)) / BigInt(BPS) }; });
+  if (boost) for (const a of out) { const b = await boost(a.wallet, a.volume); Object.assign(a, { amount: a.amount + b.bonus, bonus: b.bonus, barTier: b.tier, barRaw: b.raw }); }
+  return out.filter((a) => a.amount > 0n);
 }
 
 /** Write a period's accruals. Rows already paid / being paid are never touched, so re-running a period is safe. */
 export async function writeAccruals(p: Period, rows: Accrual[]) {
   const now = Date.now();
   for (const a of rows) await db.query(
-    `INSERT INTO cashback_ledger (wallet, period, period_start, period_end, trades, volume_lamports, amount_lamports, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-     ON CONFLICT (wallet, period) DO UPDATE SET trades = EXCLUDED.trades, volume_lamports = EXCLUDED.volume_lamports, amount_lamports = EXCLUDED.amount_lamports
+    `INSERT INTO cashback_ledger (wallet, period, period_start, period_end, trades, volume_lamports, amount_lamports, created_at, bonus_lamports, bar_tier, bar_balance_raw)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+     ON CONFLICT (wallet, period) DO UPDATE SET trades = EXCLUDED.trades, volume_lamports = EXCLUDED.volume_lamports, amount_lamports = EXCLUDED.amount_lamports,
+       bonus_lamports = EXCLUDED.bonus_lamports, bar_tier = EXCLUDED.bar_tier, bar_balance_raw = EXCLUDED.bar_balance_raw
       WHERE cashback_ledger.paid_sig IS NULL AND cashback_ledger.pending_sig IS NULL`,
-    [a.wallet, p.id, p.start, p.end, a.trades, a.volume.toString(), a.amount.toString(), now]);
+    [a.wallet, p.id, p.start, p.end, a.trades, a.volume.toString(), a.amount.toString(), now, (a.bonus ?? 0n).toString(), a.barTier ?? null, a.barRaw?.toString() ?? null]);
 }
 
 /** Pending payouts from an earlier (crashed / timed-out) run: landed -> paid, failed or expired -> unpaid again. */
