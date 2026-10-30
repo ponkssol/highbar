@@ -5,6 +5,7 @@ import { db } from "../db/pool.js";
 import { jobs } from "../jobs/config.js";
 import { memoIx, sendOnce, sigState, simulate } from "../jobs/chain.js";
 import type { Period } from "../jobs/period.js";
+import { cashbackGate, periodOnOrAfter } from "../jobs/goPublic.js";
 
 export interface Accrual { wallet: string; trades: number; volume: bigint; amount: bigint; /** $HIGHER holder extra included in amount (step 8) */ bonus?: bigint; barTier?: string; barRaw?: bigint }
 /** Optional per-wallet extra on top of the base cashback (step 8 $HIGHER holder boost, services/bar.ts). */
@@ -14,6 +15,7 @@ export interface Payout { wallets: string[]; periods: string[]; lamports: bigint
 /** Cashback = TRADER_CASHBACK_BPS (0.05%) of a wallet's via_ui volume in the period. Wallets in `exclude` (platform, treasury, referral) earn nothing.
  *  `boost` (optional) adds a per-wallet bonus ($HIGHER holder multiplier + fee rebate); without it the result is the plain base cashback. */
 export async function computeAccruals(p: Period, exclude: string[], boost?: CashbackBoost): Promise<Accrual[]> {
+  if (!cashbackGate(p, jobs.goPublic).ok) return []; // GO_PUBLIC_DATE guard (run.ts logs the reason)
   const { rows } = await db.query<{ wallet: string; trades: number; vol: string }>(
     `SELECT wallet, count(*)::int AS trades, sum(round(sol * 1e9))::bigint::text AS vol
        FROM trades WHERE via_ui AND wallet IS NOT NULL AND wallet <> '' AND ts >= $1 AND ts < $2 AND NOT (wallet = ANY($3::text[]))
@@ -23,8 +25,10 @@ export async function computeAccruals(p: Period, exclude: string[], boost?: Cash
   return out.filter((a) => a.amount > 0n);
 }
 
-/** Write a period's accruals. Rows already paid / being paid are never touched, so re-running a period is safe. */
+/** Write a period's accruals. Rows already paid / being paid are never touched, so re-running a period is safe.
+ *  Periods before GO_PUBLIC_DATE (or any period while it is unset) are refused: nothing is written. */
 export async function writeAccruals(p: Period, rows: Accrual[]) {
+  if (!cashbackGate(p, jobs.goPublic).ok) return;
   const now = Date.now();
   for (const a of rows) await db.query(
     `INSERT INTO cashback_ledger (wallet, period, period_start, period_end, trades, volume_lamports, amount_lamports, created_at, bonus_lamports, bar_tier, bar_balance_raw)
@@ -47,11 +51,14 @@ export async function reconcilePayouts() {
 }
 
 /** Pay all unpaid ledger balances >= CASHBACK_MIN_PAYOUT_SOL from `payer`, CASHBACK_BATCH wallets per tx (+ memo).
- *  Smaller balances roll over. `extra` = dry-run accruals not written to the ledger yet, so the preview includes them. */
+ *  Smaller balances roll over. `extra` = dry-run accruals not written to the ledger yet, so the preview includes them.
+ *  Only periods on or after GO_PUBLIC_DATE are paid; unset = nothing is paid (in-flight payouts are still reconciled). */
 export async function payCashback(payer: Keypair, live: boolean, extra: { period: string; rows: Accrual[] } | null = null): Promise<Payout[]> {
   if (live) await reconcilePayouts();
+  if (!jobs.goPublic) return [];
   const { rows } = await db.query<{ wallet: string; total: string; periods: string[] }>(
-    "SELECT wallet, sum(amount_lamports)::text AS total, array_agg(period ORDER BY period) AS periods FROM cashback_ledger WHERE paid_sig IS NULL AND pending_sig IS NULL GROUP BY wallet");
+    `SELECT wallet, sum(amount_lamports)::text AS total, array_agg(period ORDER BY period) AS periods FROM cashback_ledger
+      WHERE paid_sig IS NULL AND pending_sig IS NULL AND ${periodOnOrAfter("period", jobs.goPublic)} GROUP BY wallet`);
   const owed = new Map(rows.map((r) => [r.wallet, { lamports: BigInt(r.total), periods: r.periods }]));
   for (const a of extra?.rows ?? []) {
     const o = owed.get(a.wallet) ?? { lamports: 0n, periods: [] };

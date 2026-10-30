@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { BUYBACK_DEFAULTS, CASHBACK_MIN_PAYOUT_SOL, networkOf } from "@hb/shared";
 import { officialMint } from "../services/officialToken.js";
+import { parseGoPublic } from "./goPublic.js";
 
 const num = (k: string, d: number) => {
   const v = process.env[k], n = v === undefined || v === "" ? d : Number(v);
@@ -22,6 +23,9 @@ export const jobs = {
   cashbackBatch: Math.max(1, Math.min(10, num("CASHBACK_BATCH", 8))),
   /** Wallets that never earn cashback (platform, referral, treasury, ...), besides the ones the job adds itself. */
   cashbackExclude: list("CASHBACK_EXCLUDE_WALLETS"),
+  /** GO_PUBLIC_DATE (UTC YYYY-MM-DD): cashback accrues from this day only (unset = none), and fee claims / splits before it are
+   *  left out of the buyback backlog and stats (unset = no date filter). Read by the api (routes/rewards.ts, /stats) and the jobs. jobs/goPublic.ts */
+  goPublic: parseGoPublic(process.env.GO_PUBLIC_DATE),
   /** Official $HIGHER mint (shared resolver: BAR_MINT override, else the detected official launch). */
   get barMint(): string | null { return officialMint(); },
   /** jupiter | mock; default mock on devnet (Jupiter does not route devnet), jupiter on mainnet. */

@@ -4,7 +4,7 @@ import { CpAmm, getPriceFromSqrtPrice } from "@meteora-ag/cp-amm-sdk";
 import { DAMM_V2_MIGRATION_FEE_ADDRESS, deriveDammV2PoolAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { getClient, getConnection, withRetry } from "@hb/onchain";
 import { store } from "../store.js";
-import { computeScore, TOTAL_SUPPLY } from "./score.js";
+import { computeScore, HOLDER_MIN_TOKENS, TOTAL_SUPPLY } from "./score.js";
 import { scoresStore } from "./scoresStore.js";
 
 const HOUR = 3_600_000;
@@ -38,11 +38,13 @@ export async function runScores(log: (m: string) => void = console.log, opts: { 
   let scored = 0, snaps = 0;
   for (const t of tokens) {
     const lock = locks.get(t.mint) ?? null;
-    // dev tokens moved into a lock escrow are no longer in the creator wallet
-    const holders = (balances.get(t.mint) ?? [])
+    // dev tokens moved into a lock escrow are no longer in the creator wallet: the balance (concentration) is net of the lock,
+    // but the creator stays a holder (HOLDER_MIN_TOKENS rule, same count as the Holders tab and scoresStore.holderCounts)
+    const raw = balances.get(t.mint) ?? [];
+    const holders = raw
       .map((h) => (h.wallet === t.creator && lock ? { ...h, balance: Math.max(0, h.balance - lock.lockedTokens) } : h))
-      .filter((h) => h.balance > 1e-6);
-    const r = computeScore({ tier: t.tier, antiSniper: t.antiSniper, lock, balances: holders.map((h) => h.balance), nowSec });
+      .filter((h) => h.balance > HOLDER_MIN_TOKENS || h.wallet === t.creator);
+    const r = computeScore({ tier: t.tier, antiSniper: t.antiSniper, lock, balances: holders.map((h) => h.balance), holders: holders.length, nowSec });
     await scoresStore.saveScore(t.mint, r.score, { ...r.breakdown, label: r.label }, holders, now);
     scored++;
     if (!t.isMigrated) { await scoresStore.addSnapshot(t.mint, bucket, t.priceSol, t.mcapSol, "curve"); snaps++; continue; }

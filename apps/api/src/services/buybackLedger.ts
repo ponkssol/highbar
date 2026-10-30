@@ -1,11 +1,14 @@
 /** Buyback ledger: the $HIGHER buyback budget is DB state, never memory.
- *    budget  = sum(treasury_splits.buyback_lamports) over every closed period (pre-launch periods included: they accrue only)
- *    spent   = sum(buybacks.sol_spent_lamports) over every order that is not 'failed' (pending = reserved, bought, burned)
+ *    budget  = sum(treasury_splits.buyback_lamports) over every closed period on or after GO_PUBLIC_DATE (all periods while it is
+ *              unset; pre-launch periods included: they accrue only)
+ *    spent   = sum(buybacks.sol_spent_lamports) over every order that is not 'failed' (pending = reserved, bought, burned) and not
+ *              mode 'mock' (mock rows only count for the devnet mock drain itself, so it does not rebuy the same backlog)
  *    backlog = max(0, budget - spent)
  *  Every live order is RESERVED (a 'pending' row with its amount) inside one transaction holding pg_advisory_xact_lock(LOCK_KEY)
  *  before anything is signed, so concurrent job instances, retries and crashed runs can never spend the same lamports twice.
  *  A reservation only becomes spendable again once it is provably 'failed' (never signed, or its buy tx did not land).
  *  Pure SQL + injected chain calls (tests run it on PGlite with a fake chain). */
+import { notMock, periodOnOrAfter, type GoPublic } from "../jobs/goPublic.js";
 
 /** Minimal query surface: pg.Pool / pg.PoolClient / PGlite all fit. */
 export interface Sql { query(text: string, params?: unknown[]): Promise<{ rows: any[] }> }
@@ -26,11 +29,15 @@ const big = (v: unknown) => BigInt(String(v ?? "0").split(".")[0] || "0");
 const min = (...v: bigint[]) => v.reduce((a, b) => (b < a ? b : a));
 
 export interface Totals { budget: bigint; spent: bigint; inflight: bigint; backlog: bigint }
-/** Ledger totals across ALL periods (failed orders never count). inflight = reserved/unconfirmed (status 'pending'). */
-export async function ledgerTotals(q: Sql): Promise<Totals> {
-  const r = (await q.query(`SELECT (SELECT coalesce(sum(buyback_lamports), 0) FROM treasury_splits)::text AS budget,
-      (SELECT coalesce(sum(sol_spent_lamports), 0) FROM buybacks WHERE status <> 'failed')::text AS spent,
-      (SELECT coalesce(sum(sol_spent_lamports), 0) FROM buybacks WHERE status = 'pending')::text AS inflight`)).rows[0];
+/** Which rows count: goPublic = GO_PUBLIC_DATE (splits of earlier periods are ignored; null = all), countMock = also count mode 'mock'
+ *  orders (only the devnet mock drain sets it; everything else ignores mock rows). */
+export interface LedgerFilter { goPublic?: GoPublic | null; countMock?: boolean }
+/** Ledger totals (failed orders never count). inflight = reserved/unconfirmed (status 'pending'). */
+export async function ledgerTotals(q: Sql, f: LedgerFilter = {}): Promise<Totals> {
+  const mock = f.countMock ? "" : ` AND ${notMock()}`;
+  const r = (await q.query(`SELECT (SELECT coalesce(sum(buyback_lamports), 0) FROM treasury_splits WHERE ${periodOnOrAfter("period", f.goPublic ?? null)})::text AS budget,
+      (SELECT coalesce(sum(sol_spent_lamports), 0) FROM buybacks WHERE status <> 'failed'${mock})::text AS spent,
+      (SELECT coalesce(sum(sol_spent_lamports), 0) FROM buybacks WHERE status = 'pending'${mock})::text AS inflight`)).rows[0];
   const budget = big(r.budget), spent = big(r.spent);
   return { budget, spent, inflight: big(r.inflight), backlog: budget > spent ? budget - spent : 0n };
 }
@@ -50,11 +57,12 @@ export async function walletLiabilities(q: Sql): Promise<bigint> {
 
 export interface Cap { totals: Totals; want: bigint; balance: bigint; reserve: bigint; liabilities: bigint; available: bigint; amount: bigint }
 /** Size the next order: min(want, BUYBACK_MAX_ORDER_SOL, wallet balance - reserve - liabilities - in-flight reservations). */
-async function capOrder(q: Sql, o: { source: OrderSource; period: string; manualBudget?: bigint; previewExtra?: bigint; maxOrder: bigint; reserve: bigint; balance: () => Promise<bigint> }): Promise<Cap> {
-  const totals = await ledgerTotals(q);
+async function capOrder(q: Sql, o: { source: OrderSource; period: string; mode: "jupiter" | "mock"; goPublic?: GoPublic | null; manualBudget?: bigint; previewExtra?: bigint; maxOrder: bigint; reserve: bigint; balance: () => Promise<bigint> }): Promise<Cap> {
+  const countMock = o.mode === "mock"; // mainnet refuses mock mode, so there mock rows never count
+  const totals = await ledgerTotals(q, { goPublic: o.goPublic, countMock });
   let want: bigint;
   if (o.source === "manual") {
-    const s = big((await q.query("SELECT coalesce(sum(sol_spent_lamports), 0)::text AS s FROM buybacks WHERE period = $1 AND source = 'manual' AND status <> 'failed'", [o.period])).rows[0].s);
+    const s = big((await q.query(`SELECT coalesce(sum(sol_spent_lamports), 0)::text AS s FROM buybacks WHERE period = $1 AND source = 'manual' AND status <> 'failed'${countMock ? "" : ` AND ${notMock()}`}`, [o.period])).rows[0].s);
     want = (o.manualBudget ?? 0n) - s;
   } else want = totals.backlog + (o.previewExtra ?? 0n);
   const balance = await o.balance(), liabilities = await walletLiabilities(q);
@@ -63,7 +71,7 @@ async function capOrder(q: Sql, o: { source: OrderSource; period: string; manual
   return { totals, want, balance, reserve: o.reserve, liabilities, available, amount: amount > 0n ? amount : 0n };
 }
 
-export interface ReserveOpts { period: string; mode: "jupiter" | "mock"; barMint: string; decimals: number; source: OrderSource; manualBudget?: bigint; maxOrder: bigint; minOrder?: bigint; reserve: bigint; balance: () => Promise<bigint> }
+export interface ReserveOpts { period: string; mode: "jupiter" | "mock"; barMint: string; decimals: number; source: OrderSource; goPublic?: GoPublic | null; manualBudget?: bigint; maxOrder: bigint; minOrder?: bigint; reserve: bigint; balance: () => Promise<bigint> }
 /** Atomically size + reserve one order under the advisory lock. null = nothing (more) to spend; cap explains why. */
 export async function reserveOrder(db: LedgerDb, o: ReserveOpts): Promise<{ id: number | null; amount: bigint; cap: Cap }> {
   return db.tx(async (q) => {
@@ -144,6 +152,8 @@ export async function whenLaunched<T>(barMint: string | null | undefined, run: (
 
 export interface DrainOpts {
   db: LedgerDb; period: string; live: boolean; mode: "jupiter" | "mock"; barMint: string; decimals: number;
+  /** GO_PUBLIC_DATE: splits of earlier periods are not in the budget (null / unset = every period). */
+  goPublic?: GoPublic | null;
   /** manual (--budget-sol): spend up to manualBudget for `period` (minus earlier manual orders of that period); default: the ledger backlog. */
   source?: OrderSource; manualBudget?: bigint;
   /** dry-run only: budget not written yet (this run's unclosed split). */
@@ -177,7 +187,7 @@ export async function drainBuyback(o: DrainOpts): Promise<DrainResult> {
     return res;
   }
   for (let n = 0; n < o.maxOrdersPerRun; n++) {
-    const r = await reserveOrder(o.db, { period: o.period, mode: o.mode, barMint: o.barMint, decimals: o.decimals, source, manualBudget: o.manualBudget, maxOrder: o.maxOrder, minOrder, reserve: o.reserve, balance: o.balance });
+    const r = await reserveOrder(o.db, { period: o.period, mode: o.mode, barMint: o.barMint, decimals: o.decimals, source, goPublic: o.goPublic, manualBudget: o.manualBudget, maxOrder: o.maxOrder, minOrder, reserve: o.reserve, balance: o.balance });
     if (r.id === null) {
       res.stop = r.cap.want < minOrder ? "nothing to spend" : `wallet available ${r.cap.available} below the next order (to spend ${r.cap.want})`;
       log(`[buyback] stop: ${res.stop}`);

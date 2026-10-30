@@ -4,28 +4,36 @@ import { store } from "../store.js";
 import { splitEpoch } from "../services/split.js";
 import { rewardsStore } from "../services/rewardsStore.js";
 import { buybackMode, jobs } from "../jobs/config.js";
+import { pendingFrom } from "../jobs/goPublic.js";
 
 const ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const network = () => networkOf(process.env.NETWORK);
 const lam = (sol: number) => BigInt(Math.round(sol * 1e9));
 const cb = (lamports: bigint) => Number((lamports * BigInt(CASHBACK_BPS)) / BigInt(BPS)) / 1e9;
 
-/** GET /cashback/:wallet, GET /buybacks, GET /burn: cashback ledger + buyback & burn proofs (Solscan links follow NETWORK). */
+/** GET /cashback/:wallet, GET /buybacks, GET /burn: cashback ledger + buyback & burn proofs (Solscan links follow NETWORK).
+ *  GO_PUBLIC_DATE (jobs/goPublic.ts): unpaid / pending cashback only counts what the live job will pay (unset = 0, accrualStart null);
+ *  /burn and /buybacks leave out earlier splits / fee claims (unset = no date filter) and never show mock buybacks. */
 export function registerRewards(app: FastifyInstance) {
   app.get("/cashback/:wallet", async (req, reply) => {
     const { wallet } = req.params as { wallet: string };
     if (!ADDR.test(wallet)) return reply.code(400).send({ error: "bad wallet" });
     const net = network();
-    const closedThrough = await rewardsStore.cashbackClosedThrough();
-    const [ledger, totals, t] = await Promise.all([rewardsStore.cashbackLedger(wallet), rewardsStore.cashbackTotals(wallet), rewardsStore.walletPlatformTrades(wallet, closedThrough)]);
-    const pendingSol = cb(t.openVolumeLamports); // trades after the last closed period: estimate until the job writes them
+    const g = jobs.goPublic;
+    const closedThrough = await rewardsStore.cashbackClosedThrough(g);
+    const from = pendingFrom(g, closedThrough); // null = nothing awaiting (GO_PUBLIC_DATE unset)
+    const [ledger, totals, t] = await Promise.all([rewardsStore.cashbackLedger(wallet, g), rewardsStore.cashbackTotals(wallet, g), rewardsStore.walletPlatformTrades(wallet, from)]);
+    // trades the live job has not closed yet and will still accrue (on or after the cut-off): estimate until the job writes them
+    const pendingSol = from === null ? 0 : cb(t.openVolumeLamports);
+    const eligible = (ts: number) => !!g && ts >= g.ms;
     return {
-      wallet, network: net, bps: CASHBACK_BPS, live: closedThrough > 0, closedThrough,
+      wallet, network: net, bps: CASHBACK_BPS, live: !!g && closedThrough > 0, closedThrough,
       volumeSol: Number(t.volumeLamports) / 1e9, accruedSol: totals.paidSol + totals.unpaidSol + pendingSol,
       paidSol: totals.paidSol, unpaidSol: totals.unpaidSol, pendingSol, minPayoutSol: Number(jobs.cashbackMinPayout) / 1e9,
+      accrualStart: g?.id ?? null, accrualStartMs: g?.ms ?? null, accruing: !!g && Date.now() >= g.ms, pendingFrom: from,
       trades: t.via, otherTrades: t.other,
       ledger: ledger.map((l) => ({ ...l, paidUrl: l.paidSig ? solscanTx(l.paidSig, net) : null })),
-      rows: t.rows.map((r) => ({ ...r, cashbackSol: cb(lam(r.sol)) })),
+      rows: t.rows.map((r) => ({ ...r, cashbackSol: eligible(r.ts) ? cb(lam(r.sol)) : 0, eligible: eligible(r.ts) })),
     };
   });
 
@@ -42,7 +50,7 @@ export function registerRewards(app: FastifyInstance) {
 
   app.get("/burn", async () => {
     const net = network();
-    const [s, bt, runs] = await Promise.all([rewardsStore.splitTotals(), rewardsStore.buybackTotals(jobs.barMint), rewardsStore.buybacks(50)]);
+    const [s, bt, runs] = await Promise.all([rewardsStore.splitTotals(jobs.goPublic), rewardsStore.buybackTotals(jobs.barMint), rewardsStore.buybacks(50)]);
     // Before the fee job has run, fall back to the indexed estimate (pool fees * 80% partner+creator share - creator).
     let estimate = 0;
     if (!s.claims) { const toks = await store.tokens(); estimate = Math.max(0, toks.reduce((a, t) => a + t.feesSol, 0) * 0.8 - toks.reduce((a, t) => a + t.creatorFeesSol, 0)); }

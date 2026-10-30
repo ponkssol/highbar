@@ -49,7 +49,7 @@ export async function runBuyback(o: { period: string; payer: Keypair; live: bool
   if (o.live) await reconcile(bar, o.payer, log);
   const conn = getConnection();
   return drainBuyback({
-    db: pgLedger, period: o.period, live: o.live, mode, barMint: bar.mint.toBase58(), decimals: bar.decimals,
+    db: pgLedger, period: o.period, live: o.live, mode, barMint: bar.mint.toBase58(), decimals: bar.decimals, goPublic: jobs.goPublic,
     source: o.manualBudget !== undefined ? "manual" : "ledger", manualBudget: o.manualBudget, previewExtra: o.live ? 0n : o.previewExtra,
     maxOrder: jobs.maxOrder, maxOrdersPerRun: jobs.maxOrdersPerRun, reserve: jobs.buybackReserve,
     balance: async () => BigInt(await conn.getBalance(o.payer.publicKey, "confirmed")),

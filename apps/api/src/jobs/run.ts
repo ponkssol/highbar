@@ -6,7 +6,9 @@
  *  -> buy back & burn from the buyback ledger: the unspent buyback share of ALL closed periods (services/buybackLedger.ts), so the first
  *  live run after $HIGHER is detected catches up on everything accrued before launch, capped per order / per run.
  *  $HIGHER utility (step 8, BAR_MINT set): cashback adds the holder boost; barsnap = store a $HIGHER holder snapshot (run hourly);
- *  feeshare = accrue the holder fee share for a closed period (after epoch) and pay it (payouts also need BAR_FEE_SHARE_LIVE=true). */
+ *  feeshare = accrue the holder fee share for a closed period (after epoch) and pay it (payouts also need BAR_FEE_SHARE_LIVE=true).
+ *  GO_PUBLIC_DATE (jobs/goPublic.ts): cashback accrues and pays only periods on or after it (unset = none, also via --period), the
+ *  buyback backlog ignores earlier splits / fee claims and mock buybacks, and a dry-run epoch logs a read-only [cutoff] summary. */
 import { referralWallet, loadPlatformKeypair } from "@hb/onchain";
 import { requireDb, db } from "../db/pool.js";
 import { migrate } from "../db/migrate.js";
@@ -24,6 +26,7 @@ import { barHolders, barMint, cashbackBoost, writeSnapshot } from "../services/b
 import { payFeeShare, planFeeShare, writeFeeShare } from "../services/barFeeShare.js";
 import { feeShareMinRaw } from "../services/barMath.js";
 import { refreshOfficial } from "../services/officialToken.js";
+import { cashbackGate, cutoffSummary, formatSummary } from "./goPublic.js";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -61,11 +64,16 @@ async function once() {
     if (!live) extraRebate = r.plannedLamports + await estimateRebates(wouldLp, rebateExclude);
   }
   if (cmd === "cashback" || cmd === "epoch") {
-    const acc = await computeAccruals(p, exclude, await cashbackBoost(p, live, log));
+    // GO_PUBLIC_DATE guard: dry-run days (or every day while it is unset) accrue nothing, logged and skipped, never thrown,
+    // so the rest of the epoch (split with zero cashback, buyback) still runs. Also covers a manual --period backfill.
+    const gate = cashbackGate(p, jobs.goPublic);
+    if (!gate.ok) log(`[cashback] ${gate.reason}`);
+    const acc = gate.ok ? await computeAccruals(p, exclude, await cashbackBoost(p, live, log)) : [];
     if (live) await writeAccruals(p, acc);
     else accrued = acc.reduce((a, x) => a + x.amount, 0n);
     res.cashback = { wallets: acc.length, volumeLamports: acc.reduce((a, x) => a + x.volume, 0n), accruedLamports: acc.reduce((a, x) => a + x.amount, 0n), barBonusLamports: acc.reduce((a, x) => a + (x.bonus ?? 0n), 0n), payouts: await payCashback(payer, live, live ? null : { period: p.id, rows: acc }) };
   }
+  if (!live && cmd === "epoch") log(formatSummary(await cutoffSummary(db, jobs.goPublic), jobs.goPublic)); // read-only SELECTs
   if (cmd === "buyback" || cmd === "epoch") {
     // --budget-sol = manual buyback: spends that amount without closing the period's split.
     // dry-run: this run's fee claims / cashback accruals were not written, so the preview adds them (and its unwritten split).

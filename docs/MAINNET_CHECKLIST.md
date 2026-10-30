@@ -189,7 +189,8 @@ Also:
 2. **web**: open the site. The sidebar shows `· mainnet`, and the wallet modal offers Solana mainnet only.
 3. **keeper**: keep `DRY_RUN=true` at first. Logs show `[DRY_RUN]` ticks listing the 6 configs.
 4. **mint-pool**: right after the api (migration 0010). Logs show `grinding N "...high" mint(s)` and then `available 50 / min 50`. Do not open launches before the pool has a healthy buffer.
-5. **jobs-epoch / jobs-barsnap**: dry-run. Trigger once with **Deploy → Run now**. Logs show `[DRY_RUN]` and would-claim / would-pay lines, with no signatures.
+5. **jobs-epoch / jobs-barsnap**: dry-run. Trigger once with **Deploy → Run now**. Logs show `[DRY_RUN]` and would-claim / would-pay lines, with no signatures. A dry-run epoch also logs `[cutoff]` lines: per table (fee_claims, treasury_splits, buybacks, cashback_ledger) the rows and SOL included vs excluded by `GO_PUBLIC_DATE` and the mock filter (read-only).
+6. **Go-public** [BLOCKER]: set `GO_PUBLIC_DATE` to the go-public day (UTC `YYYY-MM-DD`) on **api + jobs-epoch** (jobs-barsnap shares the jobs template, so set it there too, it is not used by barsnap). Dry-run days are never backfilled: cashback accrues and pays only from that day, and fee claims / treasury splits before it are left out of the buyback backlog, `/burn` and `/stats`. While it is unset no cashback accrues or pays and the cashback page shows zero awaiting (`accrualStart: null`). Mock buybacks never count. Restart the api after setting it.
 
 ## 8. Smoke test (you, real SOL, small amounts) [BLOCKER]
 

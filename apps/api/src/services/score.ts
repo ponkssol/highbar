@@ -10,6 +10,9 @@ export const LOCK_FULL_SUPPLY_PCT = 5;
 export const SPREAD_FULL_HOLDERS = 200;
 export const SPREAD_FULL_TOP10 = 0.3;
 export const TOTAL_SUPPLY = 1_000_000_000;
+/** One holder rule for the Score tab, the Holders tab and /tokens/:mint/holders: a wallet whose net bonding-curve balance
+ *  (indexed buys - sells) is above this many tokens. The creator still counts while their tokens sit in a dev lock (they own them). */
+export const HOLDER_MIN_TOKENS = 0.000001;
 
 export interface ScoreInput {
   tier: TierId;
@@ -18,6 +21,8 @@ export interface ScoreInput {
   lock: { lockedTokens: number; unlockAt: number | null } | null;
   /** Holder balances in whole tokens (non-positive ignored). */
   balances: number[];
+  /** Holder count by the HOLDER_MIN_TOKENS rule (creator counted even when fully locked). Default: positive balances. */
+  holders?: number;
   nowSec: number;
 }
 export interface ScoreBreakdown {
@@ -40,16 +45,17 @@ export function computeScore(i: ScoreInput): { score: number; label: ScoreLabel;
     devLock = SCORE_MAX.devLock * (0.6 * clamp(lockDaysLeft / LOCK_FULL_DAYS) + 0.4 * clamp(lockedPct / LOCK_FULL_SUPPLY_PCT));
   }
 
-  const bal = i.balances.filter((b) => b > 1e-6).sort((a, b) => b - a);
+  const bal = i.balances.filter((b) => b > HOLDER_MIN_TOKENS).sort((a, b) => b - a);
+  const n = i.holders ?? bal.length;
   const total = bal.reduce((a, b) => a + b, 0);
   const top10 = total ? bal.slice(0, 10).reduce((a, b) => a + b, 0) / total : 1;
-  const countPts = 10 * clamp(Math.log10(1 + bal.length) / Math.log10(1 + SPREAD_FULL_HOLDERS));
+  const countPts = 10 * clamp(Math.log10(1 + n) / Math.log10(1 + SPREAD_FULL_HOLDERS));
   const concPts = bal.length ? 20 * clamp((1 - top10) / (1 - SPREAD_FULL_TOP10)) : 0;
   const spread = countPts + concPts;
 
   const breakdown: ScoreBreakdown = {
     tier, antiSniper, devLock: r1(devLock), spread: r1(spread),
-    holders: bal.length, top10Pct: r1(top10 * 100), lockedPct: Math.round(lockedPct * 100) / 100, lockDaysLeft: r1(lockDaysLeft),
+    holders: n, top10Pct: r1(top10 * 100), lockedPct: Math.round(lockedPct * 100) / 100, lockDaysLeft: r1(lockDaysLeft),
   };
   const score = Math.max(0, Math.min(100, Math.round(tier + antiSniper + devLock + spread)));
   return { score, label: scoreLabel(score), breakdown };

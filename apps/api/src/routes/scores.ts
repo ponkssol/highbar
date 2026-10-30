@@ -20,6 +20,6 @@ export function registerScores(app: FastifyInstance) {
     if (!t) return reply.code(404).send({ error: "not found" });
     const rows = await scoresStore.holders(t.mint, limit);
     const total = rows.reduce((a, r) => a + r.balance, 0);
-    return { mint: t.mint, source: "curve trades (net buys - sells; creator net of locked tokens)", items: rows.map((r) => ({ ...r, pct: total ? (r.balance / total) * 100 : 0, creator: r.wallet === t.creator })) };
+    return { mint: t.mint, source: "curve trades (net buys - sells above 0.000001 tokens, the creator stays listed with their balance net of locked tokens)", items: rows.map((r) => ({ ...r, pct: total ? (r.balance / total) * 100 : 0, creator: r.wallet === t.creator })) };
   });
 }

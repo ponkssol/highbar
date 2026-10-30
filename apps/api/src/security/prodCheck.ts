@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { encKeyProblem } from "../services/mintPool/secretBox.js";
 import { vanityModeProblem } from "../services/mintPool/mode.js";
+import { parseGoPublic } from "../jobs/goPublic.js";
 import { CONFIG_ENV, DEVNET_LOCK_TIP_WALLET, getClient, getConnection, LOCK_TIP_SOL_MAX, loadConfigs, loadPlatformKeypair, network, parseLockTipSol, rpcUrl } from "@hb/onchain";
 
 type Env = Record<string, string | undefined>;
@@ -41,6 +42,9 @@ export function checkEnv(env: Env, ctx: { platformPubkey?: string | null; config
   const referral = env.REFERRAL_WALLET || env.REFERRAL_ACCOUNT;
   const unfilled = Object.entries(env).filter(([, v]) => typeof v === "string" && /<FILL_ME>/.test(v)).map(([k]) => k);
   if (unfilled.length) (net === "mainnet" ? errors : warnings).push(`placeholder <FILL_ME> left in: ${unfilled.join(", ")} (fill it in or delete the line)`);
+  // GO_PUBLIC_DATE (jobs/goPublic.ts): malformed = error everywhere (the config refuses to load), unset on mainnet = warning
+  if (env.GO_PUBLIC_DATE?.trim()) { try { parseGoPublic(env.GO_PUBLIC_DATE); } catch (e) { errors.push((e as Error).message); } }
+  else if (net === "mainnet") warnings.push("GO_PUBLIC_DATE unset: no cashback accrues or is paid and the cashback page shows zero awaiting. Set it to the go-public day (UTC YYYY-MM-DD) on api and jobs-epoch");
   if (net === "mainnet") {
     req("TREASURY_PUBKEY", "treasury wallet (fee receiver)", isPk);
     if (!referral) errors.push("REFERRAL_WALLET (alias REFERRAL_ACCOUNT) is required on mainnet (platform referral account on every swap)");

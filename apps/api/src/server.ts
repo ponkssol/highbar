@@ -61,7 +61,7 @@ async function devLock(mint: string) {
 }
 async function views(ts: Token[]) {
   const dl = await store.devLocks(ts.map((t) => t.mint));
-  const sc = await scoresStore.scores(ts.map((t) => t.mint));
+  const sc = await scoresStore.scores(ts.map((t) => t.mint), { holders: false }); // only score + label here
   const om = officialMint();
   return ts.map((t) => { const u = dl.get(t.mint); return { ...t, progress: t.isMigrated ? 1 : t.progress, mcapUsd: t.mcapSol * SOL_USD, image: imageUrl(t.mint, t.uri), devLocked: u !== undefined, unlockAt: u ?? null, official: !!om && t.mint === om,
     score: sc.get(t.mint)?.score ?? null, scoreLabel: sc.get(t.mint)?.breakdown.label ?? null }; });

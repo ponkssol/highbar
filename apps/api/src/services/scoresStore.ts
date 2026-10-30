@@ -1,13 +1,16 @@
-import { db, tx } from "../db/pool.js";
-import { scoreLabel, type ScoreBreakdown } from "./score.js";
+import { db, tx, type Q } from "../db/pool.js";
+import { HOLDER_MIN_TOKENS, scoreLabel, type ScoreBreakdown } from "./score.js";
+
+/** Net curve balance per (mint, wallet) and the holder rule (score.ts HOLDER_MIN_TOKENS), shared by the job and the live count. */
+const NET = "sum(CASE WHEN side = 'buy' THEN tokens ELSE -tokens END)";
+const IS_HOLDER = `${NET} > ${HOLDER_MIN_TOKENS}`;
 
 /** Postgres access for scores / holders / snapshots / migration info (tables in db/migrations/0003). */
 export const scoresStore = {
   /** Net token balance per (mint, wallet) from indexed curve trades. */
   async tradeBalances(): Promise<Map<string, { wallet: string; balance: number }[]>> {
     const r = await db.query<{ mint: string; wallet: string; balance: number }>(
-      `SELECT mint, wallet, sum(CASE WHEN side = 'buy' THEN tokens ELSE -tokens END)::float8 AS balance FROM trades GROUP BY mint, wallet
-       HAVING sum(CASE WHEN side = 'buy' THEN tokens ELSE -tokens END) > 0.000001`);
+      `SELECT mint, wallet, ${NET}::float8 AS balance FROM trades GROUP BY mint, wallet HAVING ${IS_HOLDER}`);
     const m = new Map<string, { wallet: string; balance: number }[]>();
     for (const x of r.rows) (m.get(x.mint) ?? m.set(x.mint, []).get(x.mint)!).push({ wallet: x.wallet, balance: x.balance });
     return m;
@@ -35,11 +38,23 @@ export const scoresStore = {
         [mint, holders.map((h) => h.wallet), holders.map((h) => h.balance), now]);
     });
   },
-  async scores(mints?: string[]): Promise<Map<string, { score: number; breakdown: ScoreBreakdown & { label: string }; updatedAt: number }>> {
-    const r = await db.query<{ mint: string; score: number; breakdown_json: ScoreBreakdown & { label: string }; updated_at: string }>(
+  /** Live holder count per mint from indexed trades (the HOLDER_MIN_TOKENS rule). Mints with no holder are absent. */
+  async holderCounts(mints?: string[], q: Q = db): Promise<Map<string, number>> {
+    const r = await q.query<{ mint: string; n: number }>(
+      `SELECT mint, count(*)::int AS n FROM (SELECT mint, wallet FROM trades ${mints ? "WHERE mint = ANY($1)" : ""} GROUP BY mint, wallet HAVING ${IS_HOLDER}) h GROUP BY mint`,
+      mints ? [mints] : []);
+    return new Map(r.rows.map((x) => [x.mint, Number(x.n)]));
+  },
+  /** Stored scores. `holders` (default true) replaces breakdown.holders with the live count, so the Score tab never shows a
+   *  count older than the trades (the job runs every SCORES_INTERVAL_MS). Points stay as of updatedAt. */
+  async scores(mints?: string[], o: { holders?: boolean; q?: Q } = {}): Promise<Map<string, { score: number; breakdown: ScoreBreakdown & { label: string }; updatedAt: number }>> {
+    const q = o.q ?? db;
+    const r = await q.query<{ mint: string; score: number; breakdown_json: ScoreBreakdown & { label: string }; updated_at: string }>(
       mints ? "SELECT * FROM scores WHERE mint = ANY($1)" : "SELECT * FROM scores", mints ? [mints] : []);
+    const live = o.holders === false || !r.rows.length ? null : await scoresStore.holderCounts(mints, q);
     // label is derived from the score on read, so rows written before a label rename (old brand text) never surface it.
-    return new Map(r.rows.map((x) => [x.mint, { score: x.score, breakdown: { ...x.breakdown_json, label: scoreLabel(x.score) }, updatedAt: Number(x.updated_at) }]));
+    return new Map(r.rows.map((x) => [x.mint, { score: x.score, updatedAt: Number(x.updated_at),
+      breakdown: { ...x.breakdown_json, label: scoreLabel(x.score), ...(live ? { holders: live.get(x.mint) ?? 0 } : {}) } }]));
   },
   async holders(mint: string, limit: number) {
     return (await db.query<{ wallet: string; balance: number }>("SELECT wallet, balance FROM holders WHERE mint = $1 ORDER BY balance DESC, wallet LIMIT $2", [mint, limit])).rows;

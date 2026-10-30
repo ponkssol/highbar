@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { Keypair } from "@solana/web3.js";
+import { parseGoPublic } from "../jobs/goPublic.js";
 import {
   claimBuySig, drainBuyback, ledgerTotals, markBurned, reconcileOrders, reserveOrder, setBurnSig, STALE_MS, whenLaunched,
   type ChainOps, type DrainOpts, type LedgerDb, type Order,
@@ -15,6 +16,8 @@ import {
 const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../db/migrations");
 const MINT = Keypair.generate().publicKey.toBase58(); // "Test Coin" (TEST), throwaway key
 const SOL = 1_000_000_000n;
+/** The tests above the GO_PUBLIC_DATE section drive the devnet mock drain, which counts its own mock rows. */
+const MOCK = { countMock: true };
 
 async function freshDb(): Promise<LedgerDb & { pg: PGlite }> {
   const pg = new PGlite();
@@ -59,7 +62,7 @@ const drain = (q: LedgerDb, c: ReturnType<typeof fakeChain>, o: Partial<DrainOpt
   db: q, period: "2026-10-29", live: true, mode: "mock", barMint: MINT, decimals: 6,
   maxOrder: 1n * SOL, maxOrdersPerRun: 3, reserve: SOL / 10n, balance: async () => c.balance, exec: c.exec, ...o,
 });
-const spent = async (q: LedgerDb) => (await ledgerTotals(q)).spent;
+const spent = async (q: LedgerDb) => (await ledgerTotals(q, MOCK)).spent;
 
 test("migration 0011: source column, unique buy signature", async () => {
   const q = await freshDb();
@@ -72,10 +75,10 @@ test("migration 0011: source column, unique buy signature", async () => {
 test("backlog = sum of every period's buyback split minus non-failed buybacks", async () => {
   const q = await freshDb();
   await split(q, "2026-10-01", 1_500_000_000n); await split(q, "2026-10-02", 700_000_000n); await split(q, "2026-10-03", 300_000_001n);
-  assert.deepEqual(await ledgerTotals(q), { budget: 2_500_000_001n, spent: 0n, inflight: 0n, backlog: 2_500_000_001n });
+  assert.deepEqual(await ledgerTotals(q, MOCK), { budget: 2_500_000_001n, spent: 0n, inflight: 0n, backlog: 2_500_000_001n });
   const ins = (s: bigint, status: string) => q.query("INSERT INTO buybacks (period, mode, bar_mint, bar_decimals, sol_spent_lamports, status, created_at, updated_at) VALUES ('2026-10-02','mock',$1,6,$2,$3,0,0)", [MINT, s.toString(), status]);
   await ins(400_000_000n, "burned"); await ins(100_000_000n, "pending"); await ins(900_000_000n, "failed");
-  assert.deepEqual(await ledgerTotals(q), { budget: 2_500_000_001n, spent: 500_000_000n, inflight: 100_000_000n, backlog: 2_000_000_001n });
+  assert.deepEqual(await ledgerTotals(q, MOCK), { budget: 2_500_000_001n, spent: 500_000_000n, inflight: 100_000_000n, backlog: 2_000_000_001n });
 });
 
 test("ecosystem mint unset: no-op, the budget only accrues; first launched run spends the whole backlog", async () => {
@@ -100,7 +103,7 @@ test("a big backlog drains across runs under BUYBACK_MAX_ORDER_SOL x MAX_ORDERS_
   const sizes: bigint[][] = [];
   for (let run = 0; run < 4; run++) { const r = await drain(q, c, { maxOrder: SOL, maxOrdersPerRun: 3 }); sizes.push(r.orders.map((o) => o.solIn)); }
   assert.deepEqual(sizes, [[SOL, SOL, SOL], [SOL, SOL, SOL], [SOL], []]);
-  assert.equal(await spent(q), 7n * SOL); assert.equal((await ledgerTotals(q)).backlog, 0n);
+  assert.equal(await spent(q), 7n * SOL); assert.equal((await ledgerTotals(q, MOCK)).backlog, 0n);
   // a new period after the catch-up is bought on the next run
   await split(q, "2026-10-06", SOL / 2n);
   assert.deepEqual((await drain(q, c)).orders.map((o) => o.solIn), [SOL / 2n]);
@@ -115,7 +118,7 @@ test("never spends more than wallet balance - reserve - owed payouts - in-flight
   assert.deepEqual(r.orders.map((o) => o.solIn), [SOL, 700_000_000n]);
   assert.match(r.stop!, /wallet available/);
   assert.equal(c.balance, 300_000_000n);
-  assert.equal((await ledgerTotals(q)).backlog, 3_300_000_000n, "the rest stays in the backlog");
+  assert.equal((await ledgerTotals(q, MOCK)).backlog, 3_300_000_000n, "the rest stays in the backlog");
 });
 
 test("idempotent: rerun spends nothing more; concurrent runs never reserve the same lamports", async () => {
@@ -143,7 +146,7 @@ test("crash between send and record: the landed buy stays reserved, reconcile bu
   const r1 = await drain(q, c);
   assert.deepEqual(r1.orders.map((o) => o.status), ["burned", "failed"]);
   assert.deepEqual((await rows(q)).map((x) => x.status), ["burned", "pending"]);
-  assert.equal((await ledgerTotals(q)).backlog, 0n, "the signed, unrecorded buy still counts");
+  assert.equal((await ledgerTotals(q, MOCK)).backlog, 0n, "the signed, unrecorded buy still counts");
   assert.equal((await drain(q, c)).orders.length, 0, "rerun does not re-buy it");
   await reconcileOrders(q, MINT, c.ops);
   assert.deepEqual((await rows(q)).map((x) => x.status), ["burned", "burned"]);
@@ -155,7 +158,7 @@ test("crash between send and record: the landed buy stays reserved, reconcile bu
   assert.equal(hold.amount, SOL);
   assert.equal((await drain(q, c)).orders.length, 0);
   await reconcileOrders(q, MINT, c.ops);
-  assert.equal((await ledgerTotals(q)).backlog, 0n, "a fresh unsigned reservation is not released");
+  assert.equal((await ledgerTotals(q, MOCK)).backlog, 0n, "a fresh unsigned reservation is not released");
   await reconcileOrders(q, MINT, c.ops, () => {}, Date.now() + STALE_MS + 1);
   await assert.rejects(claimBuySig(q, hold.id!, "late"), /no longer an unsigned pending reservation/, "a late signer is refused, so it never sends");
   assert.equal((await drain(q, c)).orders.length, 1);
@@ -170,14 +173,14 @@ test("failed orders are not counted: pre-sign failures release at once, on-chain
   const r1 = await drain(q, c);
   assert.deepEqual(r1.orders.map((o) => o.status), ["failed"], "a failed order stops the run");
   assert.deepEqual((await rows(q)).map((x) => x.status), ["failed"]);
-  assert.equal((await ledgerTotals(q)).backlog, 2n * SOL);
+  assert.equal((await ledgerTotals(q, MOCK)).backlog, 2n * SOL);
 
   c.next = ["onchain"];
   await drain(q, c);
-  assert.equal((await ledgerTotals(q)).inflight, SOL, "signed + unconfirmed stays reserved until settled");
+  assert.equal((await ledgerTotals(q, MOCK)).inflight, SOL, "signed + unconfirmed stays reserved until settled");
   await reconcileOrders(q, MINT, c.ops);
   assert.deepEqual((await rows(q)).map((x) => x.status), ["failed", "failed"]);
-  assert.equal((await ledgerTotals(q)).backlog, 2n * SOL);
+  assert.equal((await ledgerTotals(q, MOCK)).backlog, 2n * SOL);
 
   await drain(q, c);
   assert.equal(await spent(q), 2n * SOL); assert.deepEqual(c.sent, [SOL, SOL]);
@@ -200,5 +203,58 @@ test("manual --budget-sol spends its own budget once per period and counts again
   const m = await drain(q, c, { source: "manual", manualBudget: SOL / 2n });
   assert.deepEqual(m.orders.map((o) => o.solIn), [SOL / 2n]);
   assert.equal((await drain(q, c, { source: "manual", manualBudget: SOL / 2n })).orders.length, 0);
-  assert.equal((await ledgerTotals(q)).backlog, 2_500_000_000n);
+  assert.equal((await ledgerTotals(q, MOCK)).backlog, 2_500_000_000n);
+});
+
+// ---- GO_PUBLIC_DATE + mock exclusion (jobs/goPublic.ts) ----
+const GP = parseGoPublic("2026-11-01")!;
+const order = (q: LedgerDb, mode: "jupiter" | "mock", status: string, l: bigint, extra: { buy_sig?: string } = {}) =>
+  q.query("INSERT INTO buybacks (period, mode, bar_mint, bar_decimals, sol_spent_lamports, status, source, buy_sig, created_at, updated_at) VALUES ('2026-11-01',$1,$2,6,$3,$4,'ledger',$5,0,0)",
+    [mode, MINT, l.toString(), status, extra.buy_sig ?? null]);
+
+test("mock buybacks never count against the backlog, jupiter pending / bought / burned always do", async () => {
+  const q = await freshDb();
+  await split(q, "2026-11-01", 10n * SOL);
+  await order(q, "mock", "burned", 4n * SOL); await order(q, "mock", "pending", SOL);
+  assert.deepEqual(await ledgerTotals(q), { budget: 10n * SOL, spent: 0n, inflight: 0n, backlog: 10n * SOL });
+  await order(q, "jupiter", "pending", SOL / 2n); await order(q, "jupiter", "bought", SOL, { buy_sig: "b1" }); await order(q, "jupiter", "burned", 2n * SOL, { buy_sig: "b2" });
+  await order(q, "jupiter", "failed", 3n * SOL);
+  assert.deepEqual(await ledgerTotals(q), { budget: 10n * SOL, spent: 3_500_000_000n, inflight: SOL / 2n, backlog: 6_500_000_000n });
+  assert.equal((await ledgerTotals(q, MOCK)).spent, 8_500_000_000n); // only the devnet mock drain counts its own rows
+});
+
+test("GO_PUBLIC_DATE: splits of earlier periods are not in the budget, unset = every period", async () => {
+  const q = await freshDb();
+  await split(q, "2026-10-30", 3n * SOL); await split(q, "2026-10-31", 2n * SOL); await split(q, "2026-11-01", SOL); await split(q, "2026-11-02", SOL / 2n);
+  assert.equal((await ledgerTotals(q)).budget, 6_500_000_000n);
+  assert.equal((await ledgerTotals(q, { goPublic: null })).budget, 6_500_000_000n);
+  assert.deepEqual(await ledgerTotals(q, { goPublic: GP }), { budget: 1_500_000_000n, spent: 0n, inflight: 0n, backlog: 1_500_000_000n });
+});
+
+test("jupiter drain with GO_PUBLIC_DATE: reserves only the post-cut-off backlog under the advisory lock, ignores mock rows, idempotent", async () => {
+  const q = await freshDb();
+  await split(q, "2026-10-31", 5n * SOL); await split(q, "2026-11-01", 2n * SOL);
+  await order(q, "mock", "burned", 2n * SOL); // devnet leftovers: not spent SOL on mainnet
+  const c = fakeChain(q, 50n * SOL);
+  const r = await drain(q, c, { mode: "jupiter", goPublic: GP });
+  assert.equal(r.budget, 2n * SOL); assert.equal(r.spentBefore, 0n); assert.equal(r.backlog, 2n * SOL);
+  assert.deepEqual(r.orders.map((o) => o.solIn), [SOL, SOL]);
+  const t = await ledgerTotals(q, { goPublic: GP });
+  assert.equal(t.spent, 2n * SOL); assert.equal(t.backlog, 0n);
+  assert.equal((await drain(q, c, { mode: "jupiter", goPublic: GP })).orders.length, 0); // rerun: nothing more
+  // concurrent reservations still serialise on the advisory lock
+  await split(q, "2026-11-02", SOL);
+  const ro = { period: "2026-11-02", mode: "jupiter" as const, barMint: MINT, decimals: 6, source: "ledger" as const, goPublic: GP, maxOrder: SOL, reserve: 0n, balance: async () => 50n * SOL };
+  const [a, b] = await Promise.all([reserveOrder(q, ro), reserveOrder(q, ro)]);
+  assert.deepEqual([a.amount + b.amount, [a.id, b.id].filter((x) => x !== null).length], [SOL, 1]);
+});
+
+test("reconcile still settles a signed jupiter reservation and it keeps counting until it fails", async () => {
+  const q = await freshDb();
+  await split(q, "2026-11-01", 2n * SOL);
+  await order(q, "jupiter", "pending", SOL, { buy_sig: "lost" });
+  assert.equal((await ledgerTotals(q, { goPublic: GP })).backlog, SOL);
+  const c = fakeChain(q, 50n * SOL); c.sigs.set("lost", "failed");
+  await reconcileOrders(q, MINT, c.ops, () => {}, Date.now() + STALE_MS + 1);
+  assert.equal((await ledgerTotals(q, { goPublic: GP })).backlog, 2n * SOL);
 });
