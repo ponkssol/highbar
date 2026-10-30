@@ -15,13 +15,14 @@ type Kind = "tokens" | "scores" | "creators" | "traders" | "migrations" | "survi
 type Win = "24h" | "7d" | "week" | "all";
 type Base = { mint: string; name: string; symbol: string; tier: TierId; mcapUsd: number; progress: number; isMigrated: boolean; score: number | null; devLocked: boolean; unlockAt: number | null; official?: boolean };
 type TokRow = Base & { volumeSol: number; trades: number };
-type ScoRow = Base & { label: string; volumeSol: number; breakdown: { tier: number; antiSniper: number; devLock: number; spread: number; holders: number; top10Pct: number } };
+type ScoRow = Base & { label: string | null; volumeSol: number; breakdown?: { tier: number; antiSniper: number; devLock: number; spread: number; holders: number; top10Pct: number } | null };
 type MigRow = Base & { migratedAt: number; createdAt: number; timeToMigrateMs: number; raisedSol: number; volumeSol: number };
 type SurRow = Base & { migratedAt: number; daysSinceMigration: number; survivedDays: number; ratioNow: number | null; nowMcapUsd: number | null; alive: boolean | null; minRatio: number };
 type CreRow = { creator: string; tokens: number; graduated: number; volumeSol: number; feesEarnedSol: number; avgScore: number | null };
 type TraRow = { wallet: string; volumeSol: number; trades: number; buys: number; sells: number; lastTs: number };
 type SortTok = "volumeSol" | "mcapUsd" | "progress";
 
+const NA = "\u2014";
 const dur = (ms: number) => { const h = ms / 3600_000; return h < 1 ? `${Math.max(1, Math.round(ms / 60_000))}m` : h < 48 ? `${h.toFixed(1)}h` : `${(h / 24).toFixed(1)}d`; };
 const HINT: Record<Kind, string> = {
   tokens: "Top tokens by curve volume.", scores: "Higher Bar score: tier, anti-sniper, dev lock and holder spread (0-100).", creators: "Creators by volume on their tokens.",
@@ -86,9 +87,9 @@ export default function LeaderboardPage() {
                 <td className={TD}>{rank(i)}</td>{tok(t)}
                 <td className={TD}><TierBadge tier={t.tier} /></td>
                 <td className={`${TD} num text-right font-semibold`}>{t.score}<span className="ml-1 text-xs font-normal text-ink-3">{t.label}</span></td>
-                <td className={`${TD} num text-right`}>{t.breakdown.tier}</td><td className={`${TD} num text-right`}>{t.breakdown.antiSniper}</td>
-                <td className={`${TD} num text-right`}>{t.breakdown.devLock}</td><td className={`${TD} num text-right`}>{t.breakdown.spread}</td>
-                <td className={`${TD} num text-right text-ink-3`}>{t.breakdown.holders} · top10 {t.breakdown.top10Pct}%</td>
+                <td className={`${TD} num text-right`}>{t.breakdown?.tier ?? NA}</td><td className={`${TD} num text-right`}>{t.breakdown?.antiSniper ?? NA}</td>
+                <td className={`${TD} num text-right`}>{t.breakdown?.devLock ?? NA}</td><td className={`${TD} num text-right`}>{t.breakdown?.spread ?? NA}</td>
+                <td className={`${TD} num text-right text-ink-3`}>{t.breakdown ? <>{t.breakdown.holders} · top10 {t.breakdown.top10Pct}%</> : NA}</td>
               </tr>))}</tbody>
           </table>
         ) : kind === "migrations" ? (
