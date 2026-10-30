@@ -1,7 +1,7 @@
 "use client";
 import { TopBar } from "./TopBar";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, Check, Copy, ExternalLink, Globe, Send, ShieldCheck, X as XIcon } from "lucide-react";
 import { TIERS, thresholdSolFor, type TierId } from "@hb/shared";
 import { FeeBreakdown } from "./FeeBreakdown";
@@ -20,6 +20,7 @@ import { ScoreCard } from "./ScoreCard";
 import { NETWORK, explorerTx } from "@/lib/settings";
 import { useLocks, type LocksResp } from "@/lib/lock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
+import { pushHistory } from "@/lib/searchHistory";
 
 export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
@@ -203,6 +204,8 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
 export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered About block (token facts) */ about?: ReactNode }) {
   const [sheet, setSheet] = useState<null | "buy" | "sell">(null);
   const locks = useLocks(t.mint);
+  // Search modal "Recently viewed": remember this token (localStorage only).
+  useEffect(() => { pushHistory("viewed", { mint: t.mint, name: t.name, symbol: t.ticker, image: t.image ?? null, marketCapSol: null, marketCapUsd: t.mcapUsd, createdAt: t.createdAt }); }, [t.mint]); // eslint-disable-line react-hooks/exhaustive-deps
   const panel = (side: "buy" | "sell" = "buy", bare = false) => <TradePanel mint={t.mint} ticker={t.ticker} tier={t.tier} antiSniper={t.antiSniper} priceSol={t.priceSol} initialSide={side} bare={bare} pool={t.pool} createdAt={t.createdAt} isMigrated={!!t.isMigrated} thresholdSol={targetSol(t)} quoteReserveSol={t.raisedSol} />;
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-0">

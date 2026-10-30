@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { TickGauge } from "@/components/charts";
@@ -12,6 +12,7 @@ import { StatsSkeleton, TokenTableSkeleton } from "@/components/ui/Skeleton";
 import { useStats, useTokens } from "@/lib/useApi";
 import type { ApiStats, ApiToken } from "@/lib/api";
 import { ArenaBanner, HairlineDivider } from "@/components/arena";
+import { BuiltOnMeteora } from "@/components/BuiltOnMeteora";
 
 function BigStat({ value, unit, label, delta, href, badge }: { value: string; unit?: string; label: string; delta: number; href: string; badge?: React.ReactNode }) {
   return (
@@ -32,22 +33,22 @@ function BigStat({ value, unit, label, delta, href, badge }: { value: string; un
 
 /** Home grid. Server-fetched stats and tokens are the first render (in the initial HTML), then it polls the API as before. */
 export function HomeView({ initialStats = null, initialTokens = null, intro }: { initialStats?: ApiStats | null; initialTokens?: { total: number; items: ApiToken[] } | null; intro?: React.ReactNode }) {
-  const [search, setSearch] = useState("");
   const STATS = useStats(initialStats);
   const { tokens: TOKENS, loading } = useTokens(initialTokens);
   return (
     <div className="flex flex-col gap-4">
-      <TopBar search={search} onSearch={setSearch} listControls />
+      <TopBar listControls />
       <ArenaBanner />
       <section className="grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-surface shadow-card max-lg:divide-y max-lg:divide-border lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:divide-x lg:divide-border">
         <ActivityGrid bare />
-        <div className="flex items-center justify-center p-5 lg:px-8">
+        <div className="flex flex-col items-center justify-center gap-3 p-5 lg:px-8">
+          <BuiltOnMeteora />
           <TickGauge value={STATS.graduatedPct} label="Migrated" sub={`${STATS.graduated} of ${STATS.totalTokens} tokens`} />
         </div>
         {STATS.loading ? <StatsSkeleton bare /> : <KpiGrid stats={STATS} bare />}
       </section>
       <HairlineDivider className="my-1" />
-      {loading ? <TokenTableSkeleton /> : <Suspense fallback={<TokenTableSkeleton />}><TokenTable tokens={TOKENS} search={search} /></Suspense>}
+      {loading ? <TokenTableSkeleton /> : <Suspense fallback={<TokenTableSkeleton />}><TokenTable tokens={TOKENS} /></Suspense>}
       {intro}
     </div>
   );
