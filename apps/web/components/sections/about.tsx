@@ -31,8 +31,8 @@ export default function AboutPage() {
         <p className="mt-2 text-sm text-ink-2">The original idea is from ContextChain. Higher Bar is the build: tiered migration targets, creator fees, and a public buyback record.</p>
         <div className="mt-4 flex flex-wrap gap-2 text-sm">
           <Link href="/launch" className="rounded border border-border px-3 py-1.5 hover:bg-muted">Launch a token</Link>
-          <Link href="/cashback" className="rounded border border-border px-3 py-1.5 hover:bg-muted">Cashback</Link>
-          <Link href="/burn" className="rounded border border-border px-3 py-1.5 hover:bg-muted">Burn tracker</Link>
+          <Link href="/rewards?tab=cashback" className="rounded border border-border px-3 py-1.5 hover:bg-muted">Cashback</Link>
+          <Link href="/rewards?tab=burn" className="rounded border border-border px-3 py-1.5 hover:bg-muted">Burn tracker</Link>
         </div>
       </Card>
     </div>

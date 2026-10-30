@@ -24,13 +24,13 @@ export function OfflineNote({ error }: { error: string | null }) {
 }
 export function Tabs<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { id: T; label: string }[] }) {
   return (
-    <div className="inline-flex rounded-full border border-border bg-muted p-1">
+    <div className="inline-flex rounded-full bg-muted p-1">
       {options.map((o) => (
         <button key={o.id} onClick={() => onChange(o.id)}
-          className={`h-8 rounded-full px-3 text-sm ${value === o.id ? "bg-surface font-medium text-ink shadow-card ring-1 ring-border" : "text-ink-2 hover:text-ink"}`}>{o.label}</button>
+          type="button" className={`h-8 whitespace-nowrap rounded-full px-3 text-sm transition-colors ${value === o.id ? "bg-surface font-medium text-ink shadow-sm" : "text-ink-2 hover:text-ink"}`}>{o.label}</button>
       ))}
     </div>
   );
 }
 export const TH = "px-4 py-2 font-medium";
-export const TD = "px-4 py-3";
+export const TD = "px-4 py-3";
