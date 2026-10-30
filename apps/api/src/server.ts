@@ -11,6 +11,8 @@ import { indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
 import { registerPages } from "./routes/pages.js";
 import { registerRewards } from "./routes/rewards.js";
+import { registerBar } from "./routes/bar.js";
+import { launchGate } from "./services/bar.js";
 import { rewardsStore } from "./services/rewardsStore.js";
 import { initAuth, registerAuth } from "./auth.js";
 import { migrate } from "./db/migrate.js";
@@ -45,6 +47,7 @@ async function recordLocks(infos: LockInfo[]) {
 registerAuth(app);
 registerPages(app);
 registerRewards(app);
+registerBar(app);
 registerClaim(app);
 registerCandles(app);
 registerMedia(app);
@@ -129,6 +132,8 @@ app.post("/tx/swap", async (req, reply) => {
 
 app.post("/tx/launch", async (req, reply) => {
   const b = (req.body ?? {}) as LaunchReq;
+  const gate = await launchGate(String(b.tier), String(b.creator)); // $BAR holders only for Max tier (step 8)
+  if (gate) return reply.code(403).send({ error: gate });
   try { return await buildLaunchTx(b); }
   catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
