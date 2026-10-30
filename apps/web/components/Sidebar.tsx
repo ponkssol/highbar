@@ -16,7 +16,7 @@ export function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-20 hidden w-sidebar md:flex flex-col border-r border-border bg-surface hb-rail px-3 py-5">
       <Link href="/" className="mb-7 flex items-center px-3" aria-label="highbar home">
-        <Logo height={28} />
+        <Logo height={27} />
       </Link>
       <nav className="flex flex-col gap-0.5">
         {NAV.map((item) => {
