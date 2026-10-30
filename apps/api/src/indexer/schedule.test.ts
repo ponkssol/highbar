@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classify, collectSignatures, idleDelay, pollConfig, poolFingerprint, PollScheduler, type PollConfig, type PoolView } from "./schedule.js";
+import { classify, collectSignatures, idleDelay, pollConfig, poolFingerprint, PollScheduler, prioritize, tickTxBudget, tradesPerPool, type PollConfig, type PoolView } from "./schedule.js";
 import { chronological } from "./tradeOrder.js";
 
 const S = 1_000, M = 60_000, H = 3_600_000;
@@ -204,4 +204,58 @@ test("poller cursor algorithm: oldest-first batches of TRADES_PER_POOL, cursor =
   while (await poll(25)) { /* backlog: next tick */ }
   add(3); add(1200); while (await poll(25)) { /* drain */ }
   assert.deepEqual(handled, chain.map((s) => s.signature));
+});
+
+test("TRADES_PER_POOL defaults to 100; INDEXER_TICK_MAX_TXS defaults to 300, 0 = no cap, junk falls back", () => {
+  assert.equal(tradesPerPool({}), 100);
+  assert.equal(tradesPerPool({ TRADES_PER_POOL: "25" }), 25);
+  for (const v of ["0", "-3", "abc", ""]) assert.equal(tradesPerPool({ TRADES_PER_POOL: v }), 100);
+  assert.equal(tickTxBudget({}), 300);
+  assert.equal(tickTxBudget({ INDEXER_TICK_MAX_TXS: "50" }), 50);
+  assert.equal(tickTxBudget({ INDEXER_TICK_MAX_TXS: "0" }), Number.POSITIVE_INFINITY);
+  for (const v of ["-1", "abc", " "]) assert.equal(tickTxBudget({ INDEXER_TICK_MAX_TXS: v }), 300);
+});
+
+test("prioritize is a stable sort by rank", () => {
+  assert.deepEqual(prioritize(["a2", "b1", "c0", "d2", "e0", "f1"], (x) => Number(x[1])), ["c0", "e0", "b1", "f1", "a2", "d2"]);
+  assert.deepEqual(prioritize(["x", "y", "z"], (x) => (x === "z" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY)), ["z", "x", "y"]);
+});
+
+/** One indexOnce tick the way poller.ts orders it: rank order, tick tx budget, new tokens (no db row) never held back. */
+function tick(sched: PollScheduler, pools: string[], inDb: Set<string>, pending: Map<string, number>, budget: number, limit: number, now: number) {
+  const order: string[] = [];
+  for (const pool of prioritize(pools, (p) => sched.rank(p))) {
+    const v = view({ fingerprint: `${pool}:${pending.get(pool) ?? 0}` });
+    let due = sched.due(pool, v, now);
+    if (due && budget <= 0 && inDb.has(pool)) { due = false; sched.defer(pool, now); }
+    if (!due) { inDb.add(pool); continue; }
+    const left = pending.get(pool) ?? 0, cap = inDb.has(pool) ? Math.max(1, Math.min(limit, budget)) : limit, handled = Math.min(left, cap);
+    pending.set(pool, left - handled); budget -= handled; order.push(pool); inDb.add(pool);
+    sched.record(pool, v, { newSigs: left, backlog: left > handled }, now);
+  }
+  return order;
+}
+
+test("a freshly launched pool is indexed at the top of its first tick, even when busy pools used up the tick budget", () => {
+  const sched = new PollScheduler(cfg());
+  const busy = Array.from({ length: 20 }, (_, i) => `busy${i}`);
+  const inDb = new Set<string>(), pending = new Map<string, number>(busy.map((p) => [p, 1_000]));
+  tick(sched, busy, inDb, pending, 300, 100, T0); // warm-up: every pool known and in the db
+  pending.set("fresh", 40);
+  const order = tick(sched, [...busy, "fresh"], inDb, pending, 300, 100, T0 + 30 * S);
+  assert.equal(order[0], "fresh", "new pool first");
+  assert.equal(pending.get("fresh"), 0, "its launch txs (incl. dev buy) indexed in the same tick");
+});
+
+test("tick budget: held-back pools go first next tick, so no pool starves under sustained load", () => {
+  const sched = new PollScheduler(cfg());
+  const pools = Array.from({ length: 10 }, (_, i) => `p${i}`);
+  const inDb = new Set<string>(pools), pending = new Map<string, number>();
+  const served = new Map<string, number>();
+  for (let k = 0; k < 20; k++) {
+    for (const p of pools) pending.set(p, (pending.get(p) ?? 0) + 50); // every pool gets 50 new txs per tick, budget fits 6 pools
+    for (const p of tick(sched, pools, inDb, pending, 300, 100, T0 + k * 30 * S)) served.set(p, (served.get(p) ?? 0) + 1);
+  }
+  // 300-tx budget / 100 per pool = 3 pools per tick: a fair rotation serves each of the 10 pools 6 times in 20 ticks
+  for (const p of pools) assert.ok((served.get(p) ?? 0) >= 5, `${p} served ${served.get(p)} of 20 ticks`);
 });

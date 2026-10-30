@@ -48,7 +48,7 @@ export function idleDelay(idleStreak: number, cfg: Pick<PollConfig, "baseMs" | "
 
 export type PoolClass = "new" | "active" | "idle" | "migrated";
 export interface PoolView { createdAt: number; isMigrated: boolean; fingerprint: string }
-interface PoolState { nextAt: number; idleStreak: number; lastActivityAt: number; fingerprint: string; backlog: boolean }
+interface PoolState { nextAt: number; idleStreak: number; lastActivityAt: number; fingerprint: string; backlog: boolean; deferredAt?: number }
 
 export function classify(v: Pick<PoolView, "createdAt" | "isMigrated">, lastActivityAt: number, now: number, cfg: PollConfig): PoolClass {
   if (lastActivityAt > 0 && now - lastActivityAt < cfg.activeWindowMs) return "active"; // also right after migrating (late txs)
@@ -83,7 +83,7 @@ export class PollScheduler {
     if (!this.cfg.adaptive) return;
     let s = this.pools.get(pool);
     if (!s) { s = { nextAt: 0, idleStreak: 0, lastActivityAt: 0, fingerprint: v.fingerprint, backlog: false }; this.pools.set(pool, s); }
-    s.backlog = r.backlog;
+    s.backlog = r.backlog; s.deferredAt = undefined;
     if (r.newSigs > 0) { s.lastActivityAt = now; s.idleStreak = 0; }
     const c = classify(v, s.lastActivityAt, now, this.cfg);
     if (c === "active" || c === "new") { s.idleStreak = 0; s.nextAt = now + this.cfg.baseMs; }
@@ -100,6 +100,14 @@ export class PollScheduler {
     for (const [pool, v] of views) out[classify(v, this.pools.get(pool)?.lastActivityAt ?? 0, now, this.cfg)]++;
     return out;
   }
+
+  /** The tick budget ran out before this due pool: it stays due and goes near the front of the next tick (longest-waiting first). */
+  defer(pool: string, now: number) { const s = this.pools.get(pool); if (s && s.deferredAt === undefined) s.deferredAt = now; }
+  /** Sort key for the next tick (lower first): first sight (new launch) = -Infinity, held back = since when, the rest = +Infinity. */
+  rank(pool: string) { const s = this.pools.get(pool); return !s ? Number.NEGATIVE_INFINITY : s.deferredAt ?? Number.POSITIVE_INFINITY; }
+
+  /** Seen in this process already (false = first sight: a new pool, or every pool right after a restart). */
+  known(pool: string) { return this.pools.has(pool); }
 
   /** test / debug view */
   state(pool: string) { const s = this.pools.get(pool); return s ? { ...s } : undefined; }
@@ -127,4 +135,24 @@ export async function collectSignatures<T extends { signature: string }>(fetch: 
     before = page[page.length - 1].signature;
   }
   return { sigs: out, complete: false, pages: maxPages };
+}
+
+/** TRADES_PER_POOL: max txs handled per pool per poll (default 100); the rest is backlog for the next tick, nothing is skipped. */
+export function tradesPerPool(env: Record<string, string | undefined> = process.env): number {
+  const n = Math.floor(Number(env.TRADES_PER_POOL ?? 100));
+  return n >= 1 ? n : 100;
+}
+
+/** INDEXER_TICK_MAX_TXS: max txs one tick handles across all pools (default 300; 0 = no cap). Keeps a tick near
+ *  INDEX_INTERVAL_MS under heavy trading so new pools are still discovered on time; held-back pools stay due. */
+export function tickTxBudget(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.INDEXER_TICK_MAX_TXS;
+  const n = raw === undefined || raw.trim() === "" ? 300 : Math.floor(Number(raw));
+  if (n === 0) return Number.POSITIVE_INFINITY;
+  return n > 0 ? n : 300;
+}
+
+/** Stable reorder by rank (lower first): new pools, then pools held back by the tick budget last tick, then the rest. */
+export function prioritize<T>(items: T[], rank: (x: T) => number): T[] {
+  return items.map((x, i) => ({ x, i, r: rank(x) })).sort((p, q) => (p.r < q.r ? -1 : p.r > q.r ? 1 : p.i - q.i)).map((e) => e.x);
 }
