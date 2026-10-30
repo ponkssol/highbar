@@ -37,3 +37,10 @@ export function allocateFeeShare(pool: bigint, holders: Iterable<[string, bigint
   const rows = elig.map(([wallet, raw]) => ({ wallet, raw, amount: (pool * raw) / totalRaw }));
   return { rows, totalRaw, allocated: rows.reduce((a, r) => a + r.amount, 0n) };
 }
+
+/** Wallet-independent Max tier gate state, shared by launchGate and GET /bar so they cannot drift.
+ *  gateMaxTier: the gate launchGate applies (per-wallet balance is checked on top of this when the official mint exists).
+ *  maxTierBlocked: launchGate rejects every Max launch regardless of wallet (gate on, official mint not launched, so no one can hold it). */
+export function maxTierGate(gateOn: boolean, mint: string | null | undefined): { gateMaxTier: boolean; maxTierBlocked: boolean } {
+  return { gateMaxTier: gateOn, maxTierBlocked: gateOn && !mint };
+}

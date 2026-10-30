@@ -4,7 +4,7 @@ import { bar } from "../jobs/barConfig.js";
 import { barStatus } from "../services/bar.js";
 import { official } from "../services/officialToken.js";
 import { feeShareFor } from "../services/barFeeShare.js";
-import { nextTier } from "../services/barMath.js";
+import { maxTierGate, nextTier } from "../services/barMath.js";
 
 const ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const network = () => networkOf(process.env.NETWORK);
@@ -24,7 +24,7 @@ export function registerBar(app: FastifyInstance) {
     return {
       network: net, barMint: bar.mint, barMintUrl: bar.mint ? solscanAccount(bar.mint, net) : null, enabled: !!bar.mint,
       symbol: official().symbol, launched: !!bar.mint, officialSource: official().source,
-      tiers: BAR_TIERS, baseCashbackBps: TRADER_CASHBACK_BPS, maxTierMinBar: MAX_TIER_MIN_BAR, gateMaxTier: bar.gateMaxTier && !!bar.mint,
+      tiers: BAR_TIERS, baseCashbackBps: TRADER_CASHBACK_BPS, maxTierMinBar: MAX_TIER_MIN_BAR, ...maxTierGate(bar.gateMaxTier, bar.mint),
       feeShareBps: bar.feeShareBps, opsSplitBps: SPLIT_BPS.ops, feeShareLive: bar.feeShareLive, limits: LIMITS,
     };
   });

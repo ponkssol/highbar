@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BAR_TIERS, BPS, MAX_TIER_MIN_BAR, TRADER_CASHBACK_BPS, barTierOf } from "@hb/shared";
-import { allocateFeeShare, baseCashback, cashbackBonus, feeShareMinRaw, feeSharePool, nextTier, rawToBar, tierForRaw } from "./barMath.js";
+import { allocateFeeShare, baseCashback, cashbackBonus, feeShareMinRaw, feeSharePool, maxTierGate, nextTier, rawToBar, tierForRaw } from "./barMath.js";
 
 const D = 6, U = 10n ** 6n, bar = (n: number) => BigInt(n) * U;
 const tier = (id: string) => BAR_TIERS.find((t) => t.id === id)!;
@@ -58,4 +58,11 @@ test("fee share: pool from ops, pro-rata, threshold, floor never over-allocates"
   assert.equal(r.totalRaw, bar(60_000));
   assert.equal(allocateFeeShare(0n, [["a", bar(10_000)]], min).allocated, 0n);
   assert.equal(allocateFeeShare(5n, [], min).rows.length, 0);
+});
+
+test("maxTierGate: Test Coin (TEST) gate on before launch blocks every Max launch", () => {
+  assert.deepEqual(maxTierGate(true, null), { gateMaxTier: true, maxTierBlocked: true });
+  assert.deepEqual(maxTierGate(true, "TestCoinMint111111111111111111111111111111"), { gateMaxTier: true, maxTierBlocked: false });
+  assert.deepEqual(maxTierGate(false, null), { gateMaxTier: false, maxTierBlocked: false });
+  assert.deepEqual(maxTierGate(false, "TestCoinMint111111111111111111111111111111"), { gateMaxTier: false, maxTierBlocked: false });
 });

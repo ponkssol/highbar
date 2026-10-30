@@ -6,7 +6,7 @@ import { getConnection, withRetry } from "@hb/onchain";
 import { db } from "../db/pool.js";
 import { bar } from "../jobs/barConfig.js";
 import type { Period } from "../jobs/period.js";
-import { cashbackBonus, feeShareMinRaw, rawToBar, tierForRaw } from "./barMath.js";
+import { cashbackBonus, feeShareMinRaw, maxTierGate, rawToBar, tierForRaw } from "./barMath.js";
 
 export interface BarMint { mint: PublicKey; decimals: number; program: PublicKey }
 let mintP: { key: string; p: Promise<BarMint> } | null = null;
@@ -87,8 +87,9 @@ export async function periodBalances(p: Period): Promise<{ snapshots: number; ba
 /** Max tier launch gate (off-chain: DBC pool creation is permissionless, so this only covers launches built by our API/UI).
  *  Returns an error message when the creator may not launch on `tier`, null when allowed. Reads the balance fresh. */
 export async function launchGate(tier: string, creator: string): Promise<string | null> {
-  if (tier !== "max" || !bar.gateMaxTier) return null;
-  if (!bar.mint) return "Max tier is gated on $HIGHER holdings, but $HIGHER has not launched yet";
+  const g = maxTierGate(bar.gateMaxTier, bar.mint);
+  if (tier !== "max" || !g.gateMaxTier) return null;
+  if (g.maxTierBlocked || !bar.mint) return "Max tier is gated on $HIGHER holdings, but $HIGHER has not launched yet";
   let s: BarStatus;
   try { s = await barStatus(new PublicKey(creator).toBase58(), true); } catch (e) { return `could not verify $HIGHER balance: ${(e as Error).message}`; }
   return s.tier.maxTierAccess ? null : `Max tier launches need at least ${MAX_TIER_MIN_BAR.toLocaleString("en-US")} $HIGHER in the creator wallet (it holds ${s.balance.toLocaleString("en-US")})`;
