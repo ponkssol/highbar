@@ -1,6 +1,6 @@
 import bs58 from "bs58";
 import { PublicKey, TransactionInstruction, VersionedTransaction, type Signer, type Transaction } from "@solana/web3.js";
-import { getConnection, rpcUrl } from "@hb/onchain";
+import { getConnection, maskRpc, rpcUrl, unfilledEnv } from "@hb/onchain";
 import { jobs } from "./config.js";
 
 const GENESIS = { devnet: "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG", mainnet: "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" } as const;
@@ -9,8 +9,10 @@ export const memoIx = (text: string) => new TransactionInstruction({ programId: 
 
 /** The RPC must be the NETWORK cluster (genesis hash check); live mainnet sends also need ALLOW_MAINNET=true. */
 export async function assertCluster(live: boolean) {
+  const unfilled = unfilledEnv();
+  if (unfilled.length) throw new Error(`placeholder <FILL_ME> left in: ${unfilled.join(", ")}`);
   const g = await getConnection().getGenesisHash();
-  if (g !== GENESIS[jobs.network]) throw new Error(`RPC ${rpcUrl()} is not ${jobs.network} (genesis ${g}); fix NETWORK / RPC_URL`);
+  if (g !== GENESIS[jobs.network]) throw new Error(`RPC ${maskRpc(rpcUrl())} is not ${jobs.network} (genesis ${g}); fix NETWORK / RPC_URL`);
   if (live && jobs.network === "mainnet" && !jobs.allowMainnet) throw new Error("refusing live mainnet transactions without ALLOW_MAINNET=true");
 }
 

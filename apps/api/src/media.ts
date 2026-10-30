@@ -1,6 +1,17 @@
 ﻿import crypto from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { store } from "./store.js";
+import { BadRequest, imageMatches, label, link, text } from "./security/validate.js";
+
+/** @handle or bare handle -> profile URL; otherwise a validated http(s) link. */
+export function social(v: unknown, kind: "website" | "twitter" | "telegram"): string {
+  const s = text(v, 200);
+  if (!s) return "";
+  const h = /^@?([A-Za-z0-9_]{1,32})$/.exec(s);
+  if (h && kind === "twitter") return `https://x.com/${h[1]}`;
+  if (h && kind === "telegram") return `https://t.me/${h[1]}`;
+  return link(s, kind);
+}
 
 /** Token metadata + logo hosting and an image proxy, stored in Postgres.
  *  POST /metadata stores the logo and Metaplex-style JSON in media_files and returns a public uri (SITE_URL/hb-api/meta/<id>.json).
@@ -48,8 +59,13 @@ export async function resolveImage(mint: string): Promise<{ buf: Buffer; type: s
 
 export function registerMedia(app: FastifyInstance) {
   app.post("/metadata", { bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
-    const b = req.body as { name?: string; symbol?: string; description?: string; website?: string; twitter?: string; telegram?: string; image?: string };
-    if (!b?.name || !b?.symbol) return reply.code(400).send({ error: "name and symbol required" });
+    const b = (req.body ?? {}) as { name?: string; symbol?: string; description?: string; website?: string; twitter?: string; telegram?: string; image?: string };
+    let name: string, symbol: string, description: string, links: Record<string, string>;
+    try {
+      name = label(b.name, "name", 32); symbol = label(b.symbol, "symbol", 10); description = text(b.description, 1000);
+      links = Object.fromEntries(Object.entries({ website: social(b.website, "website"), twitter: social(b.twitter, "twitter"), telegram: social(b.telegram, "telegram") }).filter(([, v]) => v));
+      if (b.image !== undefined && typeof b.image !== "string") throw new BadRequest("image must be a data URL");
+    } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
     const id = crypto.randomBytes(12).toString("hex");
     let image = "";
     if (b.image) {
@@ -58,11 +74,11 @@ export function registerMedia(app: FastifyInstance) {
       if (!m || !ext) return reply.code(400).send({ error: "image must be a png, jpeg, webp or gif data URL" });
       const buf = Buffer.from(m[2], "base64");
       if (buf.length > MAX) return reply.code(413).send({ error: "image larger than 2 MB" });
+      if (!imageMatches(m[1], buf)) return reply.code(400).send({ error: "image content does not match its type" });
       await store.putMedia(id, ext, m[1], buf);
       image = `${SITE()}/hb-api/media/${id}.${ext}`;
     }
-    const links = Object.fromEntries(Object.entries({ website: b.website, twitter: b.twitter, telegram: b.telegram }).filter(([, v]) => v));
-    const json = { name: String(b.name).slice(0, 32), symbol: String(b.symbol).slice(0, 10), description: String(b.description ?? "").slice(0, 1000), image, ...links,
+    const json = { name, symbol, description, image, ...links,
       properties: image ? { files: [{ uri: image, type: MIME[image.split(".").pop()!] }], category: "image" } : undefined };
     await store.putMedia(id, "json", "application/json", Buffer.from(JSON.stringify(json)));
     return { uri: `${SITE()}/hb-api/meta/${id}.json`, image };

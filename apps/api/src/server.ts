@@ -25,14 +25,28 @@ import { scoresStore } from "./services/scoresStore.js";
 import { runScores } from "./services/scoreJob.js";
 import { registerCandles } from "./candles/index.js";
 import { imageUrl, initMedia, registerMedia } from "./media.js";
+import { assertProductionConfig } from "./security/prodCheck.js";
+import { registerErrors } from "./security/errors.js";
+import { creatorLaunchGate, registerRateLimit } from "./security/rateLimit.js";
+import { address, BadRequest, int, isAddress, label, text } from "./security/validate.js";
 
 const SOL_USD = Number(process.env.SOL_USD ?? 150);
 const DRY_RUN = process.env.DRY_RUN !== "false";
 requireDb();
+await assertProductionConfig(); // mainnet: refuses to start on missing / unsafe env (see docs/MAINNET_CHECKLIST.md)
 await migrate(() => {});
 await initAuth();
 await initMedia();
-const app = Fastify({ logger: { level: "info" } });
+const trustProxy: boolean | number = process.env.TRUST_PROXY === "true" ? true : Number(process.env.TRUST_PROXY) > 0 ? Number(process.env.TRUST_PROXY) : false;
+// typed as the http/1 server options (a boolean|number trustProxy otherwise trips the http2 overload)
+const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" }, trustProxy: trustProxy as boolean, bodyLimit: 256 * 1024 });
+registerErrors(app);
+const limits = registerRateLimit(app);
+// Every :mint / :wallet / :address / :creator / :id path param is a Solana address.
+app.addHook("preValidation", async (req, reply) => {
+  const p = (req.params ?? {}) as Record<string, string>;
+  for (const k of ["mint", "wallet", "address", "creator", "id"]) if (k in p && !isAddress(p[k])) return reply.code(400).send({ error: `${k} must be a valid Solana address` });
+});
 await app.register(cors, { origin: (process.env.CORS_ORIGIN ?? "http://localhost:3000").split(",") });
 
 /** Dev-lock status from our own lock records in Postgres (no RPC): active = not cancelled and tokens still locked. */
@@ -63,8 +77,8 @@ app.get("/health", async () => ({ ok: true, tokens: await store.tokenCount(), dr
 
 app.get("/tokens", async (req) => {
   const q = req.query as Record<string, string | undefined>;
-  const limit = Math.max(0, Math.min(200, Number(q.limit ?? 50) || 0)), offset = Math.max(0, Number(q.offset ?? 0) || 0);
-  const r = await store.listTokens({ tier: q.tier, status: q.status, q: q.q, sort: q.sort, order: q.order, limit, offset });
+  const limit = Math.max(0, Math.min(200, Number(q.limit ?? 50) || 0)), offset = Math.max(0, Math.min(1_000_000, Number(q.offset ?? 0) || 0));
+  const r = await store.listTokens({ tier: q.tier, status: q.status, q: q.q === undefined ? undefined : text(q.q, 64), sort: q.sort, order: q.order, limit, offset });
   return { total: r.total, items: await views(r.items) };
 });
 
@@ -76,13 +90,13 @@ app.get("/tokens/:mint", async (req, reply) => {
 
 app.get("/tokens/:mint/trades", async (req) => {
   const { mint } = req.params as { mint: string };
-  const limit = Math.min(500, Number((req.query as any).limit ?? 100));
+  const limit = int((req.query as { limit?: string }).limit, "limit", 1, 500, 100);
   return store.tradesFor(mint, limit);
 });
 
 app.get("/activity", async (req) => {
   const q = req.query as Record<string, string | undefined>;
-  const since = Number(q.since ?? 0), limit = Math.min(500, Number(q.limit ?? 200));
+  const since = int(q.since, "since", 0, Number.MAX_SAFE_INTEGER, 0), limit = int(q.limit, "limit", 1, 500, 200);
   return store.listActivity(since, limit);
 });
 
@@ -126,12 +140,13 @@ async function finalize(tx: Transaction, payer: PublicKey) {
 app.post("/tx/swap", async (req, reply) => {
   const b = req.body as { owner: string; pool: string; side: "buy" | "sell"; amount: string | number; slippageBps?: number };
   try {
-    const pool = new PublicKey(b.pool), owner = new PublicKey(b.owner), sell = b.side === "sell";
+    const pool = new PublicKey(address(b?.pool, "pool")), owner = new PublicKey(address(b?.owner, "owner")), sell = b.side === "sell";
+    const slippageBps = int(b.slippageBps, "slippageBps", 0, 5000, 100);
     const amt = Number(b.amount);
     if (!Number.isFinite(amt) || amt <= 0) return reply.code(400).send({ error: "amount must be a positive number" });
     if (b.side !== "buy" && b.side !== "sell") return reply.code(400).send({ error: "side must be buy|sell" });
     const amountIn = new BN(Math.floor(amt * (sell ? 1e6 : 1e9)).toString());
-    const q = await quote({ pool, amountIn, sell, slippageBps: b.slippageBps ?? 100 });
+    const q = await quote({ pool, amountIn, sell, slippageBps });
     const minimumAmountOut = q.minimumAmountOut ?? new BN(0);
     const tx = await getClient().pool.swap2({ owner, pool, swapBaseForQuote: sell, referralTokenAccount: await usableReferralAta(), swapMode: SwapMode.ExactIn, amountIn, minimumAmountOut });
     return { tx: ser(await finalize(tx, owner)), minimumAmountOut: minimumAmountOut.toString() };
@@ -139,9 +154,22 @@ app.post("/tx/swap", async (req, reply) => {
 });
 
 app.post("/tx/launch", async (req, reply) => {
-  const b = (req.body ?? {}) as LaunchReq;
-  const gate = await launchGate(String(b.tier), String(b.creator)); // $BAR holders only for Max tier (step 8)
+  if (process.env.LAUNCHES_PAUSED === "true") return reply.code(503).send({ error: "launches are paused" }); // kill switch (rollback plan)
+  const raw = (req.body ?? {}) as Partial<LaunchReq>;
+  let b: LaunchReq;
+  try {
+    if (!["standard", "higher", "max"].includes(String(raw.tier))) throw new BadRequest("tier must be standard|higher|max");
+    const uri = text(raw.uri, 200);
+    const mainnet = process.env.NETWORK === "mainnet" || process.env.NETWORK === "mainnet-beta";
+    if (uri && !(mainnet ? /^(https|ipfs|ar):\/\//.test(uri) : /^(https?|ipfs|ar):\/\//.test(uri))) throw new BadRequest(`uri must be ${mainnet ? "https" : "http(s)"}://, ipfs:// or ar://`);
+    b = { creator: address(raw.creator, "creator"), name: label(raw.name, "name", 32), symbol: label(raw.symbol, "symbol", 10), uri, tier: String(raw.tier), antiSniper: raw.antiSniper === true || (raw.antiSniper as unknown) === "true",
+      devBuySol: raw.devBuySol === undefined ? 0 : Number(raw.devBuySol), slippageBps: raw.slippageBps === undefined ? 100 : Number(raw.slippageBps) };
+    if (Buffer.byteLength(b.name) > 32 || Buffer.byteLength(b.symbol) > 10) throw new BadRequest("name max 32 bytes, symbol max 10 bytes");
+  } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+  const gate = await launchGate(b.tier, b.creator); // $BAR holders only for Max tier (step 8)
   if (gate) return reply.code(403).send({ error: gate });
+  const spam = creatorLaunchGate(limits, b.creator); // anti-spam: launches per creator wallet per hour
+  if (spam) return reply.code(429).send({ error: spam });
   try { return await buildLaunchTx(b); }
   catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
@@ -295,9 +323,14 @@ if (SCORES_MS > 0) {
   setTimeout(run, 15_000).unref(); setInterval(run, SCORES_MS).unref();
 }
 
-app.post("/reindex", async () => { await indexOnce((m) => app.log.info(m)); return { ok: true, tokens: await store.tokenCount() }; });
+// Admin only: needs header x-admin-token = ADMIN_TOKEN. Without ADMIN_TOKEN it is open on devnet and disabled on mainnet.
+app.post("/reindex", async (req, reply) => {
+  const want = process.env.ADMIN_TOKEN, got = req.headers["x-admin-token"];
+  if (want ? got !== want : process.env.NETWORK === "mainnet" || process.env.NETWORK === "mainnet-beta") return reply.code(404).send({ error: "not found" });
+  await indexOnce((m) => app.log.info(m)); return { ok: true, tokens: await store.tokenCount() };
+});
 
 // Fee claimer / cashback / buyback & burn run as separate jobs (src/jobs/run.ts: pnpm --filter @hb/api jobs:epoch -- --loop 3600), not in the API process.
 
-await app.listen({ port: Number(process.env.PORT ?? 4000), host: "0.0.0.0" });
+await app.listen({ port: Number(process.env.PORT ?? 4000), host: process.env.HOST || "0.0.0.0" }); // Railway private networking: HOST=::
 if (process.env.NO_INDEXER !== "1") startIndexer((m) => app.log.info(m));
