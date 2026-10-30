@@ -1,5 +1,6 @@
 ﻿import { indexableConfigSet, network } from "@hb/onchain";
 import { db, tx, type Q } from "./db/pool.js";
+import { MAX_TS_IN_SECOND_SQL, MINT_TRADES_ORDER, tradesOrder } from "./indexer/tradeOrder.js";
 
 /** Postgres-backed store (tables in db/migrations). Shapes match the former JSON store / API responses. */
 export interface Token {
@@ -86,12 +87,17 @@ export const store = {
       [sig, ixIdx, t.pool, t.mint, t.side, t.sol, t.tokens, t.feeSol, t.wallet, t.viaUi, !!t.devBuy, Math.round(t.ts), t.referralFeeLamports == null ? null : t.referralFeeLamports.toString()]);
     return (r.rowCount ?? 0) > 0;
   },
+  /** Largest ts already stored for this mint inside the second starting at secondMs (indexer sub-second sequence, see indexer/tradeOrder.ts). */
+  async maxTradeTsInSecond(mint: string, secondMs: number, q: Q = db): Promise<number | null> {
+    const r = await q.query<{ m: number | null }>(MAX_TS_IN_SECOND_SQL, [mint, secondMs, secondMs + 1000]);
+    return r.rows[0]?.m == null ? null : Number(r.rows[0].m);
+  },
   async tradesFor(mint: string, limit = 100): Promise<TradeRow[]> {
-    return (await db.query(`SELECT ${TRADE_COLS} FROM trades WHERE mint = $1 ORDER BY ts DESC, sig DESC, ix_idx DESC LIMIT $2`, [mint, limit])).rows.map(tradeOut);
+    return (await db.query(`SELECT ${TRADE_COLS} FROM trades WHERE mint = $1 ORDER BY ${MINT_TRADES_ORDER} LIMIT $2`, [mint, limit])).rows.map(tradeOut);
   },
   async walletTrades(wallet: string, limit = 200): Promise<(TradeRow & { symbol: string })[]> {
     return (await db.query(`SELECT t.sig || ':' || t.ix_idx AS sig, t.pool, t.mint, t.side, t.sol, t.tokens, t.fee_sol AS "feeSol", t.wallet, t.via_ui AS "viaUi", t.ts, t.dev_buy AS "devBuy", coalesce(k.symbol,'') AS symbol
-      FROM trades t LEFT JOIN tokens k ON k.mint = t.mint WHERE t.wallet = $1 ORDER BY t.ts DESC, t.sig DESC, t.ix_idx DESC LIMIT $2`, [wallet, limit])).rows
+      FROM trades t LEFT JOIN tokens k ON k.mint = t.mint WHERE t.wallet = $1 ORDER BY ${tradesOrder("t")} LIMIT $2`, [wallet, limit])).rows
       .map((r) => { const { symbol, ...rest } = r; return { ...tradeOut(rest), symbol }; });
   },
   /** Per-mint aggregates used by the indexer to fill token stats. */
@@ -160,7 +166,7 @@ export const store = {
     await db.query("INSERT INTO settings (key,value,updated_at) VALUES ($1,$2,$3) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at", [key, JSON.stringify(value), Date.now()]);
   },
   async allTrades(since = 0): Promise<TradeRow[]> {
-    return (await db.query(`SELECT ${TRADE_COLS} FROM trades WHERE ts >= $1 ORDER BY ts DESC, sig DESC, ix_idx DESC`, [since])).rows.map(tradeOut);
+    return (await db.query(`SELECT ${TRADE_COLS} FROM trades WHERE ts >= $1 ORDER BY ${tradesOrder()}`, [since])).rows.map(tradeOut);
   },
 
   // ---- candle points ----

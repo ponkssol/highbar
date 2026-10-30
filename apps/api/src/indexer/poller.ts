@@ -4,6 +4,7 @@ import { getPriceFromSqrtPrice } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { TIERS, networkOf, thresholdSolFor, type TierId } from "@hb/shared";
 import { getClient, getConnection, indexableConfigEntries, referralAta, sleep, withRetry } from "@hb/onchain";
 import { decodeDbcEvents, type RawTx } from "./decode.js";
+import { chronological, nextTradeTs, secondBaseMs } from "./tradeOrder.js";
 import { store, type Token } from "../store.js";
 import { recordTrade } from "../candles/index.js";
 import { scoresStore } from "../services/scoresStore.js";
@@ -38,7 +39,8 @@ async function indexTrades(t: Token, limit: number) {
   const sigs = await withRetry(() => conn.getSignaturesForAddress(new PublicKey(t.pool), { limit, until }));
   if (!sigs.length) return;
   const newest = sigs[0].signature;
-  for (const s of sigs.reverse()) {
+  const lastTsInSecond = new Map<number, number>(); // second (ms) -> last trade ts handed out for this mint
+  for (const s of chronological(sigs)) {
     if (s.err) continue;
     const tx = await withRetry(() => conn.getTransaction(s.signature, { maxSupportedTransactionVersion: 0 })).catch(() => null);
     await sleep(120); // stay under public RPC limits
@@ -51,7 +53,7 @@ async function indexTrades(t: Token, limit: number) {
       meta: tx.meta ? { err: tx.meta.err, innerInstructions: tx.meta.innerInstructions as any,
         loadedAddresses: tx.meta.loadedAddresses ? { writable: tx.meta.loadedAddresses.writable.map(String), readonly: tx.meta.loadedAddresses.readonly.map(String) } : null } : null,
     };
-    const ts = (tx.blockTime ?? Date.now() / 1000) * 1000;
+    const ts = secondBaseMs(tx.blockTime); // whole second; each swap gets ts + its chain-order sequence (indexer/tradeOrder.ts)
     let i = 0, initInTx = false, devTagged = false;
     for (const ev of decodeDbcEvents(raw)) {
       if (ev.kind === "init" && ev.pool === t.pool) {
@@ -61,11 +63,13 @@ async function indexTrades(t: Token, limit: number) {
       if (ev.kind !== "swap" || ev.pool !== t.pool) continue;
       const sig = `${s.signature}:${i++}`;
       const devBuy = initInTx && !devTagged && ev.side === "buy"; if (devBuy) devTagged = true;
+      const tradeTs = nextTradeTs(ts, lastTsInSecond.has(ts) ? lastTsInSecond.get(ts) : await store.maxTradeTsInSecond(t.mint, ts));
+      lastTsInSecond.set(ts, tradeTs);
       const added = await store.addTrade({ sig, pool: t.pool, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6,
-        feeSol: Number(ev.feeLamports) / L, wallet: ev.trader, viaUi: !!REFERRAL && ev.referralTokenAccount === REFERRAL, ts, ...(devBuy ? { devBuy: true } : {}),
+        feeSol: Number(ev.feeLamports) / L, wallet: ev.trader, viaUi: !!REFERRAL && ev.referralTokenAccount === REFERRAL, ts: tradeTs, ...(devBuy ? { devBuy: true } : {}),
         referralFeeLamports: !!REFERRAL && ev.referralTokenAccount === REFERRAL ? ev.referralFeeLamports : null });
-      if (added) await recordTrade({ sig, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6, ts });
-      if (added) await store.addActivity({ id: `trade:${sig}`, type: "trade", mint: t.mint, symbol: t.symbol, ts, amount: Number(ev.solLamports) / L, side: ev.side, wallet: ev.trader, sig: s.signature });
+      if (added) await recordTrade({ sig, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6, ts: tradeTs });
+      if (added) await store.addActivity({ id: `trade:${sig}`, type: "trade", mint: t.mint, symbol: t.symbol, ts: tradeTs, amount: Number(ev.solLamports) / L, side: ev.side, wallet: ev.trader, sig: s.signature });
     }
   }
   await store.setLastSig(t.pool, newest);
