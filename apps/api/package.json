@@ -14,7 +14,8 @@
     "jobs:cashback": "tsx src/jobs/run.ts cashback",
     "jobs:buyback": "tsx src/jobs/run.ts buyback",
     "jobs:epoch": "tsx src/jobs/run.ts epoch",
-    "bar:mock-mint": "tsx src/jobs/createMockBar.ts"
+    "bar:mock-mint": "tsx src/jobs/createMockBar.ts",
+    "jobs:scores": "tsx src/jobs/scores.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

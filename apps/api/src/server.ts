@@ -17,6 +17,9 @@ import { migrate } from "./db/migrate.js";
 import { requireDb } from "./db/pool.js";
 import { buildLaunchTx, quoteDevBuy, DEV_BUY_MAX_SOL, type LaunchReq } from "./launchTx.js";
 import { registerClaim } from "./routes/claim.js";
+import { registerScores } from "./routes/scores.js";
+import { scoresStore } from "./services/scoresStore.js";
+import { runScores } from "./services/scoreJob.js";
 import { registerCandles } from "./candles/index.js";
 import { imageUrl, initMedia, registerMedia } from "./media.js";
 
@@ -36,7 +39,9 @@ async function devLock(mint: string) {
 }
 async function views(ts: Token[]) {
   const dl = await store.devLocks(ts.map((t) => t.mint));
-  return ts.map((t) => { const u = dl.get(t.mint); return { ...t, mcapUsd: t.mcapSol * SOL_USD, image: imageUrl(t.mint, t.uri), devLocked: u !== undefined, unlockAt: u ?? null }; });
+  const sc = await scoresStore.scores(ts.map((t) => t.mint));
+  return ts.map((t) => { const u = dl.get(t.mint); return { ...t, mcapUsd: t.mcapSol * SOL_USD, image: imageUrl(t.mint, t.uri), devLocked: u !== undefined, unlockAt: u ?? null,
+    score: sc.get(t.mint)?.score ?? null, scoreLabel: sc.get(t.mint)?.breakdown.label ?? null }; });
 }
 async function recordLocks(infos: LockInfo[]) {
   await store.recordLocks(infos.map((l) => ({ escrow: l.escrow, mint: l.mint, creator: l.creator, cliffTime: l.cliffTime, endTime: l.endTime, total: String(l.total), locked: String(l.locked), cancelled: !!l.cancelled, seenAt: Date.now() })));
@@ -48,6 +53,7 @@ registerRewards(app);
 registerClaim(app);
 registerCandles(app);
 registerMedia(app);
+registerScores(app);
 app.get("/health", async () => ({ ok: true, tokens: await store.tokenCount(), dryRun: DRY_RUN, time: Date.now() }));
 
 app.get("/tokens", async (req) => {
@@ -272,6 +278,15 @@ app.post("/tx/lock/claim", async (req, reply) => {
     return { tx: ser(r.tx) };
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
+
+// Higher Bar scores / holders / hourly snapshots (off-chain; read-only RPC for graduated tokens' DAMM v2 price).
+// Standalone: pnpm --filter @hb/api jobs:scores -- --loop 600. SCORES_INTERVAL_MS=0 disables it here.
+const SCORES_MS = Number(process.env.SCORES_INTERVAL_MS ?? 600_000);
+if (SCORES_MS > 0) {
+  let busy = false;
+  const run = async () => { if (busy) return; busy = true; try { await runScores((m) => app.log.info(m)); } catch (e) { app.log.warn(`scores: ${(e as Error).message}`); } finally { busy = false; } };
+  setTimeout(run, 15_000).unref(); setInterval(run, SCORES_MS).unref();
+}
 
 app.post("/reindex", async () => { await indexOnce((m) => app.log.info(m)); return { ok: true, tokens: await store.tokenCount() }; });
 
