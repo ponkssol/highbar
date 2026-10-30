@@ -218,3 +218,4 @@ export const barTierOf = (balanceBar: number): BarTier => [...BAR_TIERS].reverse
 /** Smallest tier that unlocks Max tier launches. */
 export const MAX_TIER_MIN_BAR = BAR_TIERS.find((t) => t.maxTierAccess)?.minBar ?? 0;
 export * from "./referralMilestone.js";
+export * from "./leaderboard.js";

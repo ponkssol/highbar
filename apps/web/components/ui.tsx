@@ -35,7 +35,7 @@ export function TierBadge({ tier }: { tier: TierId }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs text-ink">
       <TierDot tier={tier} />
-      {TIERS[tier].label}
+      {TIERS[tier]?.label ?? String(tier ?? "")}
     </span>
   );
 }

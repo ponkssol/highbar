@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import type { TierId } from "@hb/shared";
+import { normalizeLeaderboard, type LbCreatorRow, type LbMigrationRow, type LbScoreRow, type LbSurvivorRow, type LbTokenBase, type LbTokenRow, type LbTraderRow, type LeaderboardKind } from "@hb/shared";
 import { TopBlock } from "@/components/TopBar";
 import { Card, ProgressBar, TierBadge } from "@/components/ui";
 import { Empty, Loading, OfflineNote, Tabs, TD, TH } from "@/components/PageStates";
@@ -11,15 +11,17 @@ import { ScoreBadge } from "@/components/ScoreBadge";
 import { useApiData } from "@/lib/pagesData";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
-type Kind = "tokens" | "scores" | "creators" | "traders" | "migrations" | "survivors";
+// Row shapes + normalizer live in @hb/shared (leaderboard.ts) next to the API contract; normalizeLeaderboard turns any payload
+// (error body, wrong shape, stale rows of another tab, partial rows) into well-formed rows with safe defaults, so no tab can crash.
+type Kind = LeaderboardKind;
 type Win = "24h" | "7d" | "week" | "all";
-type Base = { mint: string; name: string; symbol: string; tier: TierId; mcapUsd: number; progress: number; isMigrated: boolean; score: number | null; devLocked: boolean; unlockAt: number | null; official?: boolean };
-type TokRow = Base & { volumeSol: number; trades: number };
-type ScoRow = Base & { label: string | null; volumeSol: number; breakdown?: { tier: number; antiSniper: number; devLock: number; spread: number; holders: number; top10Pct: number } | null };
-type MigRow = Base & { migratedAt: number; createdAt: number; timeToMigrateMs: number; raisedSol: number; volumeSol: number };
-type SurRow = Base & { migratedAt: number; daysSinceMigration: number; survivedDays: number; ratioNow: number | null; nowMcapUsd: number | null; alive: boolean | null; minRatio: number };
-type CreRow = { creator: string; tokens: number; graduated: number; volumeSol: number; feesEarnedSol: number; avgScore: number | null };
-type TraRow = { wallet: string; volumeSol: number; trades: number; buys: number; sells: number; lastTs: number };
+type Base = LbTokenBase;
+type TokRow = LbTokenRow;
+type ScoRow = LbScoreRow;
+type MigRow = LbMigrationRow;
+type SurRow = LbSurvivorRow;
+type CreRow = LbCreatorRow;
+type TraRow = LbTraderRow;
 type SortTok = "volumeSol" | "mcapUsd" | "progress";
 
 const NA = "\u2014";
@@ -33,8 +35,8 @@ export default function LeaderboardPage() {
   const [kind, setKind] = useState<Kind>("tokens");
   const [win, setWin] = useState<Win>("week");
   const [sortTok, setSortTok] = useState<SortTok>("volumeSol");
-  const { data, loading, error } = useApiData<unknown[]>(`/leaderboard/${kind}?window=${win}&limit=100`, []);
-  const rows = data ?? [];
+  const { data, loading, error } = useApiData<unknown>(`/leaderboard/${kind}?window=${win}&limit=100`, []);
+  const rows: unknown[] = normalizeLeaderboard(kind, data);
   const rank = (i: number) => <span className={`num inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${i < 3 ? "bg-ink text-on-ink" : "bg-muted text-ink-2"}`}>{i + 1}</span>;
   const tok = (t: Base) => (
     <td className={TD}>
@@ -66,7 +68,7 @@ export default function LeaderboardPage() {
       <OfflineNote error={error} />
       <Card className="overflow-x-auto p-0">
         {loading && !data ? <Loading /> : rows.length === 0 ? (
-          <Empty title="No data yet" hint={`No ${kind} in this window. Try "All".`} />
+          error ? <Empty title="Leaderboard unavailable" hint="The API did not answer. It refreshes automatically; try again in a moment." /> : <Empty title="No data yet" hint={`No ${kind} in this window. Try "All".`} />
         ) : kind === "tokens" ? (
           <table className="w-full min-w-[640px] text-sm">
             {head([["Token", "left"], ["Tier", "left"], ["Volume", "right"], ["Mcap", "right"], ["Progress", "left"]])}
