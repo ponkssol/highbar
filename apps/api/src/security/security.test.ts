@@ -76,7 +76,7 @@ test("errors: no stack traces or paths; 5xx generic in production", () => {
 const goodMainnet = () => {
   const env: Record<string, string> = {
     NETWORK: "mainnet", TREASURY_PUBKEY: pk(), REFERRAL_ACCOUNT: pk(), BAR_MINT: pk(), DATABASE_URL: "postgres://u:p@h/db",
-    RPC_URL: "https://mainnet.helius-rpc.com/?api-key=x", AUTH_SECRET: "x".repeat(40), SITE_URL: "https://highbar.example",
+    RPC_URL: "https://example-name.solana-mainnet.quiknode.pro/0123abcd/", AUTH_SECRET: "x".repeat(40), SITE_URL: "https://highbar.example",
     CORS_ORIGIN: "https://highbar.example", PROXY_SHARED_SECRET: "y".repeat(40),
   };
   for (const k of ["STANDARD_OFF", "STANDARD_ON", "HIGHER_OFF", "HIGHER_ON", "MAX_OFF", "MAX_ON"]) env[`CONFIG_${k}`] = pk();
@@ -86,6 +86,13 @@ const goodMainnet = () => {
 test("checkEnv: mainnet with complete env passes (single treasury wallet is fine)", () => {
   const r = checkEnv(goodMainnet(), { platformPubkey: pk(), configs: {} });
   assert.equal(r.network, "mainnet"); assert.deepEqual(r.errors, []); assert.deepEqual(r.warnings, []);
+});
+
+test("checkEnv: QuickNode and Helius mainnet URLs pass the paid-RPC check", () => {
+  for (const url of ["https://example-name.solana-mainnet.quiknode.pro/0123abcd/", "https://mainnet.helius-rpc.com/?api-key=x"]) {
+    const env = goodMainnet(); env.RPC_URL = url;
+    assert.ok(!checkEnv(env).errors.some((e) => /RPC_URL/.test(e)), url);
+  }
 });
 
 test("checkEnv: mainnet refuses missing env, public RPC, duplicate configs, mock buyback", () => {

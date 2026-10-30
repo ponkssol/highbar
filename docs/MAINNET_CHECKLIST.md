@@ -51,15 +51,19 @@ Fund the platform key with about 0.3 SOL. That covers config rent (about 6 × 0.
 Swaps pass the referral token account, so it must exist before the first trade.
 
 ```powershell
-spl-token create-account So11111111111111111111111111111111111111112 --owner <REFERRAL_WALLET> --fee-payer C:\Users\Ponks_sol\hb-mainnet-keys\platform.json --url <HELIUS_RPC_URL>
-spl-token address --token So11111111111111111111111111111111111111112 --owner <REFERRAL_WALLET> --verbose --url <HELIUS_RPC_URL>   # -> PLATFORM_REFERRAL_TOKEN_ACCOUNT
+spl-token create-account So11111111111111111111111111111111111111112 --owner <REFERRAL_WALLET> --fee-payer C:\Users\Ponks_sol\hb-mainnet-keys\platform.json --url <QUICKNODE_RPC_URL>
+spl-token address --token So11111111111111111111111111111111111111112 --owner <REFERRAL_WALLET> --verbose --url <QUICKNODE_RPC_URL>   # -> PLATFORM_REFERRAL_TOKEN_ACCOUNT
 ```
 
-## 2. Paid RPC (Helius) [BLOCKER]
+## 2. Paid RPC (QuickNode) [BLOCKER]
 
-- Create **two** API keys at dashboard.helius.dev:
-  - a **server** key for api, keeper and jobs (`RPC_URL`);
-  - a **browser** key restricted to your web domain (Access Control → allowed domains) for the web service's `RPC_URL`. The web RPC URL is visible to every visitor.
+- In the QuickNode dashboard, go to **Endpoints → Create endpoint → Solana Mainnet**, and create **two** endpoints:
+  - a **server** endpoint for api, keeper and jobs (`RPC_URL=https://<name>.solana-mainnet.quiknode.pro/<token>/`). Use it as `<QUICKNODE_SERVER_RPC_URL>` / `<QUICKNODE_RPC_URL>` in the commands here;
+  - a **browser** endpoint for the web service's `RPC_URL`, locked to your web domain via the endpoint's **Security** settings (referrer/domain whitelist). The web RPC URL is visible to every visitor.
+- Check the plan:
+  - `getProgramAccounts` must be allowed. The indexer and the `$BAR` barsnap/feeshare jobs use it.
+  - The plan's requests-per-second limit must cover indexer polling (30 s), keeper (30 s), jobs and browser traffic.
+- WebSocket (`wss://…`) is not used by the code today, so `RPC_WS_URL` is optional.
 - The public `api.mainnet-beta.solana.com` is refused by the API startup check and by `createConfigs --send`. It also returns 429 on `getProgramAccounts`, which the indexer and the $BAR jobs need.
 
 ## 3. Real $BAR mint [BLOCKER]
@@ -78,7 +82,7 @@ The script is the devnet one with a `--network mainnet` mode. By default it prin
 ```powershell
 cd packages\onchain
 $env:NETWORK="mainnet"
-$env:RPC_URL="<HELIUS_SERVER_RPC_URL>"
+$env:RPC_URL="<QUICKNODE_SERVER_RPC_URL>"
 $env:PLATFORM_KEYPAIR_PATH="C:\Users\Ponks_sol\hb-mainnet-keys\platform.json"
 $env:FEE_CLAIMER_PUBKEY="<PLATFORM_PUBKEY>"      # NOT 9TAV..., NOT the referral wallet
 $env:TREASURY_PUBKEY="<TREASURY_PUBKEY>"
