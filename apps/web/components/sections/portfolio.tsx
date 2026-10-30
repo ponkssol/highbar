@@ -109,7 +109,7 @@ export default function PortfolioPage() {
                 <tr key={t.mint} className="border-b border-border last:border-0 hover:bg-muted">
                   <td className={TD}><Link href={`/token/${t.mint}`} className="font-medium hover:underline">{t.name || shortAddr(t.mint)}</Link></td>
                   <td className={TD}><TierBadge tier={t.tier} /></td>
-                  <td className={`${TD} num text-right`}>{t.isMigrated ? "Graduated" : `${Math.round(t.progress * 100)}%`}</td>
+                  <td className={`${TD} num text-right`}>{t.isMigrated ? "Migrated" : `${Math.round(t.progress * 100)}%`}</td>
                   <td className={`${TD} num text-right`}>{fmtSol(t.volumeSol, 3)} SOL</td>
                   <td className={`${TD} num text-right text-buy`}>{t.creatorFeesSol.toFixed(4)} SOL</td>
                 </tr>))}</tbody>
