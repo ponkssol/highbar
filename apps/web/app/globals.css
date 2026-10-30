@@ -43,8 +43,19 @@ h1 .num,h2 .num,h3 .num{letter-spacing:normal}
 
 .hb-scrim{background:rgba(14,14,14,.4)}
 .dark .hb-scrim{background:rgba(14,14,14,.6)}
-@keyframes hb-sheet-in{from{transform:translateY(100%)}to{transform:none}}
-.hb-sheet{animation:hb-sheet-in .2s ease-out}
+/* Micro motion: short, soft and ease-out. Colors fade on hover and focus, pressables settle to 0.97 while held, scrims fade in, sheets rise a few px, modals scale in from 0.96. Everything sits behind prefers-reduced-motion no-preference. The standalone scale property never fights Tailwind transforms and never shifts layout. */
+@keyframes hb-fade-in{from{opacity:0}to{opacity:1}}
+@keyframes hb-sheet-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes hb-modal-in{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+.hb-modal{transform-origin:50% 100%}
+@media (min-width:768px){.hb-modal{transform-origin:50% 50%}}
+@media (prefers-reduced-motion:no-preference){
+  :is(a,button,summary,select,input,textarea,[role=button],[role=tab],[role=menuitem],[role=menuitemcheckbox],[role=switch],.hb-ctrl){transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,scale;transition-duration:160ms;transition-timing-function:cubic-bezier(0,0,.2,1)}
+  :is(button,[role=button],[role=tab],[role=menuitemcheckbox],[role=switch],nav a,[role=dialog] a,.hb-press):not(:disabled):not([aria-disabled=true]):active{scale:.97}
+  .hb-scrim{animation:hb-fade-in 180ms cubic-bezier(0,0,.2,1)}
+  .hb-sheet{animation:hb-sheet-in 200ms cubic-bezier(0,0,.2,1)}
+  .hb-modal{animation:hb-modal-in 180ms cubic-bezier(0,0,.2,1)}
+}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
 /* Horizontal scroll rows: scrollable, no visible scrollbar. */

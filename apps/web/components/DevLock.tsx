@@ -234,7 +234,7 @@ export function DevLockButton({ className = "", devLocked, unlockAt, ...p }: Loc
       {open && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[100] flex items-end justify-center md:items-center md:p-6" role="dialog" aria-modal="true" aria-labelledby="dev-lock-title" data-testid="dev-lock-modal">
           <div className="hb-scrim absolute inset-0 backdrop-blur-[2px]" onClick={() => setOpen(false)} data-testid="dev-lock-backdrop" aria-hidden />
-          <div ref={panel} tabIndex={-1} className="hb-sheet relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[20px] border border-border bg-surface outline-none md:max-h-[88vh] md:max-w-md md:rounded-lg md:shadow-card">
+          <div ref={panel} tabIndex={-1} className="hb-modal relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[20px] border border-border bg-surface outline-none md:max-h-[88vh] md:max-w-md md:rounded-lg md:shadow-card">
             <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
               <h2 id="dev-lock-title" className="flex items-center gap-2 text-base font-semibold"><Lock size={16} strokeWidth={1.5} />Dev token lock</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-ink-3 hover:bg-muted hover:text-ink"><X size={18} /></button>

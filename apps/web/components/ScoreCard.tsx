@@ -5,7 +5,7 @@ import { ScoreBadge } from "./ScoreBadge";
 type Breakdown = { tier: number; antiSniper: number; devLock: number; spread: number; holders: number; top10Pct: number; lockedPct: number; lockDaysLeft: number; label: string };
 type Resp = { score: number | null; label: string | null; breakdown: Breakdown | null; max: { tier: number; antiSniper: number; devLock: number; spread: number }; updatedAt: number | null };
 
-/** Higher Bar score with its four parts (GET /tokens/:mint/score). */
+/** highbar score with its four parts (GET /tokens/:mint/score). */
 export function ScoreCard({ mint }: { mint: string }) {
   const { data } = useApiData<Resp | null>(`/tokens/${mint}/score`, null, 60_000);
   if (!data || data.score == null || !data.breakdown) return null;

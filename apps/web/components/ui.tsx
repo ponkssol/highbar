@@ -9,7 +9,7 @@ const VAR: Record<Variant, string> = {
   secondary: "hb-ctrl text-ink",
   ghost: "bg-transparent text-ink hover:bg-muted",
 };
-const BASE = "inline-flex items-center justify-center gap-2 h-10 px-4 rounded text-sm font-medium transition-opacity duration-150 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap";
+const BASE = "hb-press inline-flex items-center justify-center gap-2 h-10 px-4 rounded text-sm font-medium transition-opacity duration-150 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap";
 
 export function Button({ variant = "primary", className = "", ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
   return <button {...p} className={`${BASE} ${VAR[variant]} ${className}`} />;

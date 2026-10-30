@@ -1,6 +1,6 @@
 import { Gauge } from "lucide-react";
 
-/** Higher Bar score pill (0-100). "Higher Bar" (>= 70) is inverted ink, the rest are muted. */
+/** highbar score pill (0-100). "highbar" (>= 70) is inverted ink, the rest are muted. */
 export function ScoreBadge({ score, size = "sm" }: { score?: number | null; size?: "sm" | "md" }) {
   if (score == null) return null;
   const top = score >= 70;
