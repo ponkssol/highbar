@@ -210,8 +210,8 @@ export function TokenView({ t }: { t: TokenViewData }) {
         {/* trade panel + bonding: right column on lg, between chart and tabs on md, sticky Buy/Sell on mobile */}
         <aside className="hidden md:block lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <div className="grid gap-4 md:grid-cols-2 lg:sticky lg:top-20 lg:grid-cols-1">
-            {/* creator-only Dev Lock button sits above the Buy/Sell card and opens the lock form in a modal */}
-            <div className="flex min-w-0 flex-col gap-3"><DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks.data} reload={locks.reload} />{panel()}</div>
+            {/* above Buy/Sell: creator gets the Dev Lock button + modal; everyone else a passive dev-lock badge (only if locked) */}
+            <div className="flex min-w-0 flex-col gap-3"><DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} />{panel()}</div>
             <BondingCard t={t} />
           </div>
         </aside>
@@ -219,7 +219,7 @@ export function TokenView({ t }: { t: TokenViewData }) {
       </div>
       {/* mobile sticky actions + bottom sheet */}
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-2 gap-2 border-t border-border bg-surface p-3 md:hidden">
-        <DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks.data} reload={locks.reload} className="col-span-2" />
+        <DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} className="col-span-2" />
         <button onClick={() => setSheet("buy")} className="h-12 rounded-md bg-buy font-semibold text-white">Buy</button>
         <button onClick={() => setSheet("sell")} className="h-12 rounded-md bg-sell font-semibold text-white">Sell</button>
       </div>

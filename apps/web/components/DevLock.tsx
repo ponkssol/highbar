@@ -161,7 +161,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
   );
 }
 /** "Dev Lock" button for the token creator only (same check as DevLock); opens the lock form in a modal / mobile sheet. */
-export function DevLockButton({ className = "", ...p }: LockProps & { className?: string }) {
+export function DevLockButton({ className = "", devLocked, unlockAt, ...p }: LockProps & { className?: string; devLocked?: boolean; unlockAt?: number | null }) {
   const isCreator = useIsCreator(p.creator);
   const [open, setOpen] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
@@ -175,7 +175,19 @@ export function DevLockButton({ className = "", ...p }: LockProps & { className?
     const btn = opener.current;
     return () => { window.removeEventListener("keydown", key, true); document.body.style.overflow = prevOverflow; btn?.focus(); };
   }, [open]);
-  if (!isCreator) return null;
+  // Losing creator status (disconnect / account switch) closes the modal; it is never rendered for anyone else.
+  useEffect(() => { if (!isCreator) setOpen(false); }, [isCreator]);
+  if (!isCreator) {
+    // Everyone else: a passive badge, and only when the token really has a dev lock.
+    const fromLocks = p.data && p.data.lockedTokens > 0 ? Math.max(...p.data.locks.filter((l) => Number(l.locked) > 0).map((l) => l.cliffTime)) : NaN;
+    const at = Number.isFinite(fromLocks) ? fromLocks : devLocked && unlockAt ? unlockAt : null;
+    if (!at) return null;
+    return (
+      <div data-testid="dev-lock-label" className={`flex items-center justify-center ${className}`} title="The creator's dev tokens are locked">
+        <DevLockedBadge devLocked unlockAt={at} size="md" />
+      </div>
+    );
+  }
   return (
     <>
       <button ref={opener} type="button" onClick={() => setOpen(true)} data-testid="dev-lock-button" aria-haspopup="dialog"
