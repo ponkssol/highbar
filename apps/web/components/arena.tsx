@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -48,13 +49,23 @@ function Banner({ eyebrow, title, children, testid }: { eyebrow: string; title: 
   );
 }
 
-/** Dashboard hero strip: arena title over a faint line-art Colosseum arcade. */
+/** Dashboard hero strip: "Enter the Arena" over a sunlit marble colonnade with herald angels on the right (public/brand/arena-bg-c.webp).
+ *  It is a photo card, so it keeps the dark palette in both themes: the section carries the `dark` class, a warm left to right shade keeps the text readable,
+ *  and the frame is a 1px gold hairline at 40%. Above the fold on the home page, so the image loads with priority. */
 export function ArenaBanner() {
   return (
-    <Banner testid="arena-banner" eyebrow="The arena on Solana"
-      title={<h1 className="mt-2.5 text-xl font-semibold leading-tight md:text-[34px]">Enter the Arena</h1>}>
-      <p className="mt-2 max-w-xl font-serif text-[15px] leading-snug text-ink-2 md:text-[17px]">Launch with a higher bar: tiered curves, dev locks and migrations. <Link href="/leaderboard" className="whitespace-nowrap font-medium text-gold-text underline-offset-4 hover:underline">See the champions</Link></p>
-    </Banner>
+    <section data-testid="arena-banner" className="dark relative isolate overflow-hidden rounded-lg border border-[rgba(255,199,44,.4)] bg-[#100B06] [color-scheme:dark]">
+      <Image src="/brand/arena-bg-c.webp" alt="" aria-hidden fill priority quality={80}
+        sizes="(min-width: 1024px) calc(100vw - 260px), calc(100vw - 32px)"
+        className="-z-10 object-cover object-[72%_50%] md:object-[center_50%]" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(16,11,6,.88)_0%,rgba(16,11,6,.64)_50%,rgba(16,11,6,.3)_100%)] md:bg-[linear-gradient(90deg,rgba(16,11,6,.5)_0%,rgba(16,11,6,.2)_28%,transparent_62%)]" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,8,5,.27),rgba(10,8,5,.07)_14%,transparent_30%,transparent_70%,rgba(10,8,5,.07)_86%,rgba(10,8,5,.27))]" />
+      <div className="relative min-w-0 px-5 py-6 [text-shadow:0_1px_3px_rgba(0,0,0,.55),0_0_14px_rgba(0,0,0,.35)] md:px-8 md:py-6">
+        <div className="hb-eyebrow">The arena on Solana</div>
+        <h1 className="mt-2.5 text-xl font-semibold leading-tight text-ink md:text-[34px]">Enter the Arena</h1>
+        <p className="mt-2 max-w-xl font-serif text-[15px] leading-snug text-[#E8DEC6] md:text-[17px]">Launch with a higher bar: tiered curves, dev locks and migrations. <Link href="/leaderboard" className="whitespace-nowrap font-medium text-gold-text underline-offset-4 hover:underline">See the champions</Link></p>
+      </div>
+    </section>
   );
 }
 
