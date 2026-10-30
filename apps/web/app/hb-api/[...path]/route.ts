@@ -9,7 +9,7 @@ async function proxy(req: Request, ctx: { params: Promise<{ path: string[] }> })
   try {
     const res = await fetch(target, {
       method: req.method,
-      headers: { "content-type": req.headers.get("content-type") ?? "application/json" },
+      headers: { "content-type": req.headers.get("content-type") ?? "application/json", ...(req.headers.get("authorization") ? { authorization: req.headers.get("authorization")! } : {}) },
       body: req.method === "GET" || req.method === "HEAD" ? undefined : await req.text(),
       cache: "no-store",
     });
