@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@hb/api",
   "version": "0.1.0",
   "private": true,
@@ -9,7 +9,12 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:import": "tsx scripts/importJson.ts",
     "typecheck": "tsc --noEmit -p .",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test src/**/*.test.ts",
+    "jobs:fees": "tsx src/jobs/run.ts fees",
+    "jobs:cashback": "tsx src/jobs/run.ts cashback",
+    "jobs:buyback": "tsx src/jobs/run.ts buyback",
+    "jobs:epoch": "tsx src/jobs/run.ts epoch",
+    "bar:mock-mint": "tsx src/jobs/createMockBar.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

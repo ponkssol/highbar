@@ -89,3 +89,17 @@ export const CREATOR_TRADING_FEE_PCT: Record<TierId, number> = { standard: 50, h
 export const MIGRATION_FEE_PCT: Record<TierId, number> = { standard: 1, higher: 1, max: 0 };
 export const CASHBACK_BPS = TRADER_CASHBACK_BPS;
 export const SPLIT_BPS = { buyback: 4000, ops: 5000, treasury: 1000 } as const;
+
+// ---- step 7: fee claimer / cashback / buyback (apps/api jobs) ----
+export type Network = "devnet" | "mainnet";
+/** NETWORK env -> cluster; anything but mainnet/mainnet-beta is devnet. */
+export const networkOf = (v?: string | null): Network => (v === "mainnet" || v === "mainnet-beta" ? "mainnet" : "devnet");
+const cluster = (n: Network) => (n === "devnet" ? "?cluster=devnet" : "");
+export const solscanTx = (sig: string, network: Network = "devnet") => `https://solscan.io/tx/${sig}${cluster(network)}`;
+export const solscanAccount = (addr: string, network: Network = "devnet") => `https://solscan.io/account/${addr}${cluster(network)}`;
+/** Cashback + split + buyback period: one UTC day ('YYYY-MM-DD'). */
+export const REWARD_PERIOD_MS = 86_400_000;
+/** Buyback order caps (env overrides in apps/api: BUYBACK_MAX_ORDER_SOL, BUYBACK_MAX_SLIPPAGE_BPS, BUYBACK_MAX_PRICE_IMPACT_BPS). */
+export const BUYBACK_DEFAULTS = { maxOrderSol: 1, maxSlippageBps: 100, maxPriceImpactBps: 100, maxOrdersPerRun: 5 } as const;
+/** Smallest cashback payout; smaller balances carry over to the next period. */
+export const CASHBACK_MIN_PAYOUT_SOL = 0.001;

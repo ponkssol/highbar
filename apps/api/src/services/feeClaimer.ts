@@ -1,90 +1,106 @@
-import { Connection, Keypair, PublicKey, type Transaction } from "@solana/web3.js";
 import BN from "bn.js";
-import { DynamicBondingCurveClient } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { CpAmm, getTokenProgram } from "@meteora-ag/cp-amm-sdk";
+import { PublicKey, type Keypair, type Transaction } from "@solana/web3.js";
+import { NATIVE_MINT, createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { CpAmm, getTokenProgram, getUnClaimLpFee } from "@meteora-ag/cp-amm-sdk";
+import { getClient, getConnection } from "@hb/onchain";
 import { db } from "../db/pool.js";
-import { env } from "../lib/env.js";
+import { jobs } from "../jobs/config.js";
+import { sendOnce, simulate } from "../jobs/chain.js";
+
+export type FeeSource = "dbc_trading" | "dbc_migration" | "dbc_surplus" | "damm_lp";
+export interface ClaimResult { source: FeeSource; pool: string; mint: string; lamports: bigint; baseAmount: bigint; sig?: string; status: "claimed" | "would-claim" | "skipped"; note?: string }
 
 const U64_MAX = new BN("18446744073709551615");
-type Source = "partner_curve" | "migration" | "damm_lp";
+const big = (b: BN) => BigInt(b.toString());
 
-/** Verified against @meteora-ag/dynamic-bonding-curve-sdk@2.0.0 and @meteora-ag/cp-amm-sdk@1.5.1:
- *  - client.partner.claimPartnerTradingFee({ feeClaimer, payer, pool, maxBaseAmount, maxQuoteAmount, receiver? })
- *  - client.partner.partnerWithdrawMigrationFee({ pool, sender })
- *  - cpAmm.getUserPositionByPool(pool, owner) + cpAmm.claimPositionFee({ owner, position, pool, positionNftAccount,
- *    tokenAMint, tokenBMint, tokenAVault, tokenBVault, tokenAProgram, tokenBProgram, receiver?, feePayer? })
- *  `claimer` = the partner fee-claimer key on our configs (also LP position owner). DRY_RUN only logs. */
+/** Claims platform (partner) fees for every indexed token into the treasury.
+ *  Verified against @meteora-ag/dynamic-bonding-curve-sdk 2.0.0 and @meteora-ag/cp-amm-sdk 1.5.1 typings:
+ *  - DBC curve:  state.getPoolFeeMetrics(pool).current.partnerQuoteFee/partnerBaseFee -> partner.claimPartnerTradingFee({ feeClaimer, payer, pool, maxBaseAmount, maxQuoteAmount, receiver? })
+ *  - migrated:   partner.partnerWithdrawMigrationFee({ pool, sender }), state.getPoolSurplus(pool) -> partner.partnerWithdrawSurplus({ feeClaimer, pool })
+ *  - DAMM v2 LP: cpAmm.getPositionsByUserAndTokenMint(owner, mint) + getUnClaimLpFee(poolState, positionState) -> cpAmm.claimPositionFee({ owner, position, pool, positionNftAccount, tokenA/B Mint/Vault/Program, receiver?, feePayer? })
+ *  `claimer` must be the configs' feeClaimer (and owner of the partner LP position NFTs after migration).
+ *  Every tx is simulated first; dry-run stops there. Live claims are recorded in fee_claims (period NULL until the epoch is split). */
 export class FeeClaimer {
-  private conn = new Connection(env.RPC_URL, "confirmed");
-  private dbc = new DynamicBondingCurveClient(this.conn, "confirmed");
-  private amm = new CpAmm(this.conn);
-  constructor(private claimer: Keypair) {}
-  private get receiver() { return env.TREASURY_PUBKEY ? new PublicKey(env.TREASURY_PUBKEY) : undefined; }
+  private dbc = getClient();
+  private amm = new CpAmm(getConnection());
+  private feeClaimerOf = new Map<string, string | null>();
+  constructor(private claimer: Keypair, private live: boolean) {}
+  private get receiver() { return jobs.treasury && jobs.treasury !== this.claimer.publicKey.toBase58() ? new PublicKey(jobs.treasury) : undefined; }
 
-  async runAll() {
-    const { rows } = await db.query<{ pool: string; status: string; damm_pool: string | null }>("SELECT pool, status, damm_pool FROM tokens");
+  async runAll(log: (m: string) => void = console.log): Promise<ClaimResult[]> {
+    const { rows } = await db.query<{ mint: string; pool: string; config: string; is_migrated: boolean }>("SELECT mint, pool, config, is_migrated FROM tokens ORDER BY created_at");
+    const out: ClaimResult[] = [];
     for (const t of rows) {
-      await this.safe("partner_curve", t.pool, () => this.partnerTradingFee(t.pool));
-      if (t.status !== "curve") await this.safe("migration", t.pool, () => this.migrationFee(t.pool));
-      if (t.damm_pool) await this.safe("damm_lp", t.damm_pool, () => this.dammLpFees(t.damm_pool!));
+      const fc = await this.configFeeClaimer(t.config);
+      if (fc !== this.claimer.publicKey.toBase58()) { log(`[fees] skip ${t.mint}: config ${t.config} feeClaimer is ${fc ?? "unknown"}, not ${this.claimer.publicKey.toBase58()}`); continue; }
+      for (const r of await this.forToken(t.mint, t.pool, t.is_migrated)) { out.push(r); if (r.status !== "skipped" || r.note) log(`[fees] ${r.status} ${r.source} ${r.pool} ${r.lamports} lamports${r.baseAmount ? ` + ${r.baseAmount} base` : ""}${r.sig ? ` ${r.sig}` : ""}${r.note ? ` (${r.note})` : ""}`); }
     }
+    return out;
   }
 
-  partnerTradingFee(pool: string) {
-    return this.dbc.partner.claimPartnerTradingFee({ pool: new PublicKey(pool), feeClaimer: this.claimer.publicKey, payer: this.claimer.publicKey,
-      maxBaseAmount: U64_MAX, maxQuoteAmount: U64_MAX, receiver: this.receiver });
+  private async configFeeClaimer(config: string) {
+    if (!this.feeClaimerOf.has(config)) this.feeClaimerOf.set(config, (await this.dbc.state.getPoolConfig(config).catch(() => null))?.feeClaimer.toBase58() ?? null);
+    return this.feeClaimerOf.get(config) ?? null;
   }
 
-  async migrationFee(pool: string) {
-    // Program errors with MigrationFeeHasBeenWithdraw on repeat; safe() swallows + logs. Config with 0% migration fee (max tier) also no-ops.
-    return this.dbc.partner.partnerWithdrawMigrationFee({ pool: new PublicKey(pool), sender: this.claimer.publicKey });
+  async forToken(mint: string, poolId: string, migrated: boolean): Promise<ClaimResult[]> {
+    const pool = new PublicKey(poolId), me = this.claimer.publicKey, out: ClaimResult[] = [];
+    const base = { pool: poolId, mint };
+    // 1) partner share of curve trading fees
+    const m = await this.dbc.state.getPoolFeeMetrics(pool);
+    const q = big(m.current.partnerQuoteFee), b = big(m.current.partnerBaseFee);
+    if (q > 0n || b > 0n) out.push(await this.exec({ ...base, source: "dbc_trading", lamports: q, baseAmount: b },
+      () => this.dbc.partner.claimPartnerTradingFee({ feeClaimer: me, payer: me, pool, maxBaseAmount: U64_MAX, maxQuoteAmount: U64_MAX, receiver: this.receiver })));
+    if (!migrated) return out;
+    // 2) partner migration fee (program rejects a second withdraw; simulation catches that) + 3) partner surplus
+    out.push(await this.exec({ ...base, source: "dbc_migration", lamports: 0n, baseAmount: 0n, measure: true }, () => this.dbc.partner.partnerWithdrawMigrationFee({ pool, sender: me })));
+    const s = await this.dbc.state.getPoolSurplus(pool).catch(() => null);
+    if (s && !s.partnerWithdrawn && !s.partner.isZero()) out.push(await this.exec({ ...base, source: "dbc_surplus", lamports: big(s.partner), baseAmount: 0n }, () => this.dbc.partner.partnerWithdrawSurplus({ feeClaimer: me, pool })));
+    // 4) DAMM v2 LP fees on the platform's (locked) LP position(s)
+    for (const p of await this.amm.getPositionsByUserAndTokenMint(me, new PublicKey(mint))) {
+      const fee = getUnClaimLpFee(p.poolState, p.positionState);
+      const quoteIsB = p.poolState.tokenBMint.equals(NATIVE_MINT);
+      const lamports = big(quoteIsB ? fee.feeTokenB : fee.feeTokenA), baseAmount = big(quoteIsB ? fee.feeTokenA : fee.feeTokenB);
+      if (lamports === 0n && baseAmount === 0n) continue;
+      const st = p.poolState;
+      out.push(await this.exec({ pool: p.pool.toBase58(), mint, source: "damm_lp", lamports, baseAmount }, () => this.amm.claimPositionFee({
+        owner: me, position: p.position, pool: p.pool, positionNftAccount: p.positionNftAccount,
+        tokenAMint: st.tokenAMint, tokenBMint: st.tokenBMint, tokenAVault: st.tokenAVault, tokenBVault: st.tokenBVault,
+        tokenAProgram: getTokenProgram(st.tokenAFlag), tokenBProgram: getTokenProgram(st.tokenBFlag), receiver: this.receiver, feePayer: me,
+      })));
+    }
+    return out;
   }
 
-  async dammLpFees(dammPool: string): Promise<Transaction[]> {
-    const pool = new PublicKey(dammPool);
-    const st = await this.amm.fetchPoolState(pool);
-    const positions = await this.amm.getUserPositionByPool(pool, this.claimer.publicKey);
-    return Promise.all(positions.map((p) => this.amm.claimPositionFee({
-      owner: this.claimer.publicKey, position: p.position, pool, positionNftAccount: p.positionNftAccount,
-      tokenAMint: st.tokenAMint, tokenBMint: st.tokenBMint, tokenAVault: st.tokenAVault, tokenBVault: st.tokenBVault,
-      tokenAProgram: getTokenProgram(st.tokenAFlag), tokenBProgram: getTokenProgram(st.tokenBFlag),
-      receiver: this.receiver, feePayer: this.claimer.publicKey,
-    })));
-  }
-
-  private async safe(source: Source, pool: string, build: () => Promise<Transaction | Transaction[]>) {
+  private async exec(r: Omit<ClaimResult, "status"> & { measure?: boolean }, build: () => Promise<Transaction>): Promise<ClaimResult> {
+    const { measure, ...res } = r;
     try {
-      const built = await build();
-      for (const tx of Array.isArray(built) ? built : [built]) {
-        if (env.DRY_RUN) { console.log(`[dry-run] ${source}`, pool, tx.instructions.length, "ixs"); continue; }
-        const sig = await this.conn.sendTransaction(tx, [this.claimer]);
-        await this.conn.confirmTransaction(sig, "finalized");
-        const r = await this.received(sig, pool);
-        await db.query(
-          "INSERT INTO fee_claims (sig, source, pool, amount_lamports, base_mint, base_amount, value_lamports) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
-          [sig, source, pool, r.lamports, r.baseMint, r.baseAmount.toString(), r.valueLamports]);
-      }
-    } catch (e) { console.warn(`[fee-claim] ${source} ${pool} skipped:`, (e as Error).message); }
+      const tx = await build();
+      // With a SOL quote the SDK unwraps by closing the claimer's WSOL ATA. On devnet the claimer is also the referral wallet,
+      // whose WSOL ATA is PLATFORM_REFERRAL_TOKEN_ACCOUNT, so re-create it in the same tx (rent comes back from the close).
+      const wsol = getAssociatedTokenAddressSync(NATIVE_MINT, this.claimer.publicKey);
+      if (await getConnection().getAccountInfo(wsol)) tx.add(createAssociatedTokenAccountIdempotentInstruction(this.claimer.publicKey, wsol, this.claimer.publicKey, NATIVE_MINT));
+      const sim = await simulate(tx, this.claimer.publicKey);
+      if (!sim.ok) return { ...res, status: "skipped", note: measure ? undefined : `simulation failed: ${sim.err}` }; // migration fee: nothing to withdraw is the normal case
+      if (!this.live) return { ...res, status: "would-claim", note: measure ? "amount known after claim" : undefined };
+      const sig = await sendOnce(tx, [this.claimer]);
+      const lamports = measure ? await this.received(sig) : res.lamports;
+      await db.query("INSERT INTO fee_claims (sig, source, pool, mint, lamports, base_amount, claimed_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
+        [sig, res.source, res.pool, res.mint, lamports.toString(), res.baseAmount.toString(), Date.now()]);
+      return { ...res, lamports, sig, status: "claimed" };
+    } catch (e) { return { ...res, status: "skipped", note: (e as Error).message }; }
   }
 
-  /** Quote (WSOL) + base-token amounts received by the receiver, from pre/post token balances.
-   *  Base tokens are valued at the token's last indexed price (SOL per whole token). */
-  private async received(sig: string, poolOrDamm: string) {
-    const tx = await this.conn.getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "finalized" });
+  /** SOL (native + WSOL) received by the fee receiver in a claim tx; tx fee added back when the receiver also paid it. */
+  private async received(sig: string): Promise<bigint> {
+    const tx = await getConnection().getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" });
+    if (!tx?.meta) return 0n;
     const owner = (this.receiver ?? this.claimer.publicKey).toBase58();
-    const { rows: [t] } = await db.query(
-      `SELECT t.mint, c.token_decimal, s.price_sol FROM tokens t JOIN configs c ON c.pubkey=t.config LEFT JOIN token_stats s ON s.mint=t.mint
-       WHERE t.pool=$1 OR t.damm_pool=$1`, [poolOrDamm]);
-    return valueBalanceDelta(tx?.meta?.preTokenBalances ?? [], tx?.meta?.postTokenBalances ?? [], owner, t?.mint, t?.token_decimal ?? 6, Number(t?.price_sol ?? 0));
+    const keys = tx.transaction.message.getAccountKeys({ accountKeysFromLookups: tx.meta.loadedAddresses }).staticAccountKeys.map((k) => k.toBase58());
+    const i = keys.indexOf(owner);
+    const native = i < 0 ? 0n : BigInt(tx.meta.postBalances[i] - tx.meta.preBalances[i]) + (i === 0 ? BigInt(tx.meta.fee) : 0n);
+    const wsol = (l: typeof tx.meta.preTokenBalances) => (l ?? []).filter((x) => x.mint === NATIVE_MINT.toBase58() && x.owner === owner).reduce((a, x) => a + BigInt(x.uiTokenAmount.amount), 0n);
+    const d = native + wsol(tx.meta.postTokenBalances) - wsol(tx.meta.preTokenBalances);
+    return d > 0n ? d : 0n;
   }
-}
-
-type Bal = { mint: string; owner?: string; uiTokenAmount: { amount: string } };
-const WSOL = "So11111111111111111111111111111111111111112";
-export function valueBalanceDelta(pre: Bal[], post: Bal[], owner: string, baseMint: string | undefined, decimals: number, priceSol: number) {
-  const sum = (l: Bal[], m?: string) => l.filter((b) => b.mint === m && b.owner === owner).reduce((s, b) => s + BigInt(b.uiTokenAmount.amount), 0n);
-  const lamports = sum(post, WSOL) - sum(pre, WSOL);
-  const baseAmount = baseMint ? sum(post, baseMint) - sum(pre, baseMint) : 0n;
-  const baseValue = BigInt(Math.floor((Number(baseAmount) / 10 ** decimals) * priceSol * 1e9));
-  return { lamports, baseMint: baseMint ?? null, baseAmount, valueLamports: lamports + baseValue };
 }
