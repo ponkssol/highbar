@@ -1,4 +1,4 @@
-import { ANTI_SNIPER, CURVE_FEE_BPS, LP_REBATE_BPS, METEORA_PROTOCOL_SHARE, PLATFORM_SPLIT, REFERRAL_SHARE_OF_PROTOCOL, TIERS, TRADER_CASHBACK_BPS, curveFeeSplit, lpFeeSplit, postMigrationSplit, type TierId } from "@hb/shared";
+import { ANTI_SNIPER_SCHEDULE, CURVE_FEE_BPS, LP_REBATE_BPS, METEORA_PROTOCOL_SHARE, PLATFORM_SPLIT, REFERRAL_SHARE_OF_PROTOCOL, TIERS, TRADER_CASHBACK_BPS, curveFeeSplit, lpFeeSplit, postMigrationSplit, scheduledFeeBps, type TierId } from "@hb/shared";
 
 /** Fee split in percent of volume, using shared tier config. */
 export function feeSplitPct(tier: TierId) {
@@ -21,12 +21,8 @@ export function postMigrationPct(tier: TierId) {
   return { total: r(s.total), protocol: r(s.protocol), creatorLp: r(s.creatorLp), rebate: r(s.rebate), creator: r(s.creator), platform: r(s.platform), rebatePct: LP_REBATE_BPS[tier] / 100 };
 }
 
-/** Current anti-sniper fee in bps (linear decay). */
-export function antiSniperFeeBps(elapsedSec: number) {
-  const { startFeeBps, endFeeBps, decaySeconds } = ANTI_SNIPER;
-  if (elapsedSec >= decaySeconds) return endFeeBps;
-  return Math.round(startFeeBps - ((startFeeBps - endFeeBps) * elapsedSec) / decaySeconds);
-}
+/** Anti-sniper fee in bps `elapsedSec` after pool activation, following the deployed DBC fee scheduler (exponential, 60 x 1 s). */
+export const antiSniperFeeBps = (elapsedSec: number) => scheduledFeeBps(ANTI_SNIPER_SCHEDULE, elapsedSec);
 
 /** Migration fee of a tier (% of migrated quote) and the creator's share of it (%). */
 export const migrationFeePct = (tier: TierId) => ({ fee: TIERS[tier].migrationFeePercentage, creatorShare: TIERS[tier].creatorMigrationFeePercentage });
@@ -37,4 +33,4 @@ export const REFERRAL_OF_PROTOCOL_PCT = REFERRAL_SHARE_OF_PROTOCOL * 100;
 /** Referral fee in % of curve volume (1% fee x 20% protocol x 20% referral = 0.04%). */
 export const REFERRAL_VOLUME_PCT = Math.round(CURVE_FEE_BPS * METEORA_PROTOCOL_SHARE * REFERRAL_SHARE_OF_PROTOCOL) / 100;
 
-export { ANTI_SNIPER, CURVE_FEE_BPS, PLATFORM_SPLIT, TIERS, migrationMcapSol, thresholdSolFor } from "@hb/shared";
+export { ANTI_SNIPER, ANTI_SNIPER_SCHEDULE, CURVE_FEE_BPS, PLATFORM_SPLIT, TIERS, migrationMcapSol, thresholdSolFor } from "@hb/shared";

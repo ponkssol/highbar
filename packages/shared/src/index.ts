@@ -26,8 +26,10 @@ export const DAMM_V2_POOL_FEE_BPS = 100; // 1%
 export const DAMM_V2_PROTOCOL_SHARE = 0.2;
 export const TRADER_CASHBACK_BPS = 5; // 0.05%, paid off-chain by platform
 
+/** Inputs createConfigs.ts hands to the DBC SDK for the "*_on" configs (2500 bps -> CURVE_FEE_BPS over 60 s, 60 periods, exponential).
+ *  The deployed on-chain result is ANTI_SNIPER_SCHEDULE (./antiSniper.ts); the UI derives the live fee from that, not from a straight line. */
 export const ANTI_SNIPER = {
-  /** Example only: starting fee that decays to CURVE_FEE_BPS */
+  /** Starting fee (cliff), decays exponentially to CURVE_FEE_BPS */
   startFeeBps: 2500,
   endFeeBps: CURVE_FEE_BPS,
   decaySeconds: 60,
@@ -219,3 +221,4 @@ export const barTierOf = (balanceBar: number): BarTier => [...BAR_TIERS].reverse
 export const MAX_TIER_MIN_BAR = BAR_TIERS.find((t) => t.maxTierAccess)?.minBar ?? 0;
 export * from "./referralMilestone.js";
 export * from "./leaderboard.js";
+export * from "./antiSniper.js";

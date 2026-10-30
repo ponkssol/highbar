@@ -4,11 +4,12 @@ import { useHbWallet } from "@/lib/wallet";
 import { useAuth } from "@/lib/auth";
 import { ShieldCheck } from "lucide-react";
 import type { TierId } from "@hb/shared";
-import { ANTI_SNIPER, antiSniperFeeBps, feeSplitPct } from "@/lib/fees";
+import { feeSplitPct } from "@/lib/fees";
+import { useAntiSniper } from "@/lib/antiSniper";
 import { buildSwapTx } from "@/lib/tx";
 import { PublicKey } from "@solana/web3.js";
 
-export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSide = "buy", bare = false }: { mint: string; ticker: string; tier: TierId; antiSniper: boolean; priceSol: number; initialSide?: "buy" | "sell"; bare?: boolean }) {
+export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSide = "buy", bare = false, pool, createdAt, isMigrated = false }: { mint: string; ticker: string; tier: TierId; antiSniper: boolean; priceSol: number; initialSide?: "buy" | "sell"; bare?: boolean; pool?: string | null; /** API launch time (ms), fallback when the pool's on-chain activation point can't be read */ createdAt?: number | null; isMigrated?: boolean }) {
   const { publicKey, sendTransaction, connection } = useHbWallet();
   const auth = useAuth();
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
@@ -28,15 +29,11 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
     const id = setInterval(load, 20_000);
     return () => { alive = false; clearInterval(id); };
   }, [publicKey, connection, mint]);
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    if (!antiSniper) return;
-    const id = setInterval(() => setElapsed((e) => Math.min(ANTI_SNIPER.decaySeconds, e + 1)), 1000);
-    return () => clearInterval(id);
-  }, [antiSniper]);
+  // Anti-sniper decay timed from the pool's real activation point (on-chain; API createdAt fallback), not from page load.
+  const sniper = useAntiSniper({ enabled: antiSniper && !isMigrated, pool, createdAtMs: createdAt, connection });
   useEffect(() => { setSide(initialSide); }, [initialSide]);
-  const sniperActive = antiSniper && elapsed < ANTI_SNIPER.decaySeconds;
-  const feeBps = sniperActive ? antiSniperFeeBps(elapsed) : feeSplitPct(tier).total * 100;
+  const sniperActive = sniper.active;
+  const feeBps = sniperActive ? sniper.feeBps : feeSplitPct(tier).total * 100;
   const amt = Number(amount) || 0;
   const solIn = side === "buy" ? amt : amt * priceSol;
   const fee = (solIn * feeBps) / 10_000;
@@ -68,11 +65,11 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
       </div>
       {sniperActive && (
         <div className="rounded-md border border-border bg-muted p-3 text-sm">
-          <div className="flex items-center justify-between font-medium"><span className="flex items-center gap-2"><ShieldCheck size={16} strokeWidth={1.5} />Current fee <span className="num">{(feeBps / 100).toFixed(2)}%</span></span><span className="num text-xs text-ink-3">{ANTI_SNIPER.decaySeconds - elapsed}s</span></div>
+          <div className="flex items-center justify-between font-medium"><span className="flex items-center gap-2"><ShieldCheck size={16} strokeWidth={1.5} />Current fee <span className="num">{(feeBps / 100).toFixed(2)}%</span></span><span className="num text-xs text-ink-3">{sniper.remaining}s</span></div>
           <div className="mt-2 h-2 overflow-hidden rounded-full border border-ink">
-            <div className="h-full bg-hatch transition-[width] duration-1000 ease-linear" style={{ width: `${(1 - elapsed / ANTI_SNIPER.decaySeconds) * 100}%` }} />
+            <div className="h-full bg-hatch transition-[width] duration-1000 ease-linear" style={{ width: `${(1 - sniper.elapsed / sniper.duration) * 100}%` }} />
           </div>
-          <div className="num mt-1 flex justify-between text-[11px] text-ink-3"><span>{ANTI_SNIPER.startFeeBps / 100}%</span><span>{ANTI_SNIPER.endFeeBps / 100}%</span></div>
+          <div className="num mt-1 flex justify-between text-[11px] text-ink-3"><span>{(sniper.startFeeBps / 100).toFixed(0)}%</span><span>{(sniper.endFeeBps / 100).toFixed(0)}%</span></div>
         </div>
       )}
       <label className="flex h-12 items-center rounded-md border border-border px-3 focus-within:border-ink">
