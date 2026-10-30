@@ -1,14 +1,12 @@
 import type { FastifyInstance } from "fastify";
-import { BPS, CASHBACK_BPS } from "@hb/shared";
 import { store, type TradeRow } from "../store.js";
-import { splitEpoch } from "../services/split.js";
 
 const SOL_USD = Number(process.env.SOL_USD ?? 150);
 const DAY = 86400_000;
 const since = (w?: string) => (w === "24h" ? Date.now() - DAY : w === "7d" ? Date.now() - 7 * DAY : 0);
 const inWin = (w?: string) => { const s = since(w); return (t: TradeRow) => t.ts >= s; };
 
-/** Leaderboard, wallet and burn endpoints computed from the indexed store. */
+/** Leaderboard and wallet endpoints computed from the indexed store (cashback / burn: routes/rewards.ts). */
 export function registerPages(app: FastifyInstance) {
   app.get("/leaderboard/:kind", async (req, reply) => {
     const { kind } = req.params as { kind: string };
@@ -58,39 +56,5 @@ export function registerPages(app: FastifyInstance) {
     const { address } = req.params as { address: string };
     return (await store.tokensByCreator(address))
       .map((t) => ({ ...t, mcapUsd: t.mcapSol * SOL_USD }));
-  });
-
-  app.get("/cashback/:wallet", async (req, reply) => {
-    const { wallet } = req.params as { wallet: string };
-    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(wallet)) return reply.code(400).send({ error: "bad wallet" });
-    const mine = (await store.allTrades()).filter((t) => t.wallet === wallet);
-    const via = mine.filter((t) => t.viaUi);
-    const names = new Map((await store.tokens()).map((t) => [t.mint, t]));
-    const lamports = via.reduce((a, t) => a + BigInt(Math.round(t.sol * 1e9)), 0n);
-    const accrued = (lamports * BigInt(CASHBACK_BPS)) / BigInt(BPS);
-    const sol = (n: bigint) => Number(n) / 1e9;
-    return {
-      wallet, bps: CASHBACK_BPS, volumeSol: sol(lamports), accruedSol: sol(accrued), paidSol: 0,
-      trades: via.length, otherTrades: mine.length - via.length, live: false,
-      rows: via.sort((a, b) => b.ts - a.ts).slice(0, 20).map((t) => ({
-        sig: t.sig, mint: t.mint, name: names.get(t.mint)?.name ?? "", symbol: names.get(t.mint)?.symbol ?? "",
-        side: t.side, sol: t.sol, ts: t.ts,
-        cashbackSol: sol((BigInt(Math.round(t.sol * 1e9)) * BigInt(CASHBACK_BPS)) / BigInt(BPS)),
-      })),
-    };
-  });
-
-  app.get("/burn", async () => {
-    const toks = await store.tokens();
-    const fees = toks.reduce((a, t) => a + t.feesSol, 0), creator = toks.reduce((a, t) => a + t.creatorFeesSol, 0);
-    const platform = BigInt(Math.floor(Math.max(0, fees * 0.8 - creator) * 1e9));
-    const s = splitEpoch(platform, 0n);
-    return {
-      barMint: process.env.BAR_MINT ?? null, barLaunched: !!process.env.BAR_MINT, dryRun: process.env.DRY_RUN !== "false",
-      barBurned: 0, platformFeesSol: Number(platform) / 1e9,
-      split: { buyback: Number(s.buyback) / 1e9, ops: Number(s.ops) / 1e9, treasury: Number(s.treasury) / 1e9 },
-      pendingBuybackSol: Number(s.buyback) / 1e9, maxOrderSol: 1, maxSlippageBps: 100,
-      runs: await store.burns(), // buyback runs (empty until buyback is live)
-    };
   });
 }

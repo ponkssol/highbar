@@ -10,6 +10,8 @@ import { store, type Token } from "./store.js";
 import { indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
 import { registerPages } from "./routes/pages.js";
+import { registerRewards } from "./routes/rewards.js";
+import { rewardsStore } from "./services/rewardsStore.js";
 import { initAuth, registerAuth } from "./auth.js";
 import { migrate } from "./db/migrate.js";
 import { requireDb } from "./db/pool.js";
@@ -42,6 +44,7 @@ async function recordLocks(infos: LockInfo[]) {
 
 registerAuth(app);
 registerPages(app);
+registerRewards(app);
 registerClaim(app);
 registerCandles(app);
 registerMedia(app);
@@ -95,7 +98,7 @@ app.get("/stats", async () => {
     creatorFeesSol: creatorFees, creatorDelta: 0,
     platformFeesSol: Number(platformLamports) / 1e9,
     platformSplitSol: { buyback: Number(split.buyback) / 1e9, ops: Number(split.ops) / 1e9, treasury: Number(split.treasury) / 1e9 },
-    barBurned: 0, burnDelta: 0, // $BAR not live yet
+    barBurned: (await rewardsStore.buybackTotals(process.env.BAR_MINT || null)).barBurned, burnDelta: 0,
     activeTraders24h: new Set(trades.filter((t) => t.ts >= now - day).map((t) => t.wallet)).size,
     updatedAt: now,
   };
@@ -272,7 +275,7 @@ app.post("/tx/lock/claim", async (req, reply) => {
 
 app.post("/reindex", async () => { await indexOnce((m) => app.log.info(m)); return { ok: true, tokens: await store.tokenCount() }; });
 
-// Fee claimer / cashback / buyback (from hb-backend backup) use legacy tables (db/legacy) and are not started here.
+// Fee claimer / cashback / buyback & burn run as separate jobs (src/jobs/run.ts: pnpm --filter @hb/api jobs:epoch -- --loop 3600), not in the API process.
 
 await app.listen({ port: Number(process.env.PORT ?? 4000), host: "0.0.0.0" });
 if (process.env.NO_INDEXER !== "1") startIndexer((m) => app.log.info(m));
