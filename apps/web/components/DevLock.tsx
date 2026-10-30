@@ -166,9 +166,9 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
               <div className="flex justify-between"><span className="text-ink-3">Unlocks</span><span className="num">{fmtDate(l.cliffTime)}</span></div>
               {l.numberOfPeriod > 0 && <div className="flex justify-between"><span className="text-ink-3">Vesting</span><span className="num">{l.numberOfPeriod} x {Math.round(l.frequency / 3600) >= 24 ? `${Math.round(l.frequency / 86400)}d` : `${Math.round(l.frequency / 60)}m`}, ends {fmtDay(l.endTime)}</span></div>}
               {isCreator && <div className="flex justify-between"><span className="text-ink-3">Claimable now</span><span className="num">{fmtTok(toUi(l.claimable))} ${ticker}</span></div>}
-              <div className="flex justify-between"><span className="text-ink-3">Claimed / unlocked</span><span className="num">{fmtTok(toUi(l.claimed))} / {fmtTok(toUi(l.unlocked))}</span></div>
+              <div className="flex justify-between"><span className="text-ink-3">Claimed of unlocked</span><span className="num">{fmtTok(toUi(l.claimed))} of {fmtTok(toUi(l.unlocked))}</span></div>
               <div className="flex justify-between"><span className="text-ink-3">Cancel or change recipient</span><span>None (permanent)</span></div>
-              <div className="flex justify-between"><a href={`https://solscan.io/account/${l.escrow}${NETWORK === "mainnet" ? "" : "?cluster=devnet"}`} target="_blank" rel="noreferrer" className="num text-xs text-ink-3 hover:text-ink">Escrow {l.escrow.slice(0, 6)}...</a><Link href={`/locks/${l.escrow}`} className="text-xs font-medium hover:underline">Share lock</Link></div>
+              <div className="flex justify-between"><a href={`https://solscan.io/account/${l.escrow}${NETWORK === "mainnet" ? "" : "?cluster=devnet"}`} target="_blank" rel="noreferrer" className="num text-xs text-ink-3 hover:text-ink">Escrow {l.escrow.slice(0, 6)}…</a><Link href={`/locks/${l.escrow}`} className="text-xs font-medium hover:underline">Share lock</Link></div>
             </li>
           ))}
         </ul>
@@ -229,7 +229,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
           </label>
           <div className="flex gap-2">
             <button type="button" onClick={() => (mode === "form" ? onDone?.() : setOpen(false))} className="h-10 flex-1 rounded border border-border text-sm hover:bg-muted">Cancel</button>
-            <button type="button" onClick={lock} disabled={busy || !!err} title={err || undefined} data-testid="lock-submit" className="h-10 flex-1 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Locking..." : "Lock tokens"}</button>
+            <button type="button" onClick={lock} disabled={busy || !!err} title={err || undefined} data-testid="lock-submit" className="h-10 flex-1 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Locking…" : "Lock tokens"}</button>
           </div>
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-ink-3" data-testid="lock-tip">Protocol tip: {data?.tipSol ?? 0.005} SOL</p>

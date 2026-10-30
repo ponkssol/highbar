@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ImageResponse } from "next/og";
@@ -6,7 +7,7 @@ import { fmtPrice } from "@/lib/format";
 import type { ReactNode } from "react";
 
 export const size = { width: 1200, height: 630 };
-export const contentType = "image/png";
+export const contentType = "image/jpeg";
 export const alt = "Dev token lock on highbar";
 
 /** Parchment "Token Lock" card. Layout mirrors the approved 1200x630 design: all ink is navy (bronze for the symbol) at about 90% so the paper shows through. */
@@ -44,6 +45,29 @@ const loadAssets = () =>
       fonts: [{ name: "Cinzel", data: medium, weight: 500, style: "normal" }, { name: "Cinzel", data: semibold, weight: 600, style: "normal" }, { name: "Big Shoulders", data: wordmark, weight: 900, style: "normal" }],
     };
   })().catch((e) => { assets = null; throw e; }));
+
+/** The parchment photo makes a 1200x630 PNG about 1.4 MB, too heavy for X, Telegram and Discord previews. Re-encode it as a JPEG
+ *  (about 150 KB) with sharp, which Next already installs for image optimisation (resolved through next's own dependencies, so no new
+ *  package). If sharp cannot load, the PNG is served as before. */
+type Sharp = (input: Buffer) => { jpeg: (o: { quality: number; mozjpeg: boolean; chromaSubsampling: string }) => { toBuffer: () => Promise<Buffer> } };
+let sharpMod: Promise<Sharp | null> | null = null;
+const loadSharp = () => (sharpMod ??= (async () => {
+  // process.getBuiltinModule (Node 22.3+) keeps webpack from trying to bundle a static `node:module` createRequire call. The realpath
+  // matters under pnpm: sharp sits beside next in .pnpm, not under apps/web/node_modules.
+  const proc = process as unknown as { getBuiltinModule?: (id: string) => typeof import("node:module") | undefined };
+  try { return (proc.getBuiltinModule?.("node:module")?.createRequire(realpathSync(path.join(process.cwd(), "node_modules", "next", "package.json")))("sharp") as Sharp) ?? null; } catch { return null; }
+})());
+async function asJpeg(img: ImageResponse): Promise<Response> {
+  const png = Buffer.from(await img.arrayBuffer());
+  const sharp = await loadSharp();
+  if (!sharp) return new Response(png, { headers: { "content-type": "image/png", "cache-control": "public, max-age=60" } });
+  try {
+    const jpg = await sharp(png).jpeg({ quality: 80, mozjpeg: true, chromaSubsampling: "4:4:4" }).toBuffer();
+    return new Response(new Uint8Array(jpg), { headers: { "content-type": "image/jpeg", "cache-control": "public, max-age=60" } });
+  } catch {
+    return new Response(png, { headers: { "content-type": "image/png", "cache-control": "public, max-age=60" } });
+  }
+}
 
 /** Days between lock and unlock ("365 days"), hours when shorter than a day. */
 function fmtDuration(from: number, to: number) {
@@ -105,7 +129,7 @@ export default async function OgImage({ params }: { params: Promise<{ id: string
   const w1 = textWidth("SECURED BY", 12, 3), w2 = textWidth("JUPITER LOCK", 16, 3), mw = 24, g1 = 14, g2 = 8;
   const fx = CX - (w1 + g1 + mw + g2 + w2) / 2, fy = 520;
 
-  return new ImageResponse(
+  return asJpeg(new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", background: "#EFE2C6", fontFamily: a ? "Cinzel" : "serif" }}>
         {a && <img src={a.bg} width={1200} height={630} style={{ position: "absolute", left: 0, top: 0 }} />}
@@ -145,5 +169,5 @@ export default async function OgImage({ params }: { params: Promise<{ id: string
       </div>
     ),
     { ...size, fonts: a?.fonts },
-  );
+  ));
 }

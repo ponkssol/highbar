@@ -3,8 +3,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { TopBar } from "@/components/TopBar";
 import { HairlineDivider } from "@/components/arena";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Terms and Conditions" };
+export const metadata: Metadata = pageMeta({
+  title: "Terms and Conditions",
+  description: "Terms for using highbar, a non-custodial Solana token launchpad built on Meteora: Dev Lock, fees, on-chain risk and no financial advice.",
+  path: "/terms",
+  keywords: ["highbar terms"],
+});
 
 const UPDATED = "Oct 30, 2026";
 

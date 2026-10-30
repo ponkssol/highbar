@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { DocsHero } from "@/components/docs/Docs";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "API docs | highbar",
-  description: "Public API docs for highbar are coming soon.",
-  alternates: { canonical: "/docs/api" },
-};
+export const metadata: Metadata = pageMeta({
+  title: "API docs",
+  description: "Public API docs for highbar, the Solana token launchpad built on Meteora, are coming soon. Until then, see the docs for how launches work.",
+  path: "/docs/api",
+  keywords: ["highbar API", "Solana launchpad API"],
+});
 
 /** Placeholder until the public API docs are ready. The sidebar API link and links.ts keep pointing here. */
 export default function ApiDocsPage() {

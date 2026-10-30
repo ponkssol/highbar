@@ -5,6 +5,7 @@ import { Lock } from "lucide-react";
 import { TopBlock } from "@/components/TopBar";
 import { Pagination } from "@/components/Pagination";
 import { fetchLockList, fmtLockDate, type LockView } from "@/lib/lockData";
+import { fmtPct } from "@/components/LockDonut";
 import { shortAddr } from "@/lib/format";
 import { TokenLogo } from "@/components/TokenLogo";
 
@@ -37,7 +38,7 @@ export default function LocksPage() {
                 <div className="flex items-center gap-3">
                   <TokenLogo src={l.token?.image} name={l.token?.symbol || "?"} size={32} />
                   <span className="min-w-0 flex-1"><span className="block truncate font-medium">{l.token?.name || shortAddr(l.mint)}</span><span className="num text-xs text-ink-3">${l.token?.symbol || "?"}</span></span>
-                  <span className="num text-right text-sm">{fmtTok(l.totalTokens)}<span className="block text-xs text-ink-3">{l.supplyPct.toFixed(2)}% of supply</span></span>
+                  <span className="num text-right text-sm">{fmtTok(l.totalTokens)}<span className="block text-xs text-ink-3">{fmtPct(l.supplyPct)} of supply</span></span>
                 </div>
                 <div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 rounded-full bg-border"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${Math.min(100, l.unlockedPct)}%` }} /></div><span className="num text-xs">{l.unlockedPct.toFixed(0)}%</span></div>
                 <div className="num mt-2 flex justify-between text-xs text-ink-3"><span>{STATUS[l.status]}</span><span>Unlocks {fmtLockDate(l.cliffTime)}</span><span>{shortAddr(l.creator)}</span></div>
@@ -45,7 +46,7 @@ export default function LocksPage() {
             </li>
           ))}
           {data && data.items.length === 0 && <li className="py-10 text-center text-ink-3">No locks yet.</li>}
-          {!data && <li className="py-10 text-center text-ink-3">{err ? "Could not load locks." : "Loading..."}</li>}
+          {!data && <li className="py-10 text-center text-ink-3">{err ? "Could not load locks." : "Loading…"}</li>}
         </ul>
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[960px] text-sm">
@@ -59,7 +60,7 @@ export default function LocksPage() {
                 <tr key={l.id} className="border-b border-border last:border-0 transition-colors hover:bg-muted">
                   <td className="px-4 py-3"><Link href={`/token/${l.mint}`} className="flex items-center gap-3"><TokenLogo src={l.token?.image} name={l.token?.symbol || "?"} size={32} /><span className="min-w-0"><span className="block font-medium">{l.token?.name || shortAddr(l.mint)}</span><span className="num text-xs text-ink-3">${l.token?.symbol || "?"}</span></span></Link></td>
                   <td className="num px-4 py-3 text-right">{fmtTok(l.totalTokens)}</td>
-                  <td className="num px-4 py-3 text-right">{l.supplyPct.toFixed(2)}%</td>
+                  <td className="num px-4 py-3 text-right">{fmtPct(l.supplyPct)}</td>
                   <td className="num px-4 py-3 text-ink-2">{l.lockedAt ? fmtLockDate(l.lockedAt) : "-"}</td>
                   <td className="num px-4 py-3">{fmtLockDate(l.cliffTime)}</td>
                   <td className="w-56 px-4 py-3">
@@ -71,7 +72,7 @@ export default function LocksPage() {
                 </tr>
               ))}
               {data && data.items.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-ink-3">No locks yet.</td></tr>}
-              {!data && <tr><td colSpan={8} className="px-4 py-10 text-center text-ink-3">{err ? "Could not load locks." : "Loading..."}</td></tr>}
+              {!data && <tr><td colSpan={8} className="px-4 py-10 text-center text-ink-3">{err ? "Could not load locks." : "Loading…"}</td></tr>}
             </tbody>
           </table>
         </div>

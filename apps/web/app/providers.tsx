@@ -36,6 +36,12 @@ const themeVars = () => ({
   "--w3m-font-family": "var(--font-inter), Inter, system-ui, sans-serif",
 });
 
+/** Reown explorer wallet ids (checked against api.web3modal.org getWallets): Phantom, Solflare. Shown first in the connect modal. */
+const FEATURED_WALLETS = [
+  "a797aa35c0fadbfc1a53e7f675162ed5226968b44a19ee3d24385c64d1d3c393", // Phantom
+  "1ca0bdd4747578705b1939af023d120677c64fe6ca76add81fda36e350605e79", // Solflare
+];
+
 function initAppKit(projectId: string) {
   if (modal || typeof window === "undefined") return;
   modal = createAppKit({
@@ -47,7 +53,9 @@ function initAppKit(projectId: string) {
     metadata: { name: "highbar", description: "Launch tokens on Solana with highbar", url: window.location.origin, icons: [] },
     themeMode: isDark() ? "dark" : "light",
     themeVariables: themeVars(),
-    features: { analytics: false, email: false, socials: false },
+    // Installed wallets, then Phantom and Solflare, ahead of the WalletConnect QR entry (Reown puts walletConnect first by default).
+    features: { analytics: false, email: false, socials: false, connectorTypeOrder: ["injected", "featured", "recent", "walletConnect", "custom", "external", "recommended"] },
+    featuredWalletIds: FEATURED_WALLETS,
   });
 }
 

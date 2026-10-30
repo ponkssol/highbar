@@ -10,8 +10,10 @@ type Slice = { key: string; label: string; amount: number; color: string };
 const raw = (s: unknown) => (typeof s === "string" && s.trim() !== "" && Number.isFinite(Number(s)) ? Number(s) / DECIMALS : null);
 const ui = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? n : null);
 
-/** Percent with a leading zero and no trailing zeros: 0.5%, 0.04%, 1.25%, 12.3%, under 0.01% shows as <0.01%. */
-export const fmtPct = (v: number) => (v <= 0 ? "0%" : v < 0.01 ? "<0.01%" : `${Number(v.toFixed(v < 10 ? 2 : 1))}%`);
+/** Percent with two decimals: 0.50%, 12.30%, 99.00%. Under 0.01% shows as <0.01%; a share that is not the whole never rounds up to 100%. */
+export const fmtPct = (v: number) => (v <= 0 ? "0.00%" : v < 0.01 ? "<0.01%" : v < 100 && v >= 99.995 ? "99.99%" : `${Math.min(100, v).toFixed(2)}%`);
+/** Share of the fixed supply for an amount. */
+const share = (amount: number) => fmtPct(amount >= TOTAL_SUPPLY ? 100 : (amount / TOTAL_SUPPLY) * 100);
 
 export function lockSlices(l: Partial<LockView>) {
   const total = raw(l.total) ?? ui(l.totalTokens);
@@ -57,8 +59,7 @@ export function LockDonut({ lock, symbol, fmt }: { lock: Partial<LockView>; symb
     offset += len;
     return a;
   });
-  const lockedPct = (slices[0].amount / TOTAL_SUPPLY) * 100;
-  const summary = slices.map((s) => `${s.label} ${fmt(s.amount)} (${fmtPct((s.amount / TOTAL_SUPPLY) * 100)})`).join(", ");
+  const summary = slices.map((s) => `${s.label} ${fmt(s.amount)} (${share(s.amount)})`).join(", ");
   return (
     <section aria-labelledby="lock-pie-title" className="rounded-lg border border-border p-4 md:p-5">
       <h3 id="lock-pie-title" className="text-[13px] font-medium text-ink-2">Tokenomics <span className="text-ink-3">of {fmt(TOTAL_SUPPLY)} ${symbol} supply</span></h3>
@@ -73,7 +74,7 @@ export function LockDonut({ lock, symbol, fmt }: { lock: Partial<LockView>; symb
             </g>
           </svg>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center" aria-hidden="true">
-            <span className="num text-xl font-semibold tracking-tight">{fmtPct(lockedPct)}</span>
+            <span className="num text-xl font-semibold tracking-tight">{share(slices[0].amount)}</span>
             <span className="text-[11px] text-ink-3">still locked</span>
           </div>
         </div>
@@ -81,7 +82,7 @@ export function LockDonut({ lock, symbol, fmt }: { lock: Partial<LockView>; symb
           {slices.map((s) => (
             <li key={s.key} className="flex min-w-0 items-center justify-between gap-3 border-b border-border pb-2 last:border-0 last:pb-0">
               <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} /><span className="text-ink-2">{s.label}</span></span>
-              <span className="num shrink-0 text-right">{fmt(s.amount)} <span className="text-ink-3">{fmtPct((s.amount / TOTAL_SUPPLY) * 100)}</span></span>
+              <span className="num shrink-0 text-right">{fmt(s.amount)} <span className="text-ink-3">{share(s.amount)}</span></span>
             </li>
           ))}
           {partial && <li className="text-xs text-ink-3">Unlock and claim details are not available for this lock yet.</li>}

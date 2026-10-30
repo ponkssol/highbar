@@ -7,12 +7,16 @@ import {
   postMigrationSplit, scheduleDurationSeconds, scheduleEndFeeBps, scheduledFeeBps, type TierId,
 } from "@hb/shared";
 import { Bullets, Code, CodeBlock, DocLink, DocSection, DocTable, DocsHero, DocsPage, Note, Steps, SubHead } from "@/components/docs/Docs";
+import { JsonLd } from "@/components/JsonLd";
+import { FAQ_TEXT } from "@/lib/docsFaq";
+import { absUrl, breadcrumbJsonLd, pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Docs | highbar",
-  description: "How highbar works: launch tiers and fees, the bonding curve and DAMM v2 migration, anti-sniper fee, Dev Lock, creator fees, cashback, buyback and burn, and referrals.",
-  alternates: { canonical: "/docs" },
-};
+export const metadata: Metadata = pageMeta({
+  title: "Docs: how the Meteora launchpad works",
+  description: "How highbar works: tiers, the Meteora DBC bonding curve and DAMM v2 migration, anti-sniper fee, Dev Lock, creator fees, cashback and buyback.",
+  path: "/docs",
+  keywords: ["highbar docs", "Meteora DBC bonding curve", "DAMM v2 migration", "anti-sniper fee", "Dev Lock Jupiter Lock", "LP rebate"],
+});
 
 // Every number below comes from code: packages/shared (tiers, fees, schedules, payouts) and packages/onchain createConfigs.ts
 // (token supply, decimals, authority). Nothing is typed in by hand except the token facts createConfigs.ts sets
@@ -37,10 +41,28 @@ const S = ANTI_SNIPER_SCHEDULE;
 const DECAY_S = scheduleDurationSeconds(S);
 const referralOfVolumeBps = CURVE_FEE_BPS * METEORA_PROTOCOL_SHARE * REFERRAL_SHARE_OF_PROTOCOL;
 
+/** FAQ as shown. The FAQPage structured data and /llms-full.txt use the plain-text copy in lib/docsFaq.ts (same sentences). */
+const FAQ: [string, React.ReactNode][] = [
+  ["Do I pay anything extra to trade on highbar?", <>No. You only pay the pool&apos;s trading fee. highbar adds nothing on top, and trades made here earn cashback.</>],
+  ["Which tier should I pick?", <>Standard migrates at {sol(MAINNET_THRESHOLD_SOL.standard)}. Higher and Max set a higher bar, give the creator a bigger share of fees and leave deeper liquidity after migration.</>],
+  ["Can a creator rug the liquidity?", <>No. After migration the LP is permanently locked on Meteora DAMM v2. Creators can only claim the fees it earns.</>],
+  ["Can a Dev Lock be cancelled early?", <>No. Locks are permanent. Nobody can cancel them or change the recipient.</>],
+  ["When is cashback paid?", <>Once a day, per UTC day, after the day closes. Small balances roll over until they reach the minimum payout.</>],
+  ["Is $HIGHER live?", <>Not yet. Until it launches, cashback is paid in SOL and the buyback share accrues. The $HIGHER perks tab shows the current status.</>],
+  ["Where can I check the numbers myself?", <>Every payout, buyback and burn links its Solana transaction. The <DocLink href="/docs/api">public API</DocLink> serves the same data the app shows.</>],
+];
+const docsJsonLd = () => [
+  { "@context": "https://schema.org", "@type": "TechArticle", headline: "How the highbar Solana launchpad works", url: absUrl("/docs"), inLanguage: "en",
+    about: ["Solana token launchpad", "Meteora DBC bonding curve", "Meteora DAMM v2", "anti-sniper fee", "Dev Lock"], publisher: { "@id": absUrl("/#organization") },
+    description: "Tiers, fees, the Meteora DBC bonding curve and DAMM v2 migration, the anti-sniper fee, Dev Lock, creator fees, cashback, buyback and burn, and referrals." },
+  { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: FAQ_TEXT.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) },
+  breadcrumbJsonLd([["Home", "/"], ["Docs", "/docs"]]),
+];
+
 const TOC = [
   { id: "what-is-highbar", label: "What highbar is" },
   { id: "launch", label: "Launch a token" },
-  { id: "bonding-curve", label: "Bonding curve and migration" },
+  { id: "bonding-curve", label: "Meteora DBC bonding curve and DAMM v2" },
   { id: "anti-sniper", label: "Anti-sniper fee" },
   { id: "dev-lock", label: "Dev Lock" },
   { id: "creator-fees", label: "Claim creator fees" },
@@ -55,10 +77,11 @@ const TOC = [
 export default function DocsPageRoute() {
   return (
     <DocsPage toc={TOC} hero={
-      <DocsHero eyebrow="Documentation" title="How highbar works">
+      <DocsHero eyebrow="Documentation" title="How the highbar Solana launchpad works">
         Everything about launching, trading and earning on highbar, in plain words. Every number on this page is read from the same code the app and the on-chain configs use. Building something? See the <DocLink href="/docs/api">public API</DocLink>.
       </DocsHero>
     }>
+      <JsonLd data={docsJsonLd()} />
       <DocSection id="what-is-highbar" eyebrow="Overview" title="What highbar is">
         <p>highbar is a Solana token launchpad in the spirit of pump.fun, with one big difference: the creator picks how high the bar is. Each token starts on a Meteora Dynamic Bonding Curve (DBC) and, once it raises its target, graduates into a Meteora DAMM v2 pool with permanently locked liquidity.</p>
         <p>A higher target means deeper liquidity at migration and a bigger cut of trading fees for the creator. There is no custom token contract. Every launch uses one of six fixed Meteora DBC configs: three tiers, each with the anti-sniper fee on or off.</p>
@@ -90,7 +113,7 @@ export default function DocsPageRoute() {
         <Note>Traders never pay an extra app fee on top of the {bpsPct(CURVE_FEE_BPS)} curve fee. The ticker HIGHER is reserved for the official token.</Note>
       </DocSection>
 
-      <DocSection id="bonding-curve" eyebrow="Trading" title="Bonding curve and migration">
+      <DocSection id="bonding-curve" eyebrow="Trading" title="Meteora DBC bonding curve and DAMM v2 migration">
         <p>Every token trades on its own Meteora bonding curve, priced in SOL. Each buy pushes the price up the curve and each sell moves it back down. The progress bar on a token shows how much SOL the curve holds compared to its tier target.</p>
         <p>When the curve reaches the target, it graduates: the pool migrates to a Meteora DAMM v2 pool. The SOL raised, minus the migration fee, goes into the new pool together with {SUPPLY_ON_MIGRATION_PCT}% of the token supply. Meteora keeps a fixed {share(METEORA_MIGRATION_LIQUIDITY_SHARE)} of the migrated liquidity.</p>
         <DocTable caption="Migration targets" head={["Tier", "Migration target", "Approx. market cap at migration", "Locked LP to creator", "Locked LP to platform"]}
@@ -193,15 +216,7 @@ export default function DocsPageRoute() {
       </DocSection>
 
       <DocSection id="faq" eyebrow="Questions" title="FAQ">
-        {[
-          ["Do I pay anything extra to trade on highbar?", <>No. You only pay the pool&apos;s trading fee. highbar adds nothing on top, and trades made here earn cashback.</>],
-          ["Which tier should I pick?", <>Standard migrates at {sol(MAINNET_THRESHOLD_SOL.standard)}. Higher and Max set a higher bar, give the creator a bigger share of fees and leave deeper liquidity after migration.</>],
-          ["Can a creator rug the liquidity?", <>No. After migration the LP is permanently locked on Meteora DAMM v2. Creators can only claim the fees it earns.</>],
-          ["Can a Dev Lock be cancelled early?", <>No. Locks are permanent. Nobody can cancel them or change the recipient.</>],
-          ["When is cashback paid?", <>Once a day, per UTC day, after the day closes. Small balances roll over until they reach the minimum payout.</>],
-          ["Is $HIGHER live?", <>Not yet. Until it launches, cashback is paid in SOL and the buyback share accrues. The $HIGHER perks tab shows the current status.</>],
-          ["Where can I check the numbers myself?", <>Every payout, buyback and burn links its Solana transaction. The <DocLink href="/docs/api">public API</DocLink> serves the same data the app shows.</>],
-        ].map(([q, a], i) => (
+        {FAQ.map(([q, a], i) => (
           <details key={i} className="group rounded-md border border-border px-4 py-3">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium text-ink [&::-webkit-details-marker]:hidden">
               {q}<Plus aria-hidden size={16} strokeWidth={1.5} className="shrink-0 text-ink-3 transition-transform group-open:rotate-45" />

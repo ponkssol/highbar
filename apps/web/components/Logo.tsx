@@ -6,8 +6,8 @@ export function Logo({ height = 32, className = "" }: { height?: number; classNa
   const width = Math.round((1684 / 270) * height);
   return (
     <span className={`inline-flex shrink-0 ${className}`}>
-      <Image src="/brand/sidebar-logo-light.png" alt="highbar" width={width} height={height} quality={90} priority className="block dark:hidden" />
-      <Image src="/brand/sidebar-logo.png" alt="highbar" width={width} height={height} quality={90} priority className="hidden dark:block" />
+      <Image src="/brand/sidebar-logo-light.png" alt="highbar" width={width} height={height} quality={90} loading="eager" className="block dark:hidden" />
+      <Image src="/brand/sidebar-logo.png" alt="highbar" width={width} height={height} quality={90} loading="eager" className="hidden dark:block" />
     </span>
   );
 }

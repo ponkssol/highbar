@@ -22,11 +22,11 @@ export function ScoreCard({ mint }: { mint: string }) {
         <h3 className="font-semibold">highbar score</h3>
         <ScoreBadge score={data.score} size="md" />
       </div>
-      <div className="num mb-3 flex items-baseline gap-2"><span className="text-kpi">{data.score}</span><span className="text-sm text-ink-3">/ 100 · {data.label}</span></div>
+      <div className="num mb-3 flex items-baseline gap-2"><span className="text-kpi">{data.score}</span><span className="text-sm text-ink-3">of 100, {data.label}</span></div>
       <dl className="flex flex-col gap-2.5 text-sm">
         {parts.map(([k, v, max, note]) => (
           <div key={k}>
-            <div className="flex justify-between"><dt className="text-ink-3">{k}{note && <span className="ml-1.5 text-xs">({note})</span>}</dt><dd className="num">{v} / {max}</dd></div>
+            <div className="flex justify-between"><dt className="text-ink-3">{k}{note && <span className="ml-1.5 text-xs">({note})</span>}</dt><dd className="num">{v} of {max}</dd></div>
             <div className="mt-1 h-1.5 w-full rounded-full bg-border"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${max ? (v / max) * 100 : 0}%` }} /></div>
           </div>
         ))}

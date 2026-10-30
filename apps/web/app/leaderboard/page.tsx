@@ -93,7 +93,7 @@ export default function LeaderboardPage() {
                 <td className={`${TD} num text-right font-semibold`}>{t.score}<span className="ml-1 text-xs font-normal text-ink-3">{t.label}</span></td>
                 <td className={`${TD} num text-right`}>{t.breakdown?.tier ?? NA}</td><td className={`${TD} num text-right`}>{t.breakdown?.antiSniper ?? NA}</td>
                 <td className={`${TD} num text-right`}>{t.breakdown?.devLock ?? NA}</td><td className={`${TD} num text-right`}>{t.breakdown?.spread ?? NA}</td>
-                <td className={`${TD} num text-right text-ink-3`}>{t.breakdown ? <>{t.breakdown.holders} · top10 {t.breakdown.top10Pct}%</> : NA}</td>
+                <td className={`${TD} num text-right text-ink-3`}>{t.breakdown ? <>{t.breakdown.holders} holders, top 10 hold {t.breakdown.top10Pct}%</> : NA}</td>
               </tr>))}</tbody>
           </table>
         ) : kind === "migrations" ? (
@@ -135,12 +135,12 @@ export default function LeaderboardPage() {
           </table>
         ) : (
           <table className="w-full min-w-[600px] text-sm">
-            {head([["Trader", "left"], ["Volume", "right"], ["Trades", "right"], ["Buy / Sell", "right"], ["Last trade", "right"]])}
+            {head([["Trader", "left"], ["Volume", "right"], ["Trades", "right"], ["Buys and sells", "right"], ["Last trade", "right"]])}
             <tbody>{(rows as TraRow[]).map((t, i) => (
               <tr key={t.wallet} className={ROW}>
                 <td className={TD}>{rank(i)}</td><td className={`${TD} num`}>{shortAddr(t.wallet, 6)}</td>
                 <td className={`${TD} num text-right`}>{fmtSol(t.volumeSol, 3)} SOL</td><td className={`${TD} num text-right`}>{t.trades}</td>
-                <td className={`${TD} num text-right`}><span className="text-buy">{t.buys}</span> / <span className="text-sell">{t.sells}</span></td>
+                <td className={`${TD} num text-right`}><span className="text-buy">{t.buys}</span> and <span className="text-sell">{t.sells}</span></td>
                 <td className={`${TD} num text-right text-ink-3`}>{fmtAge(t.lastTs)} ago</td>
               </tr>))}</tbody>
           </table>

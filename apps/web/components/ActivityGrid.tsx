@@ -33,7 +33,8 @@ export function ActivityGrid({ className = "", bare = false }: { className?: str
   // oldest left -> newest right, column by column; empty padding cells at the end (future)
   const shown = useMemo(() => events.slice(-total), [events, total]);
   const cells: (ActivityEvent | null)[] = [...shown, ...Array(Math.max(0, total - shown.length)).fill(null)];
-  const today = new Date().setHours(0, 0, 0, 0);
+  // Counts are for the current UTC day (the grid can show older events too), labelled "Today (UTC)".
+  const now = new Date(), today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const count = (t: ActivityType) => events.filter((e) => e.type === t && e.ts >= today).length;
   const lastIdx = shown.length - 1;
 
@@ -41,13 +42,14 @@ export function ActivityGrid({ className = "", bare = false }: { className?: str
     <div className={`flex min-w-0 flex-col p-3 md:p-5 ${bare ? "" : "rounded-lg border border-border bg-surface"} ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold">Protocol activity</h3>
+          <h2 className="text-sm font-semibold">Protocol activity</h2>
           <span className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-ink-2">
             <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-buy opacity-60" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-buy" /></span>
             Live{source === "mock" ? " demo" : ""}
           </span>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="activity-counts">
+          <span className="text-[10px] text-ink-3" title="Counts since 00:00 UTC">Today (UTC)</span>
           {ORDER.map((t) => (
             <span key={t} className="flex items-center gap-1.5 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] text-ink-3">
               <span className="h-2 w-2 rounded-[2px]" style={{ background: COLOR[t] }} />{PLURAL[t]} <span className="num font-semibold text-ink">{count(t)}</span>
@@ -59,7 +61,7 @@ export function ActivityGrid({ className = "", bare = false }: { className?: str
         <div className="grid w-full grid-flow-col justify-between" style={{ gridTemplateRows: `repeat(${ROWS}, ${CELL}px)`, gridAutoColumns: `${CELL}px`, rowGap: GAP }}>
           {cells.map((e, i) =>
             e ? (
-              <div key={e.id} data-tip={`${LABEL[e.type]} · $${e.symbol}${e.amount ? ` · ${e.amount.toLocaleString()}` : ""} · ${fmtTime(e.ts)}`}
+              <div key={e.id} data-tip={`${LABEL[e.type]} $${e.symbol}${e.amount ? `, ${e.amount.toLocaleString("en-US")}` : ""}, ${fmtTime(e.ts)}`}
                 className={`hb-tip rounded-[2px] ${isFresh(e.id) && i >= lastIdx - 2 ? "hb-cell-pop" : ""}`}
                 style={{ width: CELL, height: CELL, background: COLOR[e.type], ["--glow" as string]: COLOR[e.type] }} />
             ) : (

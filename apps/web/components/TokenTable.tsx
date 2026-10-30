@@ -138,7 +138,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
                     <ProgressBar value={p} tier={t.tier} />
                     <div className="num mt-1 flex justify-between text-xs text-ink-3">
                       <span className="text-ink">{Math.round(p * 100)}%</span>
-                      <span>{t.isMigrated ? "Migrated" : `${fmtSol(t.raisedSol, 1)} / ${targetOf(t, NETWORK)} SOL`}</span>
+                      <span>{t.isMigrated ? "Migrated" : `${fmtSol(t.raisedSol, 1)} of ${targetOf(t, NETWORK)} SOL`}</span>
                     </div>
                   </td>
                   <td className="num px-4 py-3 text-right">{fmtSol(t.volume24hSol, 1)} SOL</td>

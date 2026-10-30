@@ -28,7 +28,7 @@ export function Pagination({ page, pageSize, total, onPage, label = "Pagination"
           <ChevronLeft size={14} /> Prev
         </button>
         {pageList(cur, pages).map((n, i) => n === "gap"
-          ? <span key={`g${i}`} className="px-1 text-sm text-ink-3">...</span>
+          ? <span key={`g${i}`} className="px-1 text-sm text-ink-3" aria-hidden="true">…</span>
           : <button key={n} onClick={() => onPage(n)} aria-current={n === cur ? "page" : undefined}
               className={`${pgBtn} ${n === cur ? "bg-ink text-on-ink" : "border border-border text-ink-2 hover:bg-muted"}`}>{n}</button>)}
         <button onClick={() => onPage(cur + 1)} disabled={cur >= pages} aria-label="Next page"

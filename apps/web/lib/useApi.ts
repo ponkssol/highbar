@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api, statsView, toRow, type ApiStats, type ApiTrade } from "./api";
+import { api, statsView, toRow, type ApiStats, type ApiToken, type ApiTrade } from "./api";
 import type { TokenRow } from "./mock";
 
-function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []) {
-  const [data, setData] = useState<T | null>(null);
+/** `initial`: server-fetched data for the first render (so it is in the initial HTML); polling then replaces it. */
+function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = [], initial: T | null = null) {
+  const [data, setData] = useState<T | null>(initial);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -18,14 +19,14 @@ function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []) {
 }
 
 /** Live tokens from the API (no mock fallback). */
-export function useTokens(): { tokens: TokenRow[]; live: boolean; loading: boolean } {
-  const { data, error } = usePoll(() => api.tokens({ limit: 200 }), 15_000);
+export function useTokens(initial: { total: number; items: ApiToken[] } | null = null): { tokens: TokenRow[]; live: boolean; loading: boolean } {
+  const { data, error } = usePoll(() => api.tokens({ limit: 200 }), 15_000, [], initial);
   if (data) return { tokens: data.items.map(toRow), live: true, loading: false };
   return { tokens: [], live: false, loading: !error };
 }
 
-export function useStats() {
-  const { data, error } = usePoll<ApiStats>(() => api.stats(), 30_000);
+export function useStats(initial: ApiStats | null = null) {
+  const { data, error } = usePoll<ApiStats>(() => api.stats(), 30_000, [], initial);
   return { ...statsView(data ?? null), loading: !data && !error };
 }
 

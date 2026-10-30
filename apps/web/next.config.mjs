@@ -11,6 +11,9 @@ const nextConfig = {
   reactStrictMode: true,
   devIndicators: false,
   transpilePackages: ["@hb/shared"],
+  // Render <title>/<meta> in <head> for every client, not only known bots (Next 15 streams metadata into <body> otherwise), so link
+  // previews, smaller crawlers and audits all read the description. Pages fetch the same cached data anyway.
+  htmlLimitedBots: /.*/,
   // Merged pages: old URLs stay valid (API-generated /cashback, /burn, /referral links too). Incoming query strings (e.g. ?ref=) are kept.
   // /higher is the friendly $HIGHER perks alias; it points straight at the merged tab (not via /bar) so it is a single hop.
   async redirects() {

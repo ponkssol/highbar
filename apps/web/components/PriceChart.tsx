@@ -38,6 +38,15 @@ function theme() {
   };
 }
 const fmtP = (p: number) => fmtPricePlain(p);
+/** Axis step for the price scale: 4 significant digits of the largest close. One fixed decimal count per step, so tick labels never repeat. */
+function axisFormat(maxPrice: number) {
+  const mag = Number.isFinite(maxPrice) && maxPrice > 0 ? Math.floor(Math.log10(maxPrice)) : -8;
+  const decimals = Math.max(0, Math.min(16, 3 - mag));
+  const minMove = Number((10 ** -decimals).toFixed(decimals));
+  return { minMove, formatter: (v: number) => (Math.abs(v) >= 1 ? v.toLocaleString("en-US", { maximumFractionDigits: decimals }) : v.toFixed(decimals)) };
+}
+/** Keep at least +-2% around the line, so a flat price does not stretch a few units of the last digit over the whole axis. */
+const MIN_HALF_RANGE = 0.02;
 
 export function PriceChart({ mint, className = "" }: { mint: string; className?: string }) {
   const [tf, setTf] = useState<TF>("15m");
@@ -57,7 +66,7 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
         layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: t.ink3, fontFamily: t.font, fontSize: 11 },
         grid: { vertLines: { color: t.grid }, horzLines: { color: t.grid } },
         rightPriceScale: { borderVisible: false },
-        timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+        timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, rightOffset: 4 },
         localization: CHART_LOCALIZATION, // month first crosshair dates, never the browser locale
         crosshair: {
           mode: CrosshairMode.Magnet,
@@ -71,8 +80,14 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
         lineColor: t.line, topColor: t.top, bottomColor: t.bottom, priceLineColor: withAlpha(t.line, 0.55),
         crosshairMarkerBorderColor: t.line, crosshairMarkerBackgroundColor: t.dark ? "#15130F" : "#FFFDF8",
       });
-      const a = ch.addAreaSeries({ ...areaOpts(th), lineWidth: 2, priceLineStyle: LineStyle.Dotted, crosshairMarkerRadius: 4, lastValueVisible: true,
-        priceFormat: { type: "custom", minMove: 1e-12, formatter: fmtP } });
+      const a = ch.addAreaSeries({ ...areaOpts(th), lineWidth: 2, priceLineStyle: LineStyle.Dotted, crosshairMarkerRadius: 4, lastValueVisible: false, // no axis tag: it covered a tick label; the readout above shows the last close and the dotted line marks it
+        priceFormat: { type: "custom", ...axisFormat(0) },
+        autoscaleInfoProvider: (original: () => { priceRange: { minValue: number; maxValue: number } | null; margins?: { above: number; below: number } } | null) => {
+          const r = original();
+          if (!r?.priceRange) return r;
+          const { minValue, maxValue } = r.priceRange, mid = (minValue + maxValue) / 2, half = Math.max((maxValue - minValue) / 2, Math.abs(mid) * MIN_HALF_RANGE);
+          return { ...r, priceRange: { minValue: Math.max(0, mid - half), maxValue: mid + half } };
+        } });
       const v = ch.addHistogramSeries({ priceScaleId: "vol", priceFormat: { type: "volume" }, color: th.vol, lastValueVisible: false, priceLineVisible: false });
       ch.priceScale("vol").applyOptions({ scaleMargins: { top: 0.86, bottom: 0 } });
       a.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0.18 } });
@@ -105,7 +120,9 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
         const cs = j.candles;
         series.current.a.setData(cs.map((x) => ({ time: (x.t / 1000) as UTCTimestamp, value: x.c })));
         series.current.v.setData(cs.map((x) => ({ time: (x.t / 1000) as UTCTimestamp, value: x.vSol })));
-        if (first && cs.length) chart.current?.timeScale().fitContent();
+        series.current.a.applyOptions({ priceFormat: { type: "custom", ...axisFormat(Math.max(0, ...cs.map((x) => x.c))) } });
+        // fit the data but keep a few empty bars on the right, so the last time label is not cut off at the price scale
+        if (first && cs.length) chart.current?.timeScale().setVisibleLogicalRange({ from: 0, to: cs.length - 1 + Math.max(3, Math.round(cs.length * 0.04)) });
         first = false;
         const base = cs.find((x) => x.o > 0)?.o ?? 0;
         setReadout(cs.length ? { price: cs[cs.length - 1].c, change: base > 0 ? ((cs[cs.length - 1].c - base) / base) * 100 : null } : null);
@@ -124,8 +141,8 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div data-testid="chart-readout" className="num flex min-w-0 items-baseline gap-2.5">
           {shown != null ? (<>
-            <span className="text-lg font-semibold leading-none tracking-tight text-ink md:text-xl">{fmtP(shown)}</span>
-            <span className="text-xs text-ink-3">SOL</span>
+            <span title={hover != null ? "Candle close" : "Last candle close"} className="text-lg font-semibold leading-none tracking-tight text-ink md:text-xl">{fmtP(shown)}</span>
+            <span className="text-xs text-ink-3">SOL{hover == null && <span className="sr-only"> last candle close</span>}</span>
             {hover == null && readout?.change != null && (
               <span title={`Change over the visible ${tf} range`}><DeltaPill v={readout.change} /></span>
             )}
@@ -142,7 +159,7 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
         <div ref={box} className="absolute inset-0" />
         {state !== "ready" && (
           <div data-testid="chart-state" className="absolute inset-0 flex items-center justify-center bg-surface text-sm text-ink-3">
-            {state === "loading" ? "Loading chart..." : state === "empty" ? "No trades yet" : "Chart unavailable. Retrying..."}
+            {state === "loading" ? "Loading chart…" : state === "empty" ? "No trades yet" : "Chart unavailable. Retrying…"}
           </div>
         )}
       </div>

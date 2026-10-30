@@ -1,5 +1,8 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { TopBar } from "@/components/TopBar";
+
+export const metadata: Metadata = { title: { absolute: "Page not found | highbar" }, description: "This token or page does not exist on highbar.", robots: { index: false, follow: true } };
 
 export default function NotFound() {
   return (

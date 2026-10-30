@@ -61,7 +61,7 @@ export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-      style={{ width: size, height: size, background: shades[i], color: i > 1 ? "var(--hb-ink)" : "var(--hb-on-ink)" }}
+      style={{ width: size, height: size, background: shades[i], color: i === 3 ? "var(--hb-ink)" : "var(--hb-on-ink)" /* on-ink on ink-3 keeps 4.5:1 in both themes */ }}
     >
       {name.slice(0, 2).toUpperCase()}
     </span>
@@ -86,5 +86,5 @@ export function Price({ v, prefix = "" }: { v: number; prefix?: string }) {
   const m = s.match(/^(-?0\.0)([\u2080-\u2089]+)(\d+)$/);
   if (!m) return <>{prefix}{s}</>;
   const n = [...m[2]].map((ch) => ch.charCodeAt(0) - 0x2080).join("");
-  return <span title={`${prefix}${v.toFixed(Math.min(20, n.length + 12)).replace(/0+$/, "")}`}>{prefix}{m[1]}<sub className="mx-[1px] align-[-0.25em] text-[0.62em] leading-none">{n}</sub>{m[3]}</span>;
+  return <span title={`${prefix}${v.toFixed(Math.min(20, n.length + 12)).replace(/0+$/, "")}`}>{prefix}{m[1]}<sub className="mx-[1px] align-[-0.2em] text-[0.72em] font-semibold leading-none md:text-[0.7em]">{n}</sub>{m[3]}</span>;
 }

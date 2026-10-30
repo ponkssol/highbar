@@ -62,7 +62,7 @@ function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
           </div>
         </div>
         <div className="flex flex-col items-start gap-1 sm:items-end">
-          <div data-testid="token-price" className="flex items-baseline gap-1.5"><span className="num text-2xl font-semibold leading-none tracking-tight md:text-3xl"><Price v={t.priceSol} /></span><span className="text-sm text-ink-3">SOL</span></div>
+          <div data-testid="token-price" className="flex items-baseline gap-1.5"><span title="Last trade price" className="num text-2xl font-semibold leading-none tracking-tight md:text-3xl"><Price v={t.priceSol} /></span><span className="text-sm text-ink-3">SOL</span></div>
           <div className="flex items-center gap-2">
             {t.priceUsd != null && <span data-testid="token-price-usd" className="num text-xs text-ink-3"><Price v={t.priceUsd} prefix="$" /></span>}
             <DeltaPill v={t.change24h} />
@@ -98,7 +98,7 @@ function StatRow({ t, holders }: { t: TokenViewData; holders: number }) {
     ["Holders", holders.toLocaleString("en-US")],
     ["Age", t.createdAt ? fmtAge(t.createdAt, t.now) : "–"],
     ["Creator", t.creator ? shortAddr(t.creator) : "–"],
-    ["Bonding", <><span key="v">{t.isMigrated ? "100% · Migrated" : `${(p * 100).toFixed(1)}%`}</span><span key="b" className="mt-1.5 block h-1 rounded-full bg-border"><span className="block h-1 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></span></>],
+    ["Bonding", <><span key="v">{t.isMigrated ? "100%, migrated" : `${(p * 100).toFixed(1)}%`}</span><span key="b" className="mt-1.5 block h-1 rounded-full bg-border"><span className="block h-1 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></span></>],
   ];
   return (
     <dl data-testid="token-stats" className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-6">
@@ -118,7 +118,7 @@ function BondingCard({ t }: { t: TokenViewData }) {
     <div data-testid="bonding-card" className="rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">Bonding progress</span>
-        <span className="num text-ink-3">{t.isMigrated ? "100% · Migrated" : `${t.raisedSol.toFixed(1)} / ${target} SOL`}</span>
+        <span className="num text-ink-3">{t.isMigrated ? "100%, migrated" : `${t.raisedSol.toFixed(1)} of ${target} SOL`}</span>
       </div>
       <div className="mt-3 h-1.5 rounded-full bg-border"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></div>
       <p className="mt-2 text-xs text-ink-3">{t.isMigrated ? "Migrated to Meteora DAMM v2." : p >= 1 ? "Target reached: migrates to Meteora DAMM v2." : `Migrates to Meteora DAMM v2 at ${target} SOL.`}</p>
@@ -141,13 +141,15 @@ const TAB_LABEL: Record<TabId, string> = { trades: "Trades", holders: "Holders",
 /** Secondary info lives in tabs under the chart instead of a stack of side cards. */
 function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksResp | null; reloadLocks: () => void }) {
   const holders = holderRows(t.trades);
+  // t.holders is the API's live count; the list is rebuilt from the last trades, so it can be shorter.
+  const partial = holders.length < t.holders;
   const [tab, setTab] = useState<TabId>("trades");
   return (
     <section data-testid="token-tabs">
       <div role="tablist" className="no-scrollbar flex gap-5 overflow-x-auto border-b border-border">
         {(Object.keys(TAB_LABEL) as TabId[]).map((k) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-            className={`-mb-px whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm transition-colors ${tab === k ? "border-gold font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"}`}>{TAB_LABEL[k]}</button>
+            className={`-mb-px whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm transition-colors ${tab === k ? "border-gold font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"}`}>{TAB_LABEL[k]}{k === "holders" && <span data-testid="holders-tab-count" className="num ml-1.5 text-xs text-ink-3">{t.holders.toLocaleString("en-US")}</span>}</button>
         ))}
       </div>
       <div className="pt-3">
@@ -161,11 +163,11 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
               {t.trades.map((tr) => (
                 <tr key={tr.sig} className="h-11 border-t border-border hover:bg-muted">
                   <td className="num pl-0 pr-4 text-ink-3">{fmtAge(tr.ts, t.now)} ago</td>
-                  <td className="px-4"><span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize text-white ${tr.side === "buy" ? "bg-buy" : "bg-sell"}`}>{tr.side}</span>{tr.devBuy && <span title="Creator buy in the launch transaction (Block 0)" className="ml-1.5 rounded-full border border-ink px-2 py-0.5 text-xs font-medium">Dev</span>}</td>
+                  <td className="px-4"><span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize text-on-ink ${tr.side === "buy" ? "bg-buy" : "bg-sell"}`}>{tr.side}</span>{tr.devBuy && <span title="Creator buy in the launch transaction (Block 0)" className="ml-1.5 rounded-full border border-ink px-2 py-0.5 text-xs font-medium">Dev</span>}</td>
                   <td className="num px-4 text-right">{tr.sol}</td>
                   <td className="num px-4 text-right">{tr.tokens.toLocaleString("en-US")}</td>
                   <td className="num px-4 text-ink-2">{shortAddr(tr.wallet)}</td>
-                  <td className="px-4 text-right"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" className="text-ink-3 hover:text-ink"><ExternalLink size={14} /></a></td>
+                  <td className="px-4 text-right"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label="View transaction on Solscan" className="text-ink-3 hover:text-ink"><ExternalLink size={14} aria-hidden /></a></td>
                 </tr>
               ))}
             </tbody>
@@ -174,6 +176,7 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
         ))}
         {tab === "holders" && (
           <div>
+          <div data-testid="holders-head" className="flex items-baseline justify-between pb-2 text-xs text-ink-3"><span>{partial ? "Top holders from recent trades" : "Holders"}</span><span className="num">{t.holders.toLocaleString("en-US")} holder{t.holders === 1 ? "" : "s"}</span></div>
           {holders.length === 0 ? <p className="px-4 py-6 text-sm text-ink-3">No holders yet.</p> : (
         <table className="w-full text-sm"><tbody>
           {holders.map((h, i) => (
@@ -197,16 +200,15 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
   );
 }
 
-export function TokenView({ t }: { t: TokenViewData }) {
+export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered About block (token facts) */ about?: ReactNode }) {
   const [sheet, setSheet] = useState<null | "buy" | "sell">(null);
   const locks = useLocks(t.mint);
-  const holderCount = holderRows(t.trades).length;
-  const panel = (side: "buy" | "sell" = "buy", bare = false) => <TradePanel mint={t.mint} ticker={t.ticker} tier={t.tier} antiSniper={t.antiSniper} priceSol={t.priceSol} initialSide={side} bare={bare} pool={t.pool} createdAt={t.createdAt} isMigrated={!!t.isMigrated} />;
+  const panel = (side: "buy" | "sell" = "buy", bare = false) => <TradePanel mint={t.mint} ticker={t.ticker} tier={t.tier} antiSniper={t.antiSniper} priceSol={t.priceSol} initialSide={side} bare={bare} pool={t.pool} createdAt={t.createdAt} isMigrated={!!t.isMigrated} thresholdSol={targetSol(t)} quoteReserveSol={t.raisedSol} />;
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-0">
       <TopBar />
       <Header t={t} locks={locks.data} />
-      <StatRow t={t} holders={holderCount} />
+      <StatRow t={t} holders={t.holders} />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <PriceChart mint={t.mint} className="h-[300px] min-w-0 md:h-[440px] lg:col-start-1 lg:row-start-1" />
         {/* trade panel + bonding: right column on lg, between chart and tabs on md, sticky Buy/Sell on mobile */}
@@ -217,13 +219,13 @@ export function TokenView({ t }: { t: TokenViewData }) {
             <BondingCard t={t} />
           </div>
         </aside>
-        <div className="min-w-0 lg:col-start-1 lg:row-start-2"><DetailTabs t={t} locks={locks.data} reloadLocks={locks.reload} /></div>
+        <div className="flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-2"><DetailTabs t={t} locks={locks.data} reloadLocks={locks.reload} />{about}</div>
       </div>
       {/* mobile sticky actions + bottom sheet */}
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-2 gap-2 border-t border-border bg-surface p-3 md:hidden">
         <DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} className="col-span-2" />
-        <button onClick={() => setSheet("buy")} className="h-12 rounded-md bg-buy font-semibold text-white">Buy</button>
-        <button onClick={() => setSheet("sell")} className="h-12 rounded-md bg-sell font-semibold text-white">Sell</button>
+        <button onClick={() => setSheet("buy")} className="h-12 rounded-md bg-buy font-semibold text-on-ink">Buy</button>
+        <button onClick={() => setSheet("sell")} className="h-12 rounded-md bg-sell font-semibold text-on-ink">Sell</button>
       </div>
       {sheet && (
         <div className="fixed inset-0 z-50 md:hidden">

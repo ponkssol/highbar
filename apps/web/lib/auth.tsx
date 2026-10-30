@@ -41,7 +41,7 @@ export function isUserRejection(e: unknown): boolean {
   return /user rejected|rejected|denied by the user|user denied/i.test(msg);
 }
 
-const short = (s: string) => (s.length > 160 ? `${s.slice(0, 157)}...` : s);
+const short = (s: string) => (s.length > 160 ? `${s.slice(0, 157)}…` : s);
 async function errorText(r: Response): Promise<string> {
   try {
     const t = await r.text();

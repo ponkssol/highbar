@@ -26,7 +26,7 @@ export function WalletButton({ full = false, compact = false, size: sz = "sm" }:
         className={`${base} hb-ctrl text-ink`}>
         <AddrDot address={address} size={compact ? 12 : 14} />
         <span className="num">{shortAddr(address)}</span>
-        {unverified && <span role="button" aria-label="Sign in" title={status === "signing" ? "Signing in..." : "Not signed in, click to sign in"} onClick={(e) => { e.stopPropagation(); if (status !== "signing") void signIn(); }} className={`h-1.5 w-1.5 shrink-0 rounded-full ${status === "signing" ? "animate-pulse bg-ink-3" : "bg-burn"}`} />}
+        {unverified && <span role="button" aria-label="Sign in" title={status === "signing" ? "Signing in…" : "Not signed in, click to sign in"} onClick={(e) => { e.stopPropagation(); if (status !== "signing") void signIn(); }} className={`h-1.5 w-1.5 shrink-0 rounded-full ${status === "signing" ? "animate-pulse bg-ink-3" : "bg-burn"}`} />}
         {!compact && bal != null && <span className="num text-ink-3">{bal.toFixed(2)} SOL</span>}
       </button>
     );
