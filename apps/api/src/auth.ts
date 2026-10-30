@@ -62,7 +62,7 @@ export function registerAuth(app: FastifyInstance) {
     if (!address || !message || !signature) return reply.code(400).send({ error: "missing fields" });
     const n = await store.getNonce(address);
     if (!n || n.exp < Date.now()) return reply.code(401).send({ error: "nonce expired" });
-    if (!message.includes(`\nNonce: ${n.nonce}\n`) || !message.includes(`\n${address}\n`)) return reply.code(401).send({ error: "nonce/address mismatch" });
+    if (!message.includes(`\nNonce: ${n.nonce}\n`) || !message.includes(`\n${address}\n`)) return reply.code(401).send({ error: "Nonce does not match the address." });
     let ok = false;
     try { ok = verifyEd25519(address, message, signature); } catch { ok = false; }
     if (!ok) return reply.code(401).send({ error: "bad signature" });

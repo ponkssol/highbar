@@ -50,9 +50,9 @@ export async function reserveMint(q: Sql, creator: string): Promise<store.Reserv
   const c = mintPoolConfig();
   const again = await store.reuseUnsigned(q, creator, c.reservationMin);
   if (again) return again;
-  if ((await store.activeReservations(q, creator)) >= c.maxPerCreator) throw new MintPoolError("TOO_MANY_RESERVATIONS", "too many pending launches for this wallet; wait a few minutes", 429);
+  if ((await store.activeReservations(q, creator)) >= c.maxPerCreator) throw new MintPoolError("TOO_MANY_RESERVATIONS", "Too many pending launches for this wallet. Wait a few minutes.", 429);
   const r = await store.reserveFresh(q, creator, c.reservationMin);
-  if (!r) throw new MintPoolError("MINT_POOL_EMPTY", `no ...${VANITY_SUFFIX} mint address is available right now; please try again in a few minutes`, 503);
+  if (!r) throw new MintPoolError("MINT_POOL_EMPTY", `No …${VANITY_SUFFIX} mint address is available right now. Please try again in a few minutes.`, 503);
   if (!hasVanitySuffix(r.mint)) { await store.markUsed(q, r.mint); throw new Error("mint pool returned a non-vanity mint"); } // never hand it out
   return r;
 }
@@ -60,7 +60,7 @@ export async function reserveMint(q: Sql, creator: string): Promise<store.Reserv
 /** A live reservation of `mint` held by `creator`, else a MintPoolError. */
 export async function requireReservation(q: Sql, mint: string, creator: string) {
   const r = await store.getReservation(q, mint);
-  if (!r || r.status !== "reserved" || r.creator !== creator || !r.live) throw new MintPoolError("RESERVATION_INVALID", "mint reservation missing or expired; start the launch again", 409);
+  if (!r || r.status !== "reserved" || r.creator !== creator || !r.live) throw new MintPoolError("RESERVATION_INVALID", "Mint reservation missing or expired. Start the launch again.", 409);
   return r;
 }
 
@@ -70,10 +70,10 @@ export interface SignOpts { configs?: string[]; referrals?: string[]; key?: Buff
 export async function signLaunchTx(q: Sql, mint: string, txB64: string, opts: SignOpts = {}): Promise<{ tx: string; mint: string; pool: string; signature: string }> {
   const key = opts.key ?? encKeyFromEnv();
   const res = await store.getReservation(q, mint);
-  if (!res || res.status !== "reserved" || !res.live || !res.creator) throw new MintPoolError("RESERVATION_INVALID", "mint reservation missing or expired; start the launch again", 409);
+  if (!res || res.status !== "reserved" || !res.live || !res.creator) throw new MintPoolError("RESERVATION_INVALID", "Mint reservation missing or expired. Start the launch again.", 409);
   const info = validateLaunchTx(txB64, { mint, creator: res.creator, configs: opts.configs ?? launchConfigs(), referrals: opts.referrals ?? platformReferrals() });
   const sealed = await store.claimForSigning(q, mint, res.creator, mintPoolConfig().signedHoldMin);
-  if (!sealed) throw new MintPoolError("RESERVATION_INVALID", "mint reservation missing or expired; start the launch again", 409);
+  if (!sealed) throw new MintPoolError("RESERVATION_INVALID", "Mint reservation missing or expired. Start the launch again.", 409);
   const seed = openSeed(sealed, mint, key);
   const kp = keypairFromSeed(seed, mint); // wipes seed
   const tx: Transaction = info.tx;

@@ -156,7 +156,7 @@ app.post("/tx/swap", async (req, reply) => {
     const slippageBps = int(b.slippageBps, "slippageBps", 0, 5000, 100);
     const amt = Number(b.amount);
     if (!Number.isFinite(amt) || amt <= 0) return reply.code(400).send({ error: "amount must be a positive number" });
-    if (b.side !== "buy" && b.side !== "sell") return reply.code(400).send({ error: "side must be buy|sell" });
+    if (b.side !== "buy" && b.side !== "sell") return reply.code(400).send({ error: "side must be buy or sell" });
     const amountIn = new BN(Math.floor(amt * (sell ? 1e6 : 1e9)).toString());
     const q = await quote({ pool, amountIn, sell, slippageBps });
     const minimumAmountOut = q.minimumAmountOut ?? new BN(0);
@@ -170,7 +170,7 @@ app.post("/tx/launch", async (req, reply) => {
   const raw = (req.body ?? {}) as Partial<LaunchReq> & { mint?: unknown };
   let b: LaunchReq;
   try {
-    if (!["standard", "higher", "max"].includes(String(raw.tier))) throw new BadRequest("tier must be standard|higher|max");
+    if (!["standard", "higher", "max"].includes(String(raw.tier))) throw new BadRequest("tier must be standard, higher or max");
     const uri = text(raw.uri, 200);
     const mainnet = process.env.NETWORK === "mainnet" || process.env.NETWORK === "mainnet-beta";
     if (uri && !(mainnet ? /^(https|ipfs|ar):\/\//.test(uri) : /^(https?|ipfs|ar):\/\//.test(uri))) throw new BadRequest(`uri must be ${mainnet ? "https" : "http(s)"}://, ipfs:// or ar://`);
@@ -209,7 +209,7 @@ app.get("/tx/launch/quote", async (req, reply) => {
   const q = req.query as { tier?: string; antiSniper?: string; devBuySol?: string; slippageBps?: string };
   try {
     const sol = Number(q.devBuySol ?? 0);
-    if (!Number.isFinite(sol) || sol < 0) return reply.code(400).send({ error: "devBuySol must be >= 0" });
+    if (!Number.isFinite(sol) || sol < 0) return reply.code(400).send({ error: "Dev buy must be 0 or more." });
     const r = await quoteDevBuy(String(q.tier), q.antiSniper === "true" || q.antiSniper === "1", sol, Number(q.slippageBps ?? 100));
     return { devBuySol: sol, estTokens: r.outTokens, minTokens: Number(r.minOut.toString()) / 1e6, supplyPct: r.supplyPct, feeSol: r.feeSol, feePct: r.feePct,
       minFeeApplied: r.minFeeEligible, thresholdSol: r.thresholdSol, maxDevBuySol: Math.min(r.thresholdSol, DEV_BUY_MAX_SOL) };
@@ -259,7 +259,7 @@ app.post("/tx/lock", async (req, reply) => {
     const raw = new BN(Math.floor(amount * BASE_DECIMALS).toString());
     const ata = getAssociatedTokenAddressSync(mint, creator);
     const bal = await getConnection().getTokenAccountBalance(ata).then((r) => new BN(r.value.amount)).catch(() => new BN(0));
-    if (raw.gt(bal)) return reply.code(400).send({ error: `amount exceeds wallet balance (${Number(bal.toString()) / BASE_DECIMALS})` });
+    if (raw.gt(bal)) return reply.code(400).send({ error: `amount exceeds wallet balance (${(Number(bal.toString()) / BASE_DECIMALS).toLocaleString("en-US", { maximumFractionDigits: 6 })})` });
     const r = await buildLockTx({ creator, mint, amount: raw, unlockAt, vestingSeconds: vestingDays * 86_400 });
     lockCache.delete(mint.toBase58());
     await store.addEscrow(mint.toBase58(), r.escrow.toBase58());

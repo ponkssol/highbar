@@ -91,5 +91,5 @@ export function registerRateLimit(app: FastifyInstance, limits: Limits = limitsF
 export function creatorLaunchGate(limits: Limits, creator: string): string | null {
   if (process.env.RATE_LIMIT_OFF === "1") return null;
   const wait = limits.launchPerCreator.take(creator);
-  return wait ? `launch limit reached for this wallet; try again in ${Math.ceil(wait / 60_000)} min` : null;
+  return wait ? `Launch limit reached for this wallet. Try again in ${Math.ceil(wait / 60_000)} min.` : null;
 }

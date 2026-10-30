@@ -12,9 +12,9 @@ const network = () => networkOf(process.env.NETWORK);
 /** What is enforced where (shown on /bar so the perks are not over-promised). */
 const LIMITS = [
   "On-chain trading fees are fixed per Meteora DBC config, so the fee discount is paid back as a cashback rebate, not deducted at swap time.",
-  "Max tier access is checked by the highbar API and UI; DBC pool creation itself is permissionless.",
+  "Max tier access is checked by the highbar API and UI. DBC pool creation itself is permissionless.",
   "Tiers for cashback and fee share use the lowest $HIGHER balance across the period's snapshots.",
-  "Fee share payouts are off until legal review; accruals are recorded and shown here.",
+  "Fee share payouts are off until legal review. Accruals are recorded and shown here.",
 ];
 
 /** GET /bar (tiers + settings), GET /bar/:wallet ($HIGHER balance, tier, perks, fee share ledger). Balances are read on-chain and cached. */

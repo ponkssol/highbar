@@ -114,7 +114,7 @@ export function registerClaim(app: FastifyInstance, deps: ClaimDeps = {}) {
   app.post("/claim/build", async (req, reply) => {
     const b = (req.body ?? {}) as { creator?: string; pool?: string; kind?: string; position?: string };
     try {
-      if (b.kind !== "trading" && b.kind !== "migration" && b.kind !== "lp") return reply.code(400).send({ error: "kind must be trading|migration|lp" });
+      if (b.kind !== "trading" && b.kind !== "migration" && b.kind !== "lp") return reply.code(400).send({ error: "kind must be trading, migration or lp" });
       const creator = new PublicKey(String(b.creator)), pool = new PublicKey(String(b.pool));
       if (b.kind === "lp") {
         // pool = DAMM v2 pool, position = position account. Ownership is the position NFT, not the DB creator field.
