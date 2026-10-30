@@ -12,8 +12,8 @@ export const DEFAULT_KEYWORDS = [
   "Meteora launchpad", "Meteora DBC", "Meteora DAMM v2", "anti-sniper fee", "Dev Lock", "Jupiter Lock",
 ];
 /** Default share card (same as the root layout's). Routes with an opengraph-image file use that instead. */
-const OG_IMAGE = { url: "https://highbar.capital/og/og-main.png", width: 1200, height: 630, alt: "highbar: Rise above the bar" };
-const TW_IMAGE = { url: "https://highbar.capital/og/og-main-twitter.png", width: 1200, height: 675, alt: "highbar: Rise above the bar" };
+const OG_IMAGE = { url: "/og/og-main.png", width: 1200, height: 630, alt: "highbar: Rise above the bar" };
+const TW_IMAGE = { url: "/og/og-main-twitter.png", width: 1200, height: 675, alt: "highbar: Rise above the bar" };
 
 export interface PageMetaInput {
   /** Page name without the brand; the title becomes "<title> | highbar" (or `absoluteTitle` as is). */

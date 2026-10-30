@@ -1,5 +1,6 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Cinzel, EB_Garamond, Inter, JetBrains_Mono } from "next/font/google";
+import { siteUrl } from "@/lib/seo";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Sidebar } from "@/components/Sidebar";
@@ -16,7 +17,7 @@ const display = Cinzel({ subsets: ["latin"], weight: ["500", "600", "700"], vari
 // Lead text face (SIL OFL 1.1): EB Garamond for banner intros only. Numbers, prices and addresses stay in Inter or JetBrains Mono.
 const serif = EB_Garamond({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-serif" });
 
-export const metadata: Metadata = { metadataBase: new URL(process.env.SITE_URL || "http://localhost:3000"), title: "highbar", applicationName: "highbar", description: "Launch tokens on Solana with highbar", openGraph: { siteName: "highbar", title: "highbar", description: "Launch tokens on Solana with highbar", type: "website", images: [{ url: "https://highbar.capital/og/og-main.png", width: 1200, height: 630, alt: "highbar: Rise above the bar" }] }, twitter: { card: "summary_large_image", title: "highbar", images: [{ url: "https://highbar.capital/og/og-main-twitter.png", width: 1200, height: 675, alt: "highbar: Rise above the bar" }] } };
+export const metadata: Metadata = { metadataBase: new URL(siteUrl()), title: { default: "highbar | Solana token launchpad built on Meteora", template: "%s | highbar" }, applicationName: "highbar", description: "Launch tokens on Solana with highbar", alternates: { canonical: "/" }, openGraph: { siteName: "highbar", title: "highbar", description: "Launch tokens on Solana with highbar", url: "/", type: "website", images: [{ url: "/og/og-main.png", width: 1200, height: 630, alt: "highbar: Rise above the bar" }] }, twitter: { card: "summary_large_image", site: "@highbar_capital", title: "highbar", description: "Launch tokens on Solana with highbar", images: [{ url: "/og/og-main-twitter.png", width: 1200, height: 675, alt: "highbar: Rise above the bar" }] } };
 
 // NETWORK / RPC_URL / REOWN_PROJECT_ID are read per request (runtime env), never inlined at build.
 export const dynamic = "force-dynamic";

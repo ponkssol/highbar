@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { TopBar } from "@/components/TopBar";
@@ -6,11 +6,7 @@ import { HairlineDivider } from "@/components/arena";
 import { CookieSettingsLink } from "@/components/consent";
 import { PROJECT_LINKS } from "@/lib/links";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy | highbar",
-  description: "How highbar handles your data: public wallet addresses, what stays in your browser, cookies and the services it relies on.",
-  alternates: { canonical: "/privacy" },
-};
+export const metadata = pageMeta({ title: "Privacy Policy", description: "How highbar handles your data: public wallet addresses, what stays in your browser, cookies and the services it relies on.", path: "/privacy" });
 
 const UPDATED = "Oct 31, 2026";
 
