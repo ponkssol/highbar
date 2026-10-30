@@ -13,3 +13,9 @@ keys/
 deploy/mainnet/*.env
 deploy/mainnet/*.filled
 !deploy/mainnet/*.env.template
+
+# wallet key files (never commit)
+key.txt
+key.txt.*
+*.key.txt
+*.key.txt.*
