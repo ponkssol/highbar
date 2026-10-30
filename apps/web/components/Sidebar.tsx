@@ -57,7 +57,7 @@ export function Sidebar() {
           </div>
         </div>
       )}
-      <SocialLinks className="mt-2 px-1" />
+      <SocialLinks variant="icons" className="mt-2 px-1" />
     </aside>
   );
 }

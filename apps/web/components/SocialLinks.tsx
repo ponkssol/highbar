@@ -1,4 +1,6 @@
-import { BookOpen } from "lucide-react";
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { BookOpen, Braces } from "lucide-react";
 import { PROJECT_LINKS } from "@/lib/links";
 
 function XLogo({ size = 15 }: { size?: number }) {
@@ -9,21 +11,29 @@ function XLogo({ size = 15 }: { size?: number }) {
   );
 }
 
-/** Small X + Docs links. Links without a URL are hidden; renders nothing when none are set. */
-export function SocialLinks({ className = "" }: { className?: string }) {
-  const items = [
-    { href: PROJECT_LINKS.x, label: "highbar on X", text: "X", icon: <XLogo /> },
-    { href: PROJECT_LINKS.docs, label: "highbar docs", text: "Docs", icon: <BookOpen size={16} strokeWidth={1.75} /> },
-  ].filter((i) => /^https?:\/\//.test(i.href));
+type Item = { href: string; label: string; text: string; icon: ReactNode };
+const isInternal = (href: string) => href.startsWith("/");
+
+/** Project links (X, Docs, API) from lib/links.ts. Links without a URL are hidden and nothing renders when none are set.
+ *  variant "icons": soft square buttons with a tooltip (sidebar footer). "labeled": icon and text (mobile More sheet). */
+export function SocialLinks({ className = "", variant = "labeled" }: { className?: string; variant?: "labeled" | "icons" }) {
+  const items: Item[] = [
+    { href: PROJECT_LINKS.x, label: "highbar on X", text: "X", icon: <XLogo size={variant === "icons" ? 14 : 15} /> },
+    { href: PROJECT_LINKS.docs, label: "highbar docs", text: "Docs", icon: <BookOpen size={16} strokeWidth={1.5} /> },
+    { href: PROJECT_LINKS.api, label: "highbar API docs", text: "API", icon: <Braces size={16} strokeWidth={1.5} /> },
+  ].filter((i) => isInternal(i.href) || /^https?:\/\//.test(i.href));
   if (items.length === 0) return null;
+
+  const cls = variant === "icons"
+    ? "hb-ctrl hb-tip inline-flex h-9 w-9 items-center justify-center rounded-sm text-ink-2 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold-line"
+    : "inline-flex h-9 items-center gap-2 rounded-sm px-2.5 text-sm text-ink-2 transition-colors hover:bg-muted hover:text-ink";
+  const body = (i: Item) => (variant === "icons" ? i.icon : <>{i.icon}<span>{i.text}</span></>);
+
   return (
-    <div data-testid="social-links" className={`flex items-center gap-1 ${className}`}>
-      {items.map((i) => (
-        <a key={i.text} href={i.href} target="_blank" rel="noopener noreferrer" aria-label={i.label} title={i.label}
-          className="inline-flex h-9 items-center gap-2 rounded-sm px-2.5 text-sm text-ink-2 transition-colors hover:bg-muted hover:text-ink">
-          {i.icon}<span>{i.text}</span>
-        </a>
-      ))}
+    <div data-testid="social-links" className={`flex items-center ${variant === "icons" ? "gap-2" : "gap-1"} ${className}`}>
+      {items.map((i) => isInternal(i.href)
+        ? <Link key={i.text} href={i.href} aria-label={i.label} data-tip={variant === "icons" ? i.text : undefined} title={variant === "icons" ? undefined : i.label} className={cls}>{body(i)}</Link>
+        : <a key={i.text} href={i.href} target="_blank" rel="noopener noreferrer" aria-label={i.label} data-tip={variant === "icons" ? i.text : undefined} title={variant === "icons" ? undefined : i.label} className={cls}>{body(i)}</a>)}
     </div>
   );
 }
