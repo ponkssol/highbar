@@ -12,12 +12,19 @@ import { detectOfficial, officialConfig, pgOfficialRepo, refreshOfficial } from 
 import { db, tx as dbTx } from "../db/pool.js";
 import { openbookTables } from "../openbook/write.js";
 import { ingestFailed, ingestLandedTx, swapExtra } from "../openbook/ingest.js";
+import { collectSignatures, pollConfig, poolFingerprint, PollScheduler, type PoolView } from "./schedule.js";
 
 /** RPC-polling indexer (state in Postgres). Pool state via getPoolsByConfig; swaps via the backup's decode.ts (EvtSwap3). */
 const METAPLEX = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 const SUPPLY = 1_000_000_000;
 const L = 1e9;
 const REFERRAL = process.env.PLATFORM_REFERRAL_TOKEN_ACCOUNT || referralAta().toBase58();
+/** getSignaturesForAddress page size (max 1000; same credits per call whatever the size) and page budget per poll. */
+const SIG_PAGE = Math.min(1000, Math.max(1, Number(process.env.INDEXER_SIG_PAGE ?? 1000) || 1000));
+const SIG_MAX_PAGES = Math.max(1, Number(process.env.INDEXER_SIG_MAX_PAGES ?? 10) || 10);
+/** A signature getTransaction cannot return yet (RPC node lag) stops the batch so the cursor never skips it; after this many polls it is skipped. */
+const MISSING_TX_RETRIES = 3;
+const missingTx = new Map<string, number>();
 
 export function tierConfigs() {
   return indexableConfigEntries() // mainnet: ONLY configs.mainnet.json; devnet: devnet file + legacy + TEST_CONFIGS
@@ -36,17 +43,24 @@ async function fetchMetadata(mint: string) {
   return { name, symbol, uri };
 }
 
-async function indexTrades(t: Token, limit: number, log: (m: string) => void = console.log) {
+/** Index every signature newer than the pool cursor, oldest first, at most `maxTxs` per call (the rest = backlog, next tick).
+ *  The cursor moves to the last signature handled, so nothing between two polls is skipped however long the pool idled. */
+async function indexTrades(t: Token, maxTxs: number, log: (m: string) => void = console.log): Promise<{ newSigs: number; backlog: boolean }> {
   const conn = getConnection();
+  const pk = new PublicKey(t.pool);
   const until = await store.lastSig(t.pool);
-  const sigs = await withRetry(() => conn.getSignaturesForAddress(new PublicKey(t.pool), { limit, until }));
-  if (!sigs.length) return;
-  const newest = sigs[0].signature;
+  const { sigs, complete } = await collectSignatures((o) => withRetry(() => conn.getSignaturesForAddress(pk, o)), until, SIG_PAGE, SIG_MAX_PAGES);
+  if (!sigs.length) return { newSigs: 0, backlog: false };
+  if (!complete && until) log(`[indexer] ${t.pool}: over ${SIG_PAGE * SIG_MAX_PAGES} new signatures since the cursor; older ones past INDEXER_SIG_PAGE x INDEXER_SIG_MAX_PAGES are skipped`);
+  const all = chronological(sigs);
+  const batch = all.slice(0, Math.max(1, maxTxs));
+  let cursor: string | undefined, stopped = false;
   const lastTsInSecond = new Map<number, number>(); // second (ms) -> last trade ts handed out for this mint
   const ob = await openbookTables(db); // 0012 applied: trades + tx costs + aggregates in one db tx (Open Book)
   // failed txs: also fetched (wallet / fee) inside the launch window only; 0 = never (the backfill can fill them later)
   const failedDetailMs = Number(process.env.OPENBOOK_FAILED_DETAIL_WINDOW_S ?? 60) * 1000;
-  for (const s of chronological(sigs)) {
+  try {
+  for (const s of batch) {
     if (s.err) {
       if (!ob) continue;
       const inWindow = failedDetailMs > 0 && t.createdAt > 0 && s.blockTime != null && s.blockTime * 1000 - t.createdAt <= failedDetailMs;
@@ -54,11 +68,20 @@ async function indexTrades(t: Token, limit: number, log: (m: string) => void = c
       if (inWindow) await sleep(120);
       await dbTx((c) => ingestFailed(c, { sig: s.signature, mint: t.mint, pool: t.pool, slot: s.slot, err: s.err, blockTime: s.blockTime ?? null, raw: ftx ? toRaw(ftx) : null }))
         .catch((e) => log(`[openbook] failed ${s.signature}: ${(e as Error).message}`));
+      cursor = s.signature;
       continue;
     }
     const tx = await withRetry(() => conn.getTransaction(s.signature, { maxSupportedTransactionVersion: 0 })).catch(() => null);
     await sleep(120); // stay under public RPC limits
-    if (!tx) continue;
+    if (!tx) {
+      const n = (missingTx.get(s.signature) ?? 0) + 1;
+      if (n <= MISSING_TX_RETRIES) { missingTx.set(s.signature, n); stopped = true; break; } // retry from here next poll
+      missingTx.delete(s.signature);
+      log(`[indexer] ${t.pool}: getTransaction ${s.signature} still empty after ${MISSING_TX_RETRIES} polls, skipped`);
+      cursor = s.signature;
+      continue;
+    }
+    missingTx.delete(s.signature);
     const raw = toRaw(tx);
     const ts = secondBaseMs(tx.blockTime); // whole second; each swap gets ts + its chain-order sequence (indexer/tradeOrder.ts)
     let i = 0, initInTx = false, devTagged = false;
@@ -87,17 +110,36 @@ async function indexTrades(t: Token, limit: number, log: (m: string) => void = c
       await recordTrade({ sig: r.sig, mint: t.mint, side: r.side, sol: r.sol, tokens: r.tokens, ts: r.ts });
       await store.addActivity({ id: `trade:${r.sig}`, type: "trade", mint: t.mint, symbol: t.symbol, ts: r.ts, amount: r.sol, side: r.side, wallet: r.wallet, sig: s.signature });
     }
+    cursor = s.signature;
   }
-  await store.setLastSig(t.pool, newest);
+  } finally {
+    if (cursor) await store.setLastSig(t.pool, cursor); // checkpoint even when a later tx threw (ingest is idempotent anyway)
+  }
+  return { newSigs: sigs.length, backlog: stopped || all.length > batch.length };
 }
 
-export async function indexOnce(log: (m: string) => void = console.log) {
+/** DBC pool configs are immutable once created: read each one once an hour, not on every tick (was one getAccountInfo per config per tick). */
+const CONFIG_TTL_MS = 3_600_000;
+const configCache = new Map<string, { at: number; v: Awaited<ReturnType<ReturnType<typeof getClient>["state"]["getPoolConfig"]>> }>();
+async function poolConfig(address: string) {
+  const hit = configCache.get(address);
+  if (hit && Date.now() - hit.at < CONFIG_TTL_MS) return hit.v;
+  const v = await withRetry(() => getClient().state.getPoolConfig(address));
+  if (v) configCache.set(address, { at: Date.now(), v });
+  return v;
+}
+
+/** One indexer pass. With a scheduler (startIndexer) only due pools fetch signatures / txs; without one (POST /reindex) every pool does. */
+export async function indexOnce(log: (m: string) => void = console.log, sched?: PollScheduler) {
   const client = getClient();
-  const limit = Number(process.env.TRADES_PER_POOL ?? 25);
+  const limit = Math.max(1, Number(process.env.TRADES_PER_POOL ?? 25) || 25); // max txs handled per pool per poll; the rest is backlog for the next tick
+  const now = Date.now();
+  const views = new Map<string, PoolView>();
+  let polled = 0;
   for (const cfg of tierConfigs()) {
     const pools = await withRetry(() => client.state.getPoolsByConfig(cfg.address)).catch((e) => { log(`config ${cfg.key}: ${e.message}`); return []; });
     if (!pools.length) continue;
-    const config = await withRetry(() => client.state.getPoolConfig(cfg.address));
+    const config = await poolConfig(cfg.address);
     const creatorPct = config ? Number(config.creatorTradingFeePercentage) : TIERS[cfg.tier].creatorTradingFeePercentage;
     for (const { publicKey, account } of pools) {
       const ps = account.poolState;
@@ -106,17 +148,24 @@ export async function indexOnce(log: (m: string) => void = console.log) {
       const thresholdSol = config ? Number(config.migrationQuoteThreshold.toString()) / L : thresholdSolFor(cfg.tier, networkOf(process.env.NETWORK)); // on-chain value wins; fallback per network
       const quoteReserveSol = Number(ps.quoteReserve.toString()) / L;
       const priceSol = Number(getPriceFromSqrtPrice(ps.sqrtPrice, 6, 9).toString());
-      const meta = prev?.name ? prev : await fetchMetadata(mint).catch(() => ({ name: "", symbol: "", uri: "" }));
       const isMigrated = Number(ps.isMigrated) !== 0;
+      const pool = publicKey.toBase58();
+      const view: PoolView = { createdAt: prev?.createdAt ?? 0, isMigrated, fingerprint: poolFingerprint(account) };
+      views.set(pool, view);
+      const due = sched ? sched.due(pool, view, now) : true;
+      // metadata: once for a new token; a token stored without a name retries only when its pool is polled
+      const meta = prev && (prev.name || !due) ? prev : await fetchMetadata(mint).catch(() => ({ name: "", symbol: "", uri: "" }));
       const t: Token = {
-        mint, pool: publicKey.toBase58(), config: cfg.address, tier: cfg.tier, antiSniper: cfg.antiSniper,
+        mint, pool, config: cfg.address, tier: cfg.tier, antiSniper: cfg.antiSniper,
         creator: ps.creator.toBase58(), createdAt: prev?.createdAt ?? 0,
         quoteReserveSol, thresholdSol, progress: Math.min(1, quoteReserveSol / thresholdSol),
         isMigrated, priceSol, mcapSol: priceSol * SUPPLY, name: meta.name, symbol: meta.symbol, uri: meta.uri,
         volumeSol: 0, volume24hSol: 0, trades: 0, creatorFeesSol: 0, feesSol: 0, updatedAt: Date.now(),
       };
-      await indexTrades(t, limit, log).catch((e) => log(`trades ${t.pool}: ${e.message}`));
+      const r = due ? await indexTrades(t, limit, log).catch((e) => { log(`trades ${t.pool}: ${e.message}`); return null; }) : null;
+      if (due) polled++;
       if (!t.createdAt) t.createdAt = Date.now();
+      if (r && sched) sched.record(pool, { ...view, createdAt: t.createdAt }, r, Date.now()); // failed poll: not recorded, retried next tick
       if (!prev) await store.addActivity({ id: `launch:${mint}`, type: "launch", mint, symbol: t.symbol, ts: t.createdAt });
       if (isMigrated && !prev?.isMigrated) await store.addActivity({ id: `graduate:${mint}`, type: "graduate", mint, symbol: t.symbol, ts: prev ? Date.now() : t.createdAt, amount: quoteReserveSol });
       const agg = await store.tradeAgg(mint, Date.now() - 86400_000);
@@ -129,6 +178,7 @@ export async function indexOnce(log: (m: string) => void = console.log) {
   }
   await store.trimActivity();
   await detectOfficialLaunch(log).catch((e) => log(`official token: ${(e as Error).message}`));
+  return { pools: views.size, polled, classes: sched?.stats(views, Date.now()) };
 }
 
 /** Official $HIGHER: record the FIRST launch by OFFICIAL_TOKEN_CREATOR with symbol OFFICIAL_TOKEN_SYMBOL (once; see services/officialToken.ts). */
@@ -142,12 +192,21 @@ export async function detectOfficialLaunch(log: (m: string) => void = console.lo
 }
 
 export function startIndexer(log: (m: string) => void = console.log) {
+  const cfg = pollConfig();
+  const sched = new PollScheduler(cfg);
+  log(cfg.adaptive
+    ? `indexer: adaptive polling (hot every ${cfg.baseMs / 1000}s for ${cfg.activeWindowMs / 60_000} min after activity / ${cfg.newPoolHotMs / 60_000} min after launch, idle backoff to ${cfg.idleMaxMs / 1000}s, migrated ${cfg.migratedMs > 0 ? `every ${cfg.migratedMs / 1000}s` : "never"})`
+    : `indexer: INDEXER_ADAPTIVE=0, every pool every ${cfg.baseMs / 1000}s`);
   let running = false;
   const tick = async () => {
     if (running) return; running = true;
-    try { await indexOnce(log); log(`indexed ${await store.tokenCount()} tokens`); } catch (e) { log(`indexer: ${(e as Error).message}`); }
+    try {
+      const r = await indexOnce(log, sched);
+      const c = r.classes;
+      log(`indexed ${await store.tokenCount()} tokens (polled ${r.polled}/${r.pools} pools${c ? `; new ${c.new}, active ${c.active}, idle ${c.idle}, migrated ${c.migrated}` : ""})`);
+    } catch (e) { log(`indexer: ${(e as Error).message}`); }
     finally { running = false; }
   };
   void tick();
-  return setInterval(tick, Number(process.env.INDEX_INTERVAL_MS ?? 30000));
+  return setInterval(tick, cfg.baseMs);
 }
