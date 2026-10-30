@@ -40,7 +40,7 @@ export default function LaunchPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [socials, setSocials] = useState({ website: "", twitter: "", telegram: "" });
   const [tier, setTier] = useState<TierId>("standard");
-  const [anti, setAnti] = useState(true);
+  const [anti, setAnti] = useState(false); // anti-sniper is opt-in (off by default)
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [devBuy, setDevBuy] = useState("0");
@@ -188,7 +188,9 @@ export default function LaunchPage() {
           <div className="flex items-start justify-between gap-4 rounded border border-border p-3">
             <div>
               <div className="flex items-center gap-2 text-sm font-medium"><ShieldCheck size={16} strokeWidth={1.5} />Anti-sniper</div>
-              <div className="mt-0.5 text-[13px] text-ink-3">Fee starts at 25% and drops to 1% over the first 60 seconds</div>
+              <div className="mt-0.5 text-[13px] text-ink-3" role="status" aria-live="polite" data-testid="anti-sniper-info">
+                {anti ? "Anti-sniper on: first-minute buys pay up to 25%, falling to 1% over 60 seconds." : "Anti-sniper off: early bots pay the normal 1% fee. Turn on to tax first-minute buys up to 25%."}
+              </div>
             </div>
             <button type="button" role="switch" aria-checked={anti} aria-label="Anti-sniper" onClick={() => setAnti(!anti)}
               className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${anti ? "bg-ink" : "bg-border-strong"}`}>

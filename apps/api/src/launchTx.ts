@@ -1,7 +1,7 @@
 import BN from "bn.js";
 import { Keypair, PublicKey, type Transaction } from "@solana/web3.js";
 import { deriveDbcPoolAddress, getCurrentPoint, SwapMode, type PoolConfig } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { configPubkey, getClient, getConnection, usableReferralAta } from "@hb/onchain";
+import { configPubkey, devBuyReferral, getClient, getConnection, usableReferralAta } from "@hb/onchain";
 
 const WSOL = new PublicKey("So11111111111111111111111111111111111111112");
 export const DEV_BUY_MAX_SOL = 20;
@@ -26,7 +26,7 @@ export async function quoteDevBuy(tier: string, antiSniper: boolean, devBuySol: 
   const cfg = await poolConfig(config);
   const thresholdSol = Number(cfg.migrationQuoteThreshold.toString()) / LAMPORTS;
   const minFeeEligible = cfg.enableFirstSwapWithMinFee === 1;
-  const ref = minFeeEligible ? null : await usableReferralAta(); // keep platform referral unless it would forfeit the min fee (or the account is missing)
+  const ref = await devBuyReferral(cfg.enableFirstSwapWithMinFee, usableReferralAta); // keep platform referral unless it would forfeit the min fee (or the account is missing)
   const hasReferral = !!ref;
   const base = { config, cfg, thresholdSol, minFeeEligible, hasReferral };
   if (!(devBuySol > 0)) return { ...base, amountIn: new BN(0), outTokens: 0, minOut: new BN(0), feeSol: 0, feePct: 0, supplyPct: 0 };

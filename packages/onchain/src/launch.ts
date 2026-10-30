@@ -16,6 +16,15 @@ export interface LaunchParams {
   minTokensOut?: BN;
 }
 
+/**
+ * Referral account for the dev first buy bundled with pool creation. DBC only gives that first swap the scheduler's MIN fee
+ * when config.enableFirstSwapWithMinFee is set AND the swap has no referral account, so on those configs (the anti-sniper
+ * "_on" configs) the referral is always omitted. Otherwise the platform referral is kept (null when it is not initialized).
+ */
+export async function devBuyReferral(enableFirstSwapWithMinFee: number | boolean | undefined, platformReferral: () => Promise<PublicKey | null>): Promise<PublicKey | null> {
+  return enableFirstSwapWithMinFee ? null : platformReferral();
+}
+
 export interface LaunchResult {
   mint: string;
   pool: string;
@@ -43,7 +52,8 @@ export async function launchToken(p: LaunchParams): Promise<LaunchResult> {
           buyer: p.creator.publicKey,
           buyAmount: p.firstBuyLamports,
           minimumAmountOut: p.minTokensOut ?? new BN(1),
-          referralTokenAccount: await usableReferralAta(),
+          // never a referral on the _on configs, or the dev buy would pay the anti-sniper cliff fee
+          referralTokenAccount: await devBuyReferral((await client.state.getPoolConfig(config))?.enableFirstSwapWithMinFee, usableReferralAta),
         },
       })
     : await client.creator.createPool(createPoolParam);
@@ -52,7 +62,7 @@ export async function launchToken(p: LaunchParams): Promise<LaunchResult> {
   return { mint: baseMint.publicKey.toBase58(), pool: pool.toBase58(), config: config.toBase58(), signature };
 }
 
-// CLI: tsx src/launch.ts --name X --symbol X --uri https://.. --tier standard --anti on --buy 0.1
+// CLI: tsx src/launch.ts --name X --symbol X --uri https://.. --tier standard [--anti on] --buy 0.1 (anti-sniper is off unless --anti on)
 if (isMain(import.meta.url)) {
   const sol = Number(arg("buy", "0"));
   launchToken({
@@ -60,7 +70,7 @@ if (isMain(import.meta.url)) {
     symbol: arg("symbol", "TEST")!,
     uri: arg("uri", "")!,
     tier: arg("tier", "standard")!,
-    antiSniper: arg("anti", "on") === "on",
+    antiSniper: arg("anti", "off") === "on",
     creator: loadPlatformKeypair(),
     firstBuyLamports: sol > 0 ? new BN(Math.round(sol * 1e9)) : undefined,
   }).then((r) => console.log(JSON.stringify(r, null, 2)), (e) => { console.error(e); process.exit(1); });

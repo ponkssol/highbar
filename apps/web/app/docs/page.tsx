@@ -75,7 +75,7 @@ export default function DocsPageRoute() {
           <>Open <DocLink href="/launch">Launch</DocLink> and connect your wallet.</>,
           <>Add a name (up to 32 bytes), a ticker (up to 10 bytes), an image and optional links.</>,
           <>Pick a tier: Standard, Higher or Max. The tier sets the migration target and how fees are shared.</>,
-          <>Choose whether the anti-sniper fee is on. It is on by default.</>,
+          <>Choose whether the anti-sniper fee is on. It is off by default, so turn it on if you want early bots to pay more.</>,
           <>Optionally add a dev buy of up to {sol(DEV_BUY_MAX_SOL)}. It goes into the same transaction that creates the pool, so you buy first.</>,
           <>Sign the transaction in your wallet. Your token is live the moment it confirms.</>,
         ]} />
