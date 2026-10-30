@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { TopBlock } from "@/components/TopBar";
 import { Button, Card } from "@/components/ui";
@@ -8,6 +8,7 @@ import { useApiData } from "@/lib/pagesData";
 import { useHbWallet } from "@/lib/wallet";
 import { fmtAge, fmtSol, shortAddr } from "@/lib/format";
 import { REFERRAL_OF_PROTOCOL_PCT, REFERRAL_VOLUME_PCT } from "@/lib/fees";
+import { SoonChip } from "@/components/SoonChip";
 
 type Ledger = { period: string; referees: number; trades: number; volumeSol: number; referralFeeSol: number; amountSol: number; paidSig: string | null; paidAt: number | null; pending: boolean; paidUrl: string | null };
 type Referee = { wallet: string; joinedAt: number; trades: number; volumeSol: number };
@@ -67,11 +68,10 @@ export default function ReferralPage() {
             {d.referredBy && <p className="mt-2 text-xs text-ink-3">Referred by <span className="num">{shortAddr(d.referredBy.referrer, 6)}</span> {fmtAge(d.referredBy.createdAt)} ago.</p>}
           </Card>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {([["Referred wallets", String(d.referees)], ["Referred volume", `${tiny(d.referredVolumeSol)} SOL`], ["Awaiting payout", `${tiny(d.unpaidSol + d.pendingSol)} SOL`], ["Paid out", `${tiny(d.paidSol)} SOL`]] as const).map(([k, v]) => (
-              <Card key={k}><div className="text-[13px] text-ink-3">{k}</div><div className="num mt-1 text-lg font-semibold">{v}</div></Card>
+            {([["Referred wallets", String(d.referees)], ["Referred volume", `${tiny(d.referredVolumeSol)} SOL`], ["Awaiting payout", <SoonChip key="soon" />], ["Paid out", `${tiny(d.paidSol)} SOL`]] as [string, ReactNode][]).map(([k, v]) => (
+              <Card key={k}><div className="text-[13px] text-ink-3">{k}</div><div className="num mt-1 flex min-h-7 items-center text-lg font-semibold">{v}</div></Card>
             ))}
           </div>
-          {d.pendingSol > 0 && <p className="text-xs text-ink-3">{tiny(d.pendingSol)} SOL is an upper estimate for days that are not closed yet.</p>}
           {!!d.ledger.length && (
             <Card className="overflow-x-auto p-0">
               <h3 className="border-b border-border px-4 py-3 font-semibold">Rewards</h3>
@@ -85,7 +85,7 @@ export default function ReferralPage() {
                     <td className={`${TD} num text-right`}>{tiny(l.amountSol)} SOL</td>
                     <td className={`${TD} text-right`}>{l.paidSig ? (
                       <a href={tx(l.paidSig, l.paidUrl)} target="_blank" rel="noreferrer" className="num inline-flex items-center gap-1 hover:underline">{shortAddr(l.paidSig, 6)}<ExternalLink size={14} className="text-ink-3" /></a>
-                    ) : <span className="text-xs text-ink-3">{l.pending ? "sending" : "awaiting payout"}</span>}</td>
+                    ) : l.pending ? <span className="text-xs text-ink-3">sending</span> : <SoonChip />}</td>
                   </tr>
                 ))}</tbody>
               </table>

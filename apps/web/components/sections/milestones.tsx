@@ -8,6 +8,7 @@ import { Empty, Loading, OfflineNote, Tabs, TD, TH } from "@/components/PageStat
 import { useApiData } from "@/lib/pagesData";
 import { useHbWallet } from "@/lib/wallet";
 import { fmtAge, fmtSol, shortAddr } from "@/lib/format";
+import { SoonChip } from "@/components/SoonChip";
 
 type Milestone = { id: string; mcapSol: number; days: number; rewardSol: number };
 type Progress = Milestone & { streak: number; qualified: boolean; qualifiedDay: string | null; broken: number };
@@ -67,7 +68,7 @@ export default function MilestonesPage() {
       </Card>
       <Card className="overflow-x-auto p-0">
         <h3 className="border-b border-border px-4 py-3 font-semibold">Bonuses</h3>
-        {d.bonuses.length === 0 ? <Empty title="No bonuses yet" hint={d.dryRun ? "Payouts are not live yet." : "Bonuses appear here once a token completes a milestone."} /> : (
+        {d.bonuses.length === 0 ? <Empty title="No bonuses yet" hint={d.dryRun ? "Bonus payouts are coming soon." : "Bonuses appear here once a token completes a milestone."} action={d.dryRun ? <SoonChip /> : undefined} /> : (
           <table className="w-full min-w-[520px] text-sm">
             <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} text-left`}>Token</th><th className={`${TH} text-left`}>Milestone</th><th className={`${TH} text-right`}>Bonus</th><th className={`${TH} text-right`}>Payout</th></tr></thead>
             <tbody>{d.bonuses.map((b) => (
@@ -77,7 +78,7 @@ export default function MilestonesPage() {
                 <td className={`${TD} num text-right`}>{fmtSol(b.amountSol, 2)} SOL</td>
                 <td className={`${TD} text-right`}>{b.paidSig ? (
                   <a href={tx(b)} target="_blank" rel="noreferrer" className="num inline-flex items-center gap-1 hover:underline">{shortAddr(b.paidSig, 6)}<ExternalLink size={14} className="text-ink-3" /></a>
-                ) : <span className="text-xs text-ink-3">{b.pending ? "sending" : "awaiting payout"}</span>}</td>
+                ) : b.pending || !d.dryRun ? <span className="text-xs text-ink-3">{b.pending ? "sending" : "awaiting payout"}</span> : <SoonChip />}</td>
               </tr>
             ))}</tbody>
           </table>
