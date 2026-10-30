@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { calculateFeeSchedulerEndingBaseFeeBps, BaseFeeMode } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { TIERS, ANTI_SNIPER, CURVE_FEE_BPS, DAMM_V2_POOL_FEE_BPS, thresholdSolFor, type TierId } from "@hb/shared";
 import { buildTierConfig } from "./createConfigs.js";
-import { CONFIG_ENV, loadConfigs, rpcUrl, testConfigEntries } from "./client.js";
+import fs from "node:fs";
+import { CONFIG_ENV, configFilePath, loadConfigs, rpcUrl, testConfigEntries } from "./client.js";
 
 const LAMPORTS = 1_000_000_000n;
 const tiers = Object.keys(TIERS) as TierId[];
@@ -59,7 +60,8 @@ test("mainnet config loading: never falls back to configs.devnet.json; CONFIG_* 
     for (const v of Object.values(CONFIG_ENV)) delete process.env[v];
     delete process.env.RPC_URL;
     const file = loadConfigs();
-    for (const k of Object.keys(CONFIG_ENV)) assert.equal(file[k], undefined, `${k} must not come from the devnet file`);
+    const devnet = JSON.parse(fs.readFileSync(configFilePath("devnet"), "utf8").replace(/^\uFEFF/, ""));
+    for (const k of Object.keys(CONFIG_ENV)) assert.notEqual(file[k], devnet[k], `${k} must not come from the devnet file`);
     process.env.CONFIG_MAX_ON = "11111111111111111111111111111112";
     assert.equal(loadConfigs().max_on, "11111111111111111111111111111112");
     assert.deepEqual(testConfigEntries(), []);

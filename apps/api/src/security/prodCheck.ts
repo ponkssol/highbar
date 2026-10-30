@@ -9,6 +9,8 @@ export interface CheckResult { network: "devnet" | "mainnet"; errors: string[]; 
 
 const MAINNET_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
 /** Free public endpoints: rate-limited (429 on getProgramAccounts), no SLA. Not acceptable for mainnet. */
+/** Host only: provider keys often sit in the URL path or query, so never log the full RPC URL. */
+export const rpcHost = (u: string) => { try { return new URL(u).host; } catch { return "(invalid url)"; } };
 export const PUBLIC_RPC = /^(https?|wss?):\/\/(api\.(mainnet-beta|mainnet|devnet|testnet)\.solana\.com|solana-api\.projectserum\.com|rpc\.ankr\.com\/solana\/?$)/i;
 const isPk = (v?: string) => { if (!v) return false; try { new PublicKey(v.trim()); return true; } catch { return false; } };
 const eq = (a?: string | null, b?: string | null) => !!a && !!b && a.trim() === b.trim();
@@ -132,5 +134,5 @@ export async function assertProductionConfig(log: { warn: (m: string) => void; i
     if (env.network === "mainnet") throw new Error(msg);
     for (const e of errors) log.warn(`[config] ${e}`);
   }
-  log.info(`[config] ${env.network} config ok (rpc ${rpcUrl().replace(/(api[-_]?key=)[^&]+/i, "$1***")}, ${Object.keys(configs).filter((k) => k in CONFIG_ENV).length}/6 configs)`);
+  log.info(`[config] ${env.network} config ok (rpc ${rpcHost(rpcUrl())}, ${Object.keys(configs).filter((k) => k in CONFIG_ENV).length}/6 configs)`);
 }

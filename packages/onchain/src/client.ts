@@ -27,8 +27,8 @@ export const CONFIG_ENV: Record<string, string> = {
 export function configFilePath(net = network()): string {
   return path.resolve(here, "..", `configs.${net}.json`);
 }
-function readConfigFile(): Record<string, unknown> {
-  const p = configFilePath();
+function readConfigFile(net = network()): Record<string, unknown> {
+  const p = configFilePath(net);
   if (!fs.existsSync(p)) return {};
   return JSON.parse(fs.readFileSync(p, "utf8").replace(/^\uFEFF/, ""));
 }
@@ -52,12 +52,30 @@ export function testConfigEntries(): [string, string][] {
   return (process.env.TEST_CONFIGS ?? "").split(",").map((s) => s.trim().split("=") as [string, string]).filter(([k, v]) => /^(standard|higher|max)_(on|off)$/.test(k ?? "") && !!v);
 }
 
-/** Active + legacy tier configs (+ env test configs), e.g. for indexer polling. */
+/** Active + legacy tier configs (+ env test configs). Devnet indexer polling uses this; mainnet uses indexableConfigEntries(). */
 export function allTierConfigEntries(): [string, string][] {
   const tier = /^(standard|higher|max)_(on|off)$/;
   const active = Object.entries(loadConfigs()).filter(([k]) => tier.test(k));
   const legacy = loadLegacyConfigs().filter((c) => tier.test(c.key)).map((c) => [c.key, c.address] as [string, string]);
   return [...active, ...legacy, ...testConfigEntries()];
+}
+
+const TIER_KEY = /^(standard|higher|max)_(on|off)$/;
+
+/** Configs the indexer / keeper may scan and the only configs a token row may belong to.
+ *  Mainnet: ONLY the tier entries (+ its legacy list) of configs.mainnet.json. CONFIG_* env overrides, TEST_CONFIGS and the
+ *  devnet file never count, so a mis-set env cannot pull foreign pools into the production DB. Devnet: allTierConfigEntries(). */
+export function indexableConfigEntries(net = network()): [string, string][] {
+  if (net !== "mainnet") return allTierConfigEntries();
+  const f = readConfigFile("mainnet");
+  const active = Object.entries(f).filter(([k, v]) => TIER_KEY.test(k) && typeof v === "string") as [string, string][];
+  const legacy = (Array.isArray(f.legacy) ? (f.legacy as LegacyConfig[]) : []).filter((c) => TIER_KEY.test(c?.key ?? "") && typeof c.address === "string").map((c) => [c.key, c.address] as [string, string]);
+  return [...active, ...legacy];
+}
+
+/** Allowlisted config addresses for the active cluster (see indexableConfigEntries). */
+export function indexableConfigSet(net = network()): Set<string> {
+  return new Set(indexableConfigEntries(net).map(([, a]) => a));
 }
 
 /** Devnet: DEVNET_RPC || RPC_URL || public devnet. Mainnet: RPC_URL only (DEVNET_RPC is ignored; the startup check refuses the public endpoint). */

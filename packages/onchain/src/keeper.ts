@@ -1,7 +1,7 @@
 import { DAMM_V2_MIGRATION_FEE_ADDRESS } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { PublicKey, type Keypair } from "@solana/web3.js";
 import { deriveBaseKeyForLocker, deriveLockerEscrowAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { getClient, getConnection, isMain, network, loadConfigs, loadLegacyConfigs, loadPlatformKeypair, sendTx, testConfigEntries, unfilledEnv, withRetry } from "./client.js";
+import { getClient, getConnection, indexableConfigEntries, isMain, network, loadPlatformKeypair, sendTx, unfilledEnv, withRetry } from "./client.js";
 
 /** DRY_RUN defaults to true; set DRY_RUN=false to actually send. */
 export const DRY_RUN = (process.env.DRY_RUN ?? "true").toLowerCase() !== "false";
@@ -39,7 +39,7 @@ export async function runKeeperOnce(): Promise<KeeperResult[]> {
   const client = getClient();
   const conn = getConnection();
   const only = (process.env.KEEPER_CONFIGS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const all: [string, string][] = [...Object.entries(loadConfigs()).filter(([k]) => /_(on|off)$/.test(k)), ...loadLegacyConfigs().map((c) => [c.key, c.address] as [string, string]), ...testConfigEntries()];
+  const all = indexableConfigEntries(); // mainnet: configs.mainnet.json only (never env / test / devnet configs)
   const entries = only.length ? all.filter(([k, a]) => only.includes(k) || only.includes(a)) : all;
   const results: KeeperResult[] = [];
   const payer = DRY_RUN ? null : loadPlatformKeypair();

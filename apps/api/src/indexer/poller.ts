@@ -2,7 +2,7 @@ import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { getPriceFromSqrtPrice } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { TIERS, networkOf, thresholdSolFor, type TierId } from "@hb/shared";
-import { getClient, getConnection, allTierConfigEntries, referralAta, sleep, withRetry } from "@hb/onchain";
+import { getClient, getConnection, indexableConfigEntries, referralAta, sleep, withRetry } from "@hb/onchain";
 import { decodeDbcEvents, type RawTx } from "./decode.js";
 import { store, type Token } from "../store.js";
 import { recordTrade } from "../candles/index.js";
@@ -16,7 +16,7 @@ const L = 1e9;
 const REFERRAL = process.env.PLATFORM_REFERRAL_TOKEN_ACCOUNT || referralAta().toBase58();
 
 export function tierConfigs() {
-  return allTierConfigEntries()
+  return indexableConfigEntries() // mainnet: ONLY configs.mainnet.json; devnet: devnet file + legacy + TEST_CONFIGS
     .map(([k, v]) => { const [tier, a] = k.split("_"); return { key: k, tier: tier as TierId, antiSniper: a === "on", address: v }; });
 }
 

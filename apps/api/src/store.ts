@@ -1,4 +1,5 @@
-﻿import { db, tx, type Q } from "./db/pool.js";
+﻿import { indexableConfigSet, network } from "@hb/onchain";
+import { db, tx, type Q } from "./db/pool.js";
 
 /** Postgres-backed store (tables in db/migrations). Shapes match the former JSON store / API responses. */
 export interface Token {
@@ -29,6 +30,11 @@ const SORT: Record<string, string> = { createdAt: "created_at", mcapSol: "mcap_s
 
 export interface TokenQuery { tier?: string; status?: string; q?: string; sort?: string; order?: string; limit: number; offset: number }
 
+/** Insert guard: a token row may only belong to a config in the active cluster's allowlist (mainnet: configs.mainnet.json). */
+export function tokenConfigAllowed(config: string, allow: Set<string> = indexableConfigSet()): boolean {
+  return allow.has(config);
+}
+
 export const store = {
   // ---- tokens ----
   async listTokens(f: TokenQuery): Promise<{ total: number; items: Token[] }> {
@@ -54,7 +60,12 @@ export const store = {
     if (!mints.length) return new Map();
     return new Map((await db.query<{ mint: string; symbol: string }>("SELECT mint, symbol FROM tokens WHERE mint = ANY($1)", [mints])).rows.map((r) => [r.mint, r.symbol]));
   },
-  async upsertToken(t: Token, q: Q = db) {
+  /** false (and nothing written) when t.config is not allowlisted for the active cluster. */
+  async upsertToken(t: Token, q: Q = db, allow: Set<string> = indexableConfigSet()): Promise<boolean> {
+    if (!tokenConfigAllowed(t.config, allow)) {
+      console.warn(`[tokens] refused insert of ${t.mint}: config ${t.config} is not in the ${network()} config allowlist`);
+      return false;
+    }
     await q.query(`INSERT INTO tokens (mint,pool,config,tier,anti_sniper,creator,created_at,quote_reserve_sol,threshold_sol,progress,is_migrated,price_sol,mcap_sol,name,symbol,uri,volume_sol,volume_24h_sol,trades,creator_fees_sol,fees_sol,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
       ON CONFLICT (mint) DO UPDATE SET pool=EXCLUDED.pool, config=EXCLUDED.config, tier=EXCLUDED.tier, anti_sniper=EXCLUDED.anti_sniper, creator=EXCLUDED.creator,
@@ -64,6 +75,7 @@ export const store = {
         fees_sol=EXCLUDED.fees_sol, updated_at=EXCLUDED.updated_at`,
       [t.mint, t.pool, t.config, t.tier, t.antiSniper, t.creator, Math.round(t.createdAt), t.quoteReserveSol, t.thresholdSol, t.progress, t.isMigrated, t.priceSol, t.mcapSol,
         t.name, t.symbol, t.uri, t.volumeSol, t.volume24hSol, t.trades, t.creatorFeesSol, t.feesSol, Math.round(t.updatedAt)]);
+    return true;
   },
 
   // ---- trades ----
