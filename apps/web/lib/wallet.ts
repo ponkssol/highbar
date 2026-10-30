@@ -74,3 +74,18 @@ export function useWalletModal() {
   const ready = useWalletReady();
   return useCallback((view?: "Connect" | "Account") => { if (ready) void getAppKitModal()?.open(view ? { view } : undefined); }, [ready]);
 }
+
+/** Whether the AppKit modal is open. SSR-safe replacement for useAppKitState().open, which throws
+ *  'Please call "createAppKit" before using "useAppKitState" hook' on the server (createAppKit only runs in the browser)
+ *  and when REOWN_PROJECT_ID is unset. false until mounted / when there is no modal. */
+export function useWalletModalOpen() {
+  const ready = useWalletReady();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const m = ready ? getAppKitModal() : undefined;
+    if (!m) { setOpen(false); return; }
+    setOpen(!!m.getState().open);
+    return m.subscribeState((s) => setOpen(!!s.open));
+  }, [ready]);
+  return open;
+}

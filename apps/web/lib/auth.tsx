@@ -1,8 +1,8 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { useAppKitProvider, useAppKitState } from "@reown/appkit/react";
+import { useAppKitProvider } from "@reown/appkit/react";
 import { Check, Loader2, X } from "lucide-react";
-import { useHbWallet } from "./wallet";
+import { useHbWallet, useWalletModalOpen } from "./wallet";
 import { NETWORK } from "./settings";
 
 export type AuthStatus = "disconnected" | "signing" | "verified" | "unverified";
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("disconnected");
   const [token, setToken] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast>(null);
-  const { open: modalOpen } = useAppKitState();
+  const modalOpen = useWalletModalOpen(); // not useAppKitState(): it throws during SSR / before createAppKit
   const prev = useRef<string | null>(null);
   /** Address we already auto-prompted (or found a valid session for); prevents re-prompt loops after a rejection. */
   const autoDone = useRef<string | null>(null);
