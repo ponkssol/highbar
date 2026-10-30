@@ -18,6 +18,7 @@
     "sell": "tsx src/trade.ts sell",
     "quote": "tsx src/trade.ts buy --quote-only",
     "keeper": "tsx src/keeper.ts",
+    "vanity:bench": "tsx src/vanityBench.ts",
     "configs:simulate": "tsx src/createConfigs.ts --simulate",
     "configs:mainnet:print": "tsx src/createConfigs.ts --network mainnet --print",
     "configs:mainnet:simulate": "tsx src/createConfigs.ts --network mainnet --simulate",

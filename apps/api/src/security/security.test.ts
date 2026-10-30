@@ -78,6 +78,7 @@ const goodMainnet = () => {
     NETWORK: "mainnet", TREASURY_PUBKEY: pk(), REFERRAL_ACCOUNT: pk(), OFFICIAL_TOKEN_CREATOR: pk(), DATABASE_URL: "postgres://u:p@h/db",
     RPC_URL: "https://example-name.solana-mainnet.quiknode.pro/0123abcd/", AUTH_SECRET: "x".repeat(40), SITE_URL: "https://highbar.example",
     CORS_ORIGIN: "https://highbar.example", PROXY_SHARED_SECRET: "y".repeat(40), LOCK_TIP_WALLET: pk(), LOCK_TIP_SOL: "0.005",
+    MINT_POOL_ENC_KEY: "ab".repeat(32), // test-only key
   };
   for (const k of ["STANDARD_OFF", "STANDARD_ON", "HIGHER_OFF", "HIGHER_ON", "MAX_OFF", "MAX_ON"]) env[`CONFIG_${k}`] = pk();
   return env;
@@ -86,6 +87,22 @@ const goodMainnet = () => {
 test("checkEnv: mainnet with complete env passes (single treasury wallet is fine)", () => {
   const r = checkEnv(goodMainnet(), { platformPubkey: pk(), configs: {} });
   assert.equal(r.network, "mainnet"); assert.deepEqual(r.errors, []); assert.deepEqual(r.warnings, []);
+});
+
+test("checkEnv: mainnet refuses to start without a valid MINT_POOL_ENC_KEY (vanity mint pool)", () => {
+  for (const bad of [undefined, "", "abcd", "ab".repeat(31), Buffer.alloc(16).toString("base64"), Buffer.alloc(33).toString("base64")]) {
+    const env = goodMainnet(); if (bad === undefined) delete env.MINT_POOL_ENC_KEY; else env.MINT_POOL_ENC_KEY = bad;
+    assert.ok(checkEnv(env).errors.some((e) => /MINT_POOL_ENC_KEY/.test(e)), `key ${JSON.stringify(bad?.length)} must be refused`);
+  }
+  const fill = goodMainnet(); fill.MINT_POOL_ENC_KEY = "<FILL_ME>";
+  assert.ok(checkEnv(fill).errors.some((e) => /MINT_POOL_ENC_KEY/.test(e)));
+  const b64 = goodMainnet(); b64.MINT_POOL_ENC_KEY = Buffer.alloc(32, 7).toString("base64");
+  assert.deepEqual(checkEnv(b64, { platformPubkey: pk(), configs: {} }).errors, []);
+  const err = checkEnv({ ...goodMainnet(), MINT_POOL_ENC_KEY: "cd".repeat(31) }).errors.join(" ");
+  assert.ok(!err.includes("cd".repeat(31)), "the key value is never echoed");
+  const n = goodMainnet(); n.MINT_POOL_MIN_AVAILABLE = "zero";
+  assert.ok(checkEnv(n).errors.some((e) => /MINT_POOL_MIN_AVAILABLE/.test(e)));
+  assert.ok(checkEnv({ NETWORK: "devnet" }).warnings.some((w) => /vanity mint pool disabled/.test(w)), "devnet only warns");
 });
 
 test("checkEnv: QuickNode and Helius mainnet URLs pass the paid-RPC check", () => {

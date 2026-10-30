@@ -45,7 +45,15 @@ export function useHbWallet() {
     return walletProvider.signAndSendTransaction(tx);
   }, [walletProvider, publicKey, connection]);
 
-  return { ready, address: address ?? null, publicKey, isConnected: !!isConnected && !!publicKey, connection, sendTransaction };
+  /** Wallet signature only (no send, no extra signers): for txs a server co-signs afterwards (vanity mint launch). */
+  const signTransaction = useCallback(async (tx: Transaction): Promise<Transaction> => {
+    if (!walletProvider || !publicKey) throw new Error("Wallet not connected");
+    return walletProvider.signTransaction(tx);
+  }, [walletProvider, publicKey]);
+  /** Broadcast an already fully signed tx. */
+  const sendRaw = useCallback((bytes: Uint8Array) => connection.sendRawTransaction(bytes), [connection]);
+
+  return { ready, address: address ?? null, publicKey, isConnected: !!isConnected && !!publicKey, connection, sendTransaction, signTransaction, sendRaw };
 }
 
 export function useSolBalance(publicKey: PublicKey | null, connection: Connection) {

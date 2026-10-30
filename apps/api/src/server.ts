@@ -21,6 +21,9 @@ import { migrate } from "./db/migrate.js";
 import { requireDb } from "./db/pool.js";
 import { buildLaunchTx, quoteDevBuy, DEV_BUY_MAX_SOL, type LaunchReq } from "./launchTx.js";
 import { registerClaim } from "./routes/claim.js";
+import { mintPoolFailure, registerMint, startMintSweeper } from "./routes/mint.js";
+import { launchConfigs, platformReferrals, requireReservation, reserveMint, validateLaunchTx } from "./services/mintPool/index.js";
+import { db } from "./db/pool.js";
 import { registerScores } from "./routes/scores.js";
 import { scoresStore } from "./services/scoresStore.js";
 import { runScores } from "./services/scoreJob.js";
@@ -73,6 +76,7 @@ registerRewards(app);
 registerBar(app);
 registerReferralMilestone(app);
 registerClaim(app);
+registerMint(app);
 registerCandles(app);
 registerMedia(app);
 registerScores(app);
@@ -161,7 +165,7 @@ app.post("/tx/swap", async (req, reply) => {
 
 app.post("/tx/launch", async (req, reply) => {
   if (process.env.LAUNCHES_PAUSED === "true") return reply.code(503).send({ error: "launches are paused" }); // kill switch (rollback plan)
-  const raw = (req.body ?? {}) as Partial<LaunchReq>;
+  const raw = (req.body ?? {}) as Partial<LaunchReq> & { mint?: unknown };
   let b: LaunchReq;
   try {
     if (!["standard", "higher", "max"].includes(String(raw.tier))) throw new BadRequest("tier must be standard|higher|max");
@@ -178,8 +182,19 @@ app.post("/tx/launch", async (req, reply) => {
   if (gate) return reply.code(403).send({ error: gate });
   const spam = creatorLaunchGate(limits, b.creator); // anti-spam: launches per creator wallet per hour
   if (spam) return reply.code(429).send({ error: spam });
-  try { return await buildLaunchTx(b); }
+  // Vanity mint ("...high"): the reservation from POST /mint/reserve (or a fresh one). No random-mint fallback: an empty pool is a 503.
+  let mint: string;
+  try {
+    if (raw.mint === undefined || raw.mint === null || raw.mint === "") mint = (await reserveMint(db, b.creator)).mint; // reuses this wallet's unsigned live reservation
+    else { mint = address(raw.mint, "mint"); await requireReservation(db, mint, b.creator); }
+  } catch (e) { return e instanceof BadRequest ? reply.code(400).send({ error: e.message }) : mintPoolFailure(reply, e, req.log); }
+  let built: Awaited<ReturnType<typeof buildLaunchTx>>;
+  try { built = await buildLaunchTx(b, new PublicKey(mint)); }
   catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+  // self-check: what we hand out must pass the same validator /tx/launch/sign applies (SDK drift shows up here, not at signing)
+  try { validateLaunchTx(built.tx, { mint, creator: b.creator, configs: launchConfigs(), referrals: platformReferrals(), requireCreatorSignature: false }); }
+  catch (e) { req.log.error({ reason: (e as Error).message }, "launch tx failed self-validation"); return reply.code(500).send({ error: "launch tx failed validation", code: "LAUNCH_TX_SELF_CHECK" }); }
+  return built;
 });
 
 app.get("/tx/launch/quote", async (req, reply) => {
@@ -359,6 +374,7 @@ app.delete("/admin/official-token", async (req, reply) => {
   return { ok: true, removed: r.removed, official: officialView() };
 });
 setInterval(() => { refreshOfficial().catch(() => {}); }, 60_000).unref(); // other replicas / NO_INDEXER
+startMintSweeper({ warn: (m) => app.log.warn(m), info: (m) => app.log.info(m) }); // expired vanity-mint reservations (also done by the mint-pool service)
 
 // Fee claimer / cashback / buyback & burn run as separate jobs (src/jobs/run.ts: pnpm --filter @hb/api jobs:epoch -- --loop 3600), not in the API process.
 

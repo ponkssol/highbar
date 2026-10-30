@@ -44,7 +44,7 @@ export function routeClass(method: string, url: string): keyof Limits | null {
   if (method === "POST" && p === "/metadata") return "metadata";
   if (method === "POST" && p === "/tx/launch") return "launch";
   if (p === "/tx/launch/quote") return "txBuild";
-  if (method === "POST" && (p.startsWith("/tx/") || p === "/claim/build")) return "txBuild";
+  if (method === "POST" && (p.startsWith("/tx/") || p === "/claim/build" || p.startsWith("/mint/"))) return "txBuild"; // incl. /tx/launch/sign, /mint/confirm
   if (method === "POST" && p === "/referrals") return "referral";
   if (p.startsWith("/auth/")) return "auth";
   return null;

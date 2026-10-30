@@ -8,7 +8,7 @@ import { TIERS, thresholdSolFor, type TierId } from "@hb/shared";
 import { TopBlock } from "@/components/TopBar";
 import { Avatar, Button, Card, ProgressBar, TierBadge } from "@/components/ui";
 import { feeSplitPct, migrationFeePct, migrationMcapSol, postMigrationPct } from "@/lib/fees";
-import { launchToken, quoteDevBuy, type DevBuyQuote } from "@/lib/launch";
+import { launchToken, quoteDevBuy, type DevBuyQuote, type LaunchStep } from "@/lib/launch";
 import { useHbWallet, useSolBalance } from "@/lib/wallet";
 import { useAuth } from "@/lib/auth";
 import { NETWORK } from "@/lib/settings";
@@ -72,7 +72,9 @@ export default function LaunchPage() {
       if (lowBalance) { setMsg(`Not enough SOL: you need about ${needSol.toFixed(3)} SOL (dev buy + launch rent and fees).`); return; }
       if (overMax) { setMsg(`Dev buy is capped at ${q?.maxDevBuySol} SOL.`); return; }
       if (tier === "max" && maxLocked) { setMsg(`${maxNeed}.`); return; }
-      const r = await launchToken({ name, ticker, description: desc, image, ...socials, tier, antiSniper: anti, devBuySol: devSol }, wallet.publicKey.toBase58(), (tx) => wallet.sendTransaction(tx));
+      const steps: Record<LaunchStep, string> = { metadata: "Uploading metadata…", mint: "Generating your …high address…", sign: "Approve the launch in your wallet…", cosign: "Finalizing your …high address…", send: "Sending…" };
+      const r = await launchToken({ name, ticker, description: desc, image, ...socials, tier, antiSniper: anti, devBuySol: devSol }, wallet.publicKey.toBase58(),
+        { sign: (tx) => wallet.signTransaction(tx), sendRaw: (b) => wallet.sendRaw(b) }, (s) => setMsg(steps[s]));
       setLaunched({ mint: r.mint, signature: r.signature });
       setMsg(`Launched ${devSol > 0 ? `with a ${devSol} SOL dev buy ` : ""}(tx ${r.signature.slice(0, 8)}). Opening the token page...`);
       // Wait (max ~20s) until the indexer has the new pool so the token page shows live data, then redirect.

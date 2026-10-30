@@ -20,7 +20,9 @@
     "jobs:barsnap": "tsx src/jobs/run.ts barsnap",
     "jobs:feeshare": "tsx src/jobs/run.ts feeshare",
     "jobs:referral": "tsx src/jobs/runReferralMilestone.ts referral",
-    "jobs:milestone": "tsx src/jobs/runReferralMilestone.ts milestone"
+    "jobs:milestone": "tsx src/jobs/runReferralMilestone.ts milestone",
+    "mint-pool:refill": "tsx src/jobs/mintPool.ts",
+    "mint-pool:status": "tsx src/jobs/mintPool.ts --status"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
@@ -39,6 +41,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.13",
     "@types/bn.js": "^5.2.0",
     "@types/pg": "^8.11.0",
     "tsx": "^4.23.15"

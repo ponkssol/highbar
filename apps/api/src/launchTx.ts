@@ -1,5 +1,5 @@
 import BN from "bn.js";
-import { Keypair, PublicKey, type Transaction } from "@solana/web3.js";
+import { PublicKey, type Transaction } from "@solana/web3.js";
 import { deriveDbcPoolAddress, getCurrentPoint, SwapMode, type PoolConfig } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { configPubkey, getClient, getConnection, usableReferralAta } from "@hb/onchain";
 
@@ -57,26 +57,29 @@ export async function quoteDevBuy(tier: string, antiSniper: boolean, devBuySol: 
 
 export interface LaunchReq { creator: string; name: string; symbol: string; uri?: string; tier: string; antiSniper: boolean; devBuySol?: number; slippageBps?: number }
 
-export async function buildLaunchTx(b: LaunchReq) {
+/**
+ * Unsigned DBC create(+first buy) tx for a RESERVED vanity mint (services/mintPool). Nobody signs here: the creator's
+ * wallet signs first, then POST /tx/launch/sign validates the wallet-signed bytes and adds the mint signature.
+ * There is deliberately no random-mint fallback.
+ */
+export async function buildLaunchTx(b: LaunchReq, mint: PublicKey) {
   const creator = new PublicKey(b.creator);
   const devBuySol = Number(b.devBuySol ?? 0), slippageBps = b.slippageBps ?? 100;
   if (!Number.isFinite(devBuySol) || devBuySol < 0) throw new Error("devBuySol must be >= 0");
   if (!Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps > 5000) throw new Error("slippageBps must be an integer between 0 and 5000");
   const q = await quoteDevBuy(b.tier, !!b.antiSniper, devBuySol, slippageBps);
   if (devBuySol > Math.min(q.thresholdSol, DEV_BUY_MAX_SOL)) throw new Error(`devBuySol must be <= ${Math.min(q.thresholdSol, DEV_BUY_MAX_SOL)} SOL`);
-  const baseMint = Keypair.generate();
   const tx: Transaction = await getClient().creator.createPoolWithFirstBuy({
-    createPoolParam: { name: b.name, symbol: b.symbol, uri: b.uri ?? "", payer: creator, poolCreator: creator, config: q.config, baseMint: baseMint.publicKey },
+    createPoolParam: { name: b.name, symbol: b.symbol, uri: b.uri ?? "", payer: creator, poolCreator: creator, config: q.config, baseMint: mint },
     firstBuyParam: devBuySol > 0 ? { buyer: creator, receiver: creator, buyAmount: q.amountIn, minimumAmountOut: q.minOut, referralTokenAccount: q.hasReferral ? await usableReferralAta() : null } : undefined,
   });
   tx.feePayer = creator;
   tx.recentBlockhash = (await getConnection().getLatestBlockhash("confirmed")).blockhash;
-  tx.partialSign(baseMint);
   const bytes = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
   if (bytes.length > 1232) throw new Error(`launch tx too large (${bytes.length} bytes)`);
-  const pool = deriveDbcPoolAddress(WSOL, baseMint.publicKey, q.config);
+  const pool = deriveDbcPoolAddress(WSOL, mint, q.config);
   return {
-    tx: bytes.toString("base64"), size: bytes.length, mint: baseMint.publicKey.toBase58(), pool: pool.toBase58(),
+    tx: bytes.toString("base64"), size: bytes.length, mint: mint.toBase58(), pool: pool.toBase58(),
     devBuy: devBuySol > 0 ? { sol: devBuySol, estTokens: q.outTokens, minTokens: Number(q.minOut.toString()) / BASE_DEC, supplyPct: q.supplyPct, feeSol: q.feeSol, feePct: q.feePct, minFeeApplied: q.minFeeEligible } : null,
   };
 }

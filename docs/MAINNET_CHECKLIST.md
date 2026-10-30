@@ -119,7 +119,7 @@ cd ..\..
 
 1. Create a **new** Railway project (e.g. `highbar-mainnet`). Do not reuse the devnet DB.
 2. **+ New → Database → PostgreSQL.** Services reference it as `${{Postgres.DATABASE_URL}}` (already in the templates).
-3. **+ New → GitHub Repo → this repo**, 5 times. Then rename the services `api`, `web`, `keeper`, `jobs-epoch`, `jobs-barsnap`. The web template's `API_URL` uses the name `api`.
+3. **+ New → GitHub Repo → this repo**, 6 times. Then rename the services `api`, `web`, `keeper`, `jobs-epoch`, `jobs-barsnap`, `mint-pool`. The web template's `API_URL` uses the name `api`.
 4. For each service, go to **Settings**:
    - Root Directory: `/` (the monorepo root).
    - **Config-as-code file path**: `deploy/railway/<service>.json`.
@@ -132,6 +132,7 @@ cd ..\..
 | keeper | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/onchain run keeper --loop 30` | restart ALWAYS |
 | jobs-epoch | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/api jobs:epoch` | Cron `15 0 * * *` (UTC = 07:15 WIB), restart NEVER |
 | jobs-barsnap | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/api jobs:barsnap` | Cron `5 * * * *`, restart NEVER |
+| mint-pool | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/api mint-pool:refill --loop 30` | restart ALWAYS; no domain, no pre-deploy (the api migrates). CPU-bound: see step 6a |
 
 5. Migrations: the api pre-deploy runs `db:migrate`, and the API runs pending migrations on start too. To run them by hand from the PC against the mainnet DB, use Postgres → Connect → *public* URL:
    ```powershell
@@ -148,20 +149,35 @@ For each service:
    ```
    Replace every `<FILL_ME>`. **Delete** optional lines you don't use (e.g. `JUPITER_API_KEY`, `ADMIN_TOKEN`) rather than leaving `<FILL_ME>`. The API, keeper and jobs refuse to start while any value still contains `<FILL_ME>`.
 2. In Railway, open the service → **Variables** → **Raw Editor**. Paste the whole file → **Update Variables**.
-3. For secrets (`PLATFORM_KEYPAIR_JSON`, `AUTH_SECRET`, `PROXY_SHARED_SECRET`, `ADMIN_TOKEN`), open the variable's ⋮ menu → **Seal**.
+3. For secrets (`PLATFORM_KEYPAIR_JSON`, `AUTH_SECRET`, `PROXY_SHARED_SECRET`, `ADMIN_TOKEN`, `MINT_POOL_ENC_KEY`), open the variable's ⋮ menu → **Seal**.
    - `PLATFORM_KEYPAIR_JSON` is the whole content of `platform.json` (the `[12,34,…]` array). Paste it yourself; it never goes in git.
 
 | Template | Service(s) | Must match across services |
 |---|---|---|
-| `deploy/mainnet/api.env.template` | api | — |
+| `deploy/mainnet/api.env.template` | api | `MINT_POOL_ENC_KEY` (= mint-pool) |
 | `deploy/mainnet/web.env.template` | web | `PROXY_SHARED_SECRET` (= api), `SITE_URL` (= api) |
 | `deploy/mainnet/keeper.env.template` | keeper | the 6 `CONFIG_*` (= api) |
 | `deploy/mainnet/jobs.env.template` | jobs-epoch **and** jobs-barsnap | `TREASURY_PUBKEY`, `REFERRAL_WALLET`, `OFFICIAL_TOKEN_CREATOR` (later), optional `BAR_MINT`, `CONFIG_*` (= api) |
+| `deploy/mainnet/mint-pool.env.template` | mint-pool | `MINT_POOL_ENC_KEY`, `MINT_POOL_MIN_AVAILABLE`, `MINT_POOL_RESERVATION_MIN` (= api), same Postgres |
 
 Also:
 - `SITE_URL` and `CORS_ORIGIN` are the final https web domain. Token metadata URIs are built from `SITE_URL`, so set the custom domain **before** the first launch.
 - Web `NETWORK=mainnet` is read by the web server at runtime (no build-time env vars); a restart applies a change.
 - `REOWN_PROJECT_ID`: add the web domain to the Reown project's allowlist.
+
+### 6a. Vanity mint pool (every launch's mint ends in `high`) [BLOCKER]
+
+| Variable | Services | Value |
+|---|---|---|
+| `MINT_POOL_ENC_KEY` | api **and** mint-pool (identical), sealed | 32 random bytes, hex or base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Never on web, never `NEXT_PUBLIC_*`. The API refuses to start on mainnet without a valid key. Losing or changing it makes every stored mint unusable (refill again). |
+| `MINT_POOL_MIN_AVAILABLE` | api + mint-pool | `50` (pool target) |
+| `MINT_POOL_RESERVATION_MIN` | api + mint-pool | `10` (minutes a launch holds its mint) |
+| `MINT_POOL_THREADS` | mint-pool | = the service's vCPU count (set it explicitly; the container may report the host's CPUs) |
+
+- Cost: an address needs ~11.3 M ed25519 keys on average. One core does ~20–25 k keys/s (measured on a Ryzen 5 5600: 25.6 k), so **~7.5–9 CPU-minutes per address** and **~6–7.5 CPU-hours to fill 50**. On 2 vCPU that is ~3.5 h for the first 50; afterwards it only grinds what launches consume (~4 min per launch on 2 vCPU).
+- Fill the pool **before** go-live: deploy mint-pool early (it waits for the `mint_pool` table, created by the api's migration 0010) and check `pnpm --filter @hb/api mint-pool:status` or its log line `available N / min 50`.
+- An empty pool does not fall back to a random mint: launches answer `503 MINT_POOL_EMPTY` ("no …high mint address is available right now").
+- Expired reservations go back to the pool only if the mint account does not exist on-chain (checked over RPC); otherwise the mint is marked used. A mint is never handed out twice.
 
 ## 7. Deploy and go-live order [BLOCKER]
 
@@ -170,13 +186,14 @@ Also:
    - `https://<api-domain>/health` returns `{"ok":true,…,"dryRun":true}`.
 2. **web**: open the site. The sidebar shows `· mainnet`, and the wallet modal offers Solana mainnet only.
 3. **keeper**: keep `DRY_RUN=true` at first. Logs show `[DRY_RUN]` ticks listing the 6 configs.
-4. **jobs-epoch / jobs-barsnap**: dry-run. Trigger once with **Deploy → Run now**. Logs show `[DRY_RUN]` and would-claim / would-pay lines, with no signatures.
+4. **mint-pool**: right after the api (migration 0010). Logs show `grinding N "...high" mint(s)` and then `available 50 / min 50`. Do not open launches before the pool has a healthy buffer.
+5. **jobs-epoch / jobs-barsnap**: dry-run. Trigger once with **Deploy → Run now**. Logs show `[DRY_RUN]` and would-claim / would-pay lines, with no signatures.
 
 ## 8. Smoke test (you, real SOL, small amounts) [BLOCKER]
 
 1. Connect a personal wallet (not the platform, treasury or referral wallet). Sign in. The SIWS message says `Network: mainnet`.
 2. Launch a test token on **Standard, anti-sniper off** with a tiny or zero dev buy. Check:
-   - the token page loads;
+   - the token page loads and the mint address ends in `high`;
    - Solscan shows the pool under `CONFIG_STANDARD_OFF`;
    - the metadata URI is `https://<SITE_URL>/hb-api/meta/…json`.
 3. Buy 0.01 SOL, then sell part of it. Check:
