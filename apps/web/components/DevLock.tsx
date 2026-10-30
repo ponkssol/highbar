@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { PublicKey } from "@solana/web3.js";
 import { AlertTriangle, Lock, Unlock, X } from "lucide-react";
 import { useHbWallet } from "@/lib/wallet";
@@ -8,6 +9,7 @@ import { api } from "@/lib/api";
 import { DevLockedBadge } from "./DevLockedBadge";
 import { buildClaimLockTx, buildLockTx, toUi, type LocksResp } from "@/lib/lock";
 import { NETWORK } from "@/lib/settings";
+import { shortAddr } from "@/lib/format";
 
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
 const fmtDate = (s: number) => new Date(s * 1000).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -38,7 +40,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
   const { publicKey, connection, sendTransaction } = useHbWallet();
   const isCreator = useIsCreator(creator) && mode !== "view";
   const [bal, setBal] = useState<number | null>(null);
-  const [open, setOpen] = useState(mode === "form" && !(data?.locks.length));
+  const [open, setOpen] = useState(mode === "form"); // the modal opens straight into the form, with the lock list and Claim above it
   const [amount, setAmount] = useState("");
   const [unlock, setUnlock] = useState(() => isoLocal(new Date(Date.now() + 30 * 86_400_000)));
   const [vestDays, setVestDays] = useState("0");
@@ -136,6 +138,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
       )}
       {isCreator && open && (
         <div className="mt-3 space-y-3">
+          {publicKey && <div className="flex justify-between text-[13px]" data-testid="lock-recipient"><span className="text-ink-2">Recipient</span><span className="num text-ink">Your wallet {shortAddr(publicKey.toBase58())}</span></div>}
           <label className="block"><span className="mb-1.5 flex justify-between text-[13px] text-ink-2">Amount<button type="button" onClick={() => setAmount(String(bal ?? 0))} className="num text-xs text-ink-3 hover:text-ink">Max {fmtTok(bal ?? 0)}</button></span>
             <input className={`${input} num`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} /></label>
           <label className="block"><span className="mb-1.5 block text-[13px] text-ink-2">Unlock date (cliff)</span>
@@ -194,17 +197,21 @@ export function DevLockButton({ className = "", devLocked, unlockAt, ...p }: Loc
         className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded border border-border bg-surface text-sm font-medium hover:bg-muted ${className}`}>
         <Lock size={15} strokeWidth={1.75} />Dev Lock
       </button>
-      {open && (
-        <div className="fixed inset-0 z-[55] flex items-end justify-center md:items-center md:p-6" role="dialog" aria-modal="true" aria-labelledby="dev-lock-title">
-          <div className="hb-scrim absolute inset-0" onClick={() => setOpen(false)} />
-          <div ref={panel} tabIndex={-1} className="hb-sheet relative max-h-[90vh] w-full overflow-y-auto rounded-t-[20px] border border-border bg-surface p-5 pb-[calc(20px+env(safe-area-inset-bottom))] outline-none md:max-w-md md:rounded-lg md:pb-5 md:shadow-card">
-            <div className="mb-3 flex items-center justify-between">
+      {/* Portal to <body>: inside the page the modal sat in the sticky trade column's stacking context, below the chart canvases (z-index 1 and 2). */}
+      {open && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-end justify-center md:items-center md:p-6" role="dialog" aria-modal="true" aria-labelledby="dev-lock-title" data-testid="dev-lock-modal">
+          <div className="hb-scrim absolute inset-0 backdrop-blur-[2px]" onClick={() => setOpen(false)} data-testid="dev-lock-backdrop" aria-hidden />
+          <div ref={panel} tabIndex={-1} className="hb-sheet relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[20px] border border-border bg-surface outline-none md:max-h-[88vh] md:max-w-md md:rounded-lg md:shadow-card">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
               <h2 id="dev-lock-title" className="flex items-center gap-2 text-base font-semibold"><Lock size={16} strokeWidth={1.5} />Dev token lock</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-ink-3 hover:bg-muted hover:text-ink"><X size={18} /></button>
             </div>
-            <DevLock {...p} mode="form" onDone={() => setOpen(false)} />
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-4 md:pb-5">
+              <DevLock {...p} mode="form" onDone={() => setOpen(false)} />
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
