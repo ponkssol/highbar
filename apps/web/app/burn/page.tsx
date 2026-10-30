@@ -4,15 +4,25 @@ import { TopBlock } from "@/components/TopBar";
 import { BurnBadge, Card } from "@/components/ui";
 import { Empty, Loading, OfflineNote, TD, TH } from "@/components/PageStates";
 import { useApiData } from "@/lib/pagesData";
-import { explorerTx } from "@/lib/settings";
 import { fmtAge, shortAddr } from "@/lib/format";
 
-type Run = { id: string; ts: number; amount?: number; sig?: string; sol?: number };
+type Run = { id: string; ts: number; period?: string; status?: string; amount?: number; sig?: string; sol?: number; buySig?: string | null; burnSig?: string | null; buyUrl?: string | null; burnUrl?: string | null };
 type BurnData = {
+  network?: "devnet" | "mainnet"; mode?: "jupiter" | "mock"; estimated?: boolean; burnOrders?: number;
   barLaunched: boolean; barMint: string | null; dryRun: boolean; barBurned: number; platformFeesSol: number;
   split: { buyback: number; ops: number; treasury: number }; pendingBuybackSol: number; maxOrderSol: number; maxSlippageBps: number; runs: Run[];
 };
 const MOCK: BurnData = { barLaunched: false, barMint: null, dryRun: true, barBurned: 0, platformFeesSol: 0, split: { buyback: 0, ops: 0, treasury: 0 }, pendingBuybackSol: 0, maxOrderSol: 1, maxSlippageBps: 100, runs: [] };
+const solscan = (kind: "tx" | "account", id: string, network?: string) => `https://solscan.io/${kind}/${id}${network === "mainnet" ? "" : "?cluster=devnet"}`;
+
+function TxLink({ sig, url, network, dot }: { sig?: string | null; url?: string | null; network?: string; dot?: string }) {
+  if (!sig) return <span className="text-ink-3">-</span>;
+  return (
+    <a href={url ?? solscan("tx", sig, network)} target="_blank" rel="noreferrer" className="num inline-flex items-center gap-2 hover:underline">
+      {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}{shortAddr(sig, 6)}<ExternalLink size={14} className="text-ink-3" />
+    </a>
+  );
+}
 const PARTS = [
   { key: "buyback", label: "Buyback + burn", pct: 40, cls: "bg-burn" },
   { key: "ops", label: "Operations", pct: 50, cls: "bg-ink" },
@@ -30,6 +40,11 @@ export default function BurnPage() {
             <div className="flex items-center gap-2 text-[13px] text-ink-3">$BAR burned <BurnBadge /></div>
             <div className="num mt-1 text-kpi">{d.barBurned.toLocaleString("en-US")}</div>
             {!d.barLaunched && <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-ink-2"><Flame size={12} />$BAR not launched yet</div>}
+            {d.barMint && (
+              <a href={solscan("account", d.barMint, d.network)} target="_blank" rel="noreferrer" className="num mt-1 inline-flex items-center gap-1 text-xs text-ink-3 hover:underline">
+                {d.mode === "mock" ? "mock $BAR " : "$BAR "}{shortAddr(d.barMint, 4)}<ExternalLink size={12} />
+              </a>
+            )}
           </div>
           <div>
             <div className="text-[13px] text-ink-3">Pending buyback</div>
@@ -37,9 +52,9 @@ export default function BurnPage() {
             <div className="text-xs text-ink-3">40% of platform fees, max {d.maxOrderSol} SOL per order, {d.maxSlippageBps / 100}% slippage</div>
           </div>
           <div>
-            <div className="text-[13px] text-ink-3">Platform fees (est.)</div>
+            <div className="text-[13px] text-ink-3">Platform fees {d.estimated === false ? "(claimed)" : "(est.)"}</div>
             <div className="num mt-1 text-kpi">{d.platformFeesSol.toFixed(4)}<span className="ml-1 text-sm text-ink-3">SOL</span></div>
-            <div className="text-xs text-ink-3">Buyback mode: {d.dryRun ? "dry run (no transactions)" : "live"}</div>
+            <div className="text-xs text-ink-3">Buyback mode: {d.dryRun ? "dry run (no transactions)" : "live"}{d.mode === "mock" ? ", devnet mock mint" : ""}</div>
           </div>
         </div>
       </TopBlock>
@@ -66,11 +81,12 @@ export default function BurnPage() {
         {loading && !data ? <Loading /> : d.runs.length === 0 ? (
           <Empty title="No buybacks yet" hint={d.barLaunched ? "Buybacks run once enough fees accrue." : "Buybacks start after $BAR launches. Until then the 40% share accrues."} />
         ) : (
-          <table className="w-full min-w-[480px] text-sm">
-            <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} text-left`}>Transaction</th><th className={`${TH} text-right`}>SOL spent</th><th className={`${TH} text-right`}>$BAR burned</th><th className={`${TH} text-right`}>Time</th></tr></thead>
+          <table className="w-full min-w-[640px] text-sm">
+            <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} text-left`}>Buy</th><th className={`${TH} text-left`}>Burn</th><th className={`${TH} text-right`}>SOL spent</th><th className={`${TH} text-right`}>$BAR burned</th><th className={`${TH} text-right`}>Time</th></tr></thead>
             <tbody>{d.runs.map((r) => (
               <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted">
-                <td className={TD}>{r.sig ? <a href={explorerTx(r.sig)} target="_blank" rel="noreferrer" className="num inline-flex items-center gap-2 hover:underline"><span className="h-1.5 w-1.5 rounded-full bg-burn" />{shortAddr(r.sig, 6)}<ExternalLink size={14} className="text-ink-3" /></a> : "-"}</td>
+                <td className={TD}><TxLink sig={r.buySig ?? (r.burnSig === undefined ? r.sig : null)} url={r.buyUrl} network={d.network} dot="bg-buy" /></td>
+                <td className={TD}>{r.burnSig || r.status === "burned" ? <TxLink sig={r.burnSig} url={r.burnUrl} network={d.network} dot="bg-burn" /> : <span className="text-xs text-ink-3">{r.status === "failed" ? "failed" : "pending"}</span>}</td>
                 <td className={`${TD} num text-right`}>{r.sol?.toFixed(3) ?? "-"}</td>
                 <td className={`${TD} num text-right`}>{(r.amount ?? 0).toLocaleString("en-US")}</td>
                 <td className={`${TD} num text-right text-ink-3`}>{fmtAge(r.ts)} ago</td>
