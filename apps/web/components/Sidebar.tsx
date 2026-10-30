@@ -8,6 +8,7 @@ import { TierDot } from "./ui";
 import { ThemeToggle } from "./ThemeToggle";
 import { NAV, isNavActive } from "./nav";
 import { Logo } from "./Logo";
+import { LegalLinks } from "./LegalLinks";
 
 export function Sidebar() {
   const path = usePathname();
@@ -43,6 +44,7 @@ export function Sidebar() {
       <div className="mt-auto" />
       <ThemeToggle />
       <SocialLinks variant="icons" className="mt-2 px-1" />
+      <LegalLinks className="mt-2 -ml-1 px-1" />
     </aside>
   );
 }
