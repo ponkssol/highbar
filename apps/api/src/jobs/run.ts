@@ -1,5 +1,5 @@
 /** Fee claimer / cashback / buyback & burn jobs (BUILD_BRIEF section 6).
- *  tsx src/jobs/run.ts <fees|lprebate|cashback|buyback|epoch> [--period yesterday|YYYY-MM-DD] [--live | --dry-run] [--budget-sol 0.5] [--loop 3600]
+ *  tsx src/jobs/run.ts <fees|lprebate|cashback|buyback|epoch|autoclaim> [--period yesterday|YYYY-MM-DD] [--live | --dry-run] [--budget-sol 0.5] [--loop 3600]
  *  Dry-run (DRY_RUN unset/true, or --dry-run) simulates every tx and writes nothing. --live (or DRY_RUN=false) sends; mainnet also needs ALLOW_MAINNET=true.
  *  lprebate = accrue the creator LP rebate on new damm_lp fee claims and pay creators at or above LP_REBATE_MIN_PAYOUT_SOL (services/lpRebate.ts).
  *  epoch = claim fees -> creator LP rebate -> accrue + pay cashback for the closed period -> close the split (rebate, cashback, then 40/50/10)
@@ -8,7 +8,9 @@
  *  $HIGHER utility (step 8, BAR_MINT set): cashback adds the holder boost; barsnap = store a $HIGHER holder snapshot (run hourly);
  *  feeshare = accrue the holder fee share for a closed period (after epoch) and pay it (payouts also need BAR_FEE_SHARE_LIVE=true).
  *  GO_PUBLIC_DATE (jobs/goPublic.ts): cashback accrues and pays only periods on or after it (unset = none, also via --period), the
- *  buyback backlog ignores earlier splits / fee claims and mock buybacks, and a dry-run epoch logs a read-only [cutoff] summary. */
+ *  buyback backlog ignores earlier splits / fee claims and mock buybacks, and a dry-run epoch logs a read-only [cutoff] summary.
+ *  autoclaim = hourly DBC partner fee (+ migrated DAMM v2 LP) claim into the signer (services/autoClaim.ts, jobs/autoclaim.ts); its own
+ *  gating: CLAIM_LIVE=true or --live (+ ALLOW_MAINNET=true on mainnet), DRY_RUN is not read. AUTOCLAIM_ENABLED=true: epoch skips its fee claims. */
 import { referralWallet, loadPlatformKeypair } from "@hb/onchain";
 import { requireDb, db } from "../db/pool.js";
 import { migrate } from "../db/migrate.js";
@@ -27,6 +29,8 @@ import { payFeeShare, planFeeShare, writeFeeShare } from "../services/barFeeShar
 import { feeShareMinRaw } from "../services/barMath.js";
 import { refreshOfficial } from "../services/officialToken.js";
 import { cashbackGate, cutoffSummary, formatSummary } from "./goPublic.js";
+import { runsFeeClaims } from "../services/autoClaim.js";
+import { autoclaimMain } from "./autoclaim.js";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -51,7 +55,8 @@ async function once() {
   let accrued: bigint | undefined, wouldClaim = 0n, extraRebate = 0n;
   let wouldLp: { mint: string; lamports: bigint }[] = [];
 
-  if (cmd === "fees" || cmd === "epoch") {
+  if (cmd === "epoch" && !runsFeeClaims(cmd)) log("[fees] AUTOCLAIM_ENABLED=true: epoch skips its fee claims (the hourly jobs-autoclaim service claims them)");
+  if (runsFeeClaims(cmd)) {
     const claims = await new FeeClaimer(payer, live).runAll(log);
     res.fees = claims.filter((c) => c.status !== "skipped" || c.note);
     if (!live) wouldClaim = claims.filter((c) => c.status === "would-claim").reduce((a, c) => a + c.lamports, 0n);
@@ -103,7 +108,12 @@ async function once() {
 function safe(f: () => unknown) { try { const v = f(); return v ? String(v) : null; } catch { return null; } }
 
 async function main() {
-  if (!["fees", "lprebate", "cashback", "buyback", "epoch", "barsnap", "feeshare"].includes(cmd)) { console.error("usage: tsx src/jobs/run.ts <fees|lprebate|cashback|buyback|epoch|barsnap|feeshare> [--period yesterday|YYYY-MM-DD] [--live|--dry-run] [--budget-sol N] [--loop SEC]"); process.exit(2); }
+  if (cmd === "autoclaim") { // own gating (CLAIM_LIVE / ALLOW_MAINNET), own advisory lock; no migrations, no period logic
+    requireDb();
+    try { await autoclaimMain(argv); } catch (e) { console.log(new Date().toISOString(), `[autoclaim] ERROR ${(e as Error).message}`); process.exitCode = 1; }
+    await db.end(); return;
+  }
+  if (!["fees", "lprebate", "cashback", "buyback", "epoch", "barsnap", "feeshare"].includes(cmd)) { console.error("usage: tsx src/jobs/run.ts <fees|lprebate|cashback|buyback|epoch|barsnap|feeshare|autoclaim> [--period yesterday|YYYY-MM-DD] [--live|--dry-run] [--budget-sol N] [--loop SEC]"); process.exit(2); }
   requireDb();
   await assertCluster(live);
   if (live) await migrate(() => {});

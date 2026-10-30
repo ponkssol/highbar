@@ -1,9 +1,9 @@
 import BN from "bn.js";
-import { PublicKey, type Keypair, type Transaction } from "@solana/web3.js";
+import { PublicKey, type Connection, type Keypair, type Transaction } from "@solana/web3.js";
 import { NATIVE_MINT, createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { CpAmm, getUnClaimLpFee } from "@meteora-ag/cp-amm-sdk";
 import { getClient, getConnection } from "@hb/onchain";
-import { db } from "../db/pool.js";
+import { db, type Q } from "../db/pool.js";
 import { jobs } from "../jobs/config.js";
 import { sendOnce, simulate } from "../jobs/chain.js";
 import { canonicalDammPool, claimPositionFeeTx } from "./creatorLp.js";
@@ -11,8 +11,28 @@ import { canonicalDammPool, claimPositionFeeTx } from "./creatorLp.js";
 export type FeeSource = "dbc_trading" | "dbc_migration" | "dbc_surplus" | "damm_lp";
 export interface ClaimResult { source: FeeSource; pool: string; mint: string; lamports: bigint; baseAmount: bigint; sig?: string; status: "claimed" | "would-claim" | "skipped"; note?: string }
 
+/** Optional overrides (autoclaim / tests). Unset = the epoch behaviour: TREASURY_PUBKEY receiver, shared db / RPC, no threshold, no cap. */
+export interface FeeClaimerOpts {
+  /** Fee receiver. undefined = TREASURY_PUBKEY (epoch default); null = always the signer (autoclaim); a key = that wallet. */
+  receiver?: PublicKey | null;
+  /** Claim a DBC trading fee / DAMM v2 LP fee only when its SOL side is >= this (or it has a base-side amount). Default 0 = any amount. */
+  minLamports?: bigint;
+  /** Per-run cap shared by every tx this claimer builds: each would-claim / claimed result takes one; at 0 the rest are skipped. */
+  budget?: { left: number };
+  q?: Q;
+  conn?: Pick<Connection, "getAccountInfo" | "getTransaction">;
+  dbc?: ReturnType<typeof getClient>;
+  amm?: CpAmm;
+  simulate?: typeof simulate;
+  send?: typeof sendOnce;
+}
+/** Pre-read partner fee of the DBC pool (autoclaim batch read): forToken then skips its own getPoolFeeMetrics RPC. */
+export interface ForTokenOpts { partner?: { quote: bigint; base: bigint } }
+
 const U64_MAX = new BN("18446744073709551615");
 const big = (b: BN) => BigInt(b.toString());
+/** The threshold rule shared by the DBC trading and DAMM v2 LP claims. */
+export const meetsMin = (lamports: bigint, base: bigint, min: bigint) => base > 0n || (lamports > 0n && lamports >= min);
 
 /** Claims platform (partner) fees for every indexed token into the treasury.
  *  Verified against @meteora-ag/dynamic-bonding-curve-sdk 2.0.0 and @meteora-ag/cp-amm-sdk 1.5.1 typings:
@@ -26,16 +46,34 @@ const big = (b: BN) => BigInt(b.toString());
  *    in the claim tx (falls back to the pre-claim estimate only if the tx cannot be read back). Fee collect mode is OnlyB, so a base-token
  *    LP fee is unexpected: it is claimed but flagged with an ALERT note (and never rebated, see lpRebate.ts).
  *  `claimer` must be the configs' feeClaimer (and owner of the partner LP position NFTs after migration).
- *  Every tx is simulated first; dry-run stops there. Live claims are recorded in fee_claims (period NULL until the epoch is split). */
+ *  Every tx is simulated first; dry-run stops there. Live claims are recorded in fee_claims (period NULL until the epoch is split).
+ *  The hourly autoclaim job (services/autoClaim.ts) uses the same builders with opts.receiver = null (fees stay with the signer). */
 export class FeeClaimer {
-  private dbc = getClient();
-  private amm = new CpAmm(getConnection());
+  private dbc: ReturnType<typeof getClient>;
+  private ammClient?: CpAmm;
   private feeClaimerOf = new Map<string, string | null>();
-  constructor(private claimer: Keypair, private live: boolean) {}
-  private get receiver() { return jobs.treasury && jobs.treasury !== this.claimer.publicKey.toBase58() ? new PublicKey(jobs.treasury) : undefined; }
+  private q: Q;
+  private conn: Pick<Connection, "getAccountInfo" | "getTransaction">;
+  private sim: typeof simulate;
+  private send: typeof sendOnce;
+  private min: bigint;
+  constructor(private claimer: Keypair, private live: boolean, private opts: FeeClaimerOpts = {}) {
+    this.dbc = opts.dbc ?? getClient();
+    this.q = opts.q ?? db;
+    this.conn = opts.conn ?? getConnection();
+    this.sim = opts.simulate ?? simulate;
+    this.send = opts.send ?? sendOnce;
+    this.min = opts.minLamports ?? 0n;
+  }
+  private get amm(): CpAmm { return (this.ammClient ??= this.opts.amm ?? new CpAmm(getConnection())); }
+  /** Receiver passed to the SDK; undefined = the claimer itself (SDK default). */
+  get receiver(): PublicKey | undefined {
+    const r = this.opts.receiver !== undefined ? this.opts.receiver : jobs.treasury ? new PublicKey(jobs.treasury) : null;
+    return r && !r.equals(this.claimer.publicKey) ? r : undefined;
+  }
 
   async runAll(log: (m: string) => void = console.log): Promise<ClaimResult[]> {
-    const { rows } = await db.query<{ mint: string; pool: string; config: string; is_migrated: boolean; damm_pool: string | null }>("SELECT mint, pool, config, is_migrated, damm_pool FROM tokens ORDER BY created_at");
+    const { rows } = await this.q.query<{ mint: string; pool: string; config: string; is_migrated: boolean; damm_pool: string | null }>("SELECT mint, pool, config, is_migrated, damm_pool FROM tokens ORDER BY created_at");
     const out: ClaimResult[] = [];
     for (const t of rows) {
       const fc = await this.configFeeClaimer(t.config);
@@ -57,13 +95,14 @@ export class FeeClaimer {
     return cfg ? canonicalDammPool(mint, Number(cfg.migrationFeeOption)) : null;
   }
 
-  async forToken(mint: string, poolId: string, migrated: boolean, dammPool?: string | null, config?: string): Promise<ClaimResult[]> {
+  async forToken(mint: string, poolId: string, migrated: boolean, dammPool?: string | null, config?: string, o: ForTokenOpts = {}): Promise<ClaimResult[]> {
     const pool = new PublicKey(poolId), me = this.claimer.publicKey, out: ClaimResult[] = [];
     const base = { pool: poolId, mint };
     // 1) partner share of curve trading fees
-    const m = await this.dbc.state.getPoolFeeMetrics(pool);
-    const q = big(m.current.partnerQuoteFee), b = big(m.current.partnerBaseFee);
-    if (q > 0n || b > 0n) out.push(await this.exec({ ...base, source: "dbc_trading", lamports: q, baseAmount: b },
+    let q: bigint, b: bigint;
+    if (o.partner) ({ quote: q, base: b } = o.partner);
+    else { const m = await this.dbc.state.getPoolFeeMetrics(pool); q = big(m.current.partnerQuoteFee); b = big(m.current.partnerBaseFee); }
+    if (meetsMin(q, b, this.min)) out.push(await this.exec({ ...base, source: "dbc_trading", lamports: q, baseAmount: b },
       () => this.dbc.partner.claimPartnerTradingFee({ feeClaimer: me, payer: me, pool, maxBaseAmount: U64_MAX, maxQuoteAmount: U64_MAX, receiver: this.receiver })));
     if (!migrated) return out;
     // 2) partner migration fee (program rejects a second withdraw; simulation catches that) + 3) partner surplus
@@ -79,6 +118,7 @@ export class FeeClaimer {
       const quoteIsB = p.poolState.tokenBMint.equals(NATIVE_MINT);
       const lamports = big(quoteIsB ? fee.feeTokenB : fee.feeTokenA), baseAmount = big(quoteIsB ? fee.feeTokenA : fee.feeTokenB);
       if (lamports === 0n && baseAmount === 0n) continue;
+      if (!meetsMin(lamports, baseAmount, this.min)) { out.push({ pool: p.pool.toBase58(), mint, source: "damm_lp", lamports, baseAmount, status: "skipped" }); continue; } // below the threshold: next run
       const st = p.poolState;
       const quoteVault = quoteIsB ? st.tokenBVault : st.tokenAVault;
       const alert = baseAmount > 0n ? `ALERT base-side LP fee ${baseAmount} (pool should collect OnlyB; base fees are not rebated)` : undefined;
@@ -94,16 +134,19 @@ export class FeeClaimer {
   private async exec(r: Omit<ClaimResult, "status"> & { measure?: "receiver" | { vault: PublicKey }; quietSimFail?: boolean; alert?: string }, build: () => Promise<Transaction>): Promise<ClaimResult> {
     const { measure, quietSimFail, alert, ...res } = r;
     if (alert) res.note = alert;
+    const budget = this.opts.budget;
+    if (budget && budget.left <= 0) return { ...res, status: "skipped", note: [alert, "CLAIM_MAX_PER_RUN reached: next run"].filter(Boolean).join("; ") };
     try {
       const tx = await build();
       // With a SOL quote the SDK unwraps by closing the claimer's WSOL ATA. On devnet the claimer is also the referral wallet,
       // whose WSOL ATA is PLATFORM_REFERRAL_TOKEN_ACCOUNT, so re-create it in the same tx (rent comes back from the close).
       const wsol = getAssociatedTokenAddressSync(NATIVE_MINT, this.claimer.publicKey);
-      if (await getConnection().getAccountInfo(wsol)) tx.add(createAssociatedTokenAccountIdempotentInstruction(this.claimer.publicKey, wsol, this.claimer.publicKey, NATIVE_MINT));
-      const sim = await simulate(tx, this.claimer.publicKey);
+      if (await this.conn.getAccountInfo(wsol)) tx.add(createAssociatedTokenAccountIdempotentInstruction(this.claimer.publicKey, wsol, this.claimer.publicKey, NATIVE_MINT));
+      const sim = await this.sim(tx, this.claimer.publicKey);
       if (!sim.ok) return { ...res, status: "skipped", note: quietSimFail ? undefined : [alert, `simulation failed: ${sim.err}`].filter(Boolean).join("; ") }; // migration fee: nothing to withdraw is the normal case
+      if (budget) budget.left--;
       if (!this.live) return { ...res, status: "would-claim", note: measure === "receiver" ? "amount known after claim" : alert };
-      const sig = await sendOnce(tx, [this.claimer]);
+      const sig = await this.send(tx, [this.claimer]);
       let lamports = res.lamports;
       if (measure === "receiver") lamports = await this.received(sig);
       else if (measure) {
@@ -111,15 +154,14 @@ export class FeeClaimer {
         if (got === null) res.note = [alert, "claim tx not readable: recorded the pre-claim estimate"].filter(Boolean).join("; ");
         else lamports = got;
       }
-      await db.query("INSERT INTO fee_claims (sig, source, pool, mint, lamports, base_amount, claimed_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
-        [sig, res.source, res.pool, res.mint, lamports.toString(), res.baseAmount.toString(), Date.now()]);
+      await recordClaim(this.q, { sig, source: res.source, pool: res.pool, mint: res.mint, lamports, baseAmount: res.baseAmount });
       return { ...res, lamports, sig, status: "claimed" };
     } catch (e) { return { ...res, status: "skipped", note: (e as Error).message }; }
   }
 
   /** Token amount that left `vault` in tx `sig` (pre - post token balance); null when the tx / balances can't be read. */
   private async vaultOutflow(sig: string, vault: PublicKey): Promise<bigint | null> {
-    const tx = await getConnection().getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" }).catch(() => null);
+    const tx = await this.conn.getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" }).catch(() => null);
     if (!tx?.meta) return null;
     const keys = tx.transaction.message.getAccountKeys({ accountKeysFromLookups: tx.meta.loadedAddresses });
     let i = -1;
@@ -134,7 +176,7 @@ export class FeeClaimer {
 
   /** SOL (native + WSOL) received by the fee receiver in a claim tx; tx fee added back when the receiver also paid it. */
   private async received(sig: string): Promise<bigint> {
-    const tx = await getConnection().getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" });
+    const tx = await this.conn.getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" });
     if (!tx?.meta) return 0n;
     const owner = (this.receiver ?? this.claimer.publicKey).toBase58();
     const keys = tx.transaction.message.getAccountKeys({ accountKeysFromLookups: tx.meta.loadedAddresses }).staticAccountKeys.map((k) => k.toBase58());
@@ -144,4 +186,12 @@ export class FeeClaimer {
     const d = native + wsol(tx.meta.postTokenBalances) - wsol(tx.meta.preTokenBalances);
     return d > 0n ? d : 0n;
   }
+}
+
+/** One fee_claims row per landed claim tx. UNIQUE (sig, source, pool) + ON CONFLICT DO NOTHING: a re-run / retry never double-counts.
+ *  period stays NULL until the epoch split; Open Book (openbook/read.ts) and the treasury split read these rows. Returns true when inserted. */
+export async function recordClaim(q: Q, c: { sig: string; source: FeeSource; pool: string; mint: string; lamports: bigint; baseAmount: bigint; at?: number }): Promise<boolean> {
+  const r = await q.query("INSERT INTO fee_claims (sig, source, pool, mint, lamports, base_amount, claimed_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
+    [c.sig, c.source, c.pool, c.mint, c.lamports.toString(), c.baseAmount.toString(), c.at ?? Date.now()]);
+  return (r.rowCount ?? 0) > 0;
 }
