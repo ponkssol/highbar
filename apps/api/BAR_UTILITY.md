@@ -1,6 +1,13 @@
 # $HIGHER utility (BUILD_BRIEF step 8, section 7)
 
-Holder perks by $HIGHER balance: bigger cashback, fee discount (as a rebate), Max tier access, holder fee share.
+Holder perks by $HIGHER balance: bigger cashback, fee discount (as a cashback rebate), Max tier access, holder fee share.
+(Not to be confused with the **creator LP rebate**, which is not a holder perk: see BUILD_BRIEF section 5 and `src/services/lpRebate.ts`.)
+
+Fee model context (BUILD_BRIEF section 5, final): the curve fee is 1% (creator / platform / Meteora 0.40 / 0.40 / 0.20 on Standard,
+0.50 / 0.30 / 0.20 on Higher (on-chain 62%: ~0.496 / 0.304), 0.60 / 0.20 / 0.20 on Max). After migration the 1% DAMM v2 fee nets out at
+0.60 / 0.20 / 0.20, 0.65 / 0.15 / 0.20 and 0.70 / 0.10 / 0.20 after the creator LP rebate. The platform share first pays the creator LP
+rebate and the 0.05% trader cashback (paid in SOL today; a later change will pay it in $HIGHER), and the remaining net splits 40% buyback
+& burn $HIGHER, 50% operations, 10% treasury. Every perk below is funded from that platform share.
 Everything here is **off-chain** (API + jobs). The mint comes from one resolver (`src/services/officialToken.ts`): `BAR_MINT` when set (manual override), otherwise the first launch by `OFFICIAL_TOKEN_CREATOR` with symbol `OFFICIAL_TOKEN_SYMBOL` (default `HIGHER`), recorded once by the indexer (or set by the admin override). Until $HIGHER exists every perk is off and the step 7 behaviour is unchanged.
 
 ## Tiers (`packages/shared` `BAR_TIERS`, example thresholds)
@@ -36,13 +43,13 @@ that fallback when `BAR_REQUIRE_SNAPSHOTS=true` (default on mainnet): the cashba
 
 `computeAccruals(p, exclude, boost?)`: without `boost` the result is exactly step 7. With it, each wallet gets
 `bonus = base * (multiplier - 1) + volume * feeRebateBps`. `cashback_ledger.amount_lamports` stays the **total** owed, so payouts
-and the treasury waterfall (cashback first, then 40/50/10) need no change; `bonus_lamports`, `bar_tier`, `bar_balance_raw` (0005)
+and the treasury waterfall (creator LP rebate, then cashback, then 40/50/10) need no change; `bonus_lamports`, `bar_tier`, `bar_balance_raw` (0005)
 record the extra. The bonus is funded from platform fees like the base cashback (it reduces buyback/ops/treasury proportionally).
 
 ## Fee share
 
 Per closed period: `pool = treasury_splits.ops_lamports * BAR_FEE_SHARE_BPS / 10000` (default 20% of the ops share = 10% of
-net platform fees), split pro-rata by balance among on-curve wallets at Holder tier or above, excluding the platform keypair,
+net platform fees, i.e. after the creator LP rebate and cashback), split pro-rata by balance among on-curve wallets at Holder tier or above, excluding the platform keypair,
 treasury, referral wallet, `CASHBACK_EXCLUDE_WALLETS` and `BAR_FEE_SHARE_EXCLUDE_WALLETS`. Off-curve owners (PDAs such as pool or
 LP vaults) are skipped. Floor rounding; dust stays in ops.
 

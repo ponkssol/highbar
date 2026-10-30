@@ -20,7 +20,7 @@ const FILTERS: { id: Filter; label: string; test: (t: TokenRow) => boolean }[] =
   { id: "all", label: "All", test: () => true },
   { id: "bonding", label: "Bonding", test: (t) => progressOf(t) < 0.8 },
   { id: "almost", label: "Almost there", test: (t) => progressOf(t) >= 0.8 && progressOf(t) < 1 },
-  { id: "graduated", label: "Graduated", test: (t) => progressOf(t) >= 1 },
+  { id: "graduated", label: "Migrated", test: (t) => progressOf(t) >= 1 },
 ];
 const TIER_ORDER = { standard: 0, higher: 1, max: 2 };
 const val = (t: TokenRow, k: SortKey): number | string =>

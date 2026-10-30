@@ -19,7 +19,7 @@ export interface ApiStats {
   totalTokens: number; graduated: number; graduatedPct: number;
   launches7d: { date: string; day: string; tokens: number; graduated: number }[]; launches30d: { date: string; day: string; tokens: number; graduated: number }[];
   totalVolumeSol: number; volumeDelta: number; creatorFeesSol: number; creatorDelta: number; barBurned: number; burnDelta: number;
-  activeTraders24h: number; platformFeesSol: number;
+  activeTraders24h: number; platformFeesSol: number; barLaunched?: boolean;
 }
 export type ApiTrade = Trade & { feeSol?: number; viaUi?: boolean; devBuy?: boolean };
 
@@ -53,14 +53,14 @@ export const api = {
 };
 
 /** Stats in the shape the stats panel expects (mock shape), real values where available. */
-export function statsView(s: ApiStats | null): typeof STATS & { live: boolean; activeTraders24h?: number } {
+export function statsView(s: ApiStats | null): typeof STATS & { live: boolean; activeTraders24h?: number; barLaunched?: boolean } {
   if (!s) return { ...STATS, totalVolumeSol: 0, volumeDelta: 0, creatorFeesSol: 0, creatorDelta: 0, barBurned: 0, burnDelta: 0, graduatedPct: 0, graduated: 0, totalTokens: 0, newPerDay: [], live: false, activeTraders24h: 0 };
   return {
     ...STATS, live: true,
     totalVolumeSol: s.totalVolumeSol, volumeDelta: s.volumeDelta, creatorFeesSol: s.creatorFeesSol, creatorDelta: s.creatorDelta,
     barBurned: s.barBurned, burnDelta: s.burnDelta, graduatedPct: s.graduatedPct, graduated: s.graduated, totalTokens: s.totalTokens,
     newPerDay: s.launches7d.map((d) => ({ day: d.day, tokens: d.tokens, graduated: d.graduated })),
-    activeTraders24h: s.activeTraders24h,
+    activeTraders24h: s.activeTraders24h, barLaunched: s.barLaunched,
   };
 }
 export const MOCK_TOKENS = TOKENS;

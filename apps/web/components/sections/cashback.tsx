@@ -34,7 +34,7 @@ export default function CashbackPage() {
       <TopBlock title="Cashback">
         <p className="mt-2 max-w-xl text-sm text-ink-2">
           Trades made on Higher Bar accrue {EMPTY.bps / 100}% of volume.{" "}
-          {d.live ? `Cashback is tallied per UTC day and paid in SOL to your wallet once it reaches ${d.minPayoutSol ?? 0.001} SOL; every payout links its transaction.` : "Payouts are not live yet, so this balance stays accrued."}
+          {d.live ? `Cashback will be paid in $HIGHER once it launches; until then it is tallied per UTC day and paid in SOL to your wallet once it reaches ${d.minPayoutSol ?? 0.001} SOL; every payout links its transaction.` : "Payouts are not live yet, so this balance stays accrued."}
         </p>
         <form className="mt-4 flex max-w-xl gap-2" onSubmit={(e) => { e.preventDefault(); find(); }}>
           <input aria-label="Wallet address" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={wallet.address ?? "Wallet address"}

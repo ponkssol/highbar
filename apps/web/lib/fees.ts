@@ -1,4 +1,4 @@
-import { ANTI_SNIPER, CURVE_FEE_BPS, LP_REBATE_BPS, PLATFORM_SPLIT, TIERS, curveFeeSplit, lpFeeSplit, postMigrationSplit, type TierId } from "@hb/shared";
+import { ANTI_SNIPER, CURVE_FEE_BPS, LP_REBATE_BPS, PLATFORM_SPLIT, REFERRAL_SHARE_OF_PROTOCOL, TIERS, TRADER_CASHBACK_BPS, curveFeeSplit, lpFeeSplit, postMigrationSplit, type TierId } from "@hb/shared";
 
 /** Fee split in percent of volume, using shared tier config. */
 export function feeSplitPct(tier: TierId) {
@@ -28,4 +28,11 @@ export function antiSniperFeeBps(elapsedSec: number) {
   return Math.round(startFeeBps - ((startFeeBps - endFeeBps) * elapsedSec) / decaySeconds);
 }
 
-export { ANTI_SNIPER, CURVE_FEE_BPS, PLATFORM_SPLIT, TIERS } from "@hb/shared";
+/** Migration fee of a tier (% of migrated quote) and the creator's share of it (%). */
+export const migrationFeePct = (tier: TierId) => ({ fee: TIERS[tier].migrationFeePercentage, creatorShare: TIERS[tier].creatorMigrationFeePercentage });
+/** Trader cashback in % of volume (0.05%). */
+export const CASHBACK_PCT = TRADER_CASHBACK_BPS / 100;
+/** Referral account share of Meteora's DBC protocol fee, % (paid out of Meteora's share). */
+export const REFERRAL_OF_PROTOCOL_PCT = REFERRAL_SHARE_OF_PROTOCOL * 100;
+
+export { ANTI_SNIPER, CURVE_FEE_BPS, PLATFORM_SPLIT, TIERS, migrationMcapSol, thresholdSolFor } from "@hb/shared";

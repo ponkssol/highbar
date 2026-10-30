@@ -85,6 +85,13 @@ export const TIERS: Record<TierId, Tier> = {
  *    with MAINNET_THRESHOLD_SOL (85/150/250); see thresholdSolFor.
  *    `brief` is aligned with these on-chain values, so feeModel(tier, "brief") = feeModel(tier) = the section 5 simulation table.
  *  - Getting the earlier fractional targets back would need recreating configs (e.g. Standard 2%, Max 1% migration fee), or an off-chain top-up. */
+/** Share of the token supply that goes into the DAMM v2 pool at migration (createConfigs percentageSupplyOnMigration). */
+export const SUPPLY_ON_MIGRATION_PCT = 20;
+/** Approximate market cap in SOL at migration: migrated quote (threshold minus the migration fee) / pool share of the supply.
+ *  Mainnet 420.75 / 742.5 / 1250 SOL (ignores Meteora's fixed 0.2% liquidity cut). */
+export const migrationMcapSol = (tier: TierId, network?: string | null): number =>
+  Math.round(((thresholdSolFor(tier, network) * (100 - TIERS[tier].migrationFeePercentage)) / (100 * (SUPPLY_ON_MIGRATION_PCT / 100))) * 100) / 100;
+
 export const ONCHAIN_PERCENT_NOTE = "DBC fee percentages are whole-number u8 values on-chain";
 
 export type ConfigKey = `${TierId}_${"on" | "off"}`;

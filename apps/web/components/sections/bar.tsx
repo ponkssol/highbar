@@ -100,7 +100,7 @@ export default function BarPage() {
         <h3 className="font-semibold">How it works</h3>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-2">
           <li>Tiers use the lowest $HIGHER balance your wallet held across the day&apos;s snapshots, so buying right before a payout does not count.</li>
-          <li>Cashback and the fee rebate are paid together in SOL with the daily cashback.</li>
+          <li>Cashback and the fee rebate are paid together with the daily cashback (in SOL until $HIGHER launches, then in $HIGHER).</li>
           <li>The holder fee share is {(i?.feeShareBps ?? 2000) / 100}% of the platform&apos;s operations share ({(i?.opsSplitBps ?? 5000) / 100}% of net platform fees), split by balance among Holder tier and up.</li>
           {(i?.limits ?? []).map((l) => <li key={l}>{l}</li>)}
         </ul>

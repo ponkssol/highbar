@@ -25,7 +25,7 @@ type SortTok = "volumeSol" | "mcapUsd" | "progress";
 const dur = (ms: number) => { const h = ms / 3600_000; return h < 1 ? `${Math.max(1, Math.round(ms / 60_000))}m` : h < 48 ? `${h.toFixed(1)}h` : `${(h / 24).toFixed(1)}d`; };
 const HINT: Record<Kind, string> = {
   tokens: "Top tokens by curve volume.", scores: "Higher Bar score: tier, anti-sniper, dev lock and holder spread (0-100).", creators: "Creators by volume on their tokens.",
-  traders: "Traders by curve volume.", migrations: "Tokens that graduated in the window, fastest first.", survivors: "Graduated tokens ranked by days their DAMM v2 market cap held above the floor.",
+  traders: "Traders by curve volume.", migrations: "Tokens that migrated in the window, fastest first.", survivors: "Migrated tokens ranked by days their DAMM v2 market cap held above the floor.",
 };
 
 export default function LeaderboardPage() {
@@ -93,7 +93,7 @@ export default function LeaderboardPage() {
           </table>
         ) : kind === "migrations" ? (
           <table className="w-full min-w-[640px] text-sm">
-            {head([["Token", "left"], ["Tier", "left"], ["Time to graduate", "right"], ["Raised", "right"], ["Volume", "right"], ["Graduated", "right"]])}
+            {head([["Token", "left"], ["Tier", "left"], ["Time to migrate", "right"], ["Raised", "right"], ["Volume", "right"], ["Migrated", "right"]])}
             <tbody>{(rows as MigRow[]).map((t, i) => (
               <tr key={t.mint} className={ROW}>
                 <td className={TD}>{rank(i)}</td>{tok(t)}
@@ -106,7 +106,7 @@ export default function LeaderboardPage() {
           </table>
         ) : kind === "survivors" ? (
           <table className="w-full min-w-[680px] text-sm">
-            {head([["Token", "left"], ["Tier", "left"], ["Days held", "right"], ["Since graduation", "right"], ["Mcap now", "right"], ["vs graduation", "right"]])}
+            {head([["Token", "left"], ["Tier", "left"], ["Days held", "right"], ["Since migration", "right"], ["Mcap now", "right"], ["vs migration", "right"]])}
             <tbody>{(rows as SurRow[]).map((t, i) => (
               <tr key={t.mint} className={ROW}>
                 <td className={TD}>{rank(i)}</td>{tok(t)}
@@ -119,7 +119,7 @@ export default function LeaderboardPage() {
           </table>
         ) : kind === "creators" ? (
           <table className="w-full min-w-[600px] text-sm">
-            {head([["Creator", "left"], ["Tokens", "right"], ["Graduated", "right"], ["Avg score", "right"], ["Volume", "right"], ["Fees earned (est.)", "right"]])}
+            {head([["Creator", "left"], ["Tokens", "right"], ["Migrated", "right"], ["Avg score", "right"], ["Volume", "right"], ["Fees earned (est.)", "right"]])}
             <tbody>{(rows as CreRow[]).map((c, i) => (
               <tr key={c.creator} className={ROW}>
                 <td className={TD}>{rank(i)}</td><td className={`${TD} num`}>{shortAddr(c.creator, 6)}</td>

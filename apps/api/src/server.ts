@@ -129,7 +129,7 @@ app.get("/stats", async () => {
     creatorFeesSol: creatorFees, creatorDelta: 0,
     platformFeesSol: Number(platformLamports) / 1e9,
     platformSplitSol: { buyback: Number(split.buyback) / 1e9, ops: Number(split.ops) / 1e9, treasury: Number(split.treasury) / 1e9 },
-    barBurned: (await rewardsStore.buybackTotals(officialMint())).barBurned, burnDelta: 0,
+    barBurned: (await rewardsStore.buybackTotals(officialMint())).barBurned, burnDelta: 0, barLaunched: !!officialMint(),
     activeTraders24h: new Set(trades.filter((t) => t.ts >= now - day).map((t) => t.wallet)).size,
     updatedAt: now,
   };

@@ -1,23 +1,30 @@
 import Link from "next/link";
 import { TopBlock } from "@/components/TopBar";
 import { Card } from "@/components/ui";
-import { lpFeeSplitPct } from "@/lib/fees";
+import { CASHBACK_PCT, PLATFORM_SPLIT, REFERRAL_OF_PROTOCOL_PCT, TIERS, feeSplitPct, migrationFeePct, postMigrationPct } from "@/lib/fees";
 import { TierTargets } from "./TierTargets";
+
+const ids = Object.keys(TIERS) as (keyof typeof TIERS)[];
+const per = (f: (id: keyof typeof TIERS) => string) => ids.map(f).join(" / ");
+const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 export default function AboutPage() {
   return (
     <div className="flex flex-col gap-4">
       <TopBlock title="About">
-        <p className="mt-2 max-w-xl text-sm text-ink-2">Higher Bar is a Solana launchpad where the creator picks the bonding target. A higher target means deeper liquidity when the pool migrates.</p>
+        <p className="mt-2 max-w-xl text-sm text-ink-2">Higher Bar is a Solana launchpad where the creator picks the bonding target. A higher target means deeper liquidity when the pool migrates, and higher creator earnings through graduation than on pump.fun.</p>
       </TopBlock>
       <Card>
         <h2 className="font-semibold">How it works</h2>
         <ul className="mt-3 flex flex-col gap-2 text-sm text-ink-2">
           <li>Launch on a Meteora Dynamic Bonding Curve. There is no custom token contract.</li>
           <li>Pick Standard, Higher, or Max. Anti-sniper can be turned on for that config.</li>
-          <li>The curve fee is 1%. A larger share goes to the creator on the higher tiers.</li>
-          <li>After migration the DAMM v2 pool fee is 1%. DAMM v2 keeps 20% of it, so the locked LP earns 0.8% of volume: the creator gets {lpFeeSplitPct("standard").creator}% / {lpFeeSplitPct("higher").creator}% / {lpFeeSplitPct("max").creator}% of volume on Standard / Higher / Max (LP split 20 / 40 / 50%).</li>
-          <li>Trades made here accrue 0.05% cashback. After that, platform fees split 40% buyback and burn, 50% operations, 10% treasury.</li>
+          <li>Before migration the curve fee is 1% per trade. Creator / platform / Meteora: {per((id) => { const f = feeSplitPct(id); return `${f.creator} / ${f.platform} / ${f.meteora}%`; })} on Standard / Higher / Max (Higher is stored on-chain as 62% of the non-Meteora fee, about 0.496 / 0.304%).</li>
+          <li>After migration the Meteora DAMM v2 pool fee is 1%. With the creator&apos;s locked LP share plus the fixed platform LP rebate, creator / platform / Meteora get {per((id) => { const p = postMigrationPct(id); return `${p.creator} / ${p.platform} / ${p.protocol}%`; })}.</li>
+          <li>Migration fee: {per((id) => `${migrationFeePct(id).fee}%`)} of the migrated SOL; the creator gets {per((id) => `${migrationFeePct(id).creatorShare}%`)} of it.</li>
+          <li>Traders pay no extra app fee. Trades made here earn {CASHBACK_PCT}% cashback, to be paid in $HIGHER (in SOL until $HIGHER launches).</li>
+          <li>The referral reward on swaps comes out of Meteora&apos;s protocol fee ({REFERRAL_OF_PROTOCOL_PCT}% of it), not from creators or traders.</li>
+          <li>The platform&apos;s net share splits {pct(PLATFORM_SPLIT.buyback)} buyback and burn of $HIGHER, {pct(PLATFORM_SPLIT.ops)} operations, {pct(PLATFORM_SPLIT.treasury)} treasury. $HIGHER has not launched yet.</li>
         </ul>
         <TierTargets />
       </Card>

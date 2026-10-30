@@ -9,8 +9,8 @@ const COLOR: Record<ActivityType, string> = {
   graduate: "var(--hb-act-graduate)",
   trade: "var(--hb-act-trade)",
 };
-const LABEL: Record<ActivityType, string> = { launch: "Launch", burn: "Burn", graduate: "Graduated", trade: "Trade" };
-const PLURAL: Record<ActivityType, string> = { launch: "Launches", burn: "Burns", graduate: "Graduated", trade: "Trades" };
+const LABEL: Record<ActivityType, string> = { launch: "Launch", burn: "Burn", graduate: "Migrated", trade: "Trade" };
+const PLURAL: Record<ActivityType, string> = { launch: "Launches", burn: "Burns", graduate: "Migrations", trade: "Trades" };
 const ORDER: ActivityType[] = ["launch", "burn", "graduate", "trade"];
 const fmtTime = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 

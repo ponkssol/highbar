@@ -62,7 +62,7 @@ export default function BurnPage() {
 
       <Card>
         <h3 className="mb-1 font-semibold">Where platform fees go</h3>
-        <p className="mb-4 text-sm text-ink-2">After trader cashback, platform income is split 40 / 50 / 10. The 40% share buys $HIGHER on the market and burns it on-chain.</p>
+        <p className="mb-4 text-sm text-ink-2">After the creator LP rebate and trader cashback, the platform's net income is split 40 / 50 / 10. The 40% share buys $HIGHER on the market and burns it on-chain.</p>
         <div className="flex h-3 overflow-hidden rounded-full border border-border">
           {PARTS.map((p) => <div key={p.key} className={p.cls} style={{ width: `${p.pct}%` }} />)}
         </div>

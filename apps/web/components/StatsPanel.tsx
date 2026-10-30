@@ -63,7 +63,7 @@ export function LaunchChart() {
           {data.map((d, i) => {
             const today = i === data.length - 1;
             return (
-              <div key={i} className="group relative flex h-full flex-1 flex-col items-center justify-end" title={`${d.a} launched · ${d.b} graduated`}>
+              <div key={i} className="group relative flex h-full flex-1 flex-col items-center justify-end" title={`${d.a} launched · ${d.b} migrated`}>
                 <div className={`flex w-full max-w-[14px] flex-col overflow-hidden rounded-full ${today ? "" : "opacity-60 group-hover:opacity-100"}`} style={{ height: `${(d.a / max) * 100}%` }}>
                   <div className="flex-1 bg-ink" />
                   <div className="border-t border-ink bg-hatch" style={{ height: `${(d.b / d.a) * 100}%` }} />
@@ -76,7 +76,7 @@ export function LaunchChart() {
       </div>
       <div className="mt-3 flex items-center gap-4 text-xs text-ink-3">
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-ink" />Launched</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border border-ink bg-hatch" />Graduated</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border border-ink bg-hatch" />Migrated</span>
       </div>
     </div>
   );
@@ -94,12 +94,12 @@ export function KpiCell({ label, value, unit, delta, spark, href, badge, classNa
   );
 }
 
-export function KpiGrid({ stats, className = "", bare = false }: { stats: { totalVolumeSol: number; volumeDelta: number; creatorFeesSol: number; creatorDelta: number; barBurned: number; burnDelta: number; activeTraders24h?: number }; className?: string; bare?: boolean }) {
+export function KpiGrid({ stats, className = "", bare = false }: { stats: { totalVolumeSol: number; volumeDelta: number; creatorFeesSol: number; creatorDelta: number; barBurned: number; burnDelta: number; activeTraders24h?: number; barLaunched?: boolean }; className?: string; bare?: boolean }) {
   return (
     <div className={`grid min-w-0 grid-cols-2 overflow-hidden ${bare ? "" : "rounded-lg border border-border bg-surface"} [&>*]:border-border [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(odd)]:border-r ${className}`}>
       <KpiCell label="Total volume" value={stats.totalVolumeSol.toLocaleString("en-US", { maximumFractionDigits: 0 })} unit="SOL" delta={stats.volumeDelta} spark={seeded(14, 50, 40, 3)} href="/" />
       <KpiCell label="Fees to creators" value={stats.creatorFeesSol.toFixed(1)} unit="SOL" delta={stats.creatorDelta} spark={seeded(14, 50, 40, 5)} href="/leaderboard" />
-      <KpiCell label="$HIGHER burned" value={`${(stats.barBurned / 1e6).toFixed(2)}M`} delta={stats.burnDelta} spark={seeded(14, 50, 40, 11)} href="/rewards?tab=burn" badge={<BurnBadge />} />
+      <KpiCell label="$HIGHER burned" value={stats.barLaunched === false ? "Not launched yet" : `${(stats.barBurned / 1e6).toFixed(2)}M`} delta={stats.burnDelta} spark={seeded(14, 50, 40, 11)} href="/rewards?tab=burn" badge={<BurnBadge />} />
       <KpiCell label="Active traders 24h" value={(stats.activeTraders24h ?? 0).toLocaleString("en-US")} delta={0} spark={seeded(14, 50, 40, 17)} href="/leaderboard" />
     </div>
   );

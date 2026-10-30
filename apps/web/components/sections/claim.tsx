@@ -168,7 +168,7 @@ export default function ClaimPage() {
                       <td className={`${TD} num text-right`}>{fmtSol(r.tradingFeeSol)} SOL{r.tradingFeeToken > EPS && <div className="text-xs text-ink-3">+ {fmtTok(r.tradingFeeToken)} {r.symbol}</div>}</td>
                       <td className={`${TD} num text-right`}>
                         {!r.migrationFeeSharePct ? <span className="text-ink-3">None</span>
-                          : !r.migrated ? <span className="text-ink-3">At graduation ({r.migrationFeeSharePct}%)</span>
+                          : !r.migrated ? <span className="text-ink-3">At migration ({r.migrationFeeSharePct}%)</span>
                           : r.migrationFeeWithdrawn ? <span className="text-ink-3">Claimed</span> : `${fmtSol(r.migrationFeeSol)} SOL`}
                       </td>
                       <td className={`${TD} num text-right`}>

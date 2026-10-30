@@ -5,7 +5,7 @@
 ---
 
 ## 1. Concept
-**Higher Bar** is a pump.fun-style Solana memecoin launchpad where **creators choose their own bonding/migration target** at launch, instead of a fixed ~85 SOL (~$40-50k mcap). Higher targets mean deeper liquidity at migration and a "raise the bar" culture.
+**Higher Bar** is a pump.fun-style Solana memecoin launchpad where **creators choose their own bonding/migration target** at launch, instead of a fixed ~85 SOL. Higher targets mean deeper liquidity at migration and a "raise the bar" culture.
 - Ticker: **$BAR**. Narrative: "Raise the bar. Set a better standard."
 - Original idea credit: **ContextChain** (keep a credits section on the site).
 - Built on **Meteora Dynamic Bonding Curve (DBC)**: no custom smart contract.
@@ -44,26 +44,58 @@ Migration target is set **per DBC config**, not per token, and cannot change aft
 - Migration target: **DAMM v2 only** (DAMM v1 is deprecated for new configs).
 - Token decimals: 6-9.
 
-## 5. Fee model (approved)
-**Bonding curve, per trade:** 1% total. Meteora protocol takes 20% (0.2%). Remaining 0.8% split:
+## 5. Fee model (final)
+All shares are % of trade volume unless stated. Source of truth in `packages/shared`: `TIERS`, `curveFeeSplit`, `lpFeeSplit`, `LP_REBATE_BPS`, `postMigrationSplit`, `feeModel`. All numbers use the on-chain fee values (see `ONCHAIN_PERCENT_NOTE`). Pitch line: **higher creator earnings through graduation**.
 
-| Tier | creatorTradingFeePercentage | Creator | Platform |
-|---|---|---|---|
-| Standard | 50% | 0.4% | 0.4% |
-| Higher | 62% | 0.496% | 0.304% |
-| Max | 75% | 0.6% | 0.2% |
+**Before migration (bonding curve, 1% per trade).** Meteora's DBC protocol fee is 20% of the fee (0.20%). The remaining 0.80% is split by the config's `creatorTradingFeePercentage`:
 
-**Migration fee (% of migrated quote):** Standard 1% (creator 0%), Higher 1% (creator 50%), Max 0% (creator 0%). Meteora also takes a fixed 0.2% of liquidity at migration. These are the on-chain values: DBC fee percentages are whole-number u8s, so the earlier targets (Higher 62.5% creator trading share, Standard 1.5%, Max 0.5% migration fee at 50% creator) cannot be set on a config.
+| Tier | creatorTradingFeePercentage | Creator | Platform | Meteora |
+|---|---|---|---|---|
+| Standard | 50% | 0.40% | 0.40% | 0.20% |
+| Higher | 62% | 0.50% (on-chain 0.496%) | 0.30% (on-chain 0.304%) | 0.20% |
+| Max | 75% | 0.60% | 0.20% | 0.20% |
 
-**After migration (DAMM v2):** pool fee 1%. DAMM v2 takes a 20% protocol cut (0.2% of volume), so LP holders receive 0.8%. LP split creator/platform, permanently locked: Standard 20/80, Higher 40/60, Max 50/50, so the creator earns 0.16% / 0.32% / 0.40% of post-migration volume and the platform 0.64% / 0.48% / 0.40%. (DBC rule: at least 10% must stay locked after 1 day.)
+Higher targets 0.50 / 0.30, but DBC fee percentages are whole-number u8s, so the config stores 62% (62.5% can't be set): ~0.496 / 0.304.
+
+**After migration (DAMM v2, 1% pool fee).** DAMM v2 keeps 20% as its protocol fee (0.20%). The permanently locked LP earns 0.80%, split on-chain by the LP split (creator/platform 20/80, 40/60, 50/50; unchanged). On top of its LP share, the creator receives a **creator LP rebate**: the platform forwards `LP_REBATE_BPS` (fixed per tier in code, not configurable) of the LP fees it actually claims on its own position.
+
+| Tier | Creator LP | Platform LP | LP_REBATE_BPS (of platform LP) | Creator net | Platform net | Meteora |
+|---|---|---|---|---|---|---|
+| Standard | 0.16% | 0.64% | 6875 (0.44%) | **0.60%** | **0.20%** | 0.20% |
+| Higher | 0.32% | 0.48% | 6875 (0.33%) | **0.65%** | **0.15%** | 0.20% |
+| Max | 0.40% | 0.40% | 7500 (0.30%) | **0.70%** | **0.10%** | 0.20% |
+
+- The rebate goes to the token's DBC pool creator as read on-chain when the claim is accrued (follows `transferPoolCreator`), even if the creator LP NFT was sold. Platform, treasury and referral wallets as creator get nothing (recorded with a skip reason).
+- Fee collect mode is OnlyB, so LP fees are SOL. A base-token LP fee should never happen; the jobs alert and do not rebate it.
+- Paid by `jobs:lprebate` (also inside `jobs:epoch`), per wallet once it reaches `LP_REBATE_MIN_PAYOUT_SOL` (default 0.01 SOL); smaller balances carry over. Floor rounding; dust stays with the platform.
+- DBC rule: at least 10% of the LP must stay locked after 1 day.
+
+**Migration fee (% of the migrated quote):** Standard 1%, Higher 1%, Max 0%. The creator gets 0% / 50% / 0% of it, the platform the rest. Meteora also takes a fixed 0.2% of liquidity at migration. (Earlier targets such as Standard 1.5% or Max 0.5% at 50% creator cannot be set as whole-number percentages.)
 
 **Pool creation fee:** 0 (free launch).
 
-**Referral:** set the platform's own referral account on every swap from our UI. It earns 20% of Meteora's protocol fee (= 4% of total fee), paid from Meteora's share, not from creator/platform.
+**Platform share (waterfall, `jobs:epoch`):**
+1. Creator LP rebate (post-migration LP fees only, above).
+2. Trader cashback: 0.05% of the volume traded through the Higher Bar UI. Paid in SOL today; a later change will pay it in $HIGHER.
+3. The remaining net splits **40% buyback & burn $HIGHER, 50% operations, 10% treasury**.
 
-**Trader cashback:** 0.05% of volume, paid by the platform off-chain (not native to DBC).
+**Referral (as implemented; verified in code):**
+- *DBC curve swaps:* every swap built by Higher Bar (`/tx/swap`, the launch dev-buy, `packages/onchain` trade/launch) passes the platform's `REFERRAL_WALLET` WSOL account as the referral account (none when the swap is min-fee eligible). The DBC program pays it 20% of Meteora's protocol fee (= 4% of the fee, 0.04% of volume), out of Meteora's share, not the creator's or the platform's. It lands directly in the platform's referral wallet, so `feeModel` counts it as platform income, but it is not claimed by the fee job and is not part of the `fee_claims` gross or the 40/50/10 split.
+- *DAMM v2:* the pool program can give a referral account a share of its protocol fee, but Higher Bar builds no DAMM v2 swaps (post-migration trading happens on Jupiter / Meteora), so no referral is earned after migration.
+- *User referral program (section 7):* different from the above. A referrer earns `REFERRAL_REWARD_BPS` (2000 = 20%) of the **platform** share of curve fees on their referees' UI trades. It is paid by the platform key out of the platform's share, capped at that period's operations share (`REFERRAL_CAP_TO_OPS`, default on). It does not come from Meteora's protocol fee.
 
-### Simulation per token (example: 500 SOL curve volume, reaches migration at the mainnet targets 85/150/250 SOL, anti-sniper OFF, referral active)
+### Per-project example (k = 2: curve volume = 2 x the threshold, then migrates)
+`feeModel(tier, "onchain", { volumeSol: 2 * threshold })`: curve fees + migration fee, cashback on all curve volume, referral account set on every swap. SOL per migrated coin, post-migration fees not included.
+
+| Tier (threshold) | Curve volume | Fees paid | Creator | Platform net (after cashback) | incl. referral cut | Meteora | Cashback |
+|---|---|---|---|---|---|---|---|
+| Standard (85) | 170 | 1.70 | 0.68 | 1.513 | 0.068 | 0.442 | 0.085 |
+| Higher (150) | 300 | 3.00 | 2.238 | 1.632 | 0.120 | 0.780 | 0.150 |
+| Max (250) | 500 | 5.00 | 3.00 | 0.950 | 0.200 | 1.300 | 0.250 |
+
+Without the referral cut (swaps made outside the Higher Bar UI) the platform net is 1.445 / 1.512 / 0.750 and Meteora 0.510 / 0.900 / 1.500. The platform net then splits 40/50/10. After migration the creator earns 0.60% / 0.65% / 0.70% of DAMM v2 volume on top.
+
+### Comparison at 500 SOL curve volume (migrates at 85/150/250 SOL, anti-sniper OFF, referral active)
 | | Creator | Platform ops | $BAR buyback | Treasury | Meteora | Trader pays |
 |---|---|---|---|---|---|---|
 | pump.fun (web app) | 1.5 | 7.015 (total) | - | - | - | 8.5 |
@@ -72,8 +104,7 @@ Migration target is set **per DBC config**, not per token, and cannot change aft
 | HB Higher (150 SOL) | 3.23 | 1.11 | 0.888 | 0.222 | 1.1 | 5.0 (4.75) |
 | HB Max (250 SOL) | 3.0 | 0.475 | 0.38 | 0.095 | 1.3 | 5.0 (4.75) |
 
-Curve phase only (post-migration DAMM v2 LP fees come on top). Creators earn ~1.3x / 2.2x / 2.0x pump.fun. Traders pay ~44% less than pump.fun web. pump.fun graduates at ~85 SOL, the same as HB Standard. Migration fees scale with the target, so the creator and platform migration shares above are larger than with the earlier 40/80/100 SOL example values (now devnet only). All numbers use the on-chain fee values (see `ONCHAIN_PERCENT_NOTE`).
-
+Curve phase only (post-migration fees come on top). Creator fees at this volume are ~1.3x / 2.2x / 2.0x pump.fun's, and traders pay ~44% less than on pump.fun web. pump.fun graduates at ~85 SOL, the same as HB Standard. Migration fees scale with the target, so the migration shares above are larger than with the earlier 40/80/100 SOL example values (now devnet only).
 ## 6. $BAR buyback & burn
 1. Claim platform fees (curve share, migration fee, DAMM v2 LP fees) into the treasury (a single wallet for now; multisig later). The referral cut lands in the referral wallet's WSOL account directly.
 2. **Creator LP rebate** first: `LP_REBATE_BPS` (packages/shared, fixed per tier: Standard 6875, Higher 6875, Max 7500 bps) of the DAMM v2 LP SOL the platform actually claimed is forwarded to the token's on-chain DBC pool creator (`jobs:lprebate`, also run inside `jobs:epoch`; one row per claim in `creator_lp_rebates`, floor rounding, dust stays with the platform; paid per wallet once it reaches `LP_REBATE_MIN_PAYOUT_SOL`, default 0.01 SOL). Platform / treasury / referral wallets as creator are skipped.

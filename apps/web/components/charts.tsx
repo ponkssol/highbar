@@ -8,7 +8,7 @@ export function BarChart({ data, height = 140 }: { data: { label: string; a: num
         <div key={d.label} className="flex flex-1 flex-col items-center gap-2">
           <div className="flex w-full items-end justify-center gap-1" style={{ height: height - 22 }}>
             <div title={`${d.a} new`} className="w-1/2 max-w-[18px] rounded-[6px] bg-ink" style={{ height: `${(d.a / max) * 100}%` }} />
-            <div title={`${d.b} graduated`} className="w-1/2 max-w-[18px] rounded-[6px] border border-ink bg-hatch" style={{ height: `${Math.max(4, (d.b / max) * 100)}%` }} />
+            <div title={`${d.b} migrated`} className="w-1/2 max-w-[18px] rounded-[6px] border border-ink bg-hatch" style={{ height: `${Math.max(4, (d.b / max) * 100)}%` }} />
           </div>
           <span className="text-xs text-ink-3">{d.label}</span>
         </div>

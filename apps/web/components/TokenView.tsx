@@ -119,7 +119,7 @@ function BondingCard({ t }: { t: TokenViewData }) {
         <span className="num text-ink-3">{t.isMigrated ? "100% · Migrated" : `${t.raisedSol.toFixed(1)} / ${target} SOL`}</span>
       </div>
       <div className="mt-3 h-1.5 rounded-full bg-border"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></div>
-      <p className="mt-2 text-xs text-ink-3">{t.isMigrated ? "Migrated to Meteora DAMM v2." : p >= 1 ? "Target reached: graduates to Meteora DAMM v2." : `Graduates to Meteora DAMM v2 at ${target} SOL.`}</p>
+      <p className="mt-2 text-xs text-ink-3">{t.isMigrated ? "Migrated to Meteora DAMM v2." : p >= 1 ? "Target reached: migrates to Meteora DAMM v2." : `Migrates to Meteora DAMM v2 at ${target} SOL.`}</p>
     </div>
   );
 }
@@ -185,7 +185,7 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
         {tab === "lock" && <DevLock mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks} reload={reloadLocks} />}
         {tab === "info" && (
           <dl className="py-2 text-sm">
-          {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s)" : "Off"], ["Graduation", t.isMigrated ? `Migrated to Meteora DAMM v2 (target ${targetSol(t)} SOL)` : `${targetSol(t)} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
+          {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s)" : "Off"], ["Migration", t.isMigrated ? `Migrated to Meteora DAMM v2 (target ${targetSol(t)} SOL)` : `${targetSol(t)} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 border-b border-border py-2 last:border-0"><dt className="text-ink-3">{k}</dt><dd className="num truncate">{v}</dd></div>
           ))}
         </dl>

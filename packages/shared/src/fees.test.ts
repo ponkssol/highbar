@@ -97,3 +97,8 @@ test("creator LP rebate is floored per claim (dust stays with the platform)", ()
   assert.equal(lpRebateLamports("standard", 0n), 0n); assert.equal(lpRebateLamports("standard", -5n), 0n);
   assert.ok(LP_REBATE_MIN_PAYOUT_SOL >= LP_REBATE_MIN_PAYOUT_FLOOR_SOL);
 });
+test("migration market cap: 420.75 / 742.5 / 1250 SOL on mainnet", async () => {
+  const { migrationMcapSol } = await import("./index.js");
+  assert.deepEqual([migrationMcapSol("standard"), migrationMcapSol("higher"), migrationMcapSol("max")], [420.75, 742.5, 1250]);
+  assert.equal(migrationMcapSol("standard", "devnet"), 198);
+});
