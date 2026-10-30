@@ -14,6 +14,7 @@ import { openbookTables } from "../openbook/write.js";
 import { ingestFailed, ingestLandedTx, swapExtra } from "../openbook/ingest.js";
 import { collectSignatures, pollConfig, poolFingerprint, PollScheduler, prioritize, tickTxBudget, tradesPerPool, type PoolView } from "./schedule.js";
 import { FastIndexer, fastIndexConfig, initForMint, type FastResult } from "./fastIndex.js";
+import type { FoundPool } from "./pending.js";
 
 /** RPC-polling indexer (state in Postgres). Pool state via getPoolsByConfig; swaps via the backup's decode.ts (EvtSwap3). */
 const METAPLEX = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
@@ -228,8 +229,20 @@ const sleepMs = (ms: number) => new Promise((r) => setTimeout(r, ms));
  *  2. from one of our configs (tierConfigs) and for the pool PDA of (that config, this mint, WSOL),
  *  3. targeted getPool of that pool (no config-wide scan), then the tick's own indexPool (metadata from chain, trades, Open Book).
  * Without a signature (vanity reservation only) the mint's oldest recent signature is its creation tx. Gating / caps: fastIndex.ts.
+ * With `found` (GET /tokens/:mint/pending: our pool PDA exists on-chain, owned by the DBC program) step 1 is skipped (no tx lookup);
+ * steps 2 and 3 still run, so the config must be ours, the pool must be its PDA and getPool must hold this base mint.
  */
-export async function indexNewMint(mint: string, signature: string | undefined, log: (m: string) => void = console.log): Promise<FastResult> {
+export async function indexNewMint(mint: string, signature: string | undefined, log: (m: string) => void = console.log, found?: FoundPool): Promise<FastResult> {
+  const configs = tierConfigs();
+  const init = found ?? await launchInit(mint, signature, configs);
+  if ("status" in init) return init;
+  const cfg = configs.find((c) => c.address === init.config);
+  if (!cfg) return { status: "rejected", detail: "config is not one of ours" };
+  return indexPoolOf(mint, init, cfg, log);
+}
+
+/** Steps 1-2 without `found`: the launch tx (given, or the mint's oldest recent signature) and its DBC init event from one of our configs. */
+async function launchInit(mint: string, signature: string | undefined, configs: ReturnType<typeof tierConfigs>): Promise<FoundPool | FastResult> {
   const conn = getConnection();
   let sig = signature;
   if (!sig) {
@@ -244,10 +257,10 @@ export async function indexNewMint(mint: string, signature: string | undefined, 
   }
   if (!tx) return { status: "not_found", detail: "launch tx not visible yet" };
   if (tx.meta?.err) return { status: "rejected", detail: "launch tx failed" };
-  const configs = tierConfigs();
-  const init = initForMint(decodeDbcEvents(toRaw(tx)), mint, configs);
-  if (!init) return { status: "rejected", detail: "no DBC init for this mint from our configs" };
-  const cfg = configs.find((c) => c.address === init.config)!;
+  return initForMint(decodeDbcEvents(toRaw(tx)), mint, configs) ?? { status: "rejected", detail: "no DBC init for this mint from our configs" };
+}
+
+async function indexPoolOf(mint: string, init: FoundPool, cfg: ReturnType<typeof tierConfigs>[number], log: (m: string) => void): Promise<FastResult> {
   if (deriveDbcPoolAddress(NATIVE_MINT, new PublicKey(mint), new PublicKey(cfg.address)).toBase58() !== init.pool) return { status: "rejected", detail: "pool is not the config/mint PDA" };
   const account = await withRetry(() => getClient().state.getPool(init.pool));
   if (!account || account.poolState.baseMint.toBase58() !== mint) return { status: "not_found", detail: "pool account not found" };
@@ -269,10 +282,10 @@ export async function indexNewMint(mint: string, signature: string | undefined, 
   }
 }
 
-/** Process-wide gate for indexNewMint (per-mint once, shared promise, global caps); used by POST /mint/confirm. */
+/** Process-wide gate for indexNewMint (per-mint once, shared promise, global caps); used by POST /mint/confirm and GET /tokens/:mint/pending. */
 export const fastIndexer = new FastIndexer(fastIndexConfig(), {
   tokenExists: async (mint) => (await store.getToken(mint))?.mint === mint,
-  run: (mint, signature) => indexNewMint(mint, signature),
+  run: (mint, signature, found) => indexNewMint(mint, signature, console.log, found),
 });
 
 /** Official $HIGHER: record the FIRST launch by OFFICIAL_TOKEN_CREATOR with symbol OFFICIAL_TOKEN_SYMBOL (once; see services/officialToken.ts). */

@@ -5,14 +5,19 @@
  *  - concurrent calls for one mint share one promise; each mint gets at most one RPC attempt per process (bounded memory);
  *  - only a vanity reservation of ours, or a request carrying the launch signature, may spend RPC; the run itself then verifies the
  *    DBC init event on-chain and that its config is ours (tierConfigs), so arbitrary mints cost at most one getTransaction;
+ *  - mint-only path (GET /tokens/:mint/pending, indexer/pending.ts): `found` = a DBC pool PDA of (our config, mint, WSOL) that
+ *    exists on-chain; the run skips the tx lookup and reads that pool directly (getPool still checks its base mint);
  *  - global caps: FAST_INDEX_PER_MIN runs started per minute (default 30), FAST_INDEX_MAX_CONCURRENT at once (default 4);
  *  - FAST_INDEX=0 turns it off.
  */
 import type { DbcEvent } from "./decode.js";
+import type { FoundPool } from "./pending.js";
 
 export type FastStatus = "indexed" | "exists" | "duplicate" | "ineligible" | "rate_limited" | "disabled" | "not_found" | "rejected" | "failed";
 export interface FastResult { status: FastStatus; detail?: string }
 export interface FastIndexConfig { enabled: boolean; perMin: number; maxConcurrent: number; memory: number }
+/** signature = the launch tx, reserved = one of our vanity reservations, found = our pool PDA seen on-chain (pending lookup) */
+export interface FastOpts { signature?: string; reserved?: boolean; found?: FoundPool }
 
 const int = (v: string | undefined, d: number, min: number) => {
   const n = Math.floor(Number(v));
@@ -45,7 +50,7 @@ export interface FastDeps {
   /** db only: the token row exists already (the tick got there first) */
   tokenExists(mint: string): Promise<boolean>;
   /** the RPC part (poller.ts indexNewMint) */
-  run(mint: string, signature: string | undefined): Promise<FastResult>;
+  run(mint: string, signature: string | undefined, found?: FoundPool): Promise<FastResult>;
 }
 
 export class FastIndexer {
@@ -56,7 +61,7 @@ export class FastIndexer {
   constructor(readonly cfg: FastIndexConfig, private deps: FastDeps, private now: () => number = Date.now) {}
 
   /** Never rejects. Concurrent calls for the same mint get the same promise. */
-  request(mint: string, o: { signature?: string; reserved?: boolean } = {}): Promise<FastResult> {
+  request(mint: string, o: FastOpts = {}): Promise<FastResult> {
     const hit = this.inflight.get(mint);
     if (hit) return hit;
     const p = this.handle(mint, o).catch((): FastResult => ({ status: "failed" })).finally(() => this.inflight.delete(mint));
@@ -65,7 +70,7 @@ export class FastIndexer {
   }
 
   /** Fire-and-forget for the route: starts on the next turn of the event loop, so it cannot delay the response. */
-  kick(mint: string, o: { signature?: string; reserved?: boolean } = {}, log?: (m: string) => void) {
+  kick(mint: string, o: FastOpts = {}, log?: (m: string) => void) {
     setImmediate(() => {
       const t0 = this.now();
       void this.request(mint, o).then((r) => {
@@ -74,10 +79,10 @@ export class FastIndexer {
     });
   }
 
-  private async handle(mint: string, o: { signature?: string; reserved?: boolean }): Promise<FastResult> {
+  private async handle(mint: string, o: FastOpts): Promise<FastResult> {
     if (!this.cfg.enabled) return { status: "disabled" };
     if (this.attempted.has(mint)) return { status: "duplicate" };
-    if (!o.signature && !o.reserved) return { status: "ineligible", detail: "no launch signature and not one of our vanity reservations" };
+    if (!o.signature && !o.reserved && !o.found) return { status: "ineligible", detail: "no launch signature, not one of our vanity reservations, no pool of ours on-chain" };
     if (await this.deps.tokenExists(mint)) { this.remember(mint); return { status: "exists" }; }
     const t = this.now();
     this.starts = this.starts.filter((x) => t - x < 60_000);
@@ -85,7 +90,7 @@ export class FastIndexer {
     this.starts.push(t);
     this.remember(mint);
     this.active++;
-    try { return await this.deps.run(mint, o.signature); }
+    try { return await this.deps.run(mint, o.signature, o.found); }
     finally { this.active--; }
   }
 

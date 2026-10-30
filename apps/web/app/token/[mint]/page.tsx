@@ -1,21 +1,30 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { cache } from "react";
 import { TokenView } from "@/components/TokenView";
 import { TokenAbout } from "@/components/TokenAbout";
 import { JsonLd } from "@/components/JsonLd";
 import { getScore, getToken, getTrades, REVALIDATE_S } from "@/lib/seoData";
 import { absUrl, breadcrumbJsonLd, pageMeta } from "@/lib/seo";
 import { tokenDescription, tokenName, tokenSummary, tokenTicker, tokenTitle } from "@/lib/tokenSeo";
+import { fetchPending, visitorIp } from "@/lib/pendingToken";
 import { TokenPending } from "./TokenPending";
 
 // API reads are cached for REVALIDATE_S (lib/seoData); the root layout renders per request (runtime env), so this is ISR at the data layer.
 export const revalidate = 60;
 
 type Params = { params: Promise<{ mint: string }>; searchParams: Promise<{ new?: string | string[] }> };
-/** /token/<mint>?new=1 is the launch page's redirect right after the tx confirms: an address the API has not indexed yet
- *  gets the TokenPending state (client-side refetch) instead of a 404. middleware.ts lets these through. */
+/** An address the API has no token row for gets the TokenPending state (noindex, polls until the row lands) instead of a 404 when
+ *  - it is /token/<mint>?new=1, the launch page's redirect right after the tx confirms, or
+ *  - GET /tokens/:mint/pending (server-side, short timeout) says our pool for it is on-chain ("pending"), or cannot tell right now
+ *    ("retry": timeout / rate limit), so a fresh mint never 404s on a shared link, a refresh or another visitor's first load.
+ *  Only "unknown" (no pool of ours on-chain) is a 404. middleware.ts makes the same call first (the API caches the answer per mint). */
 const isAddress = (s: string) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
-const justLaunched = async (mint: string, sp: Params["searchParams"]) => isAddress(mint) && (await sp).new === "1";
+/** One pending check per request, shared by generateMetadata and the page. */
+const pendingState = cache(async (mint: string) => fetchPending(mint, visitorIp(await headers())));
+const showPending = async (mint: string, sp: Params["searchParams"]) =>
+  isAddress(mint) && ((await sp).new === "1" || (await pendingState(mint)) !== "unknown");
 
 /** Holder count: the API's live count (GET /tokens/:mint/score breakdown.holders); unique net-positive wallets in the last trades as a fallback. */
 function tradeHolders(trades: { wallet: string; side: "buy" | "sell"; tokens: number }[]) {
@@ -35,7 +44,7 @@ async function load(mint: string) {
 export async function generateMetadata({ params, searchParams }: Params): Promise<Metadata> {
   const { mint } = await params;
   const d = await load(mint);
-  if (!d) return { title: { absolute: (await justLaunched(mint, searchParams)) ? "Indexing token | highbar" : "Token not found | highbar" }, robots: { index: false, follow: true } };
+  if (!d) return { title: { absolute: (await showPending(mint, searchParams)) ? "Indexing token | highbar" : "Token not found | highbar" }, robots: { index: false, follow: true } };
   const t = d.live;
   return pageMeta({
     absoluteTitle: tokenTitle(t), description: tokenDescription(t, d.holders), path: `/token/${t.mint}`, images: false,
@@ -46,10 +55,10 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
 export default async function TokenPage({ params, searchParams }: Params) {
   const { mint } = await params;
   // Real data from the API (server-side, API_URL); unknown mint -> 404 (middleware.ts sets the status before streaming),
-  // except right after a launch (?new=1), where the indexer may still be catching up.
+  // except a fresh on-chain mint the indexer is still catching up on (?new=1 or the pending check), see showPending.
   const d = await load(mint);
   if (!d) {
-    if (await justLaunched(mint, searchParams)) return <TokenPending mint={mint} />;
+    if (await showPending(mint, searchParams)) return <TokenPending mint={mint} fresh={(await searchParams).new === "1"} />;
     notFound();
   }
   const { live, trades } = d;

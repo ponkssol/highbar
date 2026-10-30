@@ -22,6 +22,7 @@ import { requireDb } from "./db/pool.js";
 import { buildLaunchTx, quoteDevBuy, DEV_BUY_MAX_SOL, type LaunchReq } from "./launchTx.js";
 import { registerClaim } from "./routes/claim.js";
 import { mintPoolFailure, registerMint, startMintSweeper } from "./routes/mint.js";
+import { registerPending } from "./routes/pending.js";
 import { launchConfigs, platformReferrals, resolveLaunchMint, validateLaunchTx, vanityMode } from "./services/mintPool/index.js";
 import { db } from "./db/pool.js";
 import { registerScores } from "./routes/scores.js";
@@ -84,6 +85,7 @@ registerClaim(app);
 // VANITY_MINTS=on|fallback|off (default fallback): an invalid value stops the API here (prodCheck reports it too)
 const VANITY_MODE = vanityMode();
 registerMint(app);
+registerPending(app); // GET /tokens/:mint/pending: fresh on-chain mint not indexed yet (token page Indexing state instead of a 404)
 registerCandles(app);
 registerMedia(app);
 registerScores(app);
