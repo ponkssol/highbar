@@ -33,28 +33,8 @@ CREATE TABLE referral_rewards (
 CREATE INDEX referral_rewards_unpaid_idx ON referral_rewards (referrer) WHERE paid_sig IS NULL;
 CREATE INDEX referral_rewards_period_idx ON referral_rewards (period);
 
--- Migrated tokens the milestone tracker follows (migrated_at from the graduate activity, else first seen migrated).
-CREATE TABLE milestone_tokens (
-  mint TEXT PRIMARY KEY,
-  creator TEXT NOT NULL,
-  damm_pool TEXT,
-  migrated_at BIGINT NOT NULL,
-  last_mcap_sol DOUBLE PRECISION,
-  last_sampled_at BIGINT,
-  updated_at BIGINT NOT NULL
-);
-
--- Market cap samples folded per UTC day (DAMM v2 pool price * supply). A day counts toward a milestone when min_mcap_sol >= its threshold.
-CREATE TABLE milestone_snapshots (
-  mint TEXT NOT NULL,
-  day TEXT NOT NULL,
-  min_mcap_sol DOUBLE PRECISION NOT NULL,
-  max_mcap_sol DOUBLE PRECISION NOT NULL,
-  last_mcap_sol DOUBLE PRECISION NOT NULL,
-  samples INT NOT NULL,
-  updated_at BIGINT NOT NULL,
-  PRIMARY KEY (mint, day)
-);
+-- Milestone progress reuses 0003: tokens.migrated_at / tokens.damm_pool and the hourly DAMM v2 token_snapshots (source = 'damm')
+-- written by the score job; a UTC day counts toward a milestone when its lowest snapshot mcap is >= the threshold.
 
 -- One bonus per (token, milestone) once qualified; paid to the creator by the treasury / platform keypair.
 CREATE TABLE milestone_bonuses (

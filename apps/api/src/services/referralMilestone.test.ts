@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MILESTONE_DEFAULTS, milestoneProgress, parseMilestones, platformFeeLamports, referralRewardLamports } from "@hb/shared";
 import { capAccruals, type RefAccrual } from "./referral.js";
-import { dayOf, progressFor } from "./milestone.js";
+import { dailyFromSnaps, dayOf, progressFor } from "./milestone.js";
 
 test("platform fee share per tier (after 20% Meteora protocol cut)", () => {
   const fee = 1_000_000n; // 0.001 SOL total trading fee
@@ -63,8 +63,17 @@ test("progressFor ignores the still-open UTC day", () => {
   assert.equal(dayOf(now), "2026-01-05");
   const days = [d("2026-01-02", 2000), d("2026-01-03", 2000), d("2026-01-04", 2000), d("2026-01-05", 2000)];
   const migratedAt = Date.parse("2026-01-01T10:00:00Z");
-  const [p] = progressFor({ migratedAt }, days, [{ ...m, days: 4 }], now);
+  const [p] = progressFor({ migratedAt }, days, [{ ...m, days: 4 }], now, 1);
   assert.equal(p.streak, 3);
   assert.equal(p.qualified, false);
-  assert.equal(progressFor({ migratedAt }, days, [m], now)[0].qualifiedDay, "2026-01-04");
+  assert.equal(progressFor({ migratedAt }, days, [m], now, 1)[0].qualifiedDay, "2026-01-04");
+});
+
+test("dailyFromSnaps folds hourly DAMM snapshots into UTC days (lowest mcap, sample count)", () => {
+  const h = (iso: string, mcapSol: number) => ({ ts: Date.parse(iso), mcapSol });
+  assert.deepEqual(dailyFromSnaps([h("2026-01-02T23:00:00Z", 900), h("2026-01-02T01:00:00Z", 1500), h("2026-01-03T00:00:00Z", 2000), h("2026-01-02T12:00:00Z", 1200)]), [
+    { day: "2026-01-02", minMcapSol: 900, samples: 3 },
+    { day: "2026-01-03", minMcapSol: 2000, samples: 1 },
+  ]);
+  assert.deepEqual(dailyFromSnaps([]), []);
 });

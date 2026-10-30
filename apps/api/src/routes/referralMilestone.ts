@@ -42,13 +42,14 @@ export function registerReferralMilestone(app: FastifyInstance) {
     const creator = q.creator && ADDR.test(q.creator) ? q.creator : undefined;
     const limit = Math.max(1, Math.min(200, Number(q.limit ?? 50) || 50));
     const net = network(), now = Date.now();
-    const all = (await tracked()).filter((t) => !creator || t.creator === creator).slice(0, limit);
+    const all = (await tracked({ creator })).slice(0, limit);
     const [snaps, bonuses] = await Promise.all([snapshots(all.map((t) => t.mint)), milestoneStore.bonuses({ creator, limit: 200 })]);
     return {
       network: net, dryRun: jobs.dryRun, milestones: rewards2.milestones, minSamplesPerDay: rewards2.milestoneMinSamples, today: dayOf(now),
       tokens: all.map((t) => ({
-        mint: t.mint, name: t.name, symbol: t.symbol, creator: t.creator, migratedAt: t.migratedAt, mcapSol: t.lastMcapSol, sampledAt: t.lastSampledAt,
-        progress: progressFor(t, snaps.get(t.mint) ?? [], rewards2.milestones, now),
+        mint: t.mint, name: t.name, symbol: t.symbol, creator: t.creator, migratedAt: t.migratedAt, dammPool: t.dammPool,
+        mcapSol: snaps.get(t.mint)?.last?.mcapSol ?? null, sampledAt: snaps.get(t.mint)?.last?.ts ?? null,
+        progress: progressFor(t, snaps.get(t.mint)?.days ?? [], rewards2.milestones, now),
       })),
       bonuses: bonuses.map((b) => ({ ...b, paidUrl: b.paidSig ? solscanTx(b.paidSig, net) : null })),
       totals: { paidSol: bonuses.filter((b) => b.paidSig).reduce((a, b) => a + b.amountSol, 0), unpaidSol: bonuses.filter((b) => !b.paidSig).reduce((a, b) => a + b.amountSol, 0) },
@@ -58,12 +59,13 @@ export function registerReferralMilestone(app: FastifyInstance) {
   app.get("/milestones/:mint", async (req, reply) => {
     const { mint } = req.params as { mint: string };
     if (!ADDR.test(mint)) return reply.code(400).send({ error: "bad mint" });
-    const t = (await tracked()).find((x) => x.mint === mint);
+    const [t] = await tracked({ mint });
     const net = network();
     const bonuses = (await milestoneStore.bonuses({ mint })).map((b) => ({ ...b, paidUrl: b.paidSig ? solscanTx(b.paidSig, net) : null }));
     if (!t) return { mint, migrated: false, milestones: rewards2.milestones, progress: [], days: [], bonuses };
-    const days = (await snapshots([mint])).get(mint) ?? [];
-    return { mint, migrated: true, migratedAt: t.migratedAt, mcapSol: t.lastMcapSol, sampledAt: t.lastSampledAt, milestones: rewards2.milestones,
-      progress: progressFor(t, days), days: days.slice(-60), bonuses };
+    const s = (await snapshots([mint])).get(mint);
+    const days = s?.days ?? [];
+    return { mint, migrated: true, migratedAt: t.migratedAt, dammPool: t.dammPool, mcapSol: s?.last?.mcapSol ?? null, sampledAt: s?.last?.ts ?? null, milestones: rewards2.milestones,
+      minSamplesPerDay: rewards2.milestoneMinSamples, progress: progressFor(t, days), days: days.slice(-60), bonuses };
   });
 }

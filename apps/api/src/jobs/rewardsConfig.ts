@@ -18,8 +18,8 @@ export const rewards2 = {
   payoutBatch: Math.max(1, Math.min(10, num("REWARDS_PAYOUT_BATCH", 8))),
   /** MILESTONES="id:mcapSol:days:rewardSol,..." (default MILESTONE_DEFAULTS in @hb/shared). */
   milestones: parseMilestones(process.env.MILESTONES),
-  /** A UTC day only counts toward a milestone with at least this many mcap samples (tracker loop interval sets the rate). */
-  milestoneMinSamples: Math.max(1, num("MILESTONE_MIN_SAMPLES_PER_DAY", 1)),
+  /** A UTC day only counts toward a milestone with at least this many hourly DAMM snapshots (max 24); sparser days are skipped. */
+  milestoneMinSamples: Math.max(1, num("MILESTONE_MIN_SAMPLES_PER_DAY", 12)),
   /** Hard cap on milestone bonus SOL paid per run (0 = no cap). */
   milestoneMaxPerRun: lamports("MILESTONE_MAX_PAYOUT_PER_RUN_SOL", 10),
 };

@@ -11,7 +11,7 @@ import { fmtAge, fmtSol, shortAddr } from "@/lib/format";
 
 type Milestone = { id: string; mcapSol: number; days: number; rewardSol: number };
 type Progress = Milestone & { streak: number; qualified: boolean; qualifiedDay: string | null; broken: number };
-type Tok = { mint: string; name: string; symbol: string; creator: string; migratedAt: number; mcapSol: number | null; sampledAt: number | null; progress: Progress[] };
+type Tok = { mint: string; name: string; symbol: string; creator: string; migratedAt: number; dammPool?: string | null; mcapSol: number | null; sampledAt: number | null; progress: Progress[] };
 type Bonus = { mint: string; milestone: string; creator: string; amountSol: number; qualifiedDay: string; paidSig: string | null; paidUrl: string | null; pending: boolean; symbol: string };
 type Data = { network?: "devnet" | "mainnet"; dryRun: boolean; milestones: Milestone[]; tokens: Tok[]; bonuses: Bonus[]; totals: { paidSol: number; unpaidSol: number } };
 const EMPTY: Data = { dryRun: true, milestones: [], tokens: [], bonuses: [], totals: { paidSol: 0, unpaidSol: 0 } };
@@ -29,7 +29,7 @@ export default function MilestonesPage() {
       <TopBlock title="Milestones">
         <p className="mt-2 max-w-xl text-sm text-ink-2">
           Creators earn a SOL bonus from the treasury when their token keeps its market cap above a target for every full UTC day after it migrates.
-          A day below the target restarts the count. Market cap is sampled from the DAMM v2 pool.
+          A day below the target restarts the count. Market cap comes from hourly DAMM v2 pool snapshots; the lowest one of each day counts.
         </p>
       </TopBlock>
       <OfflineNote error={error} />

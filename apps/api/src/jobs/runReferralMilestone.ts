@@ -1,14 +1,16 @@
 /** Step-8 jobs: user referral rewards + milestone bonus (BUILD_BRIEF section 7). Same safety model as run.ts (cashback):
- *  tsx src/jobs/runReferralMilestone.ts <referral|milestone|milestone-track> [--period yesterday|YYYY-MM-DD] [--live | --dry-run] [--no-track] [--loop 900]
+ *  tsx src/jobs/runReferralMilestone.ts <referral|milestone> [--period yesterday|YYYY-MM-DD] [--live | --dry-run] [--snapshots] [--loop 900]
  *  Dry-run (DRY_RUN unset/true, or --dry-run) simulates every payout tx and writes no rewards / bonuses. --live (or DRY_RUN=false) sends;
  *  mainnet also needs ALLOW_MAINNET=true. The RPC genesis hash must match NETWORK. Payout txs are signed once (pending sig persisted before send).
- *  milestone-track only samples DAMM v2 market caps into milestone_snapshots (observations, no funds) and is the same in both modes. */
+ *  milestone reads the score job's hourly DAMM v2 snapshots (token_snapshots, 0003). --snapshots runs that score job first (off-chain
+ *  writes + read-only RPC, same in both modes); normally the API's SCORES_INTERVAL_MS loop or jobs:scores keeps them fresh. */
 import { referralWallet, loadPlatformKeypair } from "@hb/onchain";
 import { requireDb, db } from "../db/pool.js";
 import { migrate } from "../db/migrate.js";
 import { previewSplit } from "../services/treasury.js";
 import { capAccruals, computeReferralAccruals, payReferrals, writeReferralAccruals } from "../services/referral.js";
-import { evaluate, payMilestones, trackAll, writeBonuses } from "../services/milestone.js";
+import { evaluate, payMilestones, writeBonuses } from "../services/milestone.js";
+import { runScores } from "../services/scoreJob.js";
 import { jobs } from "./config.js";
 import { rewards2 } from "./rewardsConfig.js";
 import { assertCluster, show, sleep } from "./chain.js";
@@ -42,15 +44,13 @@ async function once() {
       payouts: await payReferrals(payer, live, live ? null : { period: p.id, rows }),
     };
   }
-  if (cmd === "milestone" || cmd === "milestone-track") {
-    if (!flag("no-track")) res.track = await trackAll(log);
-    if (cmd === "milestone") {
-      const q = await evaluate(exclude);
-      if (live) await writeBonuses(q);
-      res.milestones = rewards2.milestones;
-      res.qualified = q.map((x) => ({ mint: x.mint, creator: x.creator, milestone: x.milestone.id, qualifiedDay: x.qualifiedDay, lamports: x.lamports }));
-      res.payouts = await payMilestones(payer, live, live ? [] : q);
-    }
+  if (cmd === "milestone") {
+    if (flag("snapshots")) res.snapshots = await runScores(log, { rpc: true });
+    const q = await evaluate(exclude);
+    if (live) await writeBonuses(q);
+    res.milestones = rewards2.milestones;
+    res.qualified = q.map((x) => ({ mint: x.mint, creator: x.creator, milestone: x.milestone.id, qualifiedDay: x.qualifiedDay, lamports: x.lamports }));
+    res.payouts = await payMilestones(payer, live, live ? [] : q);
   }
   log(show(res));
 }
@@ -58,7 +58,7 @@ async function once() {
 function safe(f: () => unknown) { try { const v = f(); return v ? String(v) : null; } catch { return null; } }
 
 async function main() {
-  if (!["referral", "milestone", "milestone-track"].includes(cmd)) { console.error("usage: tsx src/jobs/runReferralMilestone.ts <referral|milestone|milestone-track> [--period yesterday|YYYY-MM-DD] [--live|--dry-run] [--no-track] [--loop SEC]"); process.exit(2); }
+  if (!["referral", "milestone"].includes(cmd)) { console.error("usage: tsx src/jobs/runReferralMilestone.ts <referral|milestone> [--period yesterday|YYYY-MM-DD] [--live|--dry-run] [--snapshots] [--loop SEC]"); process.exit(2); }
   requireDb();
   await assertCluster(live);
   if (live) await migrate(() => {});
