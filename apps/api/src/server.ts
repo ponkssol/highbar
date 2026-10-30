@@ -11,6 +11,7 @@ import { indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
 import { registerPages } from "./routes/pages.js";
 import { registerRewards } from "./routes/rewards.js";
+import { registerReferralMilestone } from "./routes/referralMilestone.js";
 import { rewardsStore } from "./services/rewardsStore.js";
 import { initAuth, registerAuth } from "./auth.js";
 import { migrate } from "./db/migrate.js";
@@ -45,6 +46,7 @@ async function recordLocks(infos: LockInfo[]) {
 registerAuth(app);
 registerPages(app);
 registerRewards(app);
+registerReferralMilestone(app);
 registerClaim(app);
 registerCandles(app);
 registerMedia(app);

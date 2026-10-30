@@ -1,0 +1,25 @@
+import "dotenv/config";
+import { REFERRAL_DEFAULTS, parseMilestones } from "@hb/shared";
+
+/** Env for the step-8 referral + milestone jobs (all optional; defaults are devnet + dry-run via jobs/config.ts DRY_RUN / NETWORK). */
+const num = (k: string, d: number) => {
+  const v = process.env[k], n = v === undefined || v === "" ? d : Number(v);
+  if (!Number.isFinite(n) || n < 0) throw new Error(`${k} must be a non-negative number`);
+  return n;
+};
+const lamports = (k: string, dSol: number) => BigInt(Math.round(num(k, dSol) * 1e9));
+
+export const rewards2 = {
+  /** Referrer share of the platform fee on referred trades, bps (2000 = 20%). Max 5000. */
+  referralRewardBps: Math.min(5000, num("REFERRAL_REWARD_BPS", REFERRAL_DEFAULTS.rewardBps)),
+  referralMinPayout: lamports("REFERRAL_MIN_PAYOUT_SOL", REFERRAL_DEFAULTS.minPayoutSol),
+  /** Cap each period's referral rewards at that period's ops share of the treasury split (default on). */
+  referralCapToOps: (process.env.REFERRAL_CAP_TO_OPS ?? "true").toLowerCase() !== "false",
+  payoutBatch: Math.max(1, Math.min(10, num("REWARDS_PAYOUT_BATCH", 8))),
+  /** MILESTONES="id:mcapSol:days:rewardSol,..." (default MILESTONE_DEFAULTS in @hb/shared). */
+  milestones: parseMilestones(process.env.MILESTONES),
+  /** A UTC day only counts toward a milestone with at least this many mcap samples (tracker loop interval sets the rate). */
+  milestoneMinSamples: Math.max(1, num("MILESTONE_MIN_SAMPLES_PER_DAY", 1)),
+  /** Hard cap on milestone bonus SOL paid per run (0 = no cap). */
+  milestoneMaxPerRun: lamports("MILESTONE_MAX_PAYOUT_PER_RUN_SOL", 10),
+};
