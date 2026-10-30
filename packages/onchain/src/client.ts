@@ -2,7 +2,8 @@ import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction, type Signer } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, SendTransactionError, Transaction, type Signer } from "@solana/web3.js";
+import { utils } from "@coral-xyz/anchor";
 import { DynamicBondingCurveClient } from "@meteora-ag/dynamic-bonding-curve-sdk";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -113,15 +114,42 @@ export async function withRetry<T>(fn: () => Promise<T>, attempts = 4, baseMs = 
   throw last;
 }
 
-/** Sign + send with retries; refreshes blockhash each attempt. */
-export async function sendTx(tx: Transaction, signers: Signer[]): Promise<string> {
+/** Sign once, then re-broadcast the SAME signed bytes and confirm by that signature.
+ *  Only when the blockhash has expired (block height > lastValidBlockHeight) and the signature has not landed
+ *  is the tx rebuilt with a fresh blockhash and re-signed, so a retry can never double-execute. */
+export async function sendTx(tx: Transaction, signers: Signer[], opts: { blockhashes?: number; pollMs?: number } = {}): Promise<string> {
   const conn = getConnection();
-  return withRetry(async () => {
-    const { blockhash } = await conn.getLatestBlockhash("confirmed");
+  const blockhashes = opts.blockhashes ?? 3, pollMs = opts.pollMs ?? 2000;
+  tx.feePayer = tx.feePayer ?? signers[0].publicKey;
+  for (let round = 0; round < blockhashes; round++) {
+    const { blockhash, lastValidBlockHeight } = await withRetry(() => conn.getLatestBlockhash("confirmed"));
     tx.recentBlockhash = blockhash;
-    tx.feePayer = tx.feePayer ?? signers[0].publicKey;
-    return sendAndConfirmTransaction(conn, tx, signers, { commitment: "confirmed" });
-  });
+    tx.sign(...signers);
+    const raw = tx.serialize();
+    const sig = utils.bytes.bs58.encode(tx.signature!);
+    let preflight = true;
+    for (;;) {
+      try {
+        await conn.sendRawTransaction(raw, { skipPreflight: !preflight, maxRetries: 0, preflightCommitment: "confirmed" });
+        preflight = false;
+      } catch (e) {
+        // a simulation failure is deterministic: surface it; transport errors just mean "rebroadcast next poll"
+        if (e instanceof SendTransactionError && preflight) throw e;
+      }
+      await sleep(pollMs);
+      const st = (await withRetry(() => conn.getSignatureStatuses([sig]))).value[0];
+      if (st?.err) throw new Error(`tx ${sig} failed: ${JSON.stringify(st.err)}`);
+      if (st?.confirmationStatus === "confirmed" || st?.confirmationStatus === "finalized") return sig;
+      if (st) continue; // processed: landed, wait for confirmation without rebuilding
+      const height = await withRetry(() => conn.getBlockHeight("confirmed"));
+      if (height <= lastValidBlockHeight) continue;
+      const late = (await withRetry(() => conn.getSignatureStatus(sig, { searchTransactionHistory: true }))).value;
+      if (late?.err) throw new Error(`tx ${sig} failed: ${JSON.stringify(late.err)}`);
+      if (late) continue; // landed after all
+      break; // expired and never landed: safe to rebuild with a fresh blockhash
+    }
+  }
+  throw new Error(`transaction not confirmed after ${blockhashes} blockhashes`);
 }
 
 export function arg(name: string, def?: string): string | undefined {
