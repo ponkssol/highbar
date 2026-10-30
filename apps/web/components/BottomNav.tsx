@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { SocialLinks } from "./SocialLinks";
 import { NAV, isNavActive, type NavItem } from "./nav";
 
 const byHref = (h: string) => NAV.find((n) => n.href === h)!;
@@ -62,6 +63,7 @@ export function BottomNav() {
                 </Link>
               ); })}
               <div className="mt-2 border-t border-border pt-2 [&>button]:mb-0 [&>button]:h-[52px] [&>button]:w-full"><ThemeToggle /></div>
+              <SocialLinks className="mt-1 border-t border-border pt-2" />
             </div>
           </div>
         </div>

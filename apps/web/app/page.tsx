@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { TickGauge } from "@/components/charts";
@@ -34,7 +34,7 @@ export default function Home() {
   const { tokens: TOKENS, loading } = useTokens();
   return (
     <div className="flex flex-col gap-4">
-      <TopBar search={search} onSearch={setSearch} />
+      <TopBar search={search} onSearch={setSearch} listControls />
       <section className="grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-surface shadow-card max-lg:divide-y max-lg:divide-border lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:divide-x lg:divide-border">
         <ActivityGrid bare />
         <div className="flex items-center justify-center p-5 lg:px-8">
@@ -42,7 +42,7 @@ export default function Home() {
         </div>
         {STATS.loading ? <StatsSkeleton bare /> : <KpiGrid stats={STATS} bare />}
       </section>
-      {loading ? <TokenTableSkeleton /> : <TokenTable tokens={TOKENS} search={search} />}
+      {loading ? <TokenTableSkeleton /> : <Suspense fallback={<TokenTableSkeleton />}><TokenTable tokens={TOKENS} search={search} /></Suspense>}
     </div>
   );
-}
+}

@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
-import { AlertTriangle, Lock, Unlock } from "lucide-react";
+import { AlertTriangle, Lock, Unlock, X } from "lucide-react";
 import { useHbWallet } from "@/lib/wallet";
 import { api } from "@/lib/api";
 import { DevLockedBadge } from "./DevLockedBadge";
@@ -12,6 +12,9 @@ import { NETWORK } from "@/lib/settings";
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
 const fmtDate = (s: number) => new Date(s * 1000).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+const fmtLeft = (s: number) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m ${Math.max(0, s % 60)}s`; };
+type LockRow = LocksResp["locks"][number];
+const lockStatus = (l: LockRow, now: number) => Number(l.claimable) > 0 ? "Claimable" : now < l.cliffTime ? "Locked" : Number(l.locked) > 0 ? "Vesting" : "Fully claimed";
 const isoLocal = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
 /** Token header pill: live countdown to the latest cliff among active locks (same rule as the API's unlockAt). */
@@ -21,12 +24,21 @@ export function LockedBadge({ data }: { data: LocksResp | null }) {
   return <span data-testid="locked-badge" title={`${fmtTok(data.lockedTokens)} dev tokens locked via Jupiter Lock`}><DevLockedBadge devLocked unlockAt={Number.isFinite(at) ? at : null} size="md" /></span>;
 }
 
-/** Lock schedule (everyone), lock form + claim (creator only). */
-export function DevLock({ mint, ticker, creator, data, reload }: { mint: string; ticker: string; creator: string; data: LocksResp | null; reload: () => void }) {
+type LockProps = { mint: string; ticker: string; creator: string; data: LocksResp | null; reload: () => void };
+
+/** Same creator check everywhere: the connected wallet is the token's creator. */
+export function useIsCreator(creator: string) {
+  const { publicKey } = useHbWallet();
+  return !!publicKey && publicKey.toBase58() === creator;
+}
+
+/** Lock schedule (everyone), lock form + claim (creator only).
+ *  mode="view": read-only schedule for the token page tab. mode="form": creator actions with the form open (used in the Dev Lock modal). */
+export function DevLock({ mint, ticker, creator, data, reload, mode = "full", onDone }: LockProps & { mode?: "full" | "view" | "form"; onDone?: () => void }) {
   const { publicKey, connection, sendTransaction } = useHbWallet();
-  const isCreator = !!publicKey && publicKey.toBase58() === creator;
+  const isCreator = useIsCreator(creator) && mode !== "view";
   const [bal, setBal] = useState<number | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(mode === "form" && !(data?.locks.length));
   const [amount, setAmount] = useState("");
   const [unlock, setUnlock] = useState(() => isoLocal(new Date(Date.now() + 30 * 86_400_000)));
   const [vestDays, setVestDays] = useState("0");
@@ -44,6 +56,10 @@ export function DevLock({ mint, ticker, creator, data, reload }: { mint: string;
   }, [isCreator, publicKey, connection, mint, data]);
 
   const locks = data?.locks ?? [];
+  const [nowS, setNowS] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => { if (!isCreator || !locks.length) return; const id = setInterval(() => setNowS(Math.floor(Date.now() / 1000)), 1000); return () => clearInterval(id); }, [isCreator, locks.length]);
+  // Next cliff still in the future among locks that still hold tokens (drives the disabled-claim countdown).
+  const nextCliff = locks.filter((l) => Number(l.locked) > 0 && l.cliffTime > nowS).reduce<number | null>((m, l) => (m === null || l.cliffTime < m ? l.cliffTime : m), null);
   const claimable = data?.claimableTokens ?? 0;
   const amt = Number(amount) || 0;
   const unlockAt = Math.floor(new Date(unlock).getTime() / 1000);
@@ -65,7 +81,7 @@ export function DevLock({ mint, ticker, creator, data, reload }: { mint: string;
       const sig = await sendTransaction(r.transaction);
       await connection.confirmTransaction(sig, "confirmed");
       await api.confirmLock(r.escrow).catch(() => {});
-      setMsg(`Locked. Tx ${sig.slice(0, 8)}`); setOpen(false); setAck(false); reload();
+      setMsg(`Locked. Tx ${sig.slice(0, 8)}`); setOpen(mode === "form"); setAck(false); reload();
     } catch (e) { setMsg(`Lock failed: ${(e as Error).message}`); } finally { setBusy(false); }
   };
   const claim = async () => {
@@ -81,20 +97,23 @@ export function DevLock({ mint, ticker, creator, data, reload }: { mint: string;
     } catch (e) { setMsg(`Claim failed: ${(e as Error).message}`); } finally { setBusy(false); }
   };
 
-  if (!locks.length && !(isCreator && (bal ?? 0) > 0)) return null;
+  if (mode === "view" && !locks.length) return <p className="py-6 text-sm text-ink-3" data-testid="dev-lock">No dev tokens locked for ${ticker} yet.</p>;
+  if (mode === "full" && !locks.length && !(isCreator && (bal ?? 0) > 0)) return null;
   return (
-    <div className="rounded-lg border border-border bg-surface p-4" data-testid="dev-lock">
+    <div className={mode === "form" ? "" : "rounded-lg border border-border bg-surface p-4"} data-testid={mode === "form" ? "dev-lock-form" : "dev-lock"}>
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="flex items-center gap-2 font-semibold"><Lock size={16} strokeWidth={1.5} />Dev token lock</h3>
+        {mode !== "form" && <h3 className="flex items-center gap-2 font-semibold"><Lock size={16} strokeWidth={1.5} />Dev token lock</h3>}
         {data && data.lockedTokens > 0 && <span className="num text-xs text-ink-3">{fmtTok(data.lockedTokens)} ${ticker} locked</span>}
       </div>
       {locks.length > 0 && (
         <ul className="text-sm">
           {locks.map((l) => (
             <li key={l.escrow} className="border-b border-border py-2 last:border-0">
+              {isCreator && <div className="flex justify-between"><span className="text-ink-3">Status</span><span className="text-xs font-medium">{lockStatus(l, nowS)}</span></div>}
               <div className="flex justify-between"><span className="text-ink-3">Amount</span><span className="num">{fmtTok(toUi(l.total))} ${ticker}</span></div>
               <div className="flex justify-between"><span className="text-ink-3">Unlocks</span><span className="num">{fmtDate(l.cliffTime)}</span></div>
               {l.numberOfPeriod > 0 && <div className="flex justify-between"><span className="text-ink-3">Vesting</span><span className="num">{l.numberOfPeriod} x {Math.round(l.frequency / 3600) >= 24 ? `${Math.round(l.frequency / 86400)}d` : `${Math.round(l.frequency / 60)}m`}, ends {fmtDate(l.endTime).split(",")[0]}</span></div>}
+              {isCreator && <div className="flex justify-between"><span className="text-ink-3">Claimable now</span><span className="num">{fmtTok(toUi(l.claimable))} ${ticker}</span></div>}
               <div className="flex justify-between"><span className="text-ink-3">Claimed / unlocked</span><span className="num">{fmtTok(toUi(l.claimed))} / {fmtTok(toUi(l.unlocked))}</span></div>
               <div className="flex justify-between"><span className="text-ink-3">Cancel / change recipient</span><span>None (permanent)</span></div>
               <div className="flex justify-between"><a href={`https://solscan.io/account/${l.escrow}${NETWORK === "mainnet" ? "" : "?cluster=devnet"}`} target="_blank" rel="noreferrer" className="num text-xs text-ink-3 hover:text-ink">Escrow {l.escrow.slice(0, 6)}...</a><Link href={`/locks/${l.escrow}`} className="text-xs font-medium hover:underline">Share lock</Link></div>
@@ -102,9 +121,12 @@ export function DevLock({ mint, ticker, creator, data, reload }: { mint: string;
           ))}
         </ul>
       )}
-      {isCreator && claimable > 0 && (
-        <button onClick={claim} disabled={busy} className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:opacity-50">
-          <Unlock size={14} />Claim unlocked ({fmtTok(claimable)} ${ticker})
+      {isCreator && (claimable > 0 || locks.length > 0) && (
+        <button onClick={claim} disabled={busy || !(claimable > 0)} data-testid="claim-unlocked"
+          title={claimable > 0 ? undefined : "Nothing unlocked yet"}
+          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
+          <Unlock size={14} />{claimable > 0 ? `Claim unlocked (${fmtTok(claimable)} $${ticker})`
+            : nextCliff ? `Claim unlocked · unlocks in ${fmtLeft(nextCliff - nowS)}` : "Claim unlocked · nothing to claim yet"}
         </button>
       )}
       {isCreator && (bal ?? 0) > 0 && !open && (
@@ -126,14 +148,52 @@ export function DevLock({ mint, ticker, creator, data, reload }: { mint: string;
           </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />I understand this cannot be undone</label>
           <div className="flex gap-2">
-            <button onClick={() => setOpen(false)} className="h-10 flex-1 rounded border border-border text-sm hover:bg-muted">Cancel</button>
+            <button onClick={() => (mode === "form" ? onDone?.() : setOpen(false))} className="h-10 flex-1 rounded border border-border text-sm hover:bg-muted">Cancel</button>
             <button onClick={lock} disabled={busy || !!err} title={err || undefined} className="h-10 flex-1 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:opacity-40">{busy ? "Locking..." : "Lock tokens"}</button>
           </div>
           <p className="text-xs text-ink-3" data-testid="lock-tip">Protocol tip: {data?.tipSol ?? 0.005} SOL</p>
           {err && <p className="text-xs text-ink-3">{err}</p>}
         </div>
       )}
+      {mode === "form" && isCreator && bal !== null && bal <= 0 && claimable <= 0 && <p className="mt-3 text-sm text-ink-3">This wallet holds no ${ticker} to lock.</p>}
       {msg && <p className="mt-2 text-xs text-ink-2">{msg}</p>}
     </div>
+  );
+}
+/** "Dev Lock" button for the token creator only (same check as DevLock); opens the lock form in a modal / mobile sheet. */
+export function DevLockButton({ className = "", ...p }: LockProps & { className?: string }) {
+  const isCreator = useIsCreator(p.creator);
+  const [open, setOpen] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  const opener = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } };
+    window.addEventListener("keydown", key, true);
+    const prevOverflow = document.body.style.overflow; document.body.style.overflow = "hidden";
+    panel.current?.focus();
+    const btn = opener.current;
+    return () => { window.removeEventListener("keydown", key, true); document.body.style.overflow = prevOverflow; btn?.focus(); };
+  }, [open]);
+  if (!isCreator) return null;
+  return (
+    <>
+      <button ref={opener} type="button" onClick={() => setOpen(true)} data-testid="dev-lock-button" aria-haspopup="dialog"
+        className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded border border-border bg-surface text-sm font-medium hover:bg-muted ${className}`}>
+        <Lock size={15} strokeWidth={1.75} />Dev Lock
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-[55] flex items-end justify-center md:items-center md:p-6" role="dialog" aria-modal="true" aria-labelledby="dev-lock-title">
+          <div className="hb-scrim absolute inset-0" onClick={() => setOpen(false)} />
+          <div ref={panel} tabIndex={-1} className="hb-sheet relative max-h-[90vh] w-full overflow-y-auto rounded-t-[20px] border border-border bg-surface p-5 pb-[calc(20px+env(safe-area-inset-bottom))] outline-none md:max-w-md md:rounded-lg md:pb-5 md:shadow-card">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 id="dev-lock-title" className="flex items-center gap-2 text-base font-semibold"><Lock size={16} strokeWidth={1.5} />Dev token lock</h2>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-ink-3 hover:bg-muted hover:text-ink"><X size={18} /></button>
+            </div>
+            <DevLock {...p} mode="form" onDone={() => setOpen(false)} />
+          </div>
+        </div>
+      )}
+    </>
   );
 }

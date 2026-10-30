@@ -3,6 +3,8 @@ import { TokenLogo } from "./TokenLogo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useListQuery, type SortId, type StatusId } from "@/lib/listQuery";
+import { ListControls } from "./ListControls";
 import { ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
 import { progressOf as progressAt, targetOf, type TokenRow } from "@/lib/mock";
 import { NETWORK } from "@/lib/settings";
@@ -14,8 +16,10 @@ import { OfficialBadge } from "./OfficialBadge";
 
 const progressOf = (t: TokenRow) => progressAt(t, NETWORK);
 
-type Filter = "all" | "bonding" | "almost" | "graduated";
-type SortKey = "name" | "tier" | "mcap" | "progress" | "volume" | "age";
+type Filter = StatusId;
+type SortKey = "name" | "tier" | "mcap" | "progress" | "volume" | "age" | "near";
+/** Sort-by menu choice -> table column sort (descending). "near": bonding tokens closest to migration first, migrated last. */
+const SORT_OF: Record<SortId, SortKey> = { new: "age", mcap: "mcap", volume: "volume", progress: "progress", near: "near" };
 const FILTERS: { id: Filter; label: string; test: (t: TokenRow) => boolean }[] = [
   { id: "all", label: "All", test: () => true },
   { id: "bonding", label: "Bonding", test: (t) => progressOf(t) < 0.8 },
@@ -24,27 +28,35 @@ const FILTERS: { id: Filter; label: string; test: (t: TokenRow) => boolean }[] =
 ];
 const TIER_ORDER = { standard: 0, higher: 1, max: 2 };
 const val = (t: TokenRow, k: SortKey): number | string =>
-  k === "name" ? t.name : k === "tier" ? TIER_ORDER[t.tier] : k === "mcap" ? t.mcapUsd : k === "progress" ? progressOf(t) : k === "volume" ? t.volume24hSol : -t.createdAt;
+  k === "name" ? t.name : k === "tier" ? TIER_ORDER[t.tier] : k === "mcap" ? t.mcapUsd : k === "progress" ? progressOf(t) : k === "volume" ? t.volume24hSol : k === "near" ? (progressOf(t) >= 1 ? -1 : progressOf(t)) : -t.createdAt;
 
 export const PAGE_SIZE = 15;
 
 
 export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { tokens: TokenRow[]; search?: string; pageSize?: number }) {
   const router = useRouter();
-  const [filter, setFilter] = useState<Filter>("all");
-  const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: "age", dir: -1 });
+  // Stage chips, Sort by and Filters all share the URL query (?status=, ?sort=, ?tier=, ?locked=1).
+  const [lq, setLq] = useListQuery();
+  const filter: Filter = lq.status;
+  const setFilter = (status: Filter) => setLq({ status });
+  // Column-header clicks override the Sort by choice until the menu choice changes again.
+  const [hdr, setHdr] = useState<{ from: SortId; k: SortKey; dir: 1 | -1 } | null>(null);
+  const sort = hdr && hdr.from === lq.sort ? hdr : { k: SORT_OF[lq.sort], dir: -1 as const };
+  const setSort = (f: (s: { k: SortKey; dir: 1 | -1 }) => { k: SortKey; dir: 1 | -1 }) => setHdr({ from: lq.sort, ...f(sort) });
+  // Tier + dev-lock filters apply before the stage chips, so chip counts reflect them.
+  const base = useMemo(() => tokens.filter((t) => (!lq.tiers.length || lq.tiers.includes(t.tier)) && (!lq.locked || !!t.devLocked)), [tokens, lq.tiers, lq.locked]);
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const f = FILTERS.find((x) => x.id === filter)!;
-    return tokens
+    return base
       .filter((t) => f.test(t) && (!q || `${t.name} ${t.ticker} ${t.mint}`.toLowerCase().includes(q)))
       .sort((a, b) => {
         const va = val(a, sort.k), vb = val(b, sort.k);
         return (va < vb ? -1 : va > vb ? 1 : 0) * sort.dir;
       });
-  }, [tokens, filter, sort, search]);
+  }, [base, filter, sort.k, sort.dir, search]);
   // Page is tied to the current view: any change to filter/sort/search resets it to 1 in the same render.
-  const viewKey = `${filter}|${sort.k}|${sort.dir}|${search.trim().toLowerCase()}|${pageSize}`;
+  const viewKey = `${filter}|${sort.k}|${sort.dir}|${lq.tiers.join(",")}|${lq.locked}|${search.trim().toLowerCase()}|${pageSize}`;
   const [pg, setPg] = useState({ key: viewKey, page: 1 });
   const page = pg.key === viewKey ? pg.page : 1;
   const setPage = (n: number) => setPg({ key: viewKey, page: n });
@@ -69,11 +81,12 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
     <div className="rounded-lg border border-border bg-surface shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3">
         <h2 className="text-lg font-semibold">New tokens</h2>
+        <div className="lg:hidden"><ListControls small /></div>
         <div className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1">
           {FILTERS.map((f) => (
             <button key={f.id} onClick={() => setFilter(f.id)}
               className={`relative h-7 shrink-0 whitespace-nowrap rounded-full px-2.5 text-[12px] after:absolute after:inset-x-0 after:-inset-y-[6px] after:content-[''] md:h-8 md:px-3 md:text-sm ${filter === f.id ? "bg-ink text-on-ink" : "border border-border text-ink-2 hover:bg-muted"}`}>
-              {f.label} <span className="num ml-1 text-xs opacity-60">{tokens.filter(f.test).length}</span>
+              {f.label} <span className="num ml-1 text-xs opacity-60">{base.filter(f.test).length}</span>
             </button>
           ))}
         </div>
@@ -146,4 +159,4 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
       <Pagination page={cur} pageSize={pageSize} total={rows.length} onPage={setPage} label="Tokens pagination" testId="token-pagination" />
     </div>
   );
-}
+}

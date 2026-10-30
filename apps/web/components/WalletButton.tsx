@@ -11,13 +11,14 @@ export function AddrDot({ address, size = 16 }: { address: string; size?: number
 
 /** Compact single-line wallet pill. Custom button that opens the AppKit modal; never stacks or wraps.
  *  compact: mobile header variant (30px tall, address only). The hit area is padded to 40px via ::after. */
-export function WalletButton({ full = false, compact = false }: { full?: boolean; compact?: boolean }) {
+/** size="lg": same height/radius/padding as the header "Launch token" button. */
+export function WalletButton({ full = false, compact = false, size: sz = "sm" }: { full?: boolean; compact?: boolean; size?: "sm" | "lg" }) {
   const { ready, address, publicKey, isConnected, connection } = useHbWallet();
   const bal = useSolBalance(publicKey, connection);
   const open = useWalletModal();
   const { status, signIn } = useAuth();
-  const size = compact ? "h-[30px] px-2.5 text-[12px] gap-1.5" : "h-8 px-3 text-[13px] gap-2";
-  const base = `relative inline-flex shrink-0 items-center whitespace-nowrap rounded-full font-medium leading-none transition-opacity after:absolute after:inset-x-0 after:-inset-y-[6px] after:content-[''] ${size} ${full ? "w-full justify-center" : ""}`;
+  const size = compact ? "h-[30px] rounded-full px-2.5 text-[12px] gap-1.5" : sz === "lg" ? "h-10 rounded px-4 text-sm gap-2" : "h-8 rounded-full px-3 text-[13px] gap-2";
+  const base = `relative inline-flex shrink-0 items-center whitespace-nowrap font-medium leading-none transition-opacity after:absolute after:inset-x-0 after:-inset-y-[6px] after:content-[''] ${size} ${full ? "w-full justify-center" : ""}`;
   if (isConnected && address) {
     const unverified = status !== "verified";
     return (
@@ -25,7 +26,7 @@ export function WalletButton({ full = false, compact = false }: { full?: boolean
         className={`${base} border border-border bg-surface text-ink hover:bg-muted`}>
         <AddrDot address={address} size={compact ? 12 : 14} />
         <span className="num">{shortAddr(address)}</span>
-        {!compact && unverified && <span title={status === "signing" ? "Signing in..." : "Unverified, click to sign in"} onClick={(e) => { e.stopPropagation(); if (status !== "signing") void signIn(); }} className={`h-1.5 w-1.5 shrink-0 rounded-full ${status === "signing" ? "animate-pulse bg-ink-3" : "bg-burn"}`} />}
+        {unverified && <span role="button" aria-label="Sign in" title={status === "signing" ? "Signing in..." : "Not signed in, click to sign in"} onClick={(e) => { e.stopPropagation(); if (status !== "signing") void signIn(); }} className={`h-1.5 w-1.5 shrink-0 rounded-full ${status === "signing" ? "animate-pulse bg-ink-3" : "bg-burn"}`} />}
         {!compact && bal != null && <span className="num text-ink-3">{bal.toFixed(2)} SOL</span>}
       </button>
     );
@@ -33,7 +34,7 @@ export function WalletButton({ full = false, compact = false }: { full?: boolean
   return (
     <button type="button" data-testid="wallet-pill" onClick={() => open("Connect")} disabled={!ready} title={ready ? undefined : "Set Reown project ID"}
       className={`${base} bg-ink text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50`}>
-      <Wallet size={compact ? 13 : 14} strokeWidth={1.75} />{compact ? "Connect" : "Connect wallet"}
+      <Wallet size={compact ? 13 : sz === "lg" ? 16 : 14} strokeWidth={1.75} />{compact ? "Connect" : "Connect wallet"}
     </button>
   );
-}
+}

@@ -12,7 +12,7 @@ import { TradePanel } from "./TradePanel";
 import { TokenLogo } from "./TokenLogo";
 import { Price, TierBadge } from "./ui";
 import { DeltaPill } from "./StatsPanel";
-import { DevLock, LockedBadge } from "./DevLock";
+import { DevLock, DevLockButton, LockedBadge } from "./DevLock";
 import { DevLockedBadge } from "./DevLockedBadge";
 import { OfficialBadge } from "./OfficialBadge";
 import { ScoreBadge } from "./ScoreBadge";
@@ -182,7 +182,7 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
         )}
         {tab === "score" && <ScoreCard mint={t.mint} />}
         {tab === "fees" && <FeeBreakdown tier={t.tier} />}
-        {tab === "lock" && <DevLock mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks} reload={reloadLocks} />}
+        {tab === "lock" && <DevLock mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks} reload={reloadLocks} mode="view" />}
         {tab === "info" && (
           <dl className="py-2 text-sm">
           {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s)" : "Off"], ["Migration", t.isMigrated ? `Migrated to Meteora DAMM v2 (target ${targetSol(t)} SOL)` : `${targetSol(t)} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
@@ -210,7 +210,8 @@ export function TokenView({ t }: { t: TokenViewData }) {
         {/* trade panel + bonding: right column on lg, between chart and tabs on md, sticky Buy/Sell on mobile */}
         <aside className="hidden md:block lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <div className="grid gap-4 md:grid-cols-2 lg:sticky lg:top-20 lg:grid-cols-1">
-            {panel()}
+            {/* creator-only Dev Lock button sits above the Buy/Sell card and opens the lock form in a modal */}
+            <div className="flex min-w-0 flex-col gap-3"><DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks.data} reload={locks.reload} />{panel()}</div>
             <BondingCard t={t} />
           </div>
         </aside>
@@ -218,6 +219,7 @@ export function TokenView({ t }: { t: TokenViewData }) {
       </div>
       {/* mobile sticky actions + bottom sheet */}
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-2 gap-2 border-t border-border bg-surface p-3 md:hidden">
+        <DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks.data} reload={locks.reload} className="col-span-2" />
         <button onClick={() => setSheet("buy")} className="h-12 rounded-md bg-buy font-semibold text-white">Buy</button>
         <button onClick={() => setSheet("sell")} className="h-12 rounded-md bg-sell font-semibold text-white">Sell</button>
       </div>

@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useHbWallet, useSolBalance } from "@/lib/wallet";
-import { AddrDot, WalletButton } from "./WalletButton";
+import { AddrDot } from "./WalletButton";
+import { SocialLinks } from "./SocialLinks";
 import { useTokens } from "@/lib/useApi";
 import { TIERS } from "@hb/shared";
 import { TierDot } from "./ui";
@@ -47,7 +48,7 @@ export function Sidebar() {
       </div>
       <div className="mt-auto" />
       <ThemeToggle />
-      {isConnected && address ? (
+      {isConnected && address && (
         <div className="flex items-center gap-3 rounded bg-muted p-3">
           <AddrDot address={address} size={28} />
           <div className="min-w-0">
@@ -55,12 +56,8 @@ export function Sidebar() {
             <div className="num text-xs text-ink-3">{bal != null ? `${bal.toFixed(3)} SOL` : "…"} · {NETWORK}</div>
           </div>
         </div>
-      ) : (
-        <div className="rounded bg-muted p-3">
-          <div className="mb-2 text-xs text-ink-3">Connect a wallet to trade &amp; launch</div>
-          <WalletButton full />
-        </div>
       )}
+      <SocialLinks className="mt-2 px-1" />
     </aside>
   );
 }

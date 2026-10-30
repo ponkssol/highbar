@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
-import { ArrowUpDown, Plus, Search, SlidersHorizontal } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
-import { Button } from "./ui";
+import { Plus, Search } from "lucide-react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { ListControls } from "./ListControls";
 import { WalletButton } from "./WalletButton";
 import { useInHub } from "./HubTabs";
 
-export function TopBar({ search, onSearch }: { search?: string; onSearch?: (v: string) => void }) {
+/** listControls: show the token-list Sort by / Filters popovers (home page only; they drive the URL query). */
+export function TopBar({ search, onSearch, listControls = false }: { search?: string; onSearch?: (v: string) => void; listControls?: boolean }) {
   // Mobile: the row is hidden behind the header search icon (hb-search event); md+ always shows it.
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -22,11 +23,10 @@ export function TopBar({ search, onSearch }: { search?: string; onSearch?: (v: s
           className="w-full bg-transparent text-ink outline-none placeholder:text-ink-3" />
       </label>
       <div className="ml-auto hidden items-center gap-2 md:flex">
-        <Button variant="secondary" className="max-lg:hidden"><ArrowUpDown size={16} strokeWidth={1.5} />Sort by</Button>
-        <Button variant="secondary" className="max-lg:hidden"><SlidersHorizontal size={16} strokeWidth={1.5} />Filters</Button>
-        <WalletButton />
+        {listControls && <div className="max-lg:hidden"><Suspense fallback={null}><ListControls /></Suspense></div>}
+        <WalletButton size="lg" />
         <Link href="/launch" className="inline-flex h-10 items-center gap-2 rounded bg-ink px-4 text-sm font-medium text-on-ink hover:opacity-90">
-          <Plus size={16} />Launch<span className="max-lg:hidden">&nbsp;token</span>
+          <Plus size={16} /><span>Launch<span className="max-lg:hidden"> token</span></span>
         </Link>
       </div>
     </div>
