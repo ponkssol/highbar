@@ -115,6 +115,25 @@ export function lpFeeSplit(tier: Tier) {
   return { total, protocol, lp, creator: (lp * tier.lpCreatorPercentage) / 100, platform: (lp * tier.lpPlatformPercentage) / 100 };
 }
 
+/** Creator LP rebate (post-migration): the platform forwards this share (bps) of the DAMM v2 LP SOL it actually CLAIMED on its own
+ *  locked position to the token's creator. Fixed per tier in code (not runtime-configurable). The on-chain pool fee (1%) and the
+ *  LP split (lpCreatorPercentage / lpPlatformPercentage) are unchanged; with the rebate the creator ends at 0.60% / 0.65% / 0.70%
+ *  of post-migration volume and the platform at 0.20% / 0.15% / 0.10% (Meteora keeps its 0.20%). See postMigrationSplit. */
+export const LP_REBATE_BPS: Record<TierId, number> = { standard: 6875, higher: 6875, max: 7500 };
+/** Smallest creator LP rebate payout (SOL); smaller balances carry over. apps/api env LP_REBATE_MIN_PAYOUT_SOL (>= 0.001). */
+export const LP_REBATE_MIN_PAYOUT_SOL = 0.01;
+export const LP_REBATE_MIN_PAYOUT_FLOOR_SOL = 0.001;
+/** Rebate on a claimed platform LP amount (lamports, floored; the rounding dust stays with the platform / treasury). */
+export const lpRebateLamports = (tier: TierId, claimedLamports: bigint): bigint =>
+  claimedLamports > 0n ? (claimedLamports * BigInt(LP_REBATE_BPS[tier])) / BigInt(BPS) : 0n;
+/** Effective post-migration split in bps of DAMM v2 volume: LP shares (lpFeeSplit) + the platform-to-creator rebate.
+ *  Standard 60 / 20 / 20, Higher 65 / 15 / 20, Max 70 / 10 / 20 (creator / platform / Meteora). */
+export function postMigrationSplit(tier: Tier) {
+  const lp = lpFeeSplit(tier);
+  const rebate = (lp.platform * LP_REBATE_BPS[tier.id]) / BPS;
+  return { total: lp.total, protocol: lp.protocol, creatorLp: lp.creator, rebate, creator: lp.creator + rebate, platform: lp.platform - rebate };
+}
+
 /** Referral account share of Meteora's protocol fee (20% of protocol = 4% of the total fee). */
 export const REFERRAL_SHARE_OF_PROTOCOL = 0.2;
 /** Meteora's fixed cut of migrated liquidity. */

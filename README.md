@@ -46,7 +46,7 @@ The API also runs pending migrations on start.
 
 Jobs (dry-run unless `--live` or `DRY_RUN=false`; live mainnet also needs `ALLOW_MAINNET=true`):
 
-    pnpm --filter @hb/api jobs:epoch           # claim fees -> cashback -> 40/50/10 split -> buyback & burn
+    pnpm --filter @hb/api jobs:epoch           # claim fees -> creator LP rebate -> cashback -> 40/50/10 split -> buyback & burn
     pnpm --filter @hb/api jobs:fees | jobs:cashback | jobs:buyback
     pnpm --filter @hb/api jobs:barsnap         # hourly $HIGHER holder snapshot
     pnpm --filter @hb/api jobs:feeshare        # $HIGHER holder fee share (payouts also need BAR_FEE_SHARE_LIVE=true)

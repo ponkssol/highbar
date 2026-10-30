@@ -21,6 +21,12 @@ type Row = {
 type LpPosition = { dammPool: string; position: string; positionNftAccount: string; unclaimedSol: number; unclaimedToken: number; lockedSharePct: number };
 type LpInfo = { dammPool: string | null; positions: LpPosition[]; sol: number; token: number; error: string | null };
 type ClaimData = { tokens: Row[]; totalSol: number; totalTradingSol: number; totalMigrationSol: number; totalLpSol: number };
+/** Creator LP rebate history (from GET /claim/:creator/rebates): paid by the platform's lprebate job, nothing to sign. */
+type RebateRow = {
+  claimSig: string; pool: string; mint: string; symbol: string; name: string; tier: string; claimedSol: number; rebateBps: number; rebateSol: number;
+  paidSig: string | null; paidAt: number | null; pending: boolean; skipReason: string | null; createdAt: number;
+};
+type RebateData = { rebateBps: Record<TierId, number>; minPayoutSol: number; pendingSol: number; paidSol: number; rows: RebateRow[] };
 type Kind = "trading" | "migration" | "lp";
 /** pool = DBC pool for trading/migration, DAMM v2 pool for lp. */
 type Job = { pool: string; kind: Kind; position?: string };
@@ -47,10 +53,12 @@ export default function ClaimPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [sigs, setSigs] = useState<{ sig: string; label: string }[]>([]);
+  const [rebates, setRebates] = useState<RebateData | null>(null);
 
   const load = useCallback(async () => {
     if (!wallet.address) return;
     setLoading(true);
+    fetch(`${apiBase()}/claim/${wallet.address}/rebates`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then(setRebates).catch(() => setRebates(null));
     try {
       const r = await fetch(`${apiBase()}/claim/${wallet.address}`, { cache: "no-store" });
       if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `HTTP ${r.status}`);
@@ -58,7 +66,7 @@ export default function ClaimPage() {
     } catch (e) { setError((e as Error).message); } finally { setLoading(false); }
   }, [wallet.address]);
 
-  useEffect(() => { setData(null); if (wallet.isConnected) load(); }, [wallet.isConnected, load]);
+  useEffect(() => { setData(null); setRebates(null); if (wallet.isConnected) load(); }, [wallet.isConnected, load]);
 
   async function run(jobs: Job[], label: string) {
     if (!wallet.publicKey || !jobs.length) return;
@@ -179,6 +187,46 @@ export default function ClaimPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        <div className="flex flex-col gap-1 border-b border-border px-4 py-3">
+          <h3 className="font-semibold">LP rebates</h3>
+          <p className="text-xs text-ink-3">
+            After migration the platform sends you {rebates ? `${fmtPct(rebates.rebateBps.standard / 100)} (Standard, Higher) or ${fmtPct(rebates.rebateBps.max / 100)} (Max)` : "part"} of
+            the LP fees it claims on its own locked position. Paid automatically to the token creator&apos;s wallet once your pending total reaches {rebates ? fmtSol(rebates.minPayoutSol) : "0.01"} SOL; nothing to sign.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-6 px-4 py-3 sm:grid-cols-4">
+          <div><div className="text-[13px] text-ink-3">Pending</div><div className="num mt-1 text-lg font-semibold">{rebates ? fmtSol(rebates.pendingSol) : "-"} SOL</div></div>
+          <div><div className="text-[13px] text-ink-3">Paid</div><div className="num mt-1 text-lg font-semibold">{rebates ? fmtSol(rebates.paidSol) : "-"} SOL</div></div>
+        </div>
+        {rebates && rebates.rows.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="text-left text-xs text-ink-3"><tr>
+                <th className={TH}>Date</th><th className={TH}>Token</th><th className={`${TH} text-right`}>Platform LP claim</th><th className={`${TH} text-right`}>Rebate</th><th className={`${TH} text-right`}>Status</th>
+              </tr></thead>
+              <tbody>
+                {rebates.rows.map((r) => (
+                  <tr key={`${r.claimSig}:${r.pool}`} className="border-t border-border">
+                    <td className={TD}>{new Date(r.createdAt).toLocaleDateString()}</td>
+                    <td className={TD}><div className="font-medium">{r.symbol || r.mint.slice(0, 6)}</div><div className="text-xs text-ink-3">{r.name}</div></td>
+                    <td className={`${TD} num text-right`}><a className="inline-flex items-center gap-1 hover:text-ink" href={explorerTx(r.claimSig)} target="_blank" rel="noreferrer">{fmtSol(r.claimedSol)} SOL<ExternalLink size={12} /></a></td>
+                    <td className={`${TD} num text-right`}>{fmtSol(r.rebateSol)} SOL<div className="text-xs text-ink-3">{fmtPct(r.rebateBps / 100)}</div></td>
+                    <td className={`${TD} text-right`}>
+                      {r.skipReason ? <span className="text-xs text-ink-3">Not eligible: {r.skipReason}</span>
+                        : r.paidSig ? <a className="inline-flex items-center gap-1 text-buy hover:underline" href={explorerTx(r.paidSig)} target="_blank" rel="noreferrer">Paid<ExternalLink size={12} /></a>
+                        : r.pending ? <span className="text-ink-2">Sending</span> : <span className="text-ink-3">Pending</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="px-4 pb-4 text-sm text-ink-3">{rebates ? "No LP rebates yet. They start once a token has migrated and the platform claims its LP fees." : "Rebate history unavailable."}</div>
         )}
       </Card>
     </div>

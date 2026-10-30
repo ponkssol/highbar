@@ -51,7 +51,7 @@ export function registerRewards(app: FastifyInstance) {
     return {
       network: net, barMint: jobs.barMint, barLaunched: !!jobs.barMint, barMintUrl: jobs.barMint ? solscanAccount(jobs.barMint, net) : null, mode: buybackMode(), dryRun: jobs.dryRun, estimated: !s.claims,
       barBurned: bt.barBurned, burnOrders: bt.orders, solSpent: bt.solSpent,
-      platformFeesSol: s.claims ? s.claimedSol : estimate, unsplitFeesSol: s.unsplitSol, cashbackSol: s.cashbackSol, split,
+      platformFeesSol: s.claims ? s.claimedSol : estimate, unsplitFeesSol: s.unsplitSol, creatorRebateSol: s.creatorRebateSol, cashbackSol: s.cashbackSol, split,
       pendingBuybackSol: Math.max(0, (s.periods ? s.buybackSol : split.buyback) - bt.solSpent),
       maxOrderSol: Number(jobs.maxOrder) / 1e9, maxSlippageBps: jobs.maxSlippageBps,
       runs: runs.map((b) => ({

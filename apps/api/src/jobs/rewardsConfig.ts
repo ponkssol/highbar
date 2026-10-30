@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { REFERRAL_DEFAULTS, parseMilestones } from "@hb/shared";
+import { LP_REBATE_MIN_PAYOUT_FLOOR_SOL, LP_REBATE_MIN_PAYOUT_SOL, REFERRAL_DEFAULTS, parseMilestones } from "@hb/shared";
 
 /** Env for the step-8 referral + milestone jobs (all optional; defaults are devnet + dry-run via jobs/config.ts DRY_RUN / NETWORK). */
 const num = (k: string, d: number) => {
@@ -8,6 +8,10 @@ const num = (k: string, d: number) => {
   return n;
 };
 const lamports = (k: string, dSol: number) => BigInt(Math.round(num(k, dSol) * 1e9));
+const atLeast = (k: string, dSol: number, minSol: number) => {
+  if (num(k, dSol) < minSol) throw new Error(`${k} must be >= ${minSol} SOL`);
+  return lamports(k, dSol);
+};
 
 export const rewards2 = {
   /** Referrer share of the platform fee on referred trades, bps (2000 = 20%). Max 5000. */
@@ -22,4 +26,6 @@ export const rewards2 = {
   milestoneMinSamples: Math.max(1, num("MILESTONE_MIN_SAMPLES_PER_DAY", 12)),
   /** Hard cap on milestone bonus SOL paid per run (0 = no cap). */
   milestoneMaxPerRun: lamports("MILESTONE_MAX_PAYOUT_PER_RUN_SOL", 10),
+  /** Creator LP rebate: a creator's unpaid rebates are paid once they sum to at least this (default 0.01 SOL, must be >= 0.001); below it they carry over. */
+  lpRebateMinPayout: atLeast("LP_REBATE_MIN_PAYOUT_SOL", LP_REBATE_MIN_PAYOUT_SOL, LP_REBATE_MIN_PAYOUT_FLOOR_SOL),
 };

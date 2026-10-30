@@ -54,8 +54,8 @@ export const rewardsStore = {
   async splitTotals() {
     const s = (await db.query(
       `SELECT count(*)::int AS n, coalesce(sum(gross_lamports),0)::text AS g, coalesce(sum(cashback_lamports),0)::text AS c, coalesce(sum(buyback_lamports),0)::text AS b,
-              coalesce(sum(ops_lamports),0)::text AS o, coalesce(sum(treasury_lamports),0)::text AS t FROM treasury_splits`)).rows[0];
+              coalesce(sum(ops_lamports),0)::text AS o, coalesce(sum(treasury_lamports),0)::text AS t, coalesce(sum(creator_rebate_lamports),0)::text AS r FROM treasury_splits`)).rows[0];
     const f = (await db.query("SELECT count(*)::int AS n, coalesce(sum(lamports),0)::text AS l, coalesce(sum(lamports) FILTER (WHERE period IS NULL),0)::text AS u FROM fee_claims")).rows[0];
-    return { periods: s.n as number, grossSol: sol(s.g), cashbackSol: sol(s.c), buybackSol: sol(s.b), opsSol: sol(s.o), treasurySol: sol(s.t), claims: f.n as number, claimedSol: sol(f.l), unsplitSol: sol(f.u) };
+    return { periods: s.n as number, grossSol: sol(s.g), creatorRebateSol: sol(s.r), cashbackSol: sol(s.c), buybackSol: sol(s.b), opsSol: sol(s.o), treasurySol: sol(s.t), claims: f.n as number, claimedSol: sol(f.l), unsplitSol: sol(f.u) };
   },
 };

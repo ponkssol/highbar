@@ -75,12 +75,14 @@ Migration target is set **per DBC config**, not per token, and cannot change aft
 Curve phase only (post-migration DAMM v2 LP fees come on top). Creators earn ~1.3x / 2.2x / 2.0x pump.fun. Traders pay ~44% less than pump.fun web. pump.fun graduates at ~85 SOL, the same as HB Standard. Migration fees scale with the target, so the creator and platform migration shares above are larger than with the earlier 40/80/100 SOL example values (now devnet only). All numbers use the on-chain fee values (see `ONCHAIN_PERCENT_NOTE`).
 
 ## 6. $BAR buyback & burn
-1. Claim platform fees (curve share, migration fee, DAMM v2 LP fees, referral cut) into a **multisig treasury**.
-2. Pay trader cashback first.
-3. Split the rest: **40% buyback & burn, 50% operations, 10% treasury** (example split).
-4. Scheduled bot buys $BAR via **Jupiter** in small capped orders, then burns.
-5. Publish every buy and burn with **Solscan links** on a public tracker page.
+1. Claim platform fees (curve share, migration fee, DAMM v2 LP fees) into the treasury (a single wallet for now; multisig later). The referral cut lands in the referral wallet's WSOL account directly.
+2. **Creator LP rebate** first: `LP_REBATE_BPS` (packages/shared, fixed per tier: Standard 6875, Higher 6875, Max 7500 bps) of the DAMM v2 LP SOL the platform actually claimed is forwarded to the token's on-chain DBC pool creator (`jobs:lprebate`, also run inside `jobs:epoch`; one row per claim in `creator_lp_rebates`, floor rounding, dust stays with the platform; paid per wallet once it reaches `LP_REBATE_MIN_PAYOUT_SOL`, default 0.01 SOL). Platform / treasury / referral wallets as creator are skipped.
+3. Then trader cashback.
+4. Split the rest: **40% buyback & burn, 50% operations, 10% treasury** (example split).
+5. Scheduled bot buys $BAR via **Jupiter** in small capped orders, then burns.
+6. Publish every buy and burn with **Solscan links** on a public tracker page.
 - Example at 10,000 SOL/day curve volume (60/30/10 tier mix): traders pay 100 SOL fees, creators 44.88 (Higher at the on-chain 62%), cashback 5, Meteora 16, platform 34.12 (13.65 buyback, 17.06 ops, 3.41 treasury).
+- Rebates, cashback, referral and milestone payouts are sent by the platform keypair. Claimed fees go to `TREASURY_PUBKEY` when it differs from the platform key, so the platform key has to be topped up from the treasury to cover them (each payout checks its balance + 0.01 SOL first). If the treasury becomes a Squads vault, those top-ups become multisig proposals; this is not automated.
 - **Never** promise price or market $BAR as an investment. Check legal rules for fee-linked tokens.
 
 ## 7. Phase 2 features

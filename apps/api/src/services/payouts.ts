@@ -3,7 +3,7 @@ import { getConnection } from "@hb/onchain";
 import { memoIx, sendOnce, sigState, simulate } from "../jobs/chain.js";
 import { db } from "../db/pool.js";
 
-/** Generic SOL payout batching shared by the referral and milestone jobs (same safety as cashback: simulate in dry-run,
+/** Generic SOL payout batching shared by the referral, milestone and creator LP rebate jobs (same safety as cashback: simulate in dry-run,
  *  live = sign once, persist the signature as pending BEFORE sending, confirm, then mark paid; reconcile settles crashes). */
 export interface Due { wallet: string; lamports: bigint; ref: string[] }
 export interface PayoutResult { wallets: string[]; refs: string[]; lamports: bigint; sig?: string; status: "paid" | "would-pay" | "failed"; note?: string }
@@ -44,7 +44,7 @@ export async function payBatches(o: {
 }
 
 /** Pending payouts of `table` from an earlier (crashed / timed-out) run: landed -> paid, failed or expired -> unpaid again. */
-export async function reconcile(table: "referral_rewards" | "milestone_bonuses") {
+export async function reconcile(table: "referral_rewards" | "milestone_bonuses" | "creator_lp_rebates") {
   const { rows } = await db.query<{ pending_sig: string; pending_at: number }>(`SELECT DISTINCT pending_sig, pending_at FROM ${table} WHERE pending_sig IS NOT NULL AND paid_sig IS NULL`);
   for (const r of rows) {
     const s = await sigState(r.pending_sig);

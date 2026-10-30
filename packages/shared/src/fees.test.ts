@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CREATOR_TRADING_FEE_PCT, DEVNET_THRESHOLD_SOL, MAINNET_THRESHOLD_SOL, MIGRATION_FEE_PCT, TIERS, curveFeeSplit, feeModel, thresholdSolFor, lpFeeSplit, type TierId } from "./index.js";
+import { CREATOR_TRADING_FEE_PCT, DEVNET_THRESHOLD_SOL, MAINNET_THRESHOLD_SOL, MIGRATION_FEE_PCT, TIERS, curveFeeSplit, feeModel, thresholdSolFor, lpFeeSplit, LP_REBATE_BPS, LP_REBATE_MIN_PAYOUT_FLOOR_SOL, LP_REBATE_MIN_PAYOUT_SOL, lpRebateLamports, postMigrationSplit, type TierId } from "./index.js";
 
 const near = (a: number, b: number, msg: string) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} != ${b}`);
 
@@ -75,4 +75,25 @@ test("thresholds per network: mainnet 85/150/250 SOL, devnet keeps 40/80/100 SOL
     for (const n of ["mainnet", "mainnet-beta", undefined, null]) assert.equal(thresholdSolFor(id, n), MAINNET_THRESHOLD_SOL[id], `${id} ${n}`);
     assert.equal(TIERS[id].migrationQuoteThresholdSol, MAINNET_THRESHOLD_SOL[id]);
   }
+});
+
+test("creator LP rebate: creator 0.60/0.65/0.70%, platform 0.20/0.15/0.10%, Meteora 0.20% of post-migration volume", () => {
+  assert.deepEqual(LP_REBATE_BPS, { standard: 6875, higher: 6875, max: 7500 });
+  const want = { standard: [60, 20], higher: [65, 15], max: [70, 10] } as const;
+  for (const id of Object.keys(want) as TierId[]) {
+    const s = postMigrationSplit(TIERS[id]);
+    near(s.creator, want[id][0], `${id} creator`); near(s.platform, want[id][1], `${id} platform`); near(s.protocol, 20, `${id} Meteora`);
+    near(s.creator + s.platform + s.protocol, 100, `${id} conservation`);
+    near(s.creatorLp + s.rebate, s.creator, `${id} creator = LP share + rebate`);
+  }
+});
+
+test("creator LP rebate is floored per claim (dust stays with the platform)", () => {
+  assert.equal(lpRebateLamports("standard", 1_000_000_000n), 687_500_000n);
+  assert.equal(lpRebateLamports("max", 1_000_000_000n), 750_000_000n);
+  assert.equal(lpRebateLamports("standard", 3n), 2n); // 2.0625 -> 2
+  assert.equal(lpRebateLamports("higher", 1n), 0n); // 0.6875 -> 0
+  assert.equal(lpRebateLamports("max", 1_234_567n), 925_925n); // 925_925.25 -> 925_925
+  assert.equal(lpRebateLamports("standard", 0n), 0n); assert.equal(lpRebateLamports("standard", -5n), 0n);
+  assert.ok(LP_REBATE_MIN_PAYOUT_SOL >= LP_REBATE_MIN_PAYOUT_FLOOR_SOL);
 });

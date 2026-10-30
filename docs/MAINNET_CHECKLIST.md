@@ -191,7 +191,7 @@ Also:
   - After migration the DAMM v2 pool fee is 1%; DAMM v2 takes a 20% protocol cut, so the locked LP earns 0.8% of volume: creator 0.16% / 0.32% / 0.40%, platform 0.64% / 0.48% / 0.40% (Standard / Higher / Max, LP split 20/80, 40/60, 50/50).
   - In Railway → keeper → Variables, set `DRY_RUN=false` and `ALLOW_MAINNET=true`.
   - [UNVERIFIED] DAMM v2 migration was only tested on devnet (`docs/devnet-migration-test.md`). Watch the first real migration live.
-- **Fee claims** [NICE for day 1]: on jobs-epoch, set `DRY_RUN=false` and `ALLOW_MAINNET=true` only after a dry-run epoch looks right. Cashback and the 40/50/10 split also go live with this.
+- **Fee claims** [NICE for day 1]: on jobs-epoch, set `DRY_RUN=false` and `ALLOW_MAINNET=true` only after a dry-run epoch looks right. Cashback, the creator LP rebate (`jobs:lprebate` runs inside epoch) and the 40/50/10 split also go live with this. The platform key pays rebates and cashback, so keep it funded from the treasury.
 - **Buyback** [UNVERIFIED]:
   - The Jupiter path never ran on mainnet. The first live buyback should be a manual, tiny one from the PC:
     `pnpm --filter @hb/api jobs:buyback -- --live --budget-sol 0.01`
@@ -214,7 +214,7 @@ Pools, curves and LP locks live on-chain. Rolling back the app never touches use
 
 ## Later [NICE]
 
-- Treasury multisig (e.g. Squads). If it becomes the fee claimer, claims need multisig proposals, so keep the platform key as claimer and use the multisig as receiver.
+- Treasury multisig (e.g. Squads). If it becomes the fee claimer, claims need multisig proposals, so keep the platform key as claimer and use the multisig as receiver. Rebate / cashback / referral payouts are sent from the platform key, so it then needs top-ups from the vault (multisig proposals; not automated).
 - Redis-backed rate limits before running more than 1 api replica (limits are in-memory per instance).
 - Migrate Railway config-as-code files to Railway's newer Infrastructure-as-Code before 2026-12-01.
 - Error tracking (Sentry) and uptime checks on `/health`.

@@ -4,6 +4,9 @@ import { PublicKey, type Transaction } from "@solana/web3.js";
 import { CpAmm } from "@meteora-ag/cp-amm-sdk";
 import { allTierConfigEntries, getClient, getConnection } from "@hb/onchain";
 import { store } from "../store.js";
+import { LP_REBATE_BPS, networkOf, solscanTx } from "@hb/shared";
+import { rebateStore } from "../services/lpRebate.js";
+import { rewards2 } from "../jobs/rewardsConfig.js";
 import { buildLpClaim, canonicalDammPool, creatorPositions, LpClaimError, type LpAmm, type LpConn, type LpPosition } from "../services/creatorLp.js";
 
 const U64_MAX = new BN("18446744073709551615");
@@ -26,6 +29,7 @@ export interface ClaimDeps {
   conn?: LpConn & { getLatestBlockhash(c?: "confirmed"): Promise<{ blockhash: string }> };
   store?: Pick<typeof store, "getToken" | "tokensByCreator">;
   platformConfigs?: () => Set<string>;
+  rebates?: Pick<typeof rebateStore, "forCreator">;
 }
 
 export function registerClaim(app: FastifyInstance, deps: ClaimDeps = {}) {
@@ -34,6 +38,19 @@ export function registerClaim(app: FastifyInstance, deps: ClaimDeps = {}) {
   const amm = (): LpAmm => deps.amm ?? (new CpAmm(getConnection()) as unknown as LpAmm);
   const db = () => deps.store ?? store;
   const platformConfigs = () => deps.platformConfigs?.() ?? new Set(allTierConfigEntries().map(([, a]) => a));
+
+  /** Creator LP rebate history (post-migration share of the platform's claimed LP SOL; paid by the lprebate job, nothing to sign). */
+  app.get("/claim/:creator/rebates", async (req, reply) => {
+    const { creator } = req.params as { creator: string };
+    try { new PublicKey(creator); } catch { return reply.code(400).send({ error: "invalid creator address" }); }
+    const r = await (deps.rebates ?? rebateStore).forCreator(creator, 200);
+    const net = networkOf(process.env.NETWORK);
+    return {
+      creator, rebateBps: LP_REBATE_BPS, minPayoutSol: Number(rewards2.lpRebateMinPayout) / 1e9,
+      pendingSol: r.pendingSol, paidSol: r.paidSol,
+      rows: r.rows.map((x) => ({ ...x, claimUrl: solscanTx(x.claimSig, net), paidUrl: x.paidSig ? solscanTx(x.paidSig, net) : null })),
+    };
+  });
 
   app.get("/claim/:creator", async (req, reply) => {
     const { creator } = req.params as { creator: string };

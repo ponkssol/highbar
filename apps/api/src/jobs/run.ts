@@ -1,7 +1,9 @@
 /** Fee claimer / cashback / buyback & burn jobs (BUILD_BRIEF section 6).
- *  tsx src/jobs/run.ts <fees|cashback|buyback|epoch> [--period yesterday|YYYY-MM-DD] [--live | --dry-run] [--budget-sol 0.5] [--loop 3600]
+ *  tsx src/jobs/run.ts <fees|lprebate|cashback|buyback|epoch> [--period yesterday|YYYY-MM-DD] [--live | --dry-run] [--budget-sol 0.5] [--loop 3600]
  *  Dry-run (DRY_RUN unset/true, or --dry-run) simulates every tx and writes nothing. --live (or DRY_RUN=false) sends; mainnet also needs ALLOW_MAINNET=true.
- *  epoch = claim fees -> accrue + pay cashback for the closed period -> close the 40/50/10 split -> buy back & burn the buyback share.
+ *  lprebate = accrue the creator LP rebate on new damm_lp fee claims and pay creators at or above LP_REBATE_MIN_PAYOUT_SOL (services/lpRebate.ts).
+ *  epoch = claim fees -> creator LP rebate -> accrue + pay cashback for the closed period -> close the split (rebate, cashback, then 40/50/10)
+ *  -> buy back & burn the buyback share.
  *  $HIGHER utility (step 8, BAR_MINT set): cashback adds the holder boost; barsnap = store a $HIGHER holder snapshot (run hourly);
  *  feeshare = accrue the holder fee share for a closed period (after epoch) and pay it (payouts also need BAR_FEE_SHARE_LIVE=true). */
 import { referralWallet, loadPlatformKeypair } from "@hb/onchain";
@@ -10,6 +12,7 @@ import { migrate } from "../db/migrate.js";
 import { FeeClaimer } from "../services/feeClaimer.js";
 import { computeAccruals, payCashback, writeAccruals } from "../services/cashback.js";
 import { closePeriod, previewSplit } from "../services/treasury.js";
+import { estimateRebates, runLpRebate, type Excluded } from "../services/lpRebate.js";
 import { runBuyback } from "../services/buyback.js";
 import { jobs } from "./config.js";
 import { assertCluster, show, sleep } from "./chain.js";
@@ -34,15 +37,26 @@ async function once() {
   const payer = loadPlatformKeypair();
   const p = period(opt("period"));
   const closed = isClosed(p);
-  if (live && !closed && cmd !== "fees" && cmd !== "barsnap") throw new Error(`period ${p.id} is still open; live cashback / split / buyback only run for closed periods`);
+  if (live && !closed && cmd !== "fees" && cmd !== "lprebate" && cmd !== "barsnap") throw new Error(`period ${p.id} is still open; live cashback / split / buyback only run for closed periods`);
   const exclude = [...new Set([payer.publicKey.toBase58(), jobs.treasury, safe(referralWallet), ...jobs.cashbackExclude].filter((x): x is string => !!x))];
   const res: Record<string, unknown> = { network: jobs.network, period: p.id, live };
-  let accrued: bigint | undefined, wouldClaim = 0n;
+  // creators that never get an LP rebate (cashbackExclude is a trader list and does not apply here)
+  const rebateExclude: Excluded = new Map();
+  for (const [w, label] of [[safe(referralWallet), "referral"], [jobs.treasury, "treasury"], [payer.publicKey.toBase58(), "platform"]] as const) if (w) rebateExclude.set(w, label);
+  let accrued: bigint | undefined, wouldClaim = 0n, extraRebate = 0n;
+  let wouldLp: { mint: string; lamports: bigint }[] = [];
 
   if (cmd === "fees" || cmd === "epoch") {
     const claims = await new FeeClaimer(payer, live).runAll(log);
     res.fees = claims.filter((c) => c.status !== "skipped" || c.note);
     if (!live) wouldClaim = claims.filter((c) => c.status === "would-claim").reduce((a, c) => a + c.lamports, 0n);
+    if (!live) wouldLp = claims.filter((c) => c.status === "would-claim" && c.source === "damm_lp");
+  }
+  if (cmd === "lprebate" || cmd === "epoch") {
+    const r = await runLpRebate({ payer, live, exclude: rebateExclude, log });
+    res.lpRebate = r;
+    // dry-run: neither this run's accruals nor its would-be damm_lp claims were written, so the split preview adds their rebates
+    if (!live) extraRebate = r.plannedLamports + await estimateRebates(wouldLp, rebateExclude);
   }
   if (cmd === "cashback" || cmd === "epoch") {
     const acc = await computeAccruals(p, exclude, await cashbackBoost(p, live, log));
@@ -54,7 +68,7 @@ async function once() {
     // --budget-sol = manual buyback: spends that amount without closing the period's split.
     // dry-run: this run's fee claims / cashback accruals were not written, so the preview adds them.
     const override = opt("budget-sol");
-    const split = live && override === undefined ? await closePeriod(p) : await previewSplit(p, accrued, wouldClaim);
+    const split = live && override === undefined ? await closePeriod(p) : await previewSplit(p, accrued, wouldClaim, extraRebate);
     res.split = split;
     const budget = override !== undefined ? BigInt(Math.round(Number(override) * 1e9)) : split.buyback;
     if (override !== undefined && !(Number(override) >= 0)) throw new Error("--budget-sol must be >= 0");
@@ -77,7 +91,7 @@ async function once() {
 function safe(f: () => unknown) { try { const v = f(); return v ? String(v) : null; } catch { return null; } }
 
 async function main() {
-  if (!["fees", "cashback", "buyback", "epoch", "barsnap", "feeshare"].includes(cmd)) { console.error("usage: tsx src/jobs/run.ts <fees|cashback|buyback|epoch|barsnap|feeshare> [--period yesterday|YYYY-MM-DD] [--live|--dry-run] [--budget-sol N] [--loop SEC]"); process.exit(2); }
+  if (!["fees", "lprebate", "cashback", "buyback", "epoch", "barsnap", "feeshare"].includes(cmd)) { console.error("usage: tsx src/jobs/run.ts <fees|lprebate|cashback|buyback|epoch|barsnap|feeshare> [--period yesterday|YYYY-MM-DD] [--live|--dry-run] [--budget-sol N] [--loop SEC]"); process.exit(2); }
   requireDb();
   await assertCluster(live);
   if (live) await migrate(() => {});
@@ -87,6 +101,7 @@ async function main() {
     log(`$HIGHER has not launched yet: ${cmd} skipped (set OFFICIAL_TOKEN_CREATOR for auto-detection, or BAR_MINT; devnet: pnpm --filter @hb/api bar:mock-mint)`);
     await db.end(); return;
   }
+  if (!live && ["lprebate", "buyback", "epoch"].includes(cmd) && !(await db.query("SELECT to_regclass('public.creator_lp_rebates') AS t")).rows[0].t) throw new Error("creator LP rebate table missing (0007): run pnpm --filter @hb/api db:migrate");
   if (!live && cmd === "feeshare" && !(await db.query("SELECT to_regclass('public.bar_fee_share_ledger') AS t")).rows[0].t) throw new Error("$HIGHER tables missing (0005): run pnpm --filter @hb/api db:migrate");
   const loop = Number(opt("loop") ?? 0);
   do {

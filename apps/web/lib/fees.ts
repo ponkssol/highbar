@@ -1,4 +1,4 @@
-import { ANTI_SNIPER, CURVE_FEE_BPS, PLATFORM_SPLIT, TIERS, curveFeeSplit, lpFeeSplit, type TierId } from "@hb/shared";
+import { ANTI_SNIPER, CURVE_FEE_BPS, LP_REBATE_BPS, PLATFORM_SPLIT, TIERS, curveFeeSplit, lpFeeSplit, postMigrationSplit, type TierId } from "@hb/shared";
 
 /** Fee split in percent of volume, using shared tier config. */
 export function feeSplitPct(tier: TierId) {
@@ -12,6 +12,13 @@ export function lpFeeSplitPct(tier: TierId) {
   const s = lpFeeSplit(TIERS[tier]);
   const r = (v: number) => Math.round(v) / 100;
   return { total: r(s.total), protocol: r(s.protocol), lp: r(s.lp), creator: r(s.creator), platform: r(s.platform), lpCreatorPct: TIERS[tier].lpCreatorPercentage };
+}
+
+/** Post-migration net shares in percent of pool volume after the platform's creator LP rebate (LP_REBATE_BPS of the platform's claimed LP fees). */
+export function postMigrationPct(tier: TierId) {
+  const s = postMigrationSplit(TIERS[tier]);
+  const r = (v: number) => Math.round(v * 100) / 10000; // bps -> %, 4dp
+  return { total: r(s.total), protocol: r(s.protocol), creatorLp: r(s.creatorLp), rebate: r(s.rebate), creator: r(s.creator), platform: r(s.platform), rebatePct: LP_REBATE_BPS[tier] / 100 };
 }
 
 /** Current anti-sniper fee in bps (linear decay). */

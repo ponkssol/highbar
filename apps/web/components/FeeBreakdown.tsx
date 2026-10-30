@@ -1,11 +1,12 @@
 import type { TierId } from "@hb/shared";
-import { PLATFORM_SPLIT, feeSplitPct, lpFeeSplitPct } from "@/lib/fees";
+import { PLATFORM_SPLIT, feeSplitPct, lpFeeSplitPct, postMigrationPct } from "@/lib/fees";
 import { StackedBar } from "./charts";
 import { Card } from "./ui";
 
 export function FeeBreakdown({ tier }: { tier: TierId }) {
   const f = feeSplitPct(tier);
   const lp = lpFeeSplitPct(tier);
+  const pm = postMigrationPct(tier);
   const rows: [string, string, string][] = [
     ["Meteora protocol", `${f.meteora}%`, "border"],
     ["Creator", `${f.creator}%`, "ink"],
@@ -34,15 +35,22 @@ export function FeeBreakdown({ tier }: { tier: TierId }) {
       <div className="mt-4 text-xs font-medium text-ink-3">After migration (DAMM v2)</div>
       <table className="mt-1 w-full text-sm">
         <tbody>
-          {[["Pool fee", lp.total], ["DAMM v2 protocol (20%)", lp.protocol], [`Creator LP (${lp.lpCreatorPct}% of LP)`, lp.creator], [`Platform LP (${100 - lp.lpCreatorPct}% of LP)`, lp.platform]].map(([l, v]) => (
+          {[["Pool fee", lp.total], ["DAMM v2 protocol (20%)", lp.protocol], [`Creator LP (${lp.lpCreatorPct}% of LP)`, lp.creator], [`Platform LP (${100 - lp.lpCreatorPct}% of LP)`, lp.platform],
+            [`Creator LP rebate (${pm.rebatePct}% of platform LP fees)`, pm.rebate]].map(([l, v]) => (
             <tr key={l as string} className="border-b border-border last:border-0">
               <td className="py-2 text-ink-2">{l}</td>
               <td className="num py-2 text-right">{v}%</td>
             </tr>
           ))}
+          {[["Creator net", pm.creator], ["Platform net", pm.platform]].map(([l, v]) => (
+            <tr key={l as string} className="border-b border-border last:border-0">
+              <td className="py-2 font-medium">{l}</td>
+              <td className="num py-2 text-right font-medium">{v}%</td>
+            </tr>
+          ))}
         </tbody>
       </table>
-      <div className="mt-4 text-xs font-medium text-ink-3">Platform fee split</div>
+      <div className="mt-4 text-xs font-medium text-ink-3">Platform fee split (after the creator LP rebate and trader cashback)</div>
       <table className="mt-1 w-full text-sm">
         <tbody>
           {[["Buyback + burn $HIGHER", PLATFORM_SPLIT.buyback], ["Operations", PLATFORM_SPLIT.ops], ["Treasury", PLATFORM_SPLIT.treasury]].map(([l, v]) => (
