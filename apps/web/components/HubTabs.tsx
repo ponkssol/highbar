@@ -34,7 +34,7 @@ export function HubTabs({ title, intro, tabs }: { title: string; intro?: ReactNo
               const on = t.id === active.id;
               return (
                 <Link key={t.id} href={hrefFor(t.id)} scroll={false} replace aria-current={on ? "page" : undefined}
-                  className={`relative -mb-px whitespace-nowrap border-b-2 pb-2.5 text-sm transition-colors ${on ? "border-ink font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"}`}>
+                  className={`relative -mb-px whitespace-nowrap border-b-2 pb-2.5 text-sm transition-colors ${on ? "border-gold font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"}`}>
                   {t.label}
                 </Link>
               );

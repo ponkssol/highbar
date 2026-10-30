@@ -10,6 +10,7 @@ import { TokenTable } from "@/components/TokenTable";
 import { BurnBadge } from "@/components/ui";
 import { StatsSkeleton, TokenTableSkeleton } from "@/components/ui/Skeleton";
 import { useStats, useTokens } from "@/lib/useApi";
+import { ArenaBanner, HairlineDivider } from "@/components/arena";
 
 function BigStat({ value, unit, label, delta, href, badge }: { value: string; unit?: string; label: string; delta: number; href: string; badge?: React.ReactNode }) {
   return (
@@ -35,6 +36,7 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-4">
       <TopBar search={search} onSearch={setSearch} listControls />
+      <ArenaBanner />
       <section className="grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-surface shadow-card max-lg:divide-y max-lg:divide-border lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:divide-x lg:divide-border">
         <ActivityGrid bare />
         <div className="flex items-center justify-center p-5 lg:px-8">
@@ -42,6 +44,7 @@ export default function Home() {
         </div>
         {STATS.loading ? <StatsSkeleton bare /> : <KpiGrid stats={STATS} bare />}
       </section>
+      <HairlineDivider className="my-1" />
       {loading ? <TokenTableSkeleton /> : <Suspense fallback={<TokenTableSkeleton />}><TokenTable tokens={TOKENS} search={search} /></Suspense>}
     </div>
   );

@@ -6,7 +6,7 @@ import { fmtPrice } from "@/lib/format";
 type Variant = "primary" | "secondary" | "ghost";
 const VAR: Record<Variant, string> = {
   primary: "bg-ink text-on-ink hover:opacity-90 border border-ink",
-  secondary: "bg-surface text-ink border border-border hover:bg-muted",
+  secondary: "hb-ctrl text-ink",
   ghost: "bg-transparent text-ink hover:bg-muted",
 };
 const BASE = "inline-flex items-center justify-center gap-2 h-10 px-4 rounded text-sm font-medium transition-opacity duration-150 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap";
@@ -26,6 +26,9 @@ export function Card({ children, className = "", highlight = false }: { children
   );
 }
 
+/** Active state for soft controls (gold tint); pair with a soft control or `border border-transparent`. */
+export const CTRL_ON = "hb-ctrl-on";
+
 export const TIER_COLOR: Record<TierId, string> = { standard: "bg-tier-standard", higher: "bg-tier-higher", max: "bg-tier-max" };
 
 export function TierDot({ tier }: { tier: TierId }) {
@@ -44,7 +47,7 @@ export function ProgressBar({ value, tier }: { value: number; tier?: TierId }) {
   const pct = Math.max(0, Math.min(1, value)) * 100;
   return (
     <div className="relative h-1.5 w-full rounded-full bg-border">
-      <div className="h-1.5 rounded-full bg-ink" style={{ width: `${pct}%` }} />
+      <div className="h-1.5 rounded-full bg-gold" style={{ width: `${pct}%` }} />
       {tier === "max" && pct > 0 && (
         <span className={`absolute top-1/2 h-2 w-2 -translate-y-1/2 -translate-x-1/2 rounded-full ring-2 ring-surface ${TIER_COLOR.max}`} style={{ left: `${pct}%` }} />
       )}

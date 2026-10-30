@@ -2,13 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-:root{--hb-bg:#F4F4EE;--hb-surface:#FFFFFF;--hb-surface-muted:#FAFAF7;--hb-border:#E4E4DE;--hb-border-strong:#CFCFC8;--hb-ink:#0E0E0E;--hb-ink-2:#4A4A46;--hb-ink-3:#8A8A84;--hb-on-ink:#FFFFFF;--hb-highlight-bg:#0E0E0E;--hb-highlight-fg:#FFFFFF;--hb-highlight-sub:#A8A8A2;--hb-tier-standard:#5B7FA6;--hb-tier-higher:#6E8F5A;--hb-tier-max:#8A6BB0;--hb-buy:#2F7D4F;--hb-sell:#B4483C;--hb-burn:#C2662D;--hb-hatch:repeating-linear-gradient(135deg,var(--hb-ink) 0 1.5px,transparent 1.5px 6px);--hb-shadow:0 1px 2px rgba(14,14,14,.04);--hb-act-empty:#EBEBE4;--hb-act-launch:#2F9E5B;--hb-act-burn:#D2453A;--hb-act-graduate:#3B74D1;--hb-act-trade:#9A9A93;--hb-tip-bg:#0E0E0E;--hb-tip-fg:#FFFFFF;}
-.dark{color-scheme:dark;--hb-bg:#0F0F0E;--hb-surface:#171716;--hb-surface-muted:#1E1E1C;--hb-border:#2A2A27;--hb-border-strong:#3A3A36;--hb-ink:#F2F2EC;--hb-ink-2:#B8B8B0;--hb-ink-3:#7E7E77;--hb-on-ink:#0F0F0E;--hb-highlight-bg:#F2F2EC;--hb-highlight-fg:#0F0F0E;--hb-highlight-sub:#5A5A55;--hb-tier-standard:#7FA3CC;--hb-tier-higher:#8FB57A;--hb-tier-max:#A98BD4;--hb-buy:#4CB67A;--hb-sell:#E06A5C;--hb-burn:#E8894A;--hb-shadow:none;--hb-act-empty:#222220;--hb-act-launch:#4CC37F;--hb-act-burn:#F0675B;--hb-act-graduate:#6E9DEB;--hb-act-trade:#6A6A64;--hb-tip-bg:#F2EEDF;--hb-tip-fg:#0F0F0E;}
-html.dark,html.dark body{background:#0F0F0E;}
-html.dark main{background:#0F0F0E;}
+:root{--hb-bg:#F3EFE4;--hb-surface:#FFFDF8;--hb-surface-muted:#F7F3E9;--hb-border:rgba(22,19,13,.08);--hb-border-strong:rgba(22,19,13,.16);--hb-control:rgba(22,19,13,.035);--hb-control-hover:rgba(22,19,13,.065);--hb-gold-line:rgba(122,88,0,.35);--hb-ink:#16130D;--hb-ink-2:#4B4436;--hb-ink-3:#6F6754;--hb-on-ink:#FFFDF8;--hb-highlight-bg:#0E0E0E;--hb-highlight-fg:#FFFFFF;--hb-highlight-sub:#A8A8A2;--hb-tier-standard:#5B7FA6;--hb-tier-higher:#6E8F5A;--hb-tier-max:#8A6BB0;--hb-buy:#2F7D4F;--hb-sell:#B4483C;--hb-burn:#C2662D;--hb-hatch:repeating-linear-gradient(135deg,var(--hb-ink) 0 1.5px,transparent 1.5px 6px);--hb-shadow:0 1px 2px rgba(14,14,14,.04);--hb-act-empty:#ECE6D8;--hb-act-launch:#2F9E5B;--hb-act-burn:#D2453A;--hb-act-graduate:#3B74D1;--hb-act-trade:#9A9A93;--hb-tip-bg:#0E0E0E;--hb-tip-fg:#FFFFFF;--hb-gold:#FFC72C;--hb-gold-ink:#1A1405;--hb-gold-text:#7A5800;--hb-gold-soft:rgba(255,199,44,.16);--hb-silver:#7D848C;--hb-bronze:#9A5F2C;--hb-arcade-tint:var(--hb-ink);--hb-arcade-alpha:.07;--hb-grain-alpha:.04;--hb-wash:rgba(196,150,60,.035);--hb-stone-alpha:.45;--hb-hero-top:#FFFDF8;--hb-hero-glow:rgba(255,199,44,.12);--hb-hero-umber:rgba(150,110,50,.06);--hb-hero-veil:rgba(255,253,248,.82);--hb-frame:rgba(22,19,13,.05);}
+.dark{color-scheme:dark;--hb-bg:#0C0B09;--hb-surface:#15130F;--hb-surface-muted:#1D1A15;--hb-border:rgba(255,236,200,.075);--hb-border-strong:rgba(255,236,200,.13);--hb-control:rgba(255,255,255,.05);--hb-control-hover:rgba(255,255,255,.08);--hb-gold-line:rgba(255,199,44,.35);--hb-ink:#F3EEDF;--hb-ink-2:#BDB4A0;--hb-ink-3:#958C79;--hb-on-ink:#0C0B09;--hb-highlight-bg:#F2F2EC;--hb-highlight-fg:#0F0F0E;--hb-highlight-sub:#5A5A55;--hb-tier-standard:#7FA3CC;--hb-tier-higher:#8FB57A;--hb-tier-max:#A98BD4;--hb-buy:#4CB67A;--hb-sell:#E06A5C;--hb-burn:#E8894A;--hb-shadow:none;--hb-act-empty:#24201A;--hb-act-launch:#4CC37F;--hb-act-burn:#F0675B;--hb-act-graduate:#6E9DEB;--hb-act-trade:#6A6A64;--hb-tip-bg:#F2EEDF;--hb-tip-fg:#0F0F0E;--hb-gold:#FFC72C;--hb-gold-ink:#1A1405;--hb-gold-text:#FFC72C;--hb-gold-soft:rgba(255,199,44,.12);--hb-silver:#C9CED4;--hb-bronze:#D08A4E;--hb-arcade-tint:var(--hb-ink);--hb-arcade-alpha:.1;--hb-grain-alpha:.08;--hb-wash:rgba(255,228,180,.03);--hb-stone-alpha:.7;--hb-hero-top:#1A1712;--hb-hero-glow:rgba(255,199,44,.08);--hb-hero-umber:rgba(120,70,30,.12);--hb-hero-veil:rgba(21,19,15,.78);--hb-frame:rgba(255,236,200,.05);}
+/* Arena depth (after colosseum.com): layered warm light over the base color, then a fine film grain across the whole app. Grain is a self-made PNG, see public/theme/CREDITS.md. */
+html{background-color:var(--hb-surface);background-image:radial-gradient(1100px 640px at 8% -12%,rgba(196,150,60,.08),transparent 62%),radial-gradient(900px 560px at 104% 2%,rgba(160,110,60,.05),transparent 60%);}
+html.dark{background-color:var(--hb-bg);background-image:radial-gradient(1100px 640px at 8% -12%,rgba(255,190,90,.065),transparent 62%),radial-gradient(900px 600px at 104% 0%,rgba(170,110,50,.05),transparent 60%),linear-gradient(180deg,#0E0C0A,#0A0908 65%,#080706);}
+body::after{content:"";position:fixed;inset:0;z-index:70;pointer-events:none;background:url(/theme/grain.png) 0 0/192px 192px repeat;opacity:var(--hb-grain-alpha);}
+html.dark body{background:transparent;}
+html.dark main{background:transparent;}
 
-html,body{background:var(--hb-surface);color:var(--hb-ink);}
+html{color:var(--hb-ink);}
+body{background:transparent;color:var(--hb-ink);}
 body{font-family:var(--font-inter),Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+/* Arena display type: Cinzel for headings, rank numerals and display text only. Numbers/prices/tables stay sans/mono (.num). */
+h1,h2,h3,.font-display{font-family:var(--font-display),Cinzel,"Trajan Pro",Georgia,serif;letter-spacing:.03em;}
+h1 .num,h2 .num,h3 .num{letter-spacing:normal}
+
+/* Panels: a faint warm wash at the top of each card and the sidebar. Borders stay 1px and low alpha. */
+.rounded-lg.bg-surface,.hb-rail{background-image:linear-gradient(180deg,var(--hb-wash),transparent 160px);}
+/* Hero banners only: warm layered light, a weathered stone texture (soft light blend), an engraved arena line art mask faded by a veil behind the text, and an inner 1px frame. All self-made, see public/theme/CREDITS.md. */
+.hb-hero{position:relative;overflow:hidden;background-color:var(--hb-surface);background-image:radial-gradient(70% 150% at 88% 0%,var(--hb-hero-glow),transparent 62%),radial-gradient(60% 130% at 0% 100%,var(--hb-hero-umber),transparent 70%),linear-gradient(180deg,var(--hb-hero-top),var(--hb-surface));}
+.hb-stone{position:absolute;inset:0;background:url(/theme/stone.webp) center/cover no-repeat;mix-blend-mode:soft-light;opacity:var(--hb-stone-alpha);pointer-events:none;}
+.hb-arcade{position:absolute;inset:0;background-color:var(--hb-arcade-tint);opacity:var(--hb-arcade-alpha);-webkit-mask:url(/theme/arcade.svg) 50% 100%/cover no-repeat;mask:url(/theme/arcade.svg) 50% 100%/cover no-repeat;pointer-events:none;}
+.hb-hero-veil{position:absolute;inset:0;background:radial-gradient(85% 110% at 20% 42%,var(--hb-hero-veil),transparent 72%);pointer-events:none;}
+.hb-frame{position:absolute;inset:5px;border:1px solid var(--hb-frame);border-radius:11px;pointer-events:none;}
+@media (max-width:767px){.hb-frame{inset:4px;border-radius:8px}}
+/* Small caps labels: mono, uppercase, wide tracking. */
+.hb-eyebrow{font-family:var(--font-mono),"JetBrains Mono",monospace;font-size:10.5px;font-weight:500;line-height:1;letter-spacing:.22em;text-transform:uppercase;color:var(--hb-gold-text);}
+/* Soft controls (arena): no harsh strokes. 1px hairline (8%), soft fill (5%, hover 8%); active = gentle gold tint. Shared by buttons, chips, segmented tabs, header controls. */
+.hb-ctrl{background-color:var(--hb-control);border:1px solid var(--hb-border);}
+.hb-ctrl:hover{background-color:var(--hb-control-hover);}
+.hb-ctrl-on,.hb-ctrl-on:hover{background-color:var(--hb-gold-soft);border-color:var(--hb-gold-line);color:var(--hb-ink);}
 .num{font-family:var(--font-mono),"Geist Mono","JetBrains Mono",monospace;font-variant-numeric:tabular-nums;}
 
 @keyframes hb-pop{0%{transform:scale(.2);box-shadow:0 0 0 0 var(--glow)}45%{transform:scale(1.35);box-shadow:0 0 10px 3px var(--glow)}100%{transform:scale(1);box-shadow:0 0 0 0 transparent}}

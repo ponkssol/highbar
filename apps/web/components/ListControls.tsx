@@ -46,7 +46,7 @@ export function ListControls({ small = false }: { small?: boolean }) {
   return (
     <div className="flex items-center gap-2">
       <Popover label="Sort tokens" button={(open, toggle) => (
-        <Button variant="secondary" className={`${btn} ${q.sort !== "new" ? "border-ink" : ""}`} aria-expanded={open} aria-haspopup="dialog" onClick={toggle} data-testid="sort-button">
+        <Button variant="secondary" className={`${btn} ${q.sort !== "new" ? "hb-ctrl-on" : ""}`} aria-expanded={open} aria-haspopup="dialog" onClick={toggle} data-testid="sort-button">
           <ArrowUpDown size={16} strokeWidth={1.5} />{q.sort === "new" ? "Sort by" : sortLabel}
         </Button>
       )}>
@@ -54,9 +54,9 @@ export function ListControls({ small = false }: { small?: boolean }) {
         {SORTS.map((s) => <Row key={s.id} on={q.sort === s.id} onClick={() => set({ sort: s.id })}>{s.label}</Row>)}
       </Popover>
       <Popover label="Filter tokens" button={(open, toggle) => (
-        <Button variant="secondary" className={`${btn} ${n ? "border-ink" : ""}`} aria-expanded={open} aria-haspopup="dialog" onClick={toggle} data-testid="filters-button">
+        <Button variant="secondary" className={`${btn} ${n ? "hb-ctrl-on" : ""}`} aria-expanded={open} aria-haspopup="dialog" onClick={toggle} data-testid="filters-button">
           <SlidersHorizontal size={16} strokeWidth={1.5} />Filters
-          {n > 0 && <span className="num ml-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1.5 text-[11px] text-on-ink">{n}</span>}
+          {n > 0 && <span className="num ml-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[11px] font-semibold text-gold-ink">{n}</span>}
         </Button>
       )}>
         <Head>Tier</Head>

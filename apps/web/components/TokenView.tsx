@@ -147,7 +147,7 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
       <div role="tablist" className="no-scrollbar flex gap-5 overflow-x-auto border-b border-border">
         {(Object.keys(TAB_LABEL) as TabId[]).map((k) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-            className={`-mb-px whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm transition-colors ${tab === k ? "border-ink font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"}`}>{TAB_LABEL[k]}</button>
+            className={`-mb-px whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm transition-colors ${tab === k ? "border-gold font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"}`}>{TAB_LABEL[k]}</button>
         ))}
       </div>
       <div className="pt-3">

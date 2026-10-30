@@ -43,7 +43,7 @@ export function ActivityGrid({ className = "", bare = false }: { className?: str
           <h3 className="text-sm font-semibold">Protocol activity</h3>
           <span className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-ink-2">
             <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-buy opacity-60" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-buy" /></span>
-            Live{source === "mock" ? " · demo" : ""}
+            Live{source === "mock" ? " demo" : ""}
           </span>
         </div>
         <div className="flex flex-wrap gap-1.5">

@@ -85,7 +85,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
         <div className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1">
           {FILTERS.map((f) => (
             <button key={f.id} onClick={() => setFilter(f.id)}
-              className={`relative h-7 shrink-0 whitespace-nowrap rounded-full px-2.5 text-[12px] after:absolute after:inset-x-0 after:-inset-y-[6px] after:content-[''] md:h-8 md:px-3 md:text-sm ${filter === f.id ? "bg-ink text-on-ink" : "border border-border text-ink-2 hover:bg-muted"}`}>
+              className={`relative h-7 shrink-0 whitespace-nowrap rounded-full px-2.5 text-[12px] after:absolute after:inset-x-0 after:-inset-y-[6px] after:content-[''] md:h-8 md:px-3 md:text-sm ${filter === f.id ? "hb-ctrl hb-ctrl-on font-medium" : "hb-ctrl text-ink-2"}`}>
               {f.label} <span className="num ml-1 text-xs opacity-60">{base.filter(f.test).length}</span>
             </button>
           ))}

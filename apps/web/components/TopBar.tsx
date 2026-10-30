@@ -17,7 +17,7 @@ export function TopBar({ search, onSearch, listControls = false }: { search?: st
   }, []);
   return (
     <div data-testid="topbar" className={`${open ? "flex" : "hidden"} items-center gap-3 md:flex md:h-header`}>
-      <label className="flex h-11 w-full items-center gap-2 md:h-10 md:max-w-sm rounded-full border border-border bg-surface px-4 text-sm text-ink-3">
+      <label className="flex h-11 w-full items-center gap-2 md:h-10 md:max-w-sm hb-ctrl rounded-full px-4 text-sm text-ink-3 focus-within:border-gold-line">
         <Search size={16} strokeWidth={1.5} />
         <input value={search} onChange={(e) => onSearch?.(e.target.value)} data-hb-search placeholder="Search token, ticker or mint"
           className="w-full bg-transparent text-ink outline-none placeholder:text-ink-3" />
@@ -25,7 +25,7 @@ export function TopBar({ search, onSearch, listControls = false }: { search?: st
       <div className="ml-auto hidden items-center gap-2 md:flex">
         {listControls && <div className="max-lg:hidden"><Suspense fallback={null}><ListControls /></Suspense></div>}
         <WalletButton size="lg" />
-        <Link href="/launch" className="inline-flex h-10 items-center gap-2 rounded bg-ink px-4 text-sm font-medium text-on-ink hover:opacity-90">
+        <Link href="/launch" className="inline-flex h-10 items-center gap-2 rounded bg-gold px-4 text-sm font-semibold text-gold-ink hover:brightness-105">
           <Plus size={16} /><span>Launch<span className="max-lg:hidden"> token</span></span>
         </Link>
       </div>

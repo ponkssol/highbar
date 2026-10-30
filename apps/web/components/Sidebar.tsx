@@ -20,7 +20,7 @@ export function Sidebar() {
   const { tokens } = useTokens();
   const tierCounts = () => (["standard", "higher", "max"] as const).map((tier) => ({ tier, count: tokens.filter((t) => t.tier === tier).length }));
   return (
-    <aside className="fixed inset-y-0 left-0 z-20 hidden w-sidebar md:flex flex-col border-r border-border bg-surface px-3 py-5">
+    <aside className="fixed inset-y-0 left-0 z-20 hidden w-sidebar md:flex flex-col border-r border-border bg-surface hb-rail px-3 py-5">
       <Link href="/" className="mb-7 flex items-center px-3" aria-label="highbar home">
         <Logo height={28} />
       </Link>
@@ -30,14 +30,14 @@ export function Sidebar() {
           const on = isNavActive(path, item);
           return (
             <Link key={href} href={href} aria-current={on ? "page" : undefined}
-              className={`flex h-10 items-center gap-3 rounded-sm px-3 text-sm transition-colors ${on ? "bg-muted font-medium text-ink" : "text-ink-2 hover:bg-muted hover:text-ink"}`}>
-              <Icon size={18} strokeWidth={on ? 2 : 1.5} />
+              className={`flex h-10 items-center gap-3 rounded-sm px-3 text-sm transition-colors ${on ? "bg-gold-soft font-medium text-ink" : "text-ink-2 hover:bg-control-hover hover:text-ink"}`}>
+              <Icon size={18} strokeWidth={on ? 2 : 1.5} className={on ? "text-gold-text" : undefined} />
               {label}
             </Link>
           );
         })}
       </nav>
-      <div className="mt-8 px-3 text-[11px] font-medium uppercase tracking-wider text-ink-3">Tiers</div>
+      <div className="font-display mt-8 px-3 text-[11px] font-semibold uppercase tracking-[.18em] text-ink-3">Tiers</div>
       <div className="mt-1.5 flex flex-col">
         {tierCounts().map(({ tier, count }) => (
           <div key={tier} className="flex h-8 items-center justify-between px-3 text-sm text-ink-2">

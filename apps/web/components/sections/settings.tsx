@@ -27,7 +27,7 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2">
             {[0.5, 1, 2, 5].map((v) => (
               <button key={v} onClick={() => update({ slippagePct: v })}
-                className={`num h-8 rounded-full border px-3 text-sm ${s.slippagePct === v ? "border-ink" : "border-border hover:bg-muted"}`}>{v}%</button>
+                className={`num h-8 rounded-full border px-3 text-sm ${s.slippagePct === v ? "hb-ctrl-on" : "hb-ctrl"}`}>{v}%</button>
             ))}
             <label className="flex h-8 items-center rounded-full border border-border px-3 focus-within:border-ink">
               <input className="num w-12 bg-transparent text-sm outline-none" inputMode="decimal" value={s.slippagePct}

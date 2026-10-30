@@ -25,7 +25,7 @@ export function BottomNav() {
   const moreActive = open || MORE.some((m) => isNavActive(path, m));
   const item = (active: boolean) =>
     `relative flex h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium ${active ? "text-ink" : "text-ink-3"}`;
-  const pill = (active: boolean) => active && <span aria-hidden className="absolute top-0 h-[3px] w-6 rounded-full bg-ink" />;
+  const pill = (active: boolean) => active && <span aria-hidden className="absolute top-0 h-[3px] w-6 rounded-full bg-gold" />;
   return (
     <>
       <nav aria-label="Main" data-testid="bottom-nav"
@@ -38,7 +38,7 @@ export function BottomNav() {
               <Link key={href} href={href} aria-current={a ? "page" : undefined} className={item(a)}>
                 {pill(a)}
                 {href === "/launch"
-                  ? <span className="flex h-8 w-8 items-center justify-center rounded-sm bg-ink text-on-ink"><Icon size={18} strokeWidth={1.5} /></span>
+                  ? <span className="flex h-8 w-8 items-center justify-center rounded-sm bg-gold text-gold-ink"><Icon size={18} strokeWidth={1.5} /></span>
                   : <Icon size={22} strokeWidth={1.5} />}
                 {label}
               </Link>

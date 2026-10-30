@@ -9,6 +9,7 @@ import { DevLockedBadge } from "@/components/DevLockedBadge";
 import { OfficialBadge } from "@/components/OfficialBadge";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useApiData } from "@/lib/pagesData";
+import { ChampionsHeader, RomanRank } from "@/components/arena";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 // Row shapes + normalizer live in @hb/shared (leaderboard.ts) next to the API contract; normalizeLeaderboard turns any payload
@@ -37,7 +38,7 @@ export default function LeaderboardPage() {
   const [sortTok, setSortTok] = useState<SortTok>("volumeSol");
   const { data, loading, error } = useApiData<unknown>(`/leaderboard/${kind}?window=${win}&limit=100`, []);
   const rows: unknown[] = normalizeLeaderboard(kind, data);
-  const rank = (i: number) => <span className={`num inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${i < 3 ? "bg-ink text-on-ink" : "bg-muted text-ink-2"}`}>{i + 1}</span>;
+  const rank = (i: number) => <RomanRank i={i} />;
   const tok = (t: Base) => (
     <td className={TD}>
       <span className="flex flex-wrap items-center gap-1.5">
@@ -47,13 +48,14 @@ export default function LeaderboardPage() {
     </td>
   );
   const head = (cols: [string, "left" | "right"][]) => (
-    <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} w-12 text-left`}>#</th>{cols.map(([c, a]) => <th key={c} className={`${TH} text-${a}`}>{c}</th>)}</tr></thead>
+    <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} w-14 text-left`}>Rank</th>{cols.map(([c, a]) => <th key={c} className={`${TH} text-${a}`}>{c}</th>)}</tr></thead>
   );
   const ROW = "border-b border-border last:border-0 hover:bg-muted";
 
   return (
     <div className="flex flex-col gap-4">
-      <TopBlock title="Leaderboard">
+      <TopBlock>
+        <ChampionsHeader><p className="mt-2 max-w-xl font-serif text-[15px] leading-snug text-ink-2 md:text-[17px]">The arena's best tokens, creators and traders.</p></ChampionsHeader>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="max-w-full overflow-x-auto">
             <Tabs value={kind} onChange={setKind} options={[{ id: "tokens", label: "Tokens" }, { id: "scores", label: "Higher Bar" }, { id: "creators", label: "Creators" }, { id: "traders", label: "Traders" }, { id: "migrations", label: "Migrations" }, { id: "survivors", label: "Survivors" }]} />

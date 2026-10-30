@@ -23,7 +23,7 @@ export function WalletButton({ full = false, compact = false, size: sz = "sm" }:
     const unverified = status !== "verified";
     return (
       <button type="button" data-testid="wallet-pill" onClick={() => open("Account")} aria-label={`Wallet ${shortAddr(address)}`}
-        className={`${base} border border-border bg-surface text-ink hover:bg-muted`}>
+        className={`${base} hb-ctrl text-ink`}>
         <AddrDot address={address} size={compact ? 12 : 14} />
         <span className="num">{shortAddr(address)}</span>
         {unverified && <span role="button" aria-label="Sign in" title={status === "signing" ? "Signing in..." : "Not signed in, click to sign in"} onClick={(e) => { e.stopPropagation(); if (status !== "signing") void signIn(); }} className={`h-1.5 w-1.5 shrink-0 rounded-full ${status === "signing" ? "animate-pulse bg-ink-3" : "bg-burn"}`} />}
@@ -33,7 +33,7 @@ export function WalletButton({ full = false, compact = false, size: sz = "sm" }:
   }
   return (
     <button type="button" data-testid="wallet-pill" onClick={() => open("Connect")} disabled={!ready} title={ready ? undefined : "Set Reown project ID"}
-      className={`${base} bg-ink text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50`}>
+      className={`${base} hb-ctrl text-ink disabled:cursor-not-allowed disabled:opacity-50`}>
       <Wallet size={compact ? 13 : sz === "lg" ? 16 : 14} strokeWidth={1.75} />{compact ? "Connect" : "Connect wallet"}
     </button>
   );
