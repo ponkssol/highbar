@@ -22,7 +22,7 @@ import { requireDb } from "./db/pool.js";
 import { buildLaunchTx, quoteDevBuy, DEV_BUY_MAX_SOL, type LaunchReq } from "./launchTx.js";
 import { registerClaim } from "./routes/claim.js";
 import { mintPoolFailure, registerMint, startMintSweeper } from "./routes/mint.js";
-import { launchConfigs, platformReferrals, requireReservation, reserveMint, validateLaunchTx } from "./services/mintPool/index.js";
+import { launchConfigs, platformReferrals, resolveLaunchMint, validateLaunchTx, vanityMode } from "./services/mintPool/index.js";
 import { db } from "./db/pool.js";
 import { registerScores } from "./routes/scores.js";
 import { scoresStore } from "./services/scoresStore.js";
@@ -76,6 +76,8 @@ registerRewards(app);
 registerBar(app);
 registerReferralMilestone(app);
 registerClaim(app);
+// VANITY_MINTS=on|fallback|off (default fallback): an invalid value stops the API here (prodCheck reports it too)
+const VANITY_MODE = vanityMode();
 registerMint(app);
 registerCandles(app);
 registerMedia(app);
@@ -182,19 +184,25 @@ app.post("/tx/launch", async (req, reply) => {
   if (gate) return reply.code(403).send({ error: gate });
   const spam = creatorLaunchGate(limits, b.creator); // anti-spam: launches per creator wallet per hour
   if (spam) return reply.code(429).send({ error: spam });
-  // Vanity mint ("...high"): the reservation from POST /mint/reserve (or a fresh one). No random-mint fallback: an empty pool is a 503.
-  let mint: string;
+  // Mint source (VANITY_MINTS, services/mintPool/mode.ts): the vanity pool ("...high"), or the random-mint path when
+  // VANITY_MINTS=off / fallback with an empty or unavailable pool. Always flagged in the response (vanity, mintSource).
+  let src: Awaited<ReturnType<typeof resolveLaunchMint>>;
   try {
-    if (raw.mint === undefined || raw.mint === null || raw.mint === "") mint = (await reserveMint(db, b.creator)).mint; // reuses this wallet's unsigned live reservation
-    else { mint = address(raw.mint, "mint"); await requireReservation(db, mint, b.creator); }
+    const requested = raw.mint === undefined || raw.mint === null || raw.mint === "" ? undefined : address(raw.mint, "mint");
+    src = await resolveLaunchMint(db, b.creator, requested, { mode: VANITY_MODE, log: (m) => req.log.warn(m) });
   } catch (e) { return e instanceof BadRequest ? reply.code(400).send({ error: e.message }) : mintPoolFailure(reply, e, req.log); }
+  if (src.source !== "pool") {
+    try { return { ...(await buildLaunchTx(b, Keypair.generate())), vanity: false, mintSource: src.source }; }
+    catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+  }
+  const mint = src.mint;
   let built: Awaited<ReturnType<typeof buildLaunchTx>>;
   try { built = await buildLaunchTx(b, new PublicKey(mint)); }
   catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
   // self-check: what we hand out must pass the same validator /tx/launch/sign applies (SDK drift shows up here, not at signing)
   try { validateLaunchTx(built.tx, { mint, creator: b.creator, configs: launchConfigs(), referrals: platformReferrals(), requireCreatorSignature: false }); }
   catch (e) { req.log.error({ reason: (e as Error).message }, "launch tx failed self-validation"); return reply.code(500).send({ error: "launch tx failed validation", code: "LAUNCH_TX_SELF_CHECK" }); }
-  return built;
+  return { ...built, vanity: true, mintSource: "pool" as const };
 });
 
 app.get("/tx/launch/quote", async (req, reply) => {
@@ -374,7 +382,7 @@ app.delete("/admin/official-token", async (req, reply) => {
   return { ok: true, removed: r.removed, official: officialView() };
 });
 setInterval(() => { refreshOfficial().catch(() => {}); }, 60_000).unref(); // other replicas / NO_INDEXER
-startMintSweeper({ warn: (m) => app.log.warn(m), info: (m) => app.log.info(m) }); // expired vanity-mint reservations (also done by the mint-pool service)
+if (VANITY_MODE !== "off") startMintSweeper({ warn: (m) => app.log.warn(m), info: (m) => app.log.info(m) }); // expired vanity-mint reservations (also done by the mint-pool service)
 
 // Fee claimer / cashback / buyback & burn run as separate jobs (src/jobs/run.ts: pnpm --filter @hb/api jobs:epoch -- --loop 3600), not in the API process.
 

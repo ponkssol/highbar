@@ -1,5 +1,5 @@
 import BN from "bn.js";
-import { PublicKey, type Transaction } from "@solana/web3.js";
+import { Keypair, PublicKey, type Transaction } from "@solana/web3.js";
 import { deriveDbcPoolAddress, getCurrentPoint, SwapMode, type PoolConfig } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { configPubkey, getClient, getConnection, usableReferralAta } from "@hb/onchain";
 
@@ -58,11 +58,15 @@ export async function quoteDevBuy(tier: string, antiSniper: boolean, devBuySol: 
 export interface LaunchReq { creator: string; name: string; symbol: string; uri?: string; tier: string; antiSniper: boolean; devBuySol?: number; slippageBps?: number }
 
 /**
- * Unsigned DBC create(+first buy) tx for a RESERVED vanity mint (services/mintPool). Nobody signs here: the creator's
- * wallet signs first, then POST /tx/launch/sign validates the wallet-signed bytes and adds the mint signature.
- * There is deliberately no random-mint fallback.
+ * DBC create(+first buy) tx.
+ *  - mint = PublicKey: a RESERVED vanity mint (services/mintPool). Nobody signs here: the creator's wallet signs first,
+ *    then POST /tx/launch/sign validates the wallet-signed bytes and adds the mint signature.
+ *  - mint = Keypair: the random-mint path (VANITY_MINTS=off, or fallback with an empty/unavailable pool), as before the
+ *    vanity pool: a fresh throwaway keypair pre-signs here and is dropped; the wallet signs and sends.
  */
-export async function buildLaunchTx(b: LaunchReq, mint: PublicKey) {
+export async function buildLaunchTx(b: LaunchReq, mintIn: PublicKey | Keypair) {
+  const signer = mintIn instanceof Keypair ? mintIn : null;
+  const mint = signer ? signer.publicKey : (mintIn as PublicKey);
   const creator = new PublicKey(b.creator);
   const devBuySol = Number(b.devBuySol ?? 0), slippageBps = b.slippageBps ?? 100;
   if (!Number.isFinite(devBuySol) || devBuySol < 0) throw new Error("devBuySol must be >= 0");
@@ -75,6 +79,7 @@ export async function buildLaunchTx(b: LaunchReq, mint: PublicKey) {
   });
   tx.feePayer = creator;
   tx.recentBlockhash = (await getConnection().getLatestBlockhash("confirmed")).blockhash;
+  if (signer) tx.partialSign(signer);
   const bytes = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
   if (bytes.length > 1232) throw new Error(`launch tx too large (${bytes.length} bytes)`);
   const pool = deriveDbcPoolAddress(WSOL, mint, q.config);

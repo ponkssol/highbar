@@ -30,17 +30,30 @@ const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
  *  3. wallet signTransaction         the creator signs first (fee payer / pool creator)
  *  4. POST /tx/launch/sign           the API validates exactly these bytes and adds the mint signature
  *  5. sendRawTransaction + POST /mint/confirm
- * An empty pool is an error ("no ...high mint address is available right now"); there is no random-mint fallback.
+ * Random-mint path (server VANITY_MINTS=off, or fallback when the pool is empty): the response says vanity:false /
+ * mintSource "random"|"random-fallback" and the tx is already signed by a fresh random mint; the wallet signs and it is
+ * sent as-is (no co-sign, no /mint/confirm). With VANITY_MINTS=on an empty pool is an error instead.
  */
-export async function launchToken(input: LaunchInput, creator: string, wallet: LaunchWallet, onStep?: (s: LaunchStep) => void): Promise<{ mint: string; pool: string; signature: string }> {
+export type MintSource = "pool" | "random" | "random-fallback";
+export interface LaunchResult { mint: string; pool: string; signature: string; vanity: boolean; mintSource: MintSource }
+export async function launchToken(input: LaunchInput, creator: string, wallet: LaunchWallet, onStep?: (s: LaunchStep) => void): Promise<LaunchResult> {
   onStep?.("metadata");
   const image = input.image ? await toDataUrl(input.image) : undefined;
   const meta = await post<{ uri: string }>("/metadata", { name: input.name, symbol: input.ticker, description: input.description, website: input.website, twitter: input.twitter, telegram: input.telegram, image });
   onStep?.("mint");
-  const r = await post<{ tx: string; mint: string; pool: string }>("/tx/launch", {
+  const r = await post<{ tx: string; mint: string; pool: string; vanity?: boolean; mintSource?: MintSource }>("/tx/launch", {
     creator, name: input.name, symbol: input.ticker, uri: meta.uri, tier: input.tier, antiSniper: input.antiSniper,
     devBuySol: input.devBuySol ?? 0, slippageBps: input.slippageBps ?? 100,
   });
+  const vanity = r.vanity !== false && (r.mintSource ?? "pool") === "pool";
+  if (!vanity) {
+    // random mint (pre-signed by the server with a throwaway key): wallet signs, then send
+    onStep?.("sign");
+    const signedRandom = await wallet.sign(Transaction.from(unb64(r.tx)));
+    onStep?.("send");
+    const sig = await wallet.sendRaw(signedRandom.serialize());
+    return { mint: r.mint, pool: r.pool, signature: sig, vanity: false, mintSource: r.mintSource ?? "random" };
+  }
   if (!r.mint.endsWith("high")) throw new Error("unexpected mint address from the server");
   onStep?.("sign");
   const signed = await wallet.sign(Transaction.from(unb64(r.tx)));
@@ -49,7 +62,7 @@ export async function launchToken(input: LaunchInput, creator: string, wallet: L
   onStep?.("send");
   const signature = await wallet.sendRaw(unb64(full.tx));
   void confirmLater(r.mint);
-  return { mint: r.mint, pool: r.pool, signature };
+  return { mint: r.mint, pool: r.pool, signature, vanity: true, mintSource: "pool" };
 }
 
 /** Best effort: mark the mint used once its account is visible (the server sweeper covers it otherwise). */

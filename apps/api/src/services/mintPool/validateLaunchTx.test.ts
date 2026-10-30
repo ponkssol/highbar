@@ -101,3 +101,58 @@ test("rejects a dev-buy referral account that is not the platform referral", asy
   const tx = await buildLaunch({ mint, creator, config: CFG, devBuyLamports: 1e8, referral: own });
   rejects(() => validateLaunchTx(walletSign(tx, creator), expect(creator, mint)), /referral/);
 });
+
+// ---- wallet-added instructions (the wallet signs first): Phantom's Lighthouse guards + extra ComputeBudget ----
+const LIGHTHOUSE = new PublicKey("L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95");
+const lighthouse = (keys: { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]) =>
+  new TransactionInstruction({ programId: LIGHTHOUSE, keys, data: Buffer.from([2, 0, 1, 2, 3, 4, 5, 6, 7]) });
+const ro = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: false });
+
+test("allows wallet-added Lighthouse assertions and extra ComputeBudget anywhere (creator / token accounts, not the mint)", async () => {
+  for (const devBuyLamports of [0, 1e8]) {
+    const { creator, mint } = fresh();
+    const base = await buildLaunch({ mint, creator, config: CFG, devBuyLamports });
+    const wsolAta = getAssociatedTokenAddressSync(NATIVE_MINT, creator.publicKey);
+    const tx = edited(base, (ixs) => [
+      ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 5000 }),
+      ixs[0],
+      lighthouse([ro(creator.publicKey)]),
+      ...ixs.slice(1),
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 600_000 }),
+      lighthouse([ro(wsolAta), ro(getAssociatedTokenAddressSync(mint, creator.publicKey))]),
+    ]);
+    const info = validateLaunchTx(walletSign(tx, creator), expect(creator, mint));
+    assert.equal(info.devBuy, devBuyLamports > 0);
+  }
+});
+
+test("rejects a Lighthouse instruction referencing the mint (read-only, writable or signer) or adding a signer; unknown programs stay rejected", async () => {
+  const { creator, mint } = fresh();
+  const base = await buildLaunch({ mint, creator, config: CFG, devBuyLamports: 1e8 });
+  for (const meta of [ro(mint), { pubkey: mint, isSigner: false, isWritable: true }, { pubkey: mint, isSigner: true, isWritable: true }]) {
+    for (const at of ["start", "end"] as const) {
+      const tx = edited(base, (ixs) => at === "end" ? [...ixs, lighthouse([meta])] : [lighthouse([meta]), ...ixs]);
+      rejects(() => validateLaunchTx(walletSign(tx, creator), expect(creator, mint)), /may not reference the mint/);
+    }
+  }
+  // an extra signer through a Lighthouse meta changes the signer set: refused
+  const extra = Keypair.generate();
+  const t2 = edited(base, (ixs) => [...ixs, lighthouse([{ pubkey: extra.publicKey, isSigner: true, isWritable: false }])]);
+  t2.partialSign(creator, extra);
+  rejects(() => validateLaunchTx(t2.serialize({ requireAllSignatures: false, verifySignatures: false }), expect(creator, mint)), /signer/);
+  // the fee payer stays the creator even with a Lighthouse instruction first
+  const thief = Keypair.generate();
+  const t3 = new Transaction({ feePayer: thief.publicKey, recentBlockhash: base.recentBlockhash });
+  t3.add(lighthouse([ro(thief.publicKey)]), ...base.instructions);
+  t3.partialSign(thief, creator);
+  rejects(() => validateLaunchTx(t3.serialize({ requireAllSignatures: false, verifySignatures: false }), expect(creator, mint)), /./);
+  // Lighthouse-looking data under an unknown program is still an unknown program
+  const fake = new TransactionInstruction({ programId: Keypair.generate().publicKey, keys: [ro(creator.publicKey)], data: Buffer.from([2, 0]) });
+  for (const at of ["start", "end"] as const) {
+    const tx = edited(base, (ixs) => at === "end" ? [...ixs, fake] : [fake, ...ixs]);
+    rejects(() => validateLaunchTx(walletSign(tx, creator), expect(creator, mint)), /./);
+  }
+  // transfers next to Lighthouse guards are still refused
+  const tx = edited(base, (ixs) => [...ixs, lighthouse([ro(creator.publicKey)]), SystemProgram.transfer({ fromPubkey: creator.publicKey, toPubkey: thief.publicKey, lamports: 1 })]);
+  rejects(() => validateLaunchTx(walletSign(tx, creator), expect(creator, mint)), /extra instructions/);
+});

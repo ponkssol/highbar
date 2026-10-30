@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { Keypair, Transaction } from "@solana/web3.js";
 import * as store from "./store.js";
-import { confirmMint, MintPoolError, reserveMint, signLaunchTx, storeKeypair, sweepExpired } from "./index.js";
+import { confirmMint, MintPoolError, reserveMint, resolveLaunchMint, signLaunchTx, storeKeypair, sweepExpired } from "./index.js";
 import { LaunchTxRejected } from "./validateLaunchTx.js";
 import { buildLaunch, walletSign } from "./testTx.js";
 import type { Sql } from "./store.js";
@@ -132,4 +132,37 @@ test("end to end: stored encrypted mint -> reserve -> wallet signs -> API co-sig
   const r2 = await store.getReservation(q, pub);
   assert.equal(r2!.status, "reserved");
   await assert.rejects(signLaunchTx(q, pub, walletSign(await buildLaunch({ mint: mintKp.publicKey, creator, config }), creator), { ...opts, key: crypto.randomBytes(32) }), /decryption failed/);
+});
+
+// ---- VANITY_MINTS modes (services/mintPool/mode.ts) ----
+test("VANITY_MINTS: fallback + empty pool -> random-fallback (logged); on -> 503; off never touches the pool", async () => {
+  const empty = await freshDb(0);
+  const logs: string[] = [];
+  const fb = await resolveLaunchMint(empty, creatorA, undefined, { mode: "fallback", keyOk: true, log: (m) => logs.push(m) });
+  assert.deepEqual(fb, { source: "random-fallback", reason: "pool empty" });
+  assert.equal(logs.length, 1);
+  assert.ok(logs[0].startsWith(`[mint-pool] pool empty -> fallback random mint for creator ${creatorA}`));
+  assert.ok(!/v1\.|secret|postgres/i.test(logs[0]));
+  // fallback when the key is missing (pool unusable) or the table is missing: random, flagged
+  const one = await freshDb(1);
+  assert.equal((await resolveLaunchMint(one, creatorA, undefined, { mode: "fallback", keyOk: false, log: () => {} })).source, "random-fallback");
+  assert.equal((await store.poolCounts(one)).available, 1, "no key: the pool is not touched");
+  const noTable: Sql = { query: async () => { throw new Error('relation "mint_pool" does not exist'); } };
+  assert.deepEqual(await resolveLaunchMint(noTable, creatorA, undefined, { mode: "fallback", keyOk: true, log: () => {} }), { source: "random-fallback", reason: "pool unavailable" });
+  // fallback with mints available -> pool
+  const r = await resolveLaunchMint(one, creatorB, undefined, { mode: "fallback", keyOk: true, log: () => {} });
+  assert.deepEqual(r, { source: "pool", mint: fakePub(0) });
+  // on: an empty pool is a clear 503, never a random mint
+  await assert.rejects(resolveLaunchMint(empty, creatorA, undefined, { mode: "on", keyOk: true }), (e) => e instanceof MintPoolError && e.code === "MINT_POOL_EMPTY" && e.status === 503);
+  // off: the pool is never queried
+  const boom: Sql = { query: async () => { throw new Error("off must not touch the pool"); } };
+  assert.deepEqual(await resolveLaunchMint(boom, creatorA, undefined, { mode: "off", keyOk: true }), { source: "random", reason: "VANITY_MINTS=off" });
+  // per-wallet errors are never turned into a random mint
+  process.env.MINT_POOL_MAX_PER_CREATOR = "1";
+  try {
+    const two = await freshDb(2);
+    await resolveLaunchMint(two, creatorA, undefined, { mode: "fallback", keyOk: true });
+    await two.query("UPDATE mint_pool SET signed_at = now() WHERE reserved_by = $1", [creatorA]); // signed: not reusable
+    await assert.rejects(resolveLaunchMint(two, creatorA, undefined, { mode: "fallback", keyOk: true, log: () => {} }), (e) => e instanceof MintPoolError && e.code === "TOO_MANY_RESERVATIONS");
+  } finally { process.env.MINT_POOL_MAX_PER_CREATOR = "1000"; }
 });

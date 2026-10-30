@@ -72,11 +72,11 @@ export default function LaunchPage() {
       if (lowBalance) { setMsg(`Not enough SOL: you need about ${needSol.toFixed(3)} SOL (dev buy + launch rent and fees).`); return; }
       if (overMax) { setMsg(`Dev buy is capped at ${q?.maxDevBuySol} SOL.`); return; }
       if (tier === "max" && maxLocked) { setMsg(`${maxNeed}.`); return; }
-      const steps: Record<LaunchStep, string> = { metadata: "Uploading metadata…", mint: "Generating your …high address…", sign: "Approve the launch in your wallet…", cosign: "Finalizing your …high address…", send: "Sending…" };
+      const steps: Record<LaunchStep, string> = { metadata: "Uploading metadata…", mint: "Preparing your token address…", sign: "Approve the launch in your wallet…", cosign: "Finalizing your …high address…", send: "Sending…" };
       const r = await launchToken({ name, ticker, description: desc, image, ...socials, tier, antiSniper: anti, devBuySol: devSol }, wallet.publicKey.toBase58(),
         { sign: (tx) => wallet.signTransaction(tx), sendRaw: (b) => wallet.sendRaw(b) }, (s) => setMsg(steps[s]));
       setLaunched({ mint: r.mint, signature: r.signature });
-      setMsg(`Launched ${devSol > 0 ? `with a ${devSol} SOL dev buy ` : ""}(tx ${r.signature.slice(0, 8)}). Opening the token page...`);
+      setMsg(`Launched ${devSol > 0 ? `with a ${devSol} SOL dev buy ` : ""}(tx ${r.signature.slice(0, 8)})${r.vanity ? "" : " with a standard (non-…high) address"}. Opening the token page...`);
       // Wait (max ~20s) until the indexer has the new pool so the token page shows live data, then redirect.
       for (let i = 0; i < 10; i++) { if (await api.token(r.mint).then(() => true).catch(() => false)) break; await new Promise((res) => setTimeout(res, 2000)); }
       router.push(`/token/${r.mint}`);

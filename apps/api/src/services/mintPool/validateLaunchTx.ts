@@ -5,7 +5,8 @@
  * (dist/index.js: createPoolTx -> initializeSplPool | initializeToken2022Pool, appendFirstBuys -> buildSwapBuyTx ->
  * prepareSwapAccounts), optionally preceded by ComputeBudget instructions a wallet may prepend:
  *
- *   [ComputeBudget SetComputeUnitLimit]?, [ComputeBudget SetComputeUnitPrice]?   (prefix only, at most one of each)
+ *   wallet-added, anywhere: ComputeBudget SetComputeUnitLimit / SetComputeUnitPrice (at most one of each) and
+ *   Lighthouse assertions (never referencing the mint, no signer but the creator); the rest must be exactly:
  *   DBC initialize_virtual_pool_with_spl_token | initialize_virtual_pool_with_token2022   (exactly one, first)
  *   -- only with a dev buy (firstBuyParam.buyAmount > 0), in this order:
  *   [ATA create_idempotent(WSOL, creator)]?    (SDK omits it when the creator's WSOL ATA exists)
@@ -27,6 +28,8 @@ export class LaunchTxRejected extends Error {
 }
 
 export const COMPUTE_BUDGET_PROGRAM_ID = new PublicKey("ComputeBudget111111111111111111111111111111");
+/** Lighthouse (assertion program Phantom and other wallets inject to guard against drainers) */
+export const LIGHTHOUSE_PROGRAM_ID = new PublicKey("L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95");
 const DBC = DYNAMIC_BONDING_CURVE_PROGRAM_ID;
 const EVENT_AUTHORITY = PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], DBC)[0];
 
@@ -82,19 +85,34 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
   if (!tx.feePayer || !same(tx.feePayer, creator)) reject("fee payer must be the creator");
   if (!tx.recentBlockhash) reject("missing blockhash");
 
-  const ixs = tx.instructions;
-  let i = 0;
-  // 1) optional ComputeBudget prefix
+  // Wallet-added instructions (wallet signs first, so Phantom & co may add them): ComputeBudget and Lighthouse
+  // assertions, anywhere in the tx. They are split off here and checked on their own below; the SDK shape is checked
+  // on what remains, so their position never matters.
+  const all = tx.instructions;
+  const isWalletIx = (ix: TransactionInstruction) => same(ix.programId, COMPUTE_BUDGET_PROGRAM_ID) || same(ix.programId, LIGHTHOUSE_PROGRAM_ID);
   const seenCb = new Set<number>();
-  while (i < ixs.length && same(ixs[i].programId, COMPUTE_BUDGET_PROGRAM_ID)) {
-    const d = ixs[i].data;
-    if (ixs[i].keys.length) reject("compute budget instruction with accounts");
-    if (!((d[0] === 2 && d.length === 5) || (d[0] === 3 && d.length === 9))) reject("only SetComputeUnitLimit / SetComputeUnitPrice are allowed");
-    if (d[0] === 2 && d.readUInt32LE(1) > 1_400_000) reject("compute unit limit too high");
-    if (seenCb.has(d[0])) reject("duplicate compute budget instruction");
-    seenCb.add(d[0]); i++;
+  for (const ix of all) {
+    if (same(ix.programId, COMPUTE_BUDGET_PROGRAM_ID)) {
+      const d = ix.data;
+      if (ix.keys.length) reject("compute budget instruction with accounts");
+      if (!((d[0] === 2 && d.length === 5) || (d[0] === 3 && d.length === 9))) reject("only SetComputeUnitLimit / SetComputeUnitPrice are allowed");
+      if (d[0] === 2 && d.readUInt32LE(1) > 1_400_000) reject("compute unit limit too high");
+      if (seenCb.has(d[0])) reject("duplicate compute budget instruction");
+      seenCb.add(d[0]);
+    } else if (same(ix.programId, LIGHTHOUSE_PROGRAM_ID)) {
+      // Assertions only. In a legacy tx signer / writable are per ACCOUNT, not per instruction: any reference to the
+      // mint (a writable signer of the init) would hand Lighthouse the mint's signer + writable privileges, so the mint
+      // may not appear at all. The creator may (Phantom asserts on the payer's own balance); it is the fee payer and
+      // the only other signer anyway (signer set = exactly [creator, mint], checked above), so no new signer can appear.
+      for (const m of ix.keys) {
+        if (same(m.pubkey, mint)) reject("wallet guard (Lighthouse) instruction may not reference the mint");
+        if (m.isSigner && !same(m.pubkey, creator)) reject("wallet guard (Lighthouse) instruction with an extra signer");
+      }
+    }
   }
-  const allowedMintRefs = new Set<string>(); // "ix:key" positions where the mint may appear
+  const ixs = all.filter((ix) => !isWalletIx(ix));
+  let i = 0;
+  const allowedMintRefs = new Set<string>(); // "ix:key" positions (in ixs, wallet instructions removed) where the mint may appear
   // 2) exactly one DBC initialize pool
   const init = ixs[i];
   if (!init) reject("missing initialize pool instruction");
@@ -151,6 +169,7 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
   if (i !== ixs.length) reject("unexpected extra instructions");
 
   // the mint may only appear where the SDK puts it (init base_mint, base ATA mint, swap base_mint) and never as a program
+  // (wallet instructions were checked above: Lighthouse never references the mint)
   ixs.forEach((ix, k) => {
     if (same(ix.programId, mint)) reject("mint used as a program");
     ix.keys.forEach((m, j) => { if (same(m.pubkey, mint) && !allowedMintRefs.has(`${k}:${j}`)) reject("mint referenced outside the pool creation"); });

@@ -126,4 +126,5 @@ export async function storeKeypair(q: Sql, kp: { publicKey: PublicKey; secretKey
 }
 
 export { poolCounts } from "./store.js";
+export { encKeyUsable, resolveLaunchMint, vanityMode, vanityModeProblem, VANITY_MODES, type LaunchMint, type VanityMode } from "./mode.js";
 export { sealSeed, openSeed, parseEncKey, encKeyProblem, encKeyFromEnv } from "./secretBox.js";

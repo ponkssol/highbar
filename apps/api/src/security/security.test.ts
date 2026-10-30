@@ -5,6 +5,7 @@ import { WindowLimiter, routeClass, clientIp, creatorLaunchGate, limitsFromEnv }
 import { address, int, text, label, link, imageMatches, isAddress, BadRequest } from "./validate.js";
 import { publicError, clean } from "./errors.js";
 import { checkEnv } from "./prodCheck.js";
+import { vanityMode } from "../services/mintPool/mode.js";
 
 const pk = () => Keypair.generate().publicKey.toBase58();
 
@@ -89,9 +90,9 @@ test("checkEnv: mainnet with complete env passes (single treasury wallet is fine
   assert.equal(r.network, "mainnet"); assert.deepEqual(r.errors, []); assert.deepEqual(r.warnings, []);
 });
 
-test("checkEnv: mainnet refuses to start without a valid MINT_POOL_ENC_KEY (vanity mint pool)", () => {
+test("checkEnv: VANITY_MINTS=on refuses to start without a valid MINT_POOL_ENC_KEY (vanity mint pool)", () => {
   for (const bad of [undefined, "", "abcd", "ab".repeat(31), Buffer.alloc(16).toString("base64"), Buffer.alloc(33).toString("base64")]) {
-    const env = goodMainnet(); if (bad === undefined) delete env.MINT_POOL_ENC_KEY; else env.MINT_POOL_ENC_KEY = bad;
+    const env: Record<string, string | undefined> = { ...goodMainnet(), VANITY_MINTS: "on" }; if (bad === undefined) delete env.MINT_POOL_ENC_KEY; else env.MINT_POOL_ENC_KEY = bad;
     assert.ok(checkEnv(env).errors.some((e) => /MINT_POOL_ENC_KEY/.test(e)), `key ${JSON.stringify(bad?.length)} must be refused`);
   }
   const fill = goodMainnet(); fill.MINT_POOL_ENC_KEY = "<FILL_ME>";
@@ -103,6 +104,28 @@ test("checkEnv: mainnet refuses to start without a valid MINT_POOL_ENC_KEY (vani
   const n = goodMainnet(); n.MINT_POOL_MIN_AVAILABLE = "zero";
   assert.ok(checkEnv(n).errors.some((e) => /MINT_POOL_MIN_AVAILABLE/.test(e)));
   assert.ok(checkEnv({ NETWORK: "devnet" }).warnings.some((w) => /vanity mint pool disabled/.test(w)), "devnet only warns");
+});
+
+test("checkEnv: VANITY_MINTS modes (default fallback; invalid refused; key optional for fallback/off)", () => {
+  const ok = { platformPubkey: pk(), configs: {} };
+  const noKey = (v?: string) => { const e: Record<string, string | undefined> = { ...goodMainnet() }; delete e.MINT_POOL_ENC_KEY; if (v !== undefined) e.VANITY_MINTS = v; return e; };
+  // fallback (default and explicit): a missing key only warns, a malformed key is an error
+  for (const v of [undefined, "fallback", "FALLBACK"]) {
+    const r = checkEnv(noKey(v), ok);
+    assert.deepEqual(r.errors, [], `VANITY_MINTS=${v}`);
+    assert.ok(r.warnings.some((w) => /MINT_POOL_ENC_KEY unset/.test(w)));
+  }
+  assert.ok(checkEnv({ ...noKey("fallback"), MINT_POOL_ENC_KEY: "abcd" }, ok).errors.some((e) => /MINT_POOL_ENC_KEY/.test(e)));
+  // off: the key is not needed at all
+  const off = checkEnv(noKey("off"), ok);
+  assert.deepEqual(off.errors, []);
+  assert.ok(!off.warnings.some((w) => /MINT_POOL_ENC_KEY/.test(w)));
+  // invalid mode: error on mainnet, warning on devnet; the runtime parser throws
+  assert.ok(checkEnv({ ...goodMainnet(), VANITY_MINTS: "yes" }, ok).errors.some((e) => /VANITY_MINTS/.test(e)));
+  assert.deepEqual(checkEnv({ NETWORK: "devnet", VANITY_MINTS: "yes" }).errors, []);
+  assert.throws(() => vanityMode({ VANITY_MINTS: "maybe" }), /VANITY_MINTS/);
+  assert.equal(vanityMode({}), "fallback");
+  assert.equal(vanityMode({ VANITY_MINTS: " On " }), "on");
 });
 
 test("checkEnv: QuickNode and Helius mainnet URLs pass the paid-RPC check", () => {

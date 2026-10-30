@@ -169,14 +169,16 @@ Also:
 
 | Variable | Services | Value |
 |---|---|---|
-| `MINT_POOL_ENC_KEY` | api **and** mint-pool (identical), sealed | 32 random bytes, hex or base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Never on web, never `NEXT_PUBLIC_*`. The API refuses to start on mainnet without a valid key. Losing or changing it makes every stored mint unusable (refill again). |
+| `VANITY_MINTS` | api | `fallback` (default). `on` = vanity only, empty pool = 503; `fallback` = vanity when available, else a random mint (flagged); `off` = always random, pool unused. Any other value: the API refuses to start. |
+| `MINT_POOL_ENC_KEY` | api **and** mint-pool (identical), sealed | 32 random bytes, hex or base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Never on web, never `NEXT_PUBLIC_*`. `VANITY_MINTS=on`: the API refuses to start on mainnet without a valid key. `fallback`: missing = warning (random mints), malformed = refuses to start. `off`: not needed. Losing or changing it makes every stored mint unusable (refill again). |
 | `MINT_POOL_MIN_AVAILABLE` | api + mint-pool | `50` (pool target) |
 | `MINT_POOL_RESERVATION_MIN` | api + mint-pool | `10` (minutes a launch holds its mint) |
 | `MINT_POOL_THREADS` | mint-pool | = the service's vCPU count (set it explicitly; the container may report the host's CPUs) |
 
 - Cost: an address needs ~11.3 M ed25519 keys on average. One core does ~20–25 k keys/s (measured on a Ryzen 5 5600: 25.6 k), so **~7.5–9 CPU-minutes per address** and **~6–7.5 CPU-hours to fill 50**. On 2 vCPU that is ~3.5 h for the first 50; afterwards it only grinds what launches consume (~4 min per launch on 2 vCPU).
 - Fill the pool **before** go-live: deploy mint-pool early (it waits for the `mint_pool` table, created by the api's migration 0010) and check `pnpm --filter @hb/api mint-pool:status` or its log line `available N / min 50`.
-- An empty pool does not fall back to a random mint: launches answer `503 MINT_POOL_EMPTY` ("no …high mint address is available right now").
+- Empty pool: with `VANITY_MINTS=fallback` (default) the launch uses a normal random mint (the pre-vanity path: the API pre-signs with a throwaway key, the wallet signs and sends). It is flagged, never silent: API log `[mint-pool] pool empty -> fallback random mint for creator <wallet> (<reason>)` and response `vanity:false, mintSource:"random-fallback"` (`"pool"` / `vanity:true` otherwise); the launch page says it used a standard address. With `VANITY_MINTS=on` launches answer `503 MINT_POOL_EMPTY` instead. Watch for that log line after go-live: it means the pool needs more CPU.
+- Wallet guards: the wallet signs first, so Phantom may add Lighthouse assertions (`L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95`) and ComputeBudget instructions. The co-sign validator allows those anywhere as long as they never reference the mint (in a legacy tx signer/writable flags are per account, so even a "read-only" mention would carry the mint's signer + writable privileges) and add no signer besides the creator; everything else extra (transfers, memos, SetAuthority, unknown programs, extra signers) is still refused.
 - Expired reservations go back to the pool only if the mint account does not exist on-chain (checked over RPC); otherwise the mint is marked used. A mint is never handed out twice.
 
 ## 7. Deploy and go-live order [BLOCKER]

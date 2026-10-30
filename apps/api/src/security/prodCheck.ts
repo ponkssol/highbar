@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { encKeyProblem } from "../services/mintPool/secretBox.js";
+import { vanityModeProblem } from "../services/mintPool/mode.js";
 import { CONFIG_ENV, DEVNET_LOCK_TIP_WALLET, getClient, getConnection, LOCK_TIP_SOL_MAX, loadConfigs, loadPlatformKeypair, network, parseLockTipSol, rpcUrl } from "@hb/onchain";
 
 type Env = Record<string, string | undefined>;
@@ -29,6 +30,9 @@ export const LOCK_TIP_FORBIDDEN: ReadonlyArray<[string, string]> = [
 export function checkEnv(env: Env, ctx: { platformPubkey?: string | null; configs?: Record<string, string>; devnetPubkey?: string | null } = {}): CheckResult {
   const net = env.NETWORK === "mainnet" || env.NETWORK === "mainnet-beta" ? "mainnet" : "devnet";
   const errors: string[] = [], warnings: string[] = [];
+  const vprob = vanityModeProblem(env.VANITY_MINTS); // the API also refuses to start on it (services/mintPool/mode.ts)
+  if (vprob) (net === "mainnet" ? errors : warnings).push(vprob);
+  const vmode = vprob ? "on" : ((env.VANITY_MINTS ?? "").trim().toLowerCase() || "fallback");
   const req = (k: string, why: string, valid: (v: string) => boolean = () => true) => {
     const v = env[k]?.trim();
     if (!v) errors.push(`${k} is required on mainnet (${why})`);
@@ -65,9 +69,15 @@ export function checkEnv(env: Env, ctx: { platformPubkey?: string | null; config
     if (env.RATE_LIMIT_OFF === "1") errors.push("RATE_LIMIT_OFF=1 is not allowed on mainnet");
     if (ctx.devnetPubkey && eq(ctx.platformPubkey, ctx.devnetPubkey)) errors.push("PLATFORM_KEYPAIR_PATH is the devnet keypair; use a dedicated mainnet key");
     // lock tip (packages/onchain lock.ts): required on mainnet, no fallback, and a dedicated wallet
-    // vanity mint pool: launches co-sign with an encrypted pre-ground "...high" mint; no key = no launches
+    // vanity mint pool (VANITY_MINTS, default fallback): on = key required (no key = no launches); fallback = a missing key
+    // only warns (launches use random mints), a malformed one is an error; off = the key is not needed
     const mintKey = encKeyProblem(env.MINT_POOL_ENC_KEY);
-    if (mintKey && !/<FILL_ME>/.test(env.MINT_POOL_ENC_KEY ?? "")) errors.push(`${mintKey} (32 bytes, hex or base64: openssl rand -base64 32; the same value on the api and mint-pool services)`);
+    const keyHint = "(32 bytes, hex or base64: openssl rand -base64 32; the same value on the api and mint-pool services)";
+    if (mintKey && vmode === "on" && !/<FILL_ME>/.test(env.MINT_POOL_ENC_KEY ?? "")) errors.push(`${mintKey} ${keyHint}`);
+    if (mintKey && vmode === "fallback") {
+      if (env.MINT_POOL_ENC_KEY?.trim() && !/<FILL_ME>/.test(env.MINT_POOL_ENC_KEY)) errors.push(`${mintKey} ${keyHint}`);
+      else warnings.push(`MINT_POOL_ENC_KEY unset: VANITY_MINTS=fallback launches use random (non-...high) mints until it is set ${keyHint}`);
+    }
     for (const k of ["MINT_POOL_MIN_AVAILABLE", "MINT_POOL_RESERVATION_MIN"]) if (env[k]?.trim() && !(Number(env[k]) >= 1 && Number.isInteger(Number(env[k])))) errors.push(`${k} must be a positive integer`);
     req("LOCK_TIP_WALLET", "dedicated wallet that receives the lock-tx protocol tip; no fallback on mainnet", isPk);
     if (!env.LOCK_TIP_SOL?.trim()) errors.push("LOCK_TIP_SOL is required on mainnet (protocol tip per lock tx, in SOL)");
@@ -82,7 +92,7 @@ export function checkEnv(env: Env, ctx: { platformPubkey?: string | null; config
       if (clash.length) errors.push(`LOCK_TIP_WALLET must be a dedicated wallet; it equals ${clash.join(", ")}`);
     }
   }
-  if (net === "devnet" && encKeyProblem(env.MINT_POOL_ENC_KEY)) warnings.push(`vanity mint pool disabled: ${encKeyProblem(env.MINT_POOL_ENC_KEY)} (launches answer 500/503 until it is set)`);
+  if (net === "devnet" && vmode !== "off" && encKeyProblem(env.MINT_POOL_ENC_KEY)) warnings.push(`vanity mint pool disabled: ${encKeyProblem(env.MINT_POOL_ENC_KEY)} (launches answer 500/503 until it is set)`);
   // official $HIGHER token (optional): auto-detected from OFFICIAL_TOKEN_CREATOR; BAR_MINT is a manual override
   if (env.OFFICIAL_TOKEN_CREATOR?.trim() && !isPk(env.OFFICIAL_TOKEN_CREATOR)) errors.push("OFFICIAL_TOKEN_CREATOR is not a valid public key (official $HIGHER dev wallet)");
   else if (!env.OFFICIAL_TOKEN_CREATOR?.trim()) warnings.push(`OFFICIAL_TOKEN_CREATOR unset: the official $${(env.OFFICIAL_TOKEN_SYMBOL || "HIGHER").toUpperCase()} launch is not auto-detected and every launch with that symbol is refused${env.BAR_MINT?.trim() ? " (BAR_MINT override is set)" : "; set it to the dev wallet before the official launch"}`);
