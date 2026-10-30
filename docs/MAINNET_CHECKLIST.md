@@ -39,12 +39,14 @@ Rules the code enforces:
 - The platform key must not be the referral wallet. Buyback refuses this, and the API warns.
 - The fee claimer must not be the devnet key (`9TAV…` / `keys/devnet.keypair.json`) or the referral wallet; `createConfigs` blocks both.
 - The treasury may equal the platform key, but then all fees sit on the hot key (the API warns). Prefer a separate treasury.
+- `LOCK_TIP_WALLET` (lock-tx protocol tip, with `LOCK_TIP_SOL`) must be a **dedicated** wallet. On mainnet both are required (no fallback), and the API refuses to start if the tip wallet equals the platform key, the treasury, the referral wallet, `OFFICIAL_TOKEN_CREATOR` or `9TAV…`.
 
 ```powershell
 solana-keygen pubkey C:\Users\Ponks_sol\hb-mainnet-keys\platform.json   # -> PLATFORM_PUBKEY
 ```
 
-Fund the platform key with about 0.3 SOL. That covers config rent (about 6 × 0.01 SOL), the referral ATA, claim and migration fees. Add the buyback budget later.
+Fund the platform key with about **0.7 SOL** for setup + 20 migrations (about 1.75 SOL for 50): config rent (about 6 × 0.01 SOL), the referral ATA, claims, and the keeper's migrations. A 2-position DBC to DAMM v2 migration measured **0.0237 SOL** on mainnet (pool 0.0063 + 2 positions + 2 Token-2022 NFT mints + 4 token accounts + fee), paid by the keeper payer (this key), not the curve. On top of that, hold one epoch's payouts (cashback + creator LP rebates) plus the buyback budget.
+- The DBC migration fee and the surplus withdraw land on the **platform key**, not the treasury: the SDK calls take no receiver. There is no sweep job for now; top-ups and sweeps (platform key to treasury) are manual.
 
 ### 1b. Referral WSOL ATA [BLOCKER]
 
@@ -81,7 +83,7 @@ The official ecosystem token is **$HIGHER**, launched on highbar itself by ONE d
 ## 4. Create the 6 mainnet DBC configs [BLOCKER]
 
 The script is the devnet one with a `--network mainnet` mode. By default it prints or simulates and sends nothing. Settings:
-- Fee claimer = the **platform key** (#1), because `jobs:fees` signs claims with that key.
+- Fee claimer = the **platform key** (#1), because `jobs:fees` signs claims with that key. `FEE_CLAIMER_PUBKEY` must equal the platform key when you create the configs (the fee claimer can't be changed later).
 - Leftover receiver = the **treasury** (#2).
 - Run it from `packages\onchain`.
 

@@ -77,7 +77,7 @@ const goodMainnet = () => {
   const env: Record<string, string> = {
     NETWORK: "mainnet", TREASURY_PUBKEY: pk(), REFERRAL_ACCOUNT: pk(), OFFICIAL_TOKEN_CREATOR: pk(), DATABASE_URL: "postgres://u:p@h/db",
     RPC_URL: "https://example-name.solana-mainnet.quiknode.pro/0123abcd/", AUTH_SECRET: "x".repeat(40), SITE_URL: "https://highbar.example",
-    CORS_ORIGIN: "https://highbar.example", PROXY_SHARED_SECRET: "y".repeat(40),
+    CORS_ORIGIN: "https://highbar.example", PROXY_SHARED_SECRET: "y".repeat(40), LOCK_TIP_WALLET: pk(), LOCK_TIP_SOL: "0.005",
   };
   for (const k of ["STANDARD_OFF", "STANDARD_ON", "HIGHER_OFF", "HIGHER_ON", "MAX_OFF", "MAX_ON"]) env[`CONFIG_${k}`] = pk();
   return env;
@@ -134,4 +134,61 @@ test("checkEnv: devnet never errors (warnings only)", () => {
 test("checkEnv: <FILL_ME> placeholders from deploy/mainnet templates are refused on mainnet", () => {
   const env = goodMainnet(); env.ADMIN_TOKEN = "<FILL_ME>";
   assert.ok(checkEnv(env).errors.some((e) => /ADMIN_TOKEN/.test(e) && /FILL_ME/.test(e)));
+});
+
+// LOCK_TIP_* (confirmed mainnet public keys)
+const MAINNET_KEYS = {
+  lockTip: "DN6H7ksaFRQp9oyj2guFoHf7UzYXAni9jTNAmHjnhigh",
+  platform: "48UKpEwL4MzMxS7s8sZVZbCo4sEFP59CvermMniPhigh",
+  referral: "4khgetjJDVMBn3zX5nA2aTjTBF8fUJMKHtT19Hk6high",
+  treasury: "HWnLNqqFJPMFkAVijU1G6w9yxxniGxRCGSDv4fN2high",
+  dev: "33BrbvgrJPwPEoAkEfzztYDdAhqKfyJ8cTSMsZhEhigh",
+};
+const realMainnet = () => {
+  const env = goodMainnet();
+  Object.assign(env, { LOCK_TIP_WALLET: MAINNET_KEYS.lockTip, LOCK_TIP_SOL: "0.005", PLATFORM_PUBKEY: MAINNET_KEYS.platform,
+    REFERRAL_ACCOUNT: MAINNET_KEYS.referral, TREASURY_PUBKEY: MAINNET_KEYS.treasury, OFFICIAL_TOKEN_CREATOR: MAINNET_KEYS.dev });
+  return env;
+};
+const tipErrors = (r: { errors: string[] }) => r.errors.filter((e) => /LOCK_TIP/.test(e));
+
+test("checkEnv LOCK_TIP: the dedicated tip wallet passes with the real mainnet key set", () => {
+  const r = checkEnv(realMainnet(), { platformPubkey: MAINNET_KEYS.platform, configs: {} });
+  assert.deepEqual(r.errors, []);
+});
+
+test("checkEnv LOCK_TIP: equal to platform, referral, treasury, dev, 9TAV or the devnet fallback is refused", () => {
+  const ctx = { platformPubkey: MAINNET_KEYS.platform, configs: {} };
+  for (const [role, key] of Object.entries({ ...MAINNET_KEYS, nineTav: "9TAVGiMrCG5VoyoDGTpexjuMgCsiiwEdW8RZq5ScCop6", devnetFallback: "87xbpDawHmNdmnWfZfXvLQyKbXhF2kck41NoPxTWB9sJ" })) {
+    if (role === "lockTip") continue;
+    const env = realMainnet(); env.LOCK_TIP_WALLET = key;
+    assert.ok(tipErrors(checkEnv(env, ctx)).some((e) => /dedicated wallet/.test(e)), `LOCK_TIP_WALLET = ${role} must fail`);
+  }
+  // also when the platform key is only known from the keypair (no PLATFORM_PUBKEY env), and REFERRAL_WALLET spelling
+  const env = realMainnet(); delete env.PLATFORM_PUBKEY; env.LOCK_TIP_WALLET = MAINNET_KEYS.platform;
+  assert.ok(tipErrors(checkEnv(env, ctx)).some((e) => /the platform key/.test(e)));
+  const env2 = realMainnet(); delete env2.REFERRAL_ACCOUNT; env2.REFERRAL_WALLET = MAINNET_KEYS.referral; env2.LOCK_TIP_WALLET = MAINNET_KEYS.referral;
+  assert.ok(tipErrors(checkEnv(env2, ctx)).some((e) => /REFERRAL_WALLET/.test(e)));
+});
+
+test("checkEnv LOCK_TIP: missing, <FILL_ME>, invalid pubkey or insane LOCK_TIP_SOL is refused on mainnet", () => {
+  const missing = realMainnet(); delete missing.LOCK_TIP_WALLET; delete missing.LOCK_TIP_SOL;
+  const r = checkEnv(missing);
+  assert.ok(r.errors.some((e) => /LOCK_TIP_WALLET is required/.test(e)));
+  assert.ok(r.errors.some((e) => /LOCK_TIP_SOL is required/.test(e)));
+  const fill = realMainnet(); fill.LOCK_TIP_WALLET = "<FILL_ME>"; fill.LOCK_TIP_SOL = "<FILL_ME>";
+  const rf = checkEnv(fill);
+  assert.ok(rf.errors.some((e) => /LOCK_TIP_WALLET is invalid/.test(e)));
+  assert.ok(rf.errors.some((e) => /LOCK_TIP_SOL is invalid/.test(e)));
+  assert.ok(rf.errors.some((e) => /FILL_ME/.test(e) && /LOCK_TIP_WALLET/.test(e)));
+  const badPk = realMainnet(); badPk.LOCK_TIP_WALLET = "not-a-pubkey";
+  assert.ok(checkEnv(badPk).errors.some((e) => /LOCK_TIP_WALLET is invalid/.test(e)));
+  for (const sol of ["0", "-0.005", "abc", "1", "0.5"]) {
+    const env = realMainnet(); env.LOCK_TIP_SOL = sol;
+    assert.ok(checkEnv(env).errors.some((e) => /LOCK_TIP_SOL is invalid/.test(e)), `LOCK_TIP_SOL=${sol}`);
+  }
+});
+
+test("checkEnv LOCK_TIP: devnet keeps the fallback (no LOCK_TIP errors)", () => {
+  assert.deepEqual(tipErrors(checkEnv({ NETWORK: "devnet" })), []);
 });

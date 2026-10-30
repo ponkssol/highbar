@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { CONFIG_ENV, getClient, getConnection, loadConfigs, loadPlatformKeypair, network, rpcUrl } from "@hb/onchain";
+import { CONFIG_ENV, DEVNET_LOCK_TIP_WALLET, getClient, getConnection, LOCK_TIP_SOL_MAX, loadConfigs, loadPlatformKeypair, network, parseLockTipSol, rpcUrl } from "@hb/onchain";
 
 type Env = Record<string, string | undefined>;
 export interface CheckResult { network: "devnet" | "mainnet"; errors: string[]; warnings: string[] }
@@ -12,6 +12,11 @@ const MAINNET_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
 export const PUBLIC_RPC = /^(https?|wss?):\/\/(api\.(mainnet-beta|mainnet|devnet|testnet)\.solana\.com|solana-api\.projectserum\.com|rpc\.ankr\.com\/solana\/?$)/i;
 const isPk = (v?: string) => { if (!v) return false; try { new PublicKey(v.trim()); return true; } catch { return false; } };
 const eq = (a?: string | null, b?: string | null) => !!a && !!b && a.trim() === b.trim();
+/** Known non-dedicated wallets LOCK_TIP_WALLET must never be on mainnet: the devnet dev/creator wallet (9TAV...) and the old devnet fallback. */
+export const LOCK_TIP_FORBIDDEN: ReadonlyArray<[string, string]> = [
+  ["the devnet dev wallet 9TAV...", "9TAVGiMrCG5VoyoDGTpexjuMgCsiiwEdW8RZq5ScCop6"],
+  ["the devnet fallback tip/referral wallet", DEVNET_LOCK_TIP_WALLET],
+];
 
 /**
  * Pure env check (no RPC). Mainnet: missing required env is an error (the API refuses to start).
@@ -56,6 +61,19 @@ export function checkEnv(env: Env, ctx: { platformPubkey?: string | null; config
     if (env.TEST_CONFIGS) warnings.push("TEST_CONFIGS is ignored on mainnet");
     if (env.RATE_LIMIT_OFF === "1") errors.push("RATE_LIMIT_OFF=1 is not allowed on mainnet");
     if (ctx.devnetPubkey && eq(ctx.platformPubkey, ctx.devnetPubkey)) errors.push("PLATFORM_KEYPAIR_PATH is the devnet keypair; use a dedicated mainnet key");
+    // lock tip (packages/onchain lock.ts): required on mainnet, no fallback, and a dedicated wallet
+    req("LOCK_TIP_WALLET", "dedicated wallet that receives the lock-tx protocol tip; no fallback on mainnet", isPk);
+    if (!env.LOCK_TIP_SOL?.trim()) errors.push("LOCK_TIP_SOL is required on mainnet (protocol tip per lock tx, in SOL)");
+    else if (parseLockTipSol(env.LOCK_TIP_SOL) === null) errors.push(`LOCK_TIP_SOL is invalid: must be a number > 0 and <= ${LOCK_TIP_SOL_MAX} SOL`);
+    const tip = env.LOCK_TIP_WALLET?.trim();
+    if (tip && isPk(tip)) {
+      const roles: Array<[string, string | null | undefined]> = [
+        ["the platform key", ctx.platformPubkey], ["PLATFORM_PUBKEY", env.PLATFORM_PUBKEY], ["TREASURY_PUBKEY", env.TREASURY_PUBKEY],
+        ["REFERRAL_WALLET", referral], ["OFFICIAL_TOKEN_CREATOR", env.OFFICIAL_TOKEN_CREATOR], ["the devnet keypair", ctx.devnetPubkey], ...LOCK_TIP_FORBIDDEN,
+      ];
+      const clash = [...new Set(roles.filter(([, v]) => eq(tip, v)).map(([n]) => n))];
+      if (clash.length) errors.push(`LOCK_TIP_WALLET must be a dedicated wallet; it equals ${clash.join(", ")}`);
+    }
   }
   // official $HIGHER token (optional): auto-detected from OFFICIAL_TOKEN_CREATOR; BAR_MINT is a manual override
   if (env.OFFICIAL_TOKEN_CREATOR?.trim() && !isPk(env.OFFICIAL_TOKEN_CREATOR)) errors.push("OFFICIAL_TOKEN_CREATOR is not a valid public key (official $HIGHER dev wallet)");

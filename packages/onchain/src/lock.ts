@@ -32,11 +32,36 @@ export function lockSchedule(amount: BN, unlockAt: number, vestingSeconds = 0): 
   return { vestingStartTime: unlockAt, cliffTime: unlockAt, frequency, cliffUnlockAmount: amount.sub(per.muln(n)), amountPerPeriod: per, numberOfPeriod: n };
 }
 
-/** Flat protocol tip per lock tx (server env LOCK_TIP_SOL, default 0.005) paid to LOCK_TIP_WALLET (default: platform wallet). */
-export function lockTip() {
-  const sol = Number(process.env.LOCK_TIP_SOL ?? "0.005");
-  const tipSol = Number.isFinite(sol) && sol >= 0 ? sol : 0.005;
-  return { tipSol, tipLamports: Math.round(tipSol * LAMPORTS_PER_SOL), tipWallet: new PublicKey(process.env.LOCK_TIP_WALLET || "87xbpDawHmNdmnWfZfXvLQyKbXhF2kck41NoPxTWB9sJ") };
+/** Devnet-only defaults for LOCK_TIP_WALLET / LOCK_TIP_SOL (the devnet platform/referral wallet). Mainnet has no fallback. */
+export const DEVNET_LOCK_TIP_WALLET = "87xbpDawHmNdmnWfZfXvLQyKbXhF2kck41NoPxTWB9sJ";
+export const DEVNET_LOCK_TIP_SOL = 0.005;
+/** Sanity cap for LOCK_TIP_SOL (SOL per lock tx). */
+export const LOCK_TIP_SOL_MAX = 0.1;
+
+/** LOCK_TIP_SOL as a number when it is a plain decimal > 0 and <= LOCK_TIP_SOL_MAX, else null. */
+export function parseLockTipSol(v: string | undefined | null): number | null {
+  const s = v?.trim();
+  if (!s || !/^(\d+\.?\d*|\.\d+)$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 && n <= LOCK_TIP_SOL_MAX ? n : null;
+}
+
+/** Flat protocol tip per lock tx: LOCK_TIP_SOL paid to LOCK_TIP_WALLET.
+ *  Mainnet: both REQUIRED (a dedicated wallet; security/prodCheck.ts refuses to start without them); throws when missing or invalid.
+ *  Devnet: falls back to DEVNET_LOCK_TIP_WALLET / 0.005 SOL. */
+export function lockTip(env: NodeJS.ProcessEnv = process.env) {
+  if (env.NETWORK === "mainnet" || env.NETWORK === "mainnet-beta") {
+    const w = env.LOCK_TIP_WALLET?.trim();
+    if (!w || w.includes("<FILL_ME>")) throw new Error("LOCK_TIP_WALLET is required on mainnet (dedicated tip wallet, no fallback)");
+    let tipWallet: PublicKey;
+    try { tipWallet = new PublicKey(w); } catch { throw new Error("LOCK_TIP_WALLET is not a valid public key"); }
+    const tipSol = parseLockTipSol(env.LOCK_TIP_SOL);
+    if (tipSol === null) throw new Error(`LOCK_TIP_SOL is required on mainnet: a number > 0 and <= ${LOCK_TIP_SOL_MAX} (SOL per lock tx)`);
+    return { tipSol, tipLamports: Math.round(tipSol * LAMPORTS_PER_SOL), tipWallet };
+  }
+  const sol = Number(env.LOCK_TIP_SOL ?? String(DEVNET_LOCK_TIP_SOL));
+  const tipSol = Number.isFinite(sol) && sol >= 0 ? sol : DEVNET_LOCK_TIP_SOL;
+  return { tipSol, tipLamports: Math.round(tipSol * LAMPORTS_PER_SOL), tipWallet: new PublicKey(env.LOCK_TIP_WALLET || DEVNET_LOCK_TIP_WALLET) };
 }
 
 export async function buildLockTx(p: { creator: PublicKey; mint: PublicKey; amount: BN; unlockAt: number; vestingSeconds?: number }) {
