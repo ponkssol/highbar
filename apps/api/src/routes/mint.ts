@@ -2,14 +2,24 @@
  *  (the reservation itself happens in POST /tx/launch, behind the launch rate limits / creator gates: it returns the mint pubkey
  *   with the unsigned tx; an empty pool is 503 MINT_POOL_EMPTY. There is no separate public reserve endpoint to drain the pool.)
  *  POST /tx/launch/sign   { mint, tx }                -> { tx, mint, pool, signature }  (tx = wallet-signed; returned fully signed)
- *  POST /mint/confirm     { mint }                    -> { used }
+ *  POST /mint/confirm     { mint, signature? }        -> { used }
+ *    also kicks the fast index of the new token (indexer/fastIndex.ts), fire-and-forget: it never delays or fails this response.
+ *    `signature` = the launch tx; optional (a malformed one is ignored), needed for non-vanity launches.
  *  Never returns or logs a secret; errors are fixed strings or validation reasons. */
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { db } from "../db/pool.js";
 import { confirmMint, LaunchTxRejected, MintPoolError, signLaunchTx, sweepExpired, type Sql } from "../services/mintPool/index.js";
 import { address } from "../security/validate.js";
+import { optionalSignature } from "../indexer/fastIndex.js";
 
-export interface MintDeps { q?: Sql; sign?: typeof signLaunchTx; confirm?: typeof confirmMint }
+/** Fire-and-forget fast index of a just-launched mint; must return immediately and never throw. */
+export type FastIndexFn = (mint: string, o: { signature?: string; reserved?: boolean }, log?: (m: string) => void) => void;
+/** Lazy import: the indexer (RPC client etc.) loads on the first confirm, not when the routes are registered. */
+const defaultFastIndex: FastIndexFn = (mint, o, log) => {
+  void import("../indexer/poller.js").then((m) => m.fastIndexer.kick(mint, o, log)).catch(() => undefined);
+};
+
+export interface MintDeps { q?: Sql; sign?: typeof signLaunchTx; confirm?: typeof confirmMint; fastIndex?: FastIndexFn }
 
 export function mintPoolFailure(reply: FastifyReply, e: unknown, log?: { warn: (o: object, m: string) => void }) {
   if (e instanceof MintPoolError) return reply.code(e.status).send({ error: e.message, code: e.code });
@@ -32,10 +42,16 @@ export function registerMint(app: FastifyInstance, deps: MintDeps = {}) {
   });
 
   app.post("/mint/confirm", async (req, reply) => {
+    const body = (req.body ?? {}) as { mint?: unknown; signature?: unknown };
     let mint: string;
-    try { mint = address((req.body as { mint?: unknown })?.mint, "mint"); } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
-    try { return { used: await (deps.confirm ?? confirmMint)(q(), mint) }; }
+    try { mint = address(body.mint, "mint"); } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+    const signature = optionalSignature(body.signature);
+    let used = false;
+    try { used = await (deps.confirm ?? confirmMint)(q(), mint); return { used }; }
     catch (e) { return mintPoolFailure(reply, e, req.log); }
+    finally { // vanity or not, success or not: the fast path verifies everything on-chain itself
+      try { (deps.fastIndex ?? defaultFastIndex)(mint, { signature, reserved: used }, (m) => req.log.info(m)); } catch { /* never affects the response */ }
+    }
   });
 }
 

@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { getPriceFromSqrtPrice } from "@meteora-ag/dynamic-bonding-curve-sdk";
+import { deriveDbcPoolAddress, getPriceFromSqrtPrice } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { TIERS, networkOf, thresholdSolFor, type TierId } from "@hb/shared";
 import { getClient, getConnection, indexableConfigEntries, referralAta, sleep, withRetry } from "@hb/onchain";
 import { decodeDbcEvents } from "./decode.js";
@@ -13,6 +13,7 @@ import { db, tx as dbTx } from "../db/pool.js";
 import { openbookTables } from "../openbook/write.js";
 import { ingestFailed, ingestLandedTx, swapExtra } from "../openbook/ingest.js";
 import { collectSignatures, pollConfig, poolFingerprint, PollScheduler, prioritize, tickTxBudget, tradesPerPool, type PoolView } from "./schedule.js";
+import { FastIndexer, fastIndexConfig, initForMint, type FastResult } from "./fastIndex.js";
 
 /** RPC-polling indexer (state in Postgres). Pool state via getPoolsByConfig; swaps via the backup's decode.ts (EvtSwap3). */
 const METAPLEX = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
@@ -131,16 +132,66 @@ async function poolConfig(address: string) {
   return v;
 }
 
+type PoolConfigV = Awaited<ReturnType<typeof poolConfig>>;
+type Item = { cfg: ReturnType<typeof tierConfigs>[number]; config: PoolConfigV; creatorPct: number; publicKey: PublicKey; account: PoolAccount };
+interface PassCtx { sched?: PollScheduler; now: number; limit: number; budget: { left: number }; log: (m: string) => void }
+
+/** Pools being indexed right now by the /mint/confirm fast path (pool -> its run): the tick skips them, the fast path waits for a tick
+ *  already on the pool. One writer per pool at a time; the inserts stay idempotent anyway (tokens / trades / Open Book ON CONFLICT). */
+const poolBusy = new Map<string, Promise<unknown>>();
+/** The running indexer's scheduler (startIndexer), so the fast path can mark a fresh pool hot. */
+let activeSched: PollScheduler | undefined;
+
+/** Token row + (when due) new signatures for one pool. Shared by the tick (config scan) and the /mint/confirm fast path (targeted getPool). */
+async function indexPool(it: Item, ctx: PassCtx): Promise<{ view: PoolView; due: boolean; deferred: boolean }> {
+  const { cfg, config, creatorPct, publicKey, account } = it;
+  const { sched, now, limit, budget, log } = ctx;
+  const ps = account.poolState;
+  const mint = ps.baseMint.toBase58();
+  const prev = await store.getToken(mint).then((x) => (x?.mint === mint ? x : null));
+  const thresholdSol = config ? Number(config.migrationQuoteThreshold.toString()) / L : thresholdSolFor(cfg.tier, networkOf(process.env.NETWORK)); // on-chain value wins; fallback per network
+  const quoteReserveSol = Number(ps.quoteReserve.toString()) / L;
+  const priceSol = Number(getPriceFromSqrtPrice(ps.sqrtPrice, 6, 9).toString());
+  const isMigrated = Number(ps.isMigrated) !== 0;
+  const pool = publicKey.toBase58();
+  const view: PoolView = { createdAt: prev?.createdAt ?? 0, isMigrated, fingerprint: poolFingerprint(account) };
+  let due = sched ? sched.due(pool, view, now) : true, deferred = false;
+  if (due && budget.left <= 0 && prev) { due = false; deferred = true; sched?.defer(pool, now); } // tick budget spent: stays due, handled next tick (a token not in the db yet is never held back)
+  // metadata (on-chain only, never client input): once for a new token; a token stored without a name retries only when its pool is polled
+  const meta = prev && (prev.name || !due) ? prev : await fetchMetadata(mint).catch(() => ({ name: "", symbol: "", uri: "" }));
+  const t: Token = {
+    mint, pool, config: cfg.address, tier: cfg.tier, antiSniper: cfg.antiSniper,
+    creator: ps.creator.toBase58(), createdAt: prev?.createdAt ?? 0,
+    quoteReserveSol, thresholdSol, progress: Math.min(1, quoteReserveSol / thresholdSol),
+    isMigrated, priceSol, mcapSol: priceSol * SUPPLY, name: meta.name, symbol: meta.symbol, uri: meta.uri,
+    volumeSol: 0, volume24hSol: 0, trades: 0, creatorFeesSol: 0, feesSol: 0, updatedAt: Date.now(),
+  };
+  const r = due ? await indexTrades(t, prev ? Math.max(1, Math.min(limit, budget.left)) : limit, log).catch((e) => { log(`trades ${t.pool}: ${e.message}`); return null; }) : null;
+  if (r) budget.left -= r.handled;
+  if (!t.createdAt) t.createdAt = Date.now();
+  if (r && sched) sched.record(pool, { ...view, createdAt: t.createdAt }, r, Date.now()); // failed poll: not recorded, retried next tick
+  if (!prev) await store.addActivity({ id: `launch:${mint}`, type: "launch", mint, symbol: t.symbol, ts: t.createdAt });
+  if (isMigrated && !prev?.isMigrated) await store.addActivity({ id: `graduate:${mint}`, type: "graduate", mint, symbol: t.symbol, ts: prev ? Date.now() : t.createdAt, amount: quoteReserveSol });
+  const agg = await store.tradeAgg(mint, Date.now() - 86400_000);
+  t.trades = agg.n; t.volumeSol = agg.vol; t.volume24hSol = agg.vol24; t.feesSol = agg.fees;
+  // creator share of the non-protocol (80%) part of curve fees
+  t.creatorFeesSol = t.feesSol * 0.8 * (creatorPct / 100);
+  await store.upsertToken(t);
+  if (isMigrated && !prev?.isMigrated) await scoresStore.markMigrated(mint, prev ? Date.now() : t.createdAt);
+  return { view, due, deferred };
+}
+
 /** One indexer pass. With a scheduler (startIndexer) only due pools fetch signatures / txs; without one (POST /reindex) every pool does. */
 export async function indexOnce(log: (m: string) => void = console.log, sched?: PollScheduler) {
   const client = getClient();
-  const limit = tradesPerPool(); // max txs handled per pool per poll; the rest is backlog for the next tick
-  let budget = sched ? tickTxBudget() : Number.POSITIVE_INFINITY; // max txs per tick across pools (POST /reindex: no cap); new tokens are never held back by it
-  const now = Date.now();
+  const ctx: PassCtx = {
+    sched, now: Date.now(), log,
+    limit: tradesPerPool(), // max txs handled per pool per poll; the rest is backlog for the next tick
+    budget: { left: sched ? tickTxBudget() : Number.POSITIVE_INFINITY }, // max txs per tick across pools (POST /reindex: no cap); new tokens are never held back by it
+  };
   const views = new Map<string, PoolView>();
   let polled = 0, deferred = 0;
   // 1) scan every config first, so a freshly launched pool is handled at the top of the tick (not after other pools' trades)
-  type Item = { cfg: ReturnType<typeof tierConfigs>[number]; config: Awaited<ReturnType<typeof poolConfig>>; creatorPct: number; publicKey: PublicKey; account: PoolAccount };
   const items: Item[] = [];
   for (const cfg of tierConfigs()) {
     const pools = await withRetry(() => client.state.getPoolsByConfig(cfg.address)).catch((e) => { log(`config ${cfg.key}: ${e.message}`); return []; });
@@ -151,46 +202,78 @@ export async function indexOnce(log: (m: string) => void = console.log, sched?: 
   }
   const ordered = sched ? prioritize(items, (it) => sched.rank(it.publicKey.toBase58())) : items;
   // 2) per pool: token row + (when due) its new signatures
-  for (const { cfg, config, creatorPct, publicKey, account } of ordered) {
-      const ps = account.poolState;
-      const mint = ps.baseMint.toBase58();
-      const prev = await store.getToken(mint).then((x) => (x?.mint === mint ? x : null));
-      const thresholdSol = config ? Number(config.migrationQuoteThreshold.toString()) / L : thresholdSolFor(cfg.tier, networkOf(process.env.NETWORK)); // on-chain value wins; fallback per network
-      const quoteReserveSol = Number(ps.quoteReserve.toString()) / L;
-      const priceSol = Number(getPriceFromSqrtPrice(ps.sqrtPrice, 6, 9).toString());
-      const isMigrated = Number(ps.isMigrated) !== 0;
-      const pool = publicKey.toBase58();
-      const view: PoolView = { createdAt: prev?.createdAt ?? 0, isMigrated, fingerprint: poolFingerprint(account) };
-      views.set(pool, view);
-      let due = sched ? sched.due(pool, view, now) : true;
-      if (due && budget <= 0 && prev) { due = false; deferred++; sched?.defer(pool, now); } // tick budget spent: stays due, handled next tick (a token not in the db yet is never held back)
-      // metadata: once for a new token; a token stored without a name retries only when its pool is polled
-      const meta = prev && (prev.name || !due) ? prev : await fetchMetadata(mint).catch(() => ({ name: "", symbol: "", uri: "" }));
-      const t: Token = {
-        mint, pool, config: cfg.address, tier: cfg.tier, antiSniper: cfg.antiSniper,
-        creator: ps.creator.toBase58(), createdAt: prev?.createdAt ?? 0,
-        quoteReserveSol, thresholdSol, progress: Math.min(1, quoteReserveSol / thresholdSol),
-        isMigrated, priceSol, mcapSol: priceSol * SUPPLY, name: meta.name, symbol: meta.symbol, uri: meta.uri,
-        volumeSol: 0, volume24hSol: 0, trades: 0, creatorFeesSol: 0, feesSol: 0, updatedAt: Date.now(),
-      };
-      const r = due ? await indexTrades(t, prev ? Math.max(1, Math.min(limit, budget)) : limit, log).catch((e) => { log(`trades ${t.pool}: ${e.message}`); return null; }) : null;
-      if (due) polled++;
-      if (r) budget -= r.handled;
-      if (!t.createdAt) t.createdAt = Date.now();
-      if (r && sched) sched.record(pool, { ...view, createdAt: t.createdAt }, r, Date.now()); // failed poll: not recorded, retried next tick
-      if (!prev) await store.addActivity({ id: `launch:${mint}`, type: "launch", mint, symbol: t.symbol, ts: t.createdAt });
-      if (isMigrated && !prev?.isMigrated) await store.addActivity({ id: `graduate:${mint}`, type: "graduate", mint, symbol: t.symbol, ts: prev ? Date.now() : t.createdAt, amount: quoteReserveSol });
-      const agg = await store.tradeAgg(mint, Date.now() - 86400_000);
-      t.trades = agg.n; t.volumeSol = agg.vol; t.volume24hSol = agg.vol24; t.feesSol = agg.fees;
-      // creator share of the non-protocol (80%) part of curve fees
-      t.creatorFeesSol = t.feesSol * 0.8 * (creatorPct / 100);
-      await store.upsertToken(t);
-      if (isMigrated && !prev?.isMigrated) await scoresStore.markMigrated(mint, prev ? Date.now() : t.createdAt);
+  for (const it of ordered) {
+    const key = it.publicKey.toBase58();
+    if (poolBusy.has(key)) continue; // the /mint/confirm fast path is indexing it right now; next tick sees it (hot)
+    const run = indexPool(it, ctx);
+    poolBusy.set(key, run); // check + set without an await in between: one writer per pool
+    let r: Awaited<typeof run>;
+    try { r = await run; } finally { poolBusy.delete(key); }
+    views.set(it.publicKey.toBase58(), r.view);
+    if (r.due) polled++;
+    if (r.deferred) deferred++;
   }
   await store.trimActivity();
   await detectOfficialLaunch(log).catch((e) => log(`official token: ${(e as Error).message}`));
   return { pools: views.size, polled, deferred, classes: sched?.stats(views, Date.now()) };
 }
+
+const NATIVE_MINT = new PublicKey("So11111111111111111111111111111111111111112");
+const sleepMs = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * /mint/confirm fast path: index one freshly launched token right away instead of waiting for the next tick (<= INDEX_INTERVAL_MS).
+ * Nothing from the client is trusted except the mint and launch signature, and both are verified on-chain:
+ *  1. the launch tx (at `confirmed`) must have succeeded and hold a DBC init event for this mint (decodeDbcEvents),
+ *  2. from one of our configs (tierConfigs) and for the pool PDA of (that config, this mint, WSOL),
+ *  3. targeted getPool of that pool (no config-wide scan), then the tick's own indexPool (metadata from chain, trades, Open Book).
+ * Without a signature (vanity reservation only) the mint's oldest recent signature is its creation tx. Gating / caps: fastIndex.ts.
+ */
+export async function indexNewMint(mint: string, signature: string | undefined, log: (m: string) => void = console.log): Promise<FastResult> {
+  const conn = getConnection();
+  let sig = signature;
+  if (!sig) {
+    const sigs = await withRetry(() => conn.getSignaturesForAddress(new PublicKey(mint), { limit: 20 }, "confirmed"));
+    sig = sigs.at(-1)?.signature; // newest first: the last one is the mint's creation (launch) tx while it has < 20 signatures
+    if (!sig) return { status: "not_found", detail: "no signature for this mint yet" };
+  }
+  let tx: Awaited<ReturnType<typeof conn.getTransaction>> = null;
+  for (let i = 0; i < 3 && !tx; i++) { // the web confirms at `confirmed`; an RPC node may lag a moment behind
+    tx = await conn.getTransaction(sig, { commitment: "confirmed", maxSupportedTransactionVersion: 0 }).catch(() => null);
+    if (!tx && i < 2) await sleepMs(400);
+  }
+  if (!tx) return { status: "not_found", detail: "launch tx not visible yet" };
+  if (tx.meta?.err) return { status: "rejected", detail: "launch tx failed" };
+  const configs = tierConfigs();
+  const init = initForMint(decodeDbcEvents(toRaw(tx)), mint, configs);
+  if (!init) return { status: "rejected", detail: "no DBC init for this mint from our configs" };
+  const cfg = configs.find((c) => c.address === init.config)!;
+  if (deriveDbcPoolAddress(NATIVE_MINT, new PublicKey(mint), new PublicKey(cfg.address)).toBase58() !== init.pool) return { status: "rejected", detail: "pool is not the config/mint PDA" };
+  const account = await withRetry(() => getClient().state.getPool(init.pool));
+  if (!account || account.poolState.baseMint.toBase58() !== mint) return { status: "not_found", detail: "pool account not found" };
+  const config = await poolConfig(cfg.address);
+  const creatorPct = config ? Number(config.creatorTradingFeePercentage) : TIERS[cfg.tier].creatorTradingFeePercentage;
+  const pool = init.pool;
+  while (poolBusy.has(pool)) await poolBusy.get(pool)!.catch(() => undefined); // a tick is on this pool: wait, then re-check the db
+  const run = (async (): Promise<FastResult> => {
+    if (await store.getToken(mint).then((x) => x?.mint === mint)) return { status: "exists" }; // the tick got there first
+    await indexPool({ cfg, config, creatorPct, publicKey: new PublicKey(pool), account: account as PoolAccount },
+      { sched: activeSched, now: Date.now(), limit: tradesPerPool(), budget: { left: Number.POSITIVE_INFINITY }, log });
+    return { status: "indexed" };
+  })();
+  poolBusy.set(pool, run); // set right after the wait (no await in between), so the tick skips this pool meanwhile
+  try { return await run; }
+  finally {
+    poolBusy.delete(pool);
+    activeSched?.markHot(pool, Date.now()); // the next tick polls it again (early buys) and it stays hot for INDEXER_ACTIVE_WINDOW_MIN
+  }
+}
+
+/** Process-wide gate for indexNewMint (per-mint once, shared promise, global caps); used by POST /mint/confirm. */
+export const fastIndexer = new FastIndexer(fastIndexConfig(), {
+  tokenExists: async (mint) => (await store.getToken(mint))?.mint === mint,
+  run: (mint, signature) => indexNewMint(mint, signature),
+});
 
 /** Official $HIGHER: record the FIRST launch by OFFICIAL_TOKEN_CREATOR with symbol OFFICIAL_TOKEN_SYMBOL (once; see services/officialToken.ts). */
 export async function detectOfficialLaunch(log: (m: string) => void = console.log) {
@@ -205,6 +288,7 @@ export async function detectOfficialLaunch(log: (m: string) => void = console.lo
 export function startIndexer(log: (m: string) => void = console.log) {
   const cfg = pollConfig();
   const sched = new PollScheduler(cfg);
+  activeSched = sched;
   log(cfg.adaptive
     ? `indexer: adaptive polling (hot every ${cfg.baseMs / 1000}s for ${cfg.activeWindowMs / 60_000} min after activity / ${cfg.newPoolHotMs / 60_000} min after launch, idle backoff to ${cfg.idleMaxMs / 1000}s, migrated ${cfg.migratedMs > 0 ? `every ${cfg.migratedMs / 1000}s` : "never"})`
     : `indexer: INDEXER_ADAPTIVE=0, every pool every ${cfg.baseMs / 1000}s`);
