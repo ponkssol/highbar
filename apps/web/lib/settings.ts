@@ -37,13 +37,18 @@ export function useSettings() {
   return [s, update] as const;
 }
 
+/** Cluster from NEXT_PUBLIC_NETWORK (inlined at build); anything but mainnet/mainnet-beta is devnet. */
+export const NETWORK: "devnet" | "mainnet" =
+  process.env.NEXT_PUBLIC_NETWORK === "mainnet" || process.env.NEXT_PUBLIC_NETWORK === "mainnet-beta" ? "mainnet" : "devnet";
+const q = (ex: Explorer) => (NETWORK === "mainnet" ? "" : ex === "solanafm" ? "?cluster=devnet-solana" : "?cluster=devnet");
+
 export function explorerTx(sig: string, ex: Explorer = getSettings().explorer) {
-  if (ex === "solana") return `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
-  if (ex === "solanafm") return `https://solana.fm/tx/${sig}?cluster=devnet-solana`;
-  return `https://solscan.io/tx/${sig}?cluster=devnet`;
+  if (ex === "solana") return `https://explorer.solana.com/tx/${sig}${q(ex)}`;
+  if (ex === "solanafm") return `https://solana.fm/tx/${sig}${q(ex)}`;
+  return `https://solscan.io/tx/${sig}${q(ex)}`;
 }
 export function explorerAddr(a: string, ex: Explorer = getSettings().explorer) {
-  if (ex === "solana") return `https://explorer.solana.com/address/${a}?cluster=devnet`;
-  if (ex === "solanafm") return `https://solana.fm/address/${a}?cluster=devnet-solana`;
-  return `https://solscan.io/account/${a}?cluster=devnet`;
+  if (ex === "solana") return `https://explorer.solana.com/address/${a}${q(ex)}`;
+  if (ex === "solanafm") return `https://solana.fm/address/${a}${q(ex)}`;
+  return `https://solscan.io/account/${a}${q(ex)}`;
 }
