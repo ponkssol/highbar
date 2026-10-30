@@ -1,8 +1,8 @@
 /** Project links shown in the sidebar footer and the mobile More sheet. One place to edit.
  *  Internal paths ("/docs") open in the app. External ones must be full https:// URLs.
- *  TODO(highbar): the official X profile URL was not found in the repo or on highbar.capital. An empty value hides the X button. */
+ *  An empty value hides that button. */
 export const PROJECT_LINKS = {
-  x: "",
+  x: "https://x.com/highbar_capital",
   docs: "/docs",
   api: "/docs/api",
 } as const;
