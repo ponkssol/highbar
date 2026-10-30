@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useActivity, type ActivityEvent, type ActivityType } from "@/lib/activity";
+import { fmtTimeUS } from "@/lib/date";
 
 const GAP = 3;
 const COLOR: Record<ActivityType, string> = {
@@ -12,7 +13,7 @@ const COLOR: Record<ActivityType, string> = {
 const LABEL: Record<ActivityType, string> = { launch: "Launch", burn: "Burn", graduate: "Migrated", trade: "Trade" };
 const PLURAL: Record<ActivityType, string> = { launch: "Launches", burn: "Burns", graduate: "Migrations", trade: "Trades" };
 const ORDER: ActivityType[] = ["launch", "burn", "graduate", "trade"];
-const fmtTime = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const fmtTime = (ts: number) => fmtTimeUS(ts, { second: "2-digit" });
 
 export function ActivityGrid({ className = "", bare = false }: { className?: string; bare?: boolean }) {
   const { events, source, isFresh } = useActivity();

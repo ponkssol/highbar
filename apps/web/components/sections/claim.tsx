@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth";
 import { apiBase } from "@/lib/api";
 import { explorerTx } from "@/lib/settings";
 import { fmtSol } from "@/lib/format";
+import { fmtDateUS } from "@/lib/date";
 import type { TierId } from "@hb/shared";
 
 type Row = {
@@ -211,7 +212,7 @@ export default function ClaimPage() {
               <tbody>
                 {rebates.rows.map((r) => (
                   <tr key={`${r.claimSig}:${r.pool}`} className="border-t border-border">
-                    <td className={TD}>{new Date(r.createdAt).toLocaleDateString()}</td>
+                    <td className={TD}>{fmtDateUS(r.createdAt)}</td>
                     <td className={TD}><div className="font-medium">{r.symbol || r.mint.slice(0, 6)}</div><div className="text-xs text-ink-3">{r.name}</div></td>
                     <td className={`${TD} num text-right`}><a className="inline-flex items-center gap-1 hover:text-ink" href={explorerTx(r.claimSig)} target="_blank" rel="noreferrer">{fmtSol(r.claimedSol)} SOL<ExternalLink size={12} /></a></td>
                     <td className={`${TD} num text-right`}>{fmtSol(r.rebateSol)} SOL<div className="text-xs text-ink-3">{fmtPct(r.rebateBps / 100)}</div></td>

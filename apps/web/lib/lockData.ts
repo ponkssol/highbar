@@ -1,6 +1,7 @@
 /** Lock data helpers usable from server and client components. */
 import { apiBase, apiHeaders } from "./api";
 import type { LockInfo } from "./lock";
+import { fmtDateUS } from "./date";
 
 export interface LockView extends LockInfo {
   id: string; totalTokens: number; lockedTokens: number; claimableTokens: number; supplyPct: number; unlockedPct: number;
@@ -16,4 +17,4 @@ export async function fetchLock(id: string): Promise<LockView | null> {
   const r = await fetch(`${apiBase()}/locks/${id}`, { cache: "no-store", headers: apiHeaders(), signal: AbortSignal.timeout(6000) }).catch(() => null);
   return r && r.ok ? r.json() : null;
 }
-export const fmtLockDate = (s: number) => new Date(s * 1000).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+export const fmtLockDate = (s: number) => fmtDateUS(s * 1000, { timeZone: "UTC" });

@@ -1,4 +1,5 @@
 "use client";
+import { fmtDateTimeUS, fmtDateUS } from "@/lib/date";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -13,7 +14,7 @@ import { NETWORK } from "@/lib/settings";
 import { shortAddr } from "@/lib/format";
 
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
-const fmtDate = (s: number) => new Date(s * 1000).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const fmtDate = (s: number) => fmtDateTimeUS(s * 1000);
 const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const fmtLeft = (s: number) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m ${Math.max(0, s % 60)}s`; };
 type LockRow = LocksResp["locks"][number];
@@ -31,7 +32,7 @@ const rawToStr = (raw: bigint, decimals: number) => {
   return frac ? `${s.slice(0, -decimals)}.${frac}` : s.slice(0, -decimals);
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const fmtDay = (s: number) => new Date(s * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+const fmtDay = (s: number) => fmtDateUS(s * 1000);
 /** Share of supply with a leading zero (0.5, 12.34). Tiny shares read "under 0.01". */
 const fmtShare = (p: number) => (p > 0 && p < 0.01 ? "under 0.01" : p.toLocaleString("en-US", { minimumIntegerDigits: 1, maximumFractionDigits: 2 }));
 
@@ -163,7 +164,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
               {isCreator && <div className="flex justify-between"><span className="text-ink-3">Status</span><span className="text-xs font-medium">{lockStatus(l, nowS)}</span></div>}
               <div className="flex justify-between"><span className="text-ink-3">Amount</span><span className="num">{fmtTok(toUi(l.total))} ${ticker}</span></div>
               <div className="flex justify-between"><span className="text-ink-3">Unlocks</span><span className="num">{fmtDate(l.cliffTime)}</span></div>
-              {l.numberOfPeriod > 0 && <div className="flex justify-between"><span className="text-ink-3">Vesting</span><span className="num">{l.numberOfPeriod} x {Math.round(l.frequency / 3600) >= 24 ? `${Math.round(l.frequency / 86400)}d` : `${Math.round(l.frequency / 60)}m`}, ends {fmtDate(l.endTime).split(",")[0]}</span></div>}
+              {l.numberOfPeriod > 0 && <div className="flex justify-between"><span className="text-ink-3">Vesting</span><span className="num">{l.numberOfPeriod} x {Math.round(l.frequency / 3600) >= 24 ? `${Math.round(l.frequency / 86400)}d` : `${Math.round(l.frequency / 60)}m`}, ends {fmtDay(l.endTime)}</span></div>}
               {isCreator && <div className="flex justify-between"><span className="text-ink-3">Claimable now</span><span className="num">{fmtTok(toUi(l.claimable))} ${ticker}</span></div>}
               <div className="flex justify-between"><span className="text-ink-3">Claimed / unlocked</span><span className="num">{fmtTok(toUi(l.claimed))} / {fmtTok(toUi(l.unlocked))}</span></div>
               <div className="flex justify-between"><span className="text-ink-3">Cancel or change recipient</span><span>None (permanent)</span></div>

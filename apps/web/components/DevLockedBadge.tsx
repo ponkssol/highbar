@@ -1,4 +1,5 @@
 "use client";
+import { fmtDateTimeUS } from "@/lib/date";
 import { useEffect, useState } from "react";
 import { Lock, Unlock } from "lucide-react";
 
@@ -17,7 +18,7 @@ export function DevLockedBadge({ devLocked, unlockAt, size = "sm" }: { devLocked
   }, []);
   if (!devLocked || !unlockAt) return null;
   const done = now != null && now >= unlockAt;
-  const date = new Date(unlockAt * 1000).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+  const date = fmtDateTimeUS(unlockAt * 1000, { timeZone: "UTC" }) + " UTC";
   const cls = size === "md" ? "h-5 px-2 text-[11px]" : "h-[18px] px-1.5 text-[10px]";
   return (
     <span data-testid="dev-locked" title={done ? `Dev tokens unlocked ${date}` : `Dev tokens locked until ${date}`} suppressHydrationWarning

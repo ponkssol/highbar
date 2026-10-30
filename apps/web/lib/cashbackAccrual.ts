@@ -1,3 +1,4 @@
+import { fmtDateUS } from "./date";
 /** Go-public cut-off fields on GET /cashback/:wallet (api GO_PUBLIC_DATE). Cashback before the cut-off is not paid.
  *  Optional here so an older api response without them reads as "no cut-off". Keep every read of them in this file. */
 export type CashbackAccrualFields = {
@@ -33,4 +34,4 @@ export function cashbackAccrual(d: CashbackAccrualFields | null | undefined): Ca
 /** Whether a trade row earns cashback: needs a cut-off and the api's eligible flag (missing counts as eligible once accruing). */
 export const rowEligible = (r: CashbackRowFields, a: CashbackAccrual) => !!a.since && r.eligible !== false;
 
-export const fmtAccrualDate = (t: Date) => t.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+export const fmtAccrualDate = (t: Date) => fmtDateUS(t, { timeZone: "UTC" });

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { fmtPricePlain } from "@/lib/format";
+import { CHART_LOCALIZATION } from "@/lib/date";
 import type { IChartApi, ISeriesApi, MouseEventParams, UTCTimestamp } from "lightweight-charts";
 import { apiBase } from "@/lib/api";
 import { DeltaPill } from "./StatsPanel";
@@ -57,6 +58,7 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
         grid: { vertLines: { color: t.grid }, horzLines: { color: t.grid } },
         rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+        localization: CHART_LOCALIZATION, // month first crosshair dates, never the browser locale
         crosshair: {
           mode: CrosshairMode.Magnet,
           vertLine: { color: t.cross, width: 1 as const, style: LineStyle.Dashed, labelBackgroundColor: t.label },
