@@ -1,14 +1,17 @@
 import { PublicKey } from "@solana/web3.js";
-import bs58 from "bs58";
 import { getPriceFromSqrtPrice } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { TIERS, networkOf, thresholdSolFor, type TierId } from "@hb/shared";
 import { getClient, getConnection, indexableConfigEntries, referralAta, sleep, withRetry } from "@hb/onchain";
-import { decodeDbcEvents, type RawTx } from "./decode.js";
+import { decodeDbcEvents } from "./decode.js";
+import { toRaw } from "./rawTx.js";
 import { chronological, nextTradeTs, secondBaseMs } from "./tradeOrder.js";
-import { store, type Token } from "../store.js";
+import { store, type Token, type TradeRow } from "../store.js";
 import { recordTrade } from "../candles/index.js";
 import { scoresStore } from "../services/scoresStore.js";
 import { detectOfficial, officialConfig, pgOfficialRepo, refreshOfficial } from "../services/officialToken.js";
+import { db, tx as dbTx } from "../db/pool.js";
+import { openbookTables } from "../openbook/write.js";
+import { ingestFailed, ingestLandedTx, swapExtra } from "../openbook/ingest.js";
 
 /** RPC-polling indexer (state in Postgres). Pool state via getPoolsByConfig; swaps via the backup's decode.ts (EvtSwap3). */
 const METAPLEX = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
@@ -33,28 +36,33 @@ async function fetchMetadata(mint: string) {
   return { name, symbol, uri };
 }
 
-async function indexTrades(t: Token, limit: number) {
+async function indexTrades(t: Token, limit: number, log: (m: string) => void = console.log) {
   const conn = getConnection();
   const until = await store.lastSig(t.pool);
   const sigs = await withRetry(() => conn.getSignaturesForAddress(new PublicKey(t.pool), { limit, until }));
   if (!sigs.length) return;
   const newest = sigs[0].signature;
   const lastTsInSecond = new Map<number, number>(); // second (ms) -> last trade ts handed out for this mint
+  const ob = await openbookTables(db); // 0012 applied: trades + tx costs + aggregates in one db tx (Open Book)
+  // failed txs: also fetched (wallet / fee) inside the launch window only; 0 = never (the backfill can fill them later)
+  const failedDetailMs = Number(process.env.OPENBOOK_FAILED_DETAIL_WINDOW_S ?? 60) * 1000;
   for (const s of chronological(sigs)) {
-    if (s.err) continue;
+    if (s.err) {
+      if (!ob) continue;
+      const inWindow = failedDetailMs > 0 && t.createdAt > 0 && s.blockTime != null && s.blockTime * 1000 - t.createdAt <= failedDetailMs;
+      const ftx = inWindow ? await withRetry(() => conn.getTransaction(s.signature, { maxSupportedTransactionVersion: 0 })).catch(() => null) : null;
+      if (inWindow) await sleep(120);
+      await dbTx((c) => ingestFailed(c, { sig: s.signature, mint: t.mint, pool: t.pool, slot: s.slot, err: s.err, blockTime: s.blockTime ?? null, raw: ftx ? toRaw(ftx) : null }))
+        .catch((e) => log(`[openbook] failed ${s.signature}: ${(e as Error).message}`));
+      continue;
+    }
     const tx = await withRetry(() => conn.getTransaction(s.signature, { maxSupportedTransactionVersion: 0 })).catch(() => null);
     await sleep(120); // stay under public RPC limits
     if (!tx) continue;
-    const raw: RawTx = {
-      slot: tx.slot, blockTime: tx.blockTime ?? null,
-      transaction: { signatures: tx.transaction.signatures, message: {
-        accountKeys: tx.transaction.message.staticAccountKeys.map((k) => k.toBase58()),
-        instructions: tx.transaction.message.compiledInstructions.map((ix) => ({ programIdIndex: ix.programIdIndex, accounts: ix.accountKeyIndexes, data: bs58.encode(ix.data) })) } },
-      meta: tx.meta ? { err: tx.meta.err, innerInstructions: tx.meta.innerInstructions as any,
-        loadedAddresses: tx.meta.loadedAddresses ? { writable: tx.meta.loadedAddresses.writable.map(String), readonly: tx.meta.loadedAddresses.readonly.map(String) } : null } : null,
-    };
+    const raw = toRaw(tx);
     const ts = secondBaseMs(tx.blockTime); // whole second; each swap gets ts + its chain-order sequence (indexer/tradeOrder.ts)
     let i = 0, initInTx = false, devTagged = false;
+    const swaps: { row: TradeRow; extra: ReturnType<typeof swapExtra>; solLamports: bigint }[] = [];
     for (const ev of decodeDbcEvents(raw)) {
       if (ev.kind === "init" && ev.pool === t.pool) {
         t.createdAt = ts; initInTx = true;
@@ -65,11 +73,19 @@ async function indexTrades(t: Token, limit: number) {
       const devBuy = initInTx && !devTagged && ev.side === "buy"; if (devBuy) devTagged = true;
       const tradeTs = nextTradeTs(ts, lastTsInSecond.has(ts) ? lastTsInSecond.get(ts) : await store.maxTradeTsInSecond(t.mint, ts));
       lastTsInSecond.set(ts, tradeTs);
-      const added = await store.addTrade({ sig, pool: t.pool, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6,
-        feeSol: Number(ev.feeLamports) / L, wallet: ev.trader, viaUi: !!REFERRAL && ev.referralTokenAccount === REFERRAL, ts: tradeTs, ...(devBuy ? { devBuy: true } : {}),
-        referralFeeLamports: !!REFERRAL && ev.referralTokenAccount === REFERRAL ? ev.referralFeeLamports : null });
-      if (added) await recordTrade({ sig, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6, ts: tradeTs });
-      if (added) await store.addActivity({ id: `trade:${sig}`, type: "trade", mint: t.mint, symbol: t.symbol, ts: tradeTs, amount: Number(ev.solLamports) / L, side: ev.side, wallet: ev.trader, sig: s.signature });
+      const viaUi = !!REFERRAL && ev.referralTokenAccount === REFERRAL;
+      swaps.push({ row: { sig, pool: t.pool, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6,
+        feeSol: Number(ev.feeLamports) / L, wallet: ev.trader, viaUi, ts: tradeTs, ...(devBuy ? { devBuy: true } : {}),
+        referralFeeLamports: viaUi ? ev.referralFeeLamports : null }, extra: swapExtra(ev, raw, t, viaUi), solLamports: ev.solLamports });
+    }
+    let added: boolean[];
+    if (ob) added = await dbTx((c) => ingestLandedTx(c, { sig: s.signature, raw, mint: t.mint, pool: t.pool, creator: t.creator, initInTx, swaps }));
+    else { added = []; for (const sw of swaps) added.push(await store.addTrade(sw.row)); }
+    for (const [k, sw] of swaps.entries()) {
+      if (!added[k]) continue;
+      const r = sw.row;
+      await recordTrade({ sig: r.sig, mint: t.mint, side: r.side, sol: r.sol, tokens: r.tokens, ts: r.ts });
+      await store.addActivity({ id: `trade:${r.sig}`, type: "trade", mint: t.mint, symbol: t.symbol, ts: r.ts, amount: r.sol, side: r.side, wallet: r.wallet, sig: s.signature });
     }
   }
   await store.setLastSig(t.pool, newest);
@@ -99,7 +115,7 @@ export async function indexOnce(log: (m: string) => void = console.log) {
         isMigrated, priceSol, mcapSol: priceSol * SUPPLY, name: meta.name, symbol: meta.symbol, uri: meta.uri,
         volumeSol: 0, volume24hSol: 0, trades: 0, creatorFeesSol: 0, feesSol: 0, updatedAt: Date.now(),
       };
-      await indexTrades(t, limit).catch((e) => log(`trades ${t.pool}: ${e.message}`));
+      await indexTrades(t, limit, log).catch((e) => log(`trades ${t.pool}: ${e.message}`));
       if (!t.createdAt) t.createdAt = Date.now();
       if (!prev) await store.addActivity({ id: `launch:${mint}`, type: "launch", mint, symbol: t.symbol, ts: t.createdAt });
       if (isMigrated && !prev?.isMigrated) await store.addActivity({ id: `graduate:${mint}`, type: "graduate", mint, symbol: t.symbol, ts: prev ? Date.now() : t.createdAt, amount: quoteReserveSol });

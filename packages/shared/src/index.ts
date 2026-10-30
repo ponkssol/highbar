@@ -183,6 +183,8 @@ export const networkOf = (v?: string | null): Network => (v === "mainnet" || v =
 const cluster = (n: Network) => (n === "devnet" ? "?cluster=devnet" : "");
 export const solscanTx = (sig: string, network: Network = "devnet") => `https://solscan.io/tx/${sig}${cluster(network)}`;
 export const solscanAccount = (addr: string, network: Network = "devnet") => `https://solscan.io/account/${addr}${cluster(network)}`;
+export const solscanToken = (mint: string, network: Network = "devnet") => `https://solscan.io/token/${mint}${cluster(network)}`;
+export const solscanBlock = (slot: number, network: Network = "devnet") => `https://solscan.io/block/${slot}${cluster(network)}`;
 /** Cashback + split + buyback period: one UTC day ('YYYY-MM-DD'). */
 export const REWARD_PERIOD_MS = 86_400_000;
 /** Buyback order caps (env overrides in apps/api: BUYBACK_MAX_ORDER_SOL, BUYBACK_MAX_SLIPPAGE_BPS, BUYBACK_MAX_PRICE_IMPACT_BPS). */

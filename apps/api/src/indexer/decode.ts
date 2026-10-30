@@ -15,7 +15,12 @@ const MIG_ACCTS = acctNames("migration_damm_v2");
 export type DbcEvent =
   | { kind: "swap"; pool: string; config: string; trader: string; side: "buy" | "sell"; solLamports: bigint; tokenAmount: bigint;
       feeLamports: bigint; feeBaseAmount: bigint; quoteReserve: bigint; referralTokenAccount?: string; hasReferral: boolean;
-      /** referral fee paid to the swap's referral account, in quote lamports (0 when the fee is collected in the base token) */ referralFeeLamports: bigint }
+      /** referral fee paid to the swap's referral account, in quote lamports (0 when the fee is collected in the base token) */ referralFeeLamports: bigint;
+      /** exact fee parts from the event in quote lamports (trading + protocol + referral = feeLamports); null when the fee is in the base token */
+      feeParts: { trading: bigint; protocol: bigint; referral: bigint } | null;
+      /** pool sqrt price (Q64.64) after the swap, from the event */ nextSqrtPrice: bigint;
+      /** swap ix params: amount_in / minimum_amount_out (swap) or amount_0 / amount_1 / swap_mode (swap2); null if the ix was not decoded */
+      params: { amount0: bigint; amount1: bigint; mode: number } | null }
   | { kind: "init"; pool: string; mint: string; config: string; creator: string; name: string; symbol: string; uri: string }
   | { kind: "complete"; pool: string }
   | { kind: "migrated"; pool: string; dammPool: string }
@@ -26,9 +31,13 @@ export type RawTx = {
   slot: number; blockTime: number | null;
   transaction: { signatures: string[]; message: { accountKeys: string[]; instructions: RawIx[] } };
   meta: { err: unknown; innerInstructions?: { index: number; instructions: RawIx[] }[] | null;
-          loadedAddresses?: { writable: string[]; readonly: string[] } | null } | null;
+          loadedAddresses?: { writable: string[]; readonly: string[] } | null;
+          /** kept for the per-trade cost breakdown (indexer/txCosts.ts); optional so older callers / fixtures still decode */
+          fee?: number; preBalances?: number[]; postBalances?: number[]; computeUnitsConsumed?: number | null } | null;
+  /** position of the tx in its block when the RPC returns it (Agave getTransaction `transactionIndex`), else absent */
+  transactionIndex?: number | null;
 };
-type RawIx = { programIdIndex: number; accounts: number[]; data: string };
+export type RawIx = { programIdIndex: number; accounts: number[]; data: string };
 
 const big = (v: any): bigint => BigInt(v?.toString?.() ?? v ?? 0);
 const field = (o: any, snake: string) => o[snake] ?? o[snake.replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase())];
@@ -43,6 +52,7 @@ export function decodeDbcEvents(tx: RawTx): DbcEvent[] {
 
   const out: DbcEvent[] = [];
   let lastSwapAccts: string[] | undefined;
+  let lastSwapParams: { amount0: bigint; amount1: bigint; mode: number } | null = null;
   let pendingSwap: { rank: number; ev: DbcEvent } | undefined;
   const flush = () => { if (pendingSwap) out.push(pendingSwap.ev); pendingSwap = undefined; };
   let lastInit: { accts: string[]; name: string; symbol: string; uri: string } | undefined;
@@ -63,7 +73,7 @@ export function decodeDbcEvents(tx: RawTx): DbcEvent[] {
           const a = lastSwapAccts ?? [];
           const referral = a[SWAP_ACCTS.indexOf("referral_token_account")];
           pendingSwap = { rank, ev: { kind: "swap", pool: d.pool.toBase58(), config: d.config.toBase58(), trader: a[SWAP_ACCTS.indexOf("payer")] ?? "",
-            ...s, hasReferral: !!field(d, "has_referral"), referralTokenAccount: referral && referral !== DBC ? referral : undefined } };
+            ...s, params: lastSwapParams, hasReferral: !!field(d, "has_referral"), referralTokenAccount: referral && referral !== DBC ? referral : undefined } };
           break;
         }
         case "EvtInitializePool": case "EvtInitializePoolWithTransferHook":
@@ -80,7 +90,13 @@ export function decodeDbcEvents(tx: RawTx): DbcEvent[] {
     flush();
     const dec = coder.instruction.decode(data);
     if (!dec) continue;
-    if (dec.name.startsWith("swap")) lastSwapAccts = accts;
+    if (dec.name.startsWith("swap")) {
+      lastSwapAccts = accts;
+      const p: any = (dec.data as any).params;
+      lastSwapParams = !p ? null : dec.name === "swap"
+        ? { amount0: big(field(p, "amount_in")), amount1: big(field(p, "minimum_amount_out")), mode: 0 }
+        : { amount0: big(field(p, "amount_0")), amount1: big(field(p, "amount_1")), mode: Number(field(p, "swap_mode") ?? 0) };
+    }
     else if (dec.name.startsWith("initialize_virtual_pool")) {
       const p: any = (dec.data as any).params; lastInit = { accts, name: p.name, symbol: p.symbol, uri: p.uri };
     } else if (dec.name === "migration_damm_v2") {
@@ -95,24 +111,27 @@ export function decodeDbcEvents(tx: RawTx): DbcEvent[] {
 /** trade_direction: 0 = BaseToQuote (sell), 1 = QuoteToBase (buy). Assumes quote = SOL and fees collected in quote. */
 function normalizeSwap(name: string, d: any) {
   const side: "buy" | "sell" = Number(field(d, "trade_direction")) === 1 ? "buy" : "sell";
-  let inAmt: bigint, outAmt: bigint, fee: bigint, quoteReserve: bigint, feeOnBase: boolean, refFee: bigint;
+  let inAmt: bigint, outAmt: bigint, fee: bigint, quoteReserve: bigint, feeOnBase: boolean, refFee: bigint, trading: bigint, protocol: bigint, nextSqrtPrice: bigint;
   if (name.startsWith("EvtSwap3")) {
     inAmt = big(field(d, "included_transfer_fee_amount_in")); outAmt = big(field(d, "excluded_transfer_fee_amount_out"));
-    refFee = big(field(d, "referral_fee"));
-    fee = big(field(d, "trading_fee")) + big(field(d, "protocol_fee")) + refFee;
+    refFee = big(field(d, "referral_fee")); trading = big(field(d, "trading_fee")); protocol = big(field(d, "protocol_fee"));
+    fee = trading + protocol + refFee;
     quoteReserve = big(field(d, "quote_reserve"));
+    nextSqrtPrice = big(field(d, "next_sqrt_price"));
     feeOnBase = !!field(d, "fee_on_base_token");
   } else {
     feeOnBase = false; // unknown for v1/v2 events; EvtSwap3 is emitted on current program and wins
     const r = field(d, "swap_result");
     inAmt = name.startsWith("EvtSwap2") ? big(field(r, "included_fee_input_amount")) : big(field(d, "amount_in"));
     outAmt = big(field(r, "output_amount"));
-    refFee = big(field(r, "referral_fee"));
-    fee = big(field(r, "trading_fee")) + big(field(r, "protocol_fee")) + refFee;
+    refFee = big(field(r, "referral_fee")); trading = big(field(r, "trading_fee")); protocol = big(field(r, "protocol_fee"));
+    fee = trading + protocol + refFee;
+    nextSqrtPrice = big(field(r, "next_sqrt_price"));
     quoteReserve = name.startsWith("EvtSwap2") ? big(field(d, "quote_reserve_amount")) : 0n;
   }
-  const fees = feeOnBase ? { feeLamports: 0n, feeBaseAmount: fee, referralFeeLamports: 0n } : { feeLamports: fee, feeBaseAmount: 0n, referralFeeLamports: refFee };
+  const fees = feeOnBase ? { feeLamports: 0n, feeBaseAmount: fee, referralFeeLamports: 0n, feeParts: null }
+    : { feeLamports: fee, feeBaseAmount: 0n, referralFeeLamports: refFee, feeParts: { trading, protocol, referral: refFee } };
   return side === "buy"
-    ? { side, solLamports: inAmt, tokenAmount: outAmt, quoteReserve, ...fees }
-    : { side, solLamports: outAmt, tokenAmount: inAmt, quoteReserve, ...fees };
+    ? { side, solLamports: inAmt, tokenAmount: outAmt, quoteReserve, nextSqrtPrice, ...fees }
+    : { side, solLamports: outAmt, tokenAmount: inAmt, quoteReserve, nextSqrtPrice, ...fees };
 }

@@ -26,6 +26,10 @@ import { launchConfigs, platformReferrals, resolveLaunchMint, validateLaunchTx, 
 import { db } from "./db/pool.js";
 import { registerScores } from "./routes/scores.js";
 import { registerSearch } from "./routes/search.js";
+import { registerOpenBook } from "./routes/openbook.js";
+import { startSnapshotLoop } from "./openbook/snapshot.js";
+import { resolveWallets } from "./openbook/wallets.js";
+import { jobs } from "./jobs/config.js";
 import { scoresStore } from "./services/scoresStore.js";
 import { runScores } from "./services/scoreJob.js";
 import { registerCandles } from "./candles/index.js";
@@ -84,6 +88,7 @@ registerCandles(app);
 registerMedia(app);
 registerScores(app);
 registerSearch(app);
+registerOpenBook(app);
 app.get("/health", async () => ({ ok: true, tokens: await store.tokenCount(), dryRun: DRY_RUN, time: Date.now() }));
 
 app.get("/tokens", async (req) => {
@@ -390,3 +395,5 @@ if (VANITY_MODE !== "off") startMintSweeper({ warn: (m) => app.log.warn(m), info
 
 await app.listen({ port: Number(process.env.PORT ?? 4000), host: process.env.HOST || "0.0.0.0" }); // Railway private networking: HOST=::
 if (process.env.NO_INDEXER !== "1") startIndexer((m) => app.log.info(m));
+// Open Book wallet cards: one getMultipleAccountsInfo per OPENBOOK_SNAPSHOT_MS (default 10 min, 0 = off), indexer replica only
+if (process.env.NO_INDEXER !== "1") startSnapshotLoop(db, getConnection, resolveWallets, () => jobs.barMint, (m) => app.log.warn(m));
