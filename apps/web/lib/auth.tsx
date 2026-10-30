@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAppKitProvider } from "@reown/appkit/react";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, Loader2, ShieldCheck, X } from "lucide-react";
 import { useHbWallet } from "./wallet";
 import { NETWORK } from "./settings";
 
@@ -27,39 +27,90 @@ function b58(bytes: Uint8Array) {
 function readToken(addr: string): string | null {
   try { const v = JSON.parse(localStorage.getItem(KEY(addr)) ?? "null"); return v && v.exp > Date.now() + 60_000 ? v.token : null; } catch { return null; }
 }
-interface SignerProvider { signMessage(msg: Uint8Array): Promise<Uint8Array | { signature: Uint8Array }> }
+interface SignerProvider { signMessage?: (msg: Uint8Array) => Promise<Uint8Array | { signature: Uint8Array }> }
+
+type AuthFailKind = "rejected" | "nonce" | "unsupported" | "verify" | "network" | "other";
+class AuthError extends Error { constructor(public kind: AuthFailKind, message: string) { super(message); } }
+
+/** True when the wallet reports that the user declined (EIP-1193 style code 4001 or a "rejected" message). */
+export function isUserRejection(e: unknown): boolean {
+  const err = e as { code?: unknown; message?: unknown; error?: { code?: unknown; message?: unknown } } | null;
+  const code = err?.code ?? err?.error?.code;
+  if (code === 4001 || code === "4001" || code === "ACTION_REJECTED") return true;
+  const msg = String(err?.message ?? err?.error?.message ?? (typeof e === "string" ? e : ""));
+  return /user rejected|rejected|denied by the user|user denied/i.test(msg);
+}
+
+const short = (s: string) => (s.length > 160 ? `${s.slice(0, 157)}...` : s);
+async function errorText(r: Response): Promise<string> {
+  try {
+    const t = await r.text();
+    try { const j = JSON.parse(t); const m = j?.error ?? j?.message; if (typeof m === "string" && m) return short(m); } catch {}
+    return short(t.trim() || r.statusText || "no details");
+  } catch { return r.statusText || "no details"; }
+}
+
+/** Map any sign-in failure to a user-facing title/detail. Never includes the signature, nonce or token. */
+export function describeAuthFailure(e: unknown): { rejected: boolean; title: string; detail: string } {
+  if (e instanceof AuthError) {
+    switch (e.kind) {
+      case "rejected": return { rejected: true, title: "Sign-in cancelled", detail: "You declined the signature request. Your wallet is connected but not verified." };
+      case "nonce": return { rejected: false, title: "Couldn't start sign-in", detail: `Nonce request failed: ${e.message}` };
+      case "unsupported": return { rejected: false, title: "Wallet can't sign messages", detail: "This wallet doesn't support message signing. Try Phantom, Solflare or Backpack." };
+      case "verify": return { rejected: false, title: "Verification failed", detail: e.message };
+      case "network": return { rejected: false, title: "Network error", detail: e.message };
+      default: return { rejected: false, title: "Sign-in failed", detail: e.message };
+    }
+  }
+  if (isUserRejection(e)) return describeAuthFailure(new AuthError("rejected", "rejected"));
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  return { rejected: false, title: "Sign-in failed", detail: short(msg || "Unknown wallet error.") };
+}
+
+type Toast = null | { kind: "prompt" } | { kind: "signing" } | { kind: "done" } | { kind: "error"; rejected: boolean; title: string; detail: string };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useHbWallet();
   const { walletProvider } = useAppKitProvider<SignerProvider>("solana");
   const [status, setStatus] = useState<AuthStatus>("disconnected");
   const [token, setToken] = useState<string | null>(null);
-  const [toast, setToast] = useState<null | "signing" | "cancelled" | "done">(null);
+  const [toast, setToast] = useState<Toast>(null);
   const prev = useRef<string | null>(null);
   const inflight = useRef<Promise<boolean> | null>(null);
 
   const signIn = useCallback(async () => {
-    if (!address || !walletProvider) return false;
+    if (!address) return false;
     if (inflight.current) return inflight.current;
     const run = (async () => {
-      setStatus("signing"); setToast("signing");
+      setStatus("signing"); setToast({ kind: "signing" });
       try {
-        const n = await fetch(`/hb-api/auth/nonce?address=${address}`, { cache: "no-store" });
-        if (!n.ok) throw new Error("nonce");
-        const { nonce } = await n.json();
-        const message = `highbar wants you to sign in with your Solana account:\n${address}\n\nSign in to highbar. This does not cost any SOL.\n\nURI: ${window.location.origin}\nNetwork: ${NETWORK}\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}`;
-        const res = await walletProvider.signMessage(new TextEncoder().encode(message));
-        const sig = res instanceof Uint8Array ? res : res.signature;
-        const v = await fetch("/hb-api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address, message, signature: b58(sig) }) });
-        if (!v.ok) throw new Error("verify");
-        const j = await v.json();
+        if (!walletProvider || typeof walletProvider.signMessage !== "function") throw new AuthError("unsupported", "signMessage unavailable");
+        let n: Response;
+        try { n = await fetch(`/hb-api/auth/nonce?address=${address}`, { cache: "no-store" }); }
+        catch { throw new AuthError("nonce", "API unreachable"); }
+        if (!n.ok) throw new AuthError("nonce", `HTTP ${n.status}: ${await errorText(n)}`);
+        const nj = (await n.json().catch(() => null)) as { nonce?: unknown } | null;
+        if (!nj || typeof nj.nonce !== "string" || !nj.nonce) throw new AuthError("nonce", "malformed nonce response");
+        const message = `highbar wants you to sign in with your Solana account:\n${address}\n\nSign in to highbar. This does not cost any SOL.\n\nURI: ${window.location.origin}\nNetwork: ${NETWORK}\nNonce: ${nj.nonce}\nIssued At: ${new Date().toISOString()}`;
+        let res: Uint8Array | { signature: Uint8Array };
+        try { res = await walletProvider.signMessage(new TextEncoder().encode(message)); }
+        catch (e) { if (isUserRejection(e)) throw new AuthError("rejected", "rejected"); throw e; }
+        const sig = res instanceof Uint8Array ? res : res?.signature;
+        if (!(sig instanceof Uint8Array) || sig.length === 0) throw new AuthError("other", "Wallet returned no signature.");
+        let v: Response;
+        try { v = await fetch("/hb-api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address, message, signature: b58(sig) }) }); }
+        catch { throw new AuthError("network", "Couldn't reach the API to verify the signature."); }
+        if (!v.ok) throw new AuthError("verify", `Server returned ${v.status}: ${await errorText(v)}`);
+        const j = (await v.json().catch(() => null)) as { token?: unknown; exp?: unknown } | null;
+        if (!j || typeof j.token !== "string") throw new AuthError("verify", "Server returned no session token.");
         localStorage.setItem(KEY(address), JSON.stringify({ token: j.token, exp: j.exp }));
-        setToken(j.token); setStatus("verified"); setToast("done");
-        setTimeout(() => setToast((t) => (t === "done" ? null : t)), 1800);
+        setToken(j.token); setStatus("verified"); setToast({ kind: "done" });
+        setTimeout(() => setToast((t) => (t?.kind === "done" ? null : t)), 1800);
         return true;
       } catch (e) {
-        console.warn("[auth] sign-in failed", e);
-        setStatus("unverified"); setToast("cancelled");
+        const d = describeAuthFailure(e);
+        console.warn(`[auth] sign-in failed: ${d.title} - ${d.detail}`);
+        setStatus("unverified"); setToast({ kind: "error", ...d });
         return false;
       } finally { inflight.current = null; }
     })();
@@ -67,6 +118,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return run;
   }, [address, walletProvider]);
 
+  // On connect we do NOT pop signMessage automatically: firing it while the AppKit connect modal is still
+  // closing races the wallet popup (wallets often auto-reject or the popup is lost), which surfaced as a
+  // bogus "Sign-in cancelled". Instead we show a "Verify wallet" prompt (explicit user gesture), and every
+  // auth-needed action (trade, launch, claim) calls ensureVerified(), which signs on demand.
   useEffect(() => {
     if (!isConnected || !address) {
       if (prev.current) { try { localStorage.removeItem(KEY(prev.current)); } catch {} }
@@ -76,28 +131,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (prev.current === address) return;
     prev.current = address;
     const t = readToken(address);
-    if (t) { setToken(t); setStatus("verified"); return; }
+    if (t) { setToken(t); setStatus("verified"); setToast(null); return; }
     setToken(null); setStatus("unverified");
-    if (walletProvider) void signIn();
-  }, [isConnected, address, walletProvider, signIn]);
+    const a = address;
+    // Let the connect modal finish closing first; skip if the wallet changed/disconnected meanwhile.
+    setTimeout(() => { if (prev.current === a) setToast((cur) => (cur ? cur : { kind: "prompt" })); }, 600);
+  }, [isConnected, address]);
 
   const ensureVerified = useCallback(async () => (status === "verified" ? true : signIn()), [status, signIn]);
+
+  const icon = !toast ? null
+    : toast.kind === "signing" ? <Loader2 size={15} className="animate-spin" />
+    : toast.kind === "done" ? <Check size={15} />
+    : toast.kind === "prompt" ? <ShieldCheck size={15} />
+    : <X size={15} />;
+  const title = !toast ? "" : toast.kind === "signing" ? "Approve sign-in in your wallet" : toast.kind === "done" ? "Signed in" : toast.kind === "prompt" ? "Verify your wallet" : toast.title;
+  const detail = !toast ? "" : toast.kind === "signing" ? "Sign the message to verify you own this wallet. No SOL is spent."
+    : toast.kind === "done" ? "Wallet verified for 24 hours."
+    : toast.kind === "prompt" ? "Sign a free message to trade, launch and claim. No SOL is spent."
+    : toast.detail;
 
   return (
     <Ctx.Provider value={{ status, token, signIn, ensureVerified }}>
       {children}
       {toast && (
-        <div className="fixed bottom-5 right-5 z-50 flex w-[320px] items-start gap-3 rounded-lg border border-border bg-surface p-4 shadow-card">
-          <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${toast === "cancelled" ? "bg-muted text-sell" : toast === "done" ? "bg-muted text-buy" : "bg-muted text-ink"}`}>
-            {toast === "signing" ? <Loader2 size={15} className="animate-spin" /> : toast === "done" ? <Check size={15} /> : <X size={15} />}
+        <div role="status" className="fixed bottom-5 right-5 z-50 flex w-[320px] items-start gap-3 rounded-lg border border-border bg-surface p-4 shadow-card">
+          <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${toast.kind === "error" ? "bg-muted text-sell" : toast.kind === "done" ? "bg-muted text-buy" : "bg-muted text-ink"}`}>
+            {icon}
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold">{toast === "signing" ? "Approve sign-in in your wallet" : toast === "done" ? "Signed in" : "Sign-in cancelled"}</div>
-            <div className="mt-0.5 text-xs text-ink-3">{toast === "signing" ? "Sign the message to verify you own this wallet. No SOL is spent." : toast === "done" ? "Wallet verified for 24 hours." : "Your wallet is connected but not verified."}</div>
-            {toast === "cancelled" && (
+            <div className="text-sm font-semibold">{title}</div>
+            <div className="mt-0.5 break-words text-xs text-ink-3">{detail}</div>
+            {(toast.kind === "error" || toast.kind === "prompt") && (
               <div className="mt-3 flex gap-2">
-                <button onClick={() => void signIn()} className="h-8 rounded-full bg-ink px-3 text-xs font-medium text-on-ink hover:opacity-90">Retry</button>
-                <button onClick={() => setToast(null)} className="h-8 rounded-full border border-border px-3 text-xs text-ink-2 hover:bg-muted">Dismiss</button>
+                <button onClick={() => void signIn()} className="h-8 rounded-full bg-ink px-3 text-xs font-medium text-on-ink hover:opacity-90">{toast.kind === "prompt" ? "Verify wallet" : "Retry"}</button>
+                <button onClick={() => setToast(null)} className="h-8 rounded-full border border-border px-3 text-xs text-ink-2 hover:bg-muted">{toast.kind === "prompt" ? "Later" : "Dismiss"}</button>
               </div>
             )}
           </div>
