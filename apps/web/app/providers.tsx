@@ -4,7 +4,7 @@ import { createAppKit, type AppKit } from "@reown/appkit/react";
 import { SolanaAdapter } from "@reown/appkit-adapter-solana/react";
 import { solana, solanaDevnet } from "@reown/appkit/networks";
 import { AuthProvider } from "@/lib/auth";
-import { NETWORK } from "@/lib/settings";
+import { NETWORK, setNetwork } from "@/lib/settings";
 
 // Node 25 exposes localStorage without a file path. Reading it during SSR warns.
 if (typeof window === "undefined") {
@@ -40,7 +40,7 @@ function initAppKit(projectId: string) {
   if (modal || typeof window === "undefined") return;
   modal = createAppKit({
     adapters: [new SolanaAdapter()],
-    // One cluster per deployment (NEXT_PUBLIC_NETWORK, inlined at build): a mainnet build never offers devnet and vice versa.
+    // One cluster per deployment (server NETWORK env, passed in at runtime): mainnet never offers devnet and vice versa.
     networks: [NETWORK === "mainnet" ? solana : solanaDevnet],
     defaultNetwork: NETWORK === "mainnet" ? solana : solanaDevnet,
     projectId,
@@ -51,7 +51,8 @@ function initAppKit(projectId: string) {
   });
 }
 
-export function Providers({ children, reownProjectId, rpcUrl }: { children: ReactNode; reownProjectId?: string; rpcUrl?: string }) {
+export function Providers({ children, reownProjectId, rpcUrl, network }: { children: ReactNode; reownProjectId?: string; rpcUrl?: string; network?: string }) {
+  setNetwork(network); // before initAppKit and before any child reads NETWORK
   const ready = !!reownProjectId;
   if (ready) initAppKit(reownProjectId!);
 

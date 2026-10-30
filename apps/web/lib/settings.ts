@@ -37,9 +37,13 @@ export function useSettings() {
   return [s, update] as const;
 }
 
-/** Cluster from NEXT_PUBLIC_NETWORK (inlined at build); anything but mainnet/mainnet-beta is devnet. */
-export const NETWORK: "devnet" | "mainnet" =
-  process.env.NEXT_PUBLIC_NETWORK === "mainnet" || process.env.NEXT_PUBLIC_NETWORK === "mainnet-beta" ? "mainnet" : "devnet";
+export type Network = "devnet" | "mainnet";
+/** anything but mainnet/mainnet-beta is devnet */
+export const normNetwork = (v?: string | null): Network => (v === "mainnet" || v === "mainnet-beta" ? "mainnet" : "devnet");
+/** Cluster. Set at runtime from the server's NETWORK env: the root layout passes it to <Providers>, which calls setNetwork()
+ *  before any child renders. `export let` is a live binding, so every importer sees the current value. */
+export let NETWORK: Network = "devnet";
+export function setNetwork(n?: string | null) { NETWORK = normNetwork(n); }
 const q = (ex: Explorer) => (NETWORK === "mainnet" ? "" : ex === "solanafm" ? "?cluster=devnet-solana" : "?cluster=devnet");
 
 export function explorerTx(sig: string, ex: Explorer = getSettings().explorer) {

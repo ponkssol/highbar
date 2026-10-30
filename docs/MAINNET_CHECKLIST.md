@@ -152,7 +152,7 @@ For each service:
 
 Also:
 - `SITE_URL` and `CORS_ORIGIN` are the final https web domain. Token metadata URIs are built from `SITE_URL`, so set the custom domain **before** the first launch.
-- `NEXT_PUBLIC_NETWORK=mainnet` is read at web **build** time. Redeploy the web after changing it.
+- Web `NETWORK=mainnet` is read by the web server at runtime (no build-time env vars); a restart applies a change.
 - `REOWN_PROJECT_ID`: add the web domain to the Reown project's allowlist.
 
 ## 7. Deploy and go-live order [BLOCKER]
