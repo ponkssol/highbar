@@ -5,7 +5,7 @@
 ---
 
 ## 1. Concept
-**Higher Bar** is a pump.fun-style Solana memecoin launchpad where **creators choose their own bonding/migration target** at launch, instead of a fixed ~70 SOL (~$40-50k mcap). Higher targets mean deeper liquidity at migration and a "raise the bar" culture.
+**Higher Bar** is a pump.fun-style Solana memecoin launchpad where **creators choose their own bonding/migration target** at launch, instead of a fixed ~85 SOL (~$40-50k mcap). Higher targets mean deeper liquidity at migration and a "raise the bar" culture.
 - Ticker: **$BAR**. Narrative: "Raise the bar. Set a better standard."
 - Original idea credit: **ContextChain** (keep a credits section on the site).
 - Built on **Meteora Dynamic Bonding Curve (DBC)**: no custom smart contract.
