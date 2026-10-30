@@ -29,6 +29,8 @@ export const jobs = {
   maxOrder: lamports("BUYBACK_MAX_ORDER_SOL", BUYBACK_DEFAULTS.maxOrderSol),
   maxOrdersPerRun: Math.max(1, num("BUYBACK_MAX_ORDERS_PER_RUN", BUYBACK_DEFAULTS.maxOrdersPerRun)),
   orderDelayMs: num("BUYBACK_ORDER_DELAY_MS", 60_000),
+  /** SOL the buyback wallet always keeps (tx fees, ATA / WSOL rent) on top of its unpaid cashback / LP rebate / fee share. */
+  buybackReserve: lamports("BUYBACK_WALLET_RESERVE_SOL", 0.05),
   maxSlippageBps: num("BUYBACK_MAX_SLIPPAGE_BPS", BUYBACK_DEFAULTS.maxSlippageBps),
   maxPriceImpactBps: num("BUYBACK_MAX_PRICE_IMPACT_BPS", BUYBACK_DEFAULTS.maxPriceImpactBps),
   /** Mock buyback (devnet): SOL per whole mock $HIGHER, and where the "spent" SOL goes (default: stays with the platform keypair). */

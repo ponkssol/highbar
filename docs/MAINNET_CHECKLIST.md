@@ -218,6 +218,7 @@ Also:
     `pnpm --filter @hb/api jobs:buyback -- --live --budget-sol 0.01`
     Run it with mainnet env in the shell, `ALLOW_MAINNET=true` for that one command only.
   - Keep `BUYBACK_MAX_ORDER_SOL` small.
+  - Catch-up: the epoch buys back the UNSPENT buyback split of ALL closed periods (migration 0011, `services/buybackLedger.ts`), so the first live epoch after $HIGHER is detected starts draining everything accrued before launch, at most `BUYBACK_MAX_ORDER_SOL` x `BUYBACK_MAX_ORDERS_PER_RUN` per run. Check the backlog first with a dry-run epoch. Fund the platform key: it never spends below its balance - `BUYBACK_WALLET_RESERVE_SOL` (default 0.05) - unpaid cashback / LP rebates / fee share; the rest waits in the backlog. Manual `--budget-sol` buys count against the backlog.
 - **$HIGHER fee share payouts** [NICE]: keep `BAR_FEE_SHARE_LIVE=false` until the legal review.
 - **Referral and milestone payouts** [NICE]: run them dry-run by hand first (`jobs:referral`, `jobs:milestone`). Add cron services later.
 - **User referral funds flow** [NICE]: referrers are paid only from the referral wallet's swap-referral income (20% of Meteora's protocol fee, ~0.04% of curve volume), never from the platform share.

@@ -3,7 +3,8 @@
  *  Dry-run (DRY_RUN unset/true, or --dry-run) simulates every tx and writes nothing. --live (or DRY_RUN=false) sends; mainnet also needs ALLOW_MAINNET=true.
  *  lprebate = accrue the creator LP rebate on new damm_lp fee claims and pay creators at or above LP_REBATE_MIN_PAYOUT_SOL (services/lpRebate.ts).
  *  epoch = claim fees -> creator LP rebate -> accrue + pay cashback for the closed period -> close the split (rebate, cashback, then 40/50/10)
- *  -> buy back & burn the buyback share.
+ *  -> buy back & burn from the buyback ledger: the unspent buyback share of ALL closed periods (services/buybackLedger.ts), so the first
+ *  live run after $HIGHER is detected catches up on everything accrued before launch, capped per order / per run.
  *  $HIGHER utility (step 8, BAR_MINT set): cashback adds the holder boost; barsnap = store a $HIGHER holder snapshot (run hourly);
  *  feeshare = accrue the holder fee share for a closed period (after epoch) and pay it (payouts also need BAR_FEE_SHARE_LIVE=true). */
 import { referralWallet, loadPlatformKeypair } from "@hb/onchain";
@@ -14,6 +15,7 @@ import { computeAccruals, payCashback, writeAccruals } from "../services/cashbac
 import { closePeriod, previewSplit } from "../services/treasury.js";
 import { estimateRebates, runLpRebate, type Excluded } from "../services/lpRebate.js";
 import { runBuyback } from "../services/buyback.js";
+import { whenLaunched } from "../services/buybackLedger.js";
 import { jobs } from "./config.js";
 import { assertCluster, show, sleep } from "./chain.js";
 import { isClosed, period } from "./period.js";
@@ -66,13 +68,15 @@ async function once() {
   }
   if (cmd === "buyback" || cmd === "epoch") {
     // --budget-sol = manual buyback: spends that amount without closing the period's split.
-    // dry-run: this run's fee claims / cashback accruals were not written, so the preview adds them.
+    // dry-run: this run's fee claims / cashback accruals were not written, so the preview adds them (and its unwritten split).
+    // Default: spend the ledger backlog (all closed periods' buyback split - non-failed buybacks); BAR unset = accrue only.
     const override = opt("budget-sol");
     const split = live && override === undefined ? await closePeriod(p) : await previewSplit(p, accrued, wouldClaim, extraRebate);
     res.split = split;
     const budget = override !== undefined ? BigInt(Math.round(Number(override) * 1e9)) : split.buyback;
     if (override !== undefined && !(Number(override) >= 0)) throw new Error("--budget-sol must be >= 0");
-    res.buyback = jobs.barMint ? await runBuyback({ period: p.id, budget, payer, live, log }) : "$HIGHER not launched yet: buyback budget accrues only";
+    res.buyback = await whenLaunched(jobs.barMint, () => runBuyback({ period: p.id, payer, live, log,
+      manualBudget: override !== undefined ? budget : undefined, previewExtra: !live && !split.existing ? split.buyback : 0n }));
   }
   if (cmd === "barsnap") {
     const m = await barMint(), holders = await barHolders(), at = Date.now();
