@@ -14,6 +14,8 @@
     "jobs:cashback": "tsx src/jobs/run.ts cashback",
     "jobs:buyback": "tsx src/jobs/run.ts buyback",
     "jobs:epoch": "tsx src/jobs/run.ts epoch",
+    "jobs:barsnap": "tsx src/jobs/run.ts barsnap",
+    "jobs:feeshare": "tsx src/jobs/run.ts feeshare",
     "bar:mock-mint": "tsx src/jobs/createMockBar.ts"
   },
   "dependencies": {
