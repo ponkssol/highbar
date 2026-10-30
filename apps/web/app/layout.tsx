@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageShell } from "@/components/PageShell";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileHeader } from "@/components/MobileHeader";
+import { ReferralCapture } from "@/components/ReferralCapture";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Sidebar />
           <main className="min-h-screen p-[14px] pb-[calc(80px+env(safe-area-inset-bottom))] md:ml-sidebar md:p-4 md:pb-4"><PageShell><MobileHeader />{children}</PageShell></main>
           <BottomNav />
+          <ReferralCapture />
         </Providers>
       </body>
     </html>
