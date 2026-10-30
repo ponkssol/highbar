@@ -7,7 +7,7 @@ export const apiBase = () => (typeof window === "undefined" ? process.env.API_UR
 export interface ApiToken {
   mint: string; pool: string; config: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
   quoteReserveSol: number; thresholdSol: number; progress: number; isMigrated: boolean; priceSol: number; mcapSol: number; mcapUsd: number;
-  name: string; symbol: string; uri: string; image?: string | null; devLocked?: boolean; unlockAt?: number | null; volumeSol: number; volume24hSol: number; trades: number; creatorFeesSol: number;
+  name: string; symbol: string; uri: string; image?: string | null; devLocked?: boolean; unlockAt?: number | null; score?: number | null; scoreLabel?: string | null; volumeSol: number; volume24hSol: number; trades: number; creatorFeesSol: number;
 }
 export interface ApiStats {
   totalTokens: number; graduated: number; graduatedPct: number;

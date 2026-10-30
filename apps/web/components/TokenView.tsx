@@ -15,12 +15,15 @@ import { Price, TierBadge, TierDot } from "./ui";
 import { DeltaPill } from "./StatsPanel";
 import { DevLock, LockedBadge } from "./DevLock";
 import { DevLockedBadge } from "./DevLockedBadge";
+import { ScoreBadge } from "./ScoreBadge";
+import { ScoreCard } from "./ScoreCard";
+import { explorerTx } from "@/lib/settings";
 import { useLocks, type LocksResp } from "@/lib/lock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
-  mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; priceUsd?: number; image?: string | null; change24h: number; holders: number; now: number; devLocked?: boolean; unlockAt?: number | null;
+  mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; priceUsd?: number; image?: string | null; change24h: number; holders: number; now: number; devLocked?: boolean; unlockAt?: number | null; score?: number | null;
   trades: { sig: string; side: "buy" | "sell"; sol: number; tokens: number; wallet: string; ts: number; devBuy?: boolean }[];
 }
 
@@ -49,6 +52,7 @@ function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
                 <TierBadge tier={t.tier} />
                 {t.antiSniper && <span title="Anti-sniper" className="inline-flex items-center gap-1 text-xs text-ink-3"><ShieldCheck size={12} strokeWidth={1.75} />anti-sniper</span>}
                 {t.devLocked ? <span data-testid="locked-badge"><DevLockedBadge devLocked unlockAt={t.unlockAt} /></span> : <LockedBadge data={locks} />}
+                <ScoreBadge score={t.score} />
               </div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -138,7 +142,7 @@ function Tabs({ t }: { t: TokenViewData }) {
                   <td className="num px-4 text-right">{tr.sol}</td>
                   <td className="num px-4 text-right">{tr.tokens.toLocaleString("en-US")}</td>
                   <td className="num px-4 text-ink-2">{shortAddr(tr.wallet)}</td>
-                  <td className="px-4 text-right"><a href={`https://solscan.io/tx/${tr.sig}?cluster=devnet`} target="_blank" rel="noreferrer" className="text-ink-3 hover:text-ink"><ExternalLink size={14} /></a></td>
+                  <td className="px-4 text-right"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" className="text-ink-3 hover:text-ink"><ExternalLink size={14} /></a></td>
                 </tr>
               ))}
             </tbody>
@@ -185,6 +189,7 @@ export function TokenView({ t }: { t: TokenViewData }) {
           <div className="hidden md:block">{panel()}</div>
           <DevLock mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks.data} reload={locks.reload} />
           <Bonding t={t} />
+          <ScoreCard mint={t.mint} />
           <FeeBreakdown tier={t.tier} />
           <Stats t={t} />
         </div>

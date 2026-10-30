@@ -6,6 +6,7 @@ import { getClient, getConnection, allTierConfigEntries, referralAta, sleep, wit
 import { decodeDbcEvents, type RawTx } from "./decode.js";
 import { store, type Token } from "../store.js";
 import { recordTrade } from "../candles/index.js";
+import { scoresStore } from "../services/scoresStore.js";
 
 /** RPC-polling indexer (state in Postgres). Pool state via getPoolsByConfig; swaps via the backup's decode.ts (EvtSwap3). */
 const METAPLEX = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
@@ -101,6 +102,7 @@ export async function indexOnce(log: (m: string) => void = console.log) {
       // creator share of the non-protocol (80%) part of curve fees
       t.creatorFeesSol = t.feesSol * 0.8 * (creatorPct / 100);
       await store.upsertToken(t);
+      if (isMigrated && !prev?.isMigrated) await scoresStore.markMigrated(mint, prev ? Date.now() : t.createdAt);
     }
   }
   await store.trimActivity();
