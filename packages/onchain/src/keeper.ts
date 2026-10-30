@@ -2,6 +2,7 @@ import { DAMM_V2_MIGRATION_FEE_ADDRESS } from "@meteora-ag/dynamic-bonding-curve
 import { PublicKey, type Keypair } from "@solana/web3.js";
 import { deriveBaseKeyForLocker, deriveLockerEscrowAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { getClient, getConnection, indexableConfigEntries, isMain, network, loadPlatformKeypair, sendTx, unfilledEnv, withRetry } from "./client.js";
+import { HotTracker, keeperLoopConfig, nextDelaySec, ttlCache, type KeeperPoolView } from "./keeperLoop.js";
 
 /** DRY_RUN defaults to true; set DRY_RUN=false to actually send. */
 export const DRY_RUN = (process.env.DRY_RUN ?? "true").toLowerCase() !== "false";
@@ -35,36 +36,56 @@ export async function migratePool(publicKey: PublicKey, config: NonNullable<Awai
   }
 }
 
-export async function runKeeperOnce(): Promise<KeeperResult[]> {
+type PoolConfig = NonNullable<Awaited<ReturnType<ReturnType<typeof getClient>["state"]["getPoolConfig"]>>>;
+/** DBC pool configs are immutable once created: one getAccountInfo per config per hour, not per pass. */
+const configCache = ttlCache<string, PoolConfig>(3_600_000);
+
+export async function runKeeperOnce(): Promise<KeeperResult[]> { return (await runKeeperPass()).results; }
+
+/** One keeper pass: migrate every completed curve. `pools` = every curve seen (for the fast lane), `pendingLive` = completed
+ *  curves a live pass did not migrate (error) and should retry soon. */
+export async function runKeeperPass(): Promise<{ results: KeeperResult[]; pools: KeeperPoolView[]; pendingLive: number }> {
   const client = getClient();
-  const conn = getConnection();
   const only = (process.env.KEEPER_CONFIGS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const all = indexableConfigEntries(); // mainnet: configs.mainnet.json only (never env / test / devnet configs)
   const entries = only.length ? all.filter(([k, a]) => only.includes(k) || only.includes(a)) : all;
   const results: KeeperResult[] = [];
+  const seen: KeeperPoolView[] = [];
+  let pendingLive = 0;
   const payer = DRY_RUN ? null : loadPlatformKeypair();
 
   for (const [key, addr] of entries) {
     const configPk = new PublicKey(addr);
-    const config = await client.state.getPoolConfig(configPk);
+    const config = await configCache(addr, () => client.state.getPoolConfig(configPk));
     if (!config) continue;
     const pools = await withRetry(() => client.state.getPoolsByConfig(configPk), 6, 1500); // getProgramAccounts is rate-limited on public RPC
     for (const { publicKey, account } of pools) {
       const id = publicKey.toBase58();
-      if (Number(account.poolState.isMigrated) !== 0) continue; // idempotent: already migrated
+      const migrated = Number(account.poolState.isMigrated) !== 0;
+      seen.push({ pool: id, quoteReserve: BigInt(account.poolState.quoteReserve.toString()), threshold: BigInt(config.migrationQuoteThreshold.toString()), migrated });
+      if (migrated) continue; // idempotent: already migrated
       if (account.poolState.quoteReserve.lt(config.migrationQuoteThreshold)) continue; // curve not complete
-      results.push(await migratePool(publicKey, config, key, payer));
+      const r = await migratePool(publicKey, config, key, payer);
+      if (!DRY_RUN && r.action !== "migrated") pendingLive++;
+      results.push(r);
 
     }
   }
-  return results;
+  return { results, pools: seen, pendingLive };
 }
 
-// CLI: tsx src/keeper.ts [--loop 30]
+// CLI: tsx src/keeper.ts [--loop [SEC]]   (no --loop = one pass; interval precedence in keeperLoop.ts:
+//   --loop N  >  KEEPER_LOOP_SEC  >  900 s; KEEPER_HOT_LOOP_SEC (30 s) while a curve is about to graduate)
 if (isMain(import.meta.url)) {
-  const i = process.argv.indexOf("--loop");
-  const loopSec = i >= 0 ? Number(process.argv[i + 1] ?? 30) : 0;
-  const tick = async () => console.log(new Date().toISOString(), DRY_RUN ? "[DRY_RUN]" : "", JSON.stringify(await runKeeperOnce()));
+  const loop = keeperLoopConfig();
+  const hotTracker = new HotTracker(loop.hotPct);
+  let hot = false;
+  const tick = async () => {
+    const r = await runKeeperPass();
+    hot = hotTracker.update(r.pools, r.pendingLive);
+    console.log(new Date().toISOString(), DRY_RUN ? "[DRY_RUN]" : "", JSON.stringify(r.results), loop.loopSec ? `next pass in ${nextDelaySec(loop, hot)}s` : "");
+  };
+  if (loop.loopSec) console.log(`keeper: every ${loop.loopSec}s, every ${loop.hotSec}s while a curve is >= ${loop.hotPct * 100}% and trading or a migration is pending`);
   (async () => {
     const unfilled = unfilledEnv();
     if (unfilled.length) { console.error(`placeholder <FILL_ME> left in: ${unfilled.join(", ")}`); process.exit(1); }
@@ -74,8 +95,8 @@ if (isMain(import.meta.url)) {
       if (g !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") { console.error(`RPC is not mainnet (genesis ${g})`); process.exit(1); }
     }
     do {
-      try { await tick(); } catch (e) { console.error(e); }
-      if (loopSec) await new Promise((r) => setTimeout(r, loopSec * 1000));
-    } while (loopSec);
+      try { await tick(); } catch (e) { console.error(e); hot = true; } // RPC error: retry on the fast lane
+      if (loop.loopSec) await new Promise((r) => setTimeout(r, nextDelaySec(loop, hot) * 1000));
+    } while (loop.loopSec);
   })();
 }

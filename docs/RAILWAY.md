@@ -14,7 +14,7 @@ api / jobs / keeper run via `tsx`, web transpiles `@hb/shared` (`transpilePackag
 |---|---|---|---|---|---|
 | api | `apps/api/**`, `packages/**`, `pnpm-lock.yaml`, `package.json` | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/api start` · Pre-deploy: `pnpm --filter @hb/api db:migrate` · restart ON_FAILURE | `deploy/mainnet/api.env.template` | `/health` (timeout 120 s) |
 | web | `apps/web/**`, `packages/shared/**`, `pnpm-lock.yaml`, `package.json` | `pnpm install --frozen-lockfile && pnpm --filter @hb/web build` | `pnpm --filter @hb/web start` (`next start`: reads `$PORT`, binds 0.0.0.0) · restart ON_FAILURE | `deploy/mainnet/web.env.template` | `/` (timeout 120 s) |
-| keeper | `packages/**`, `pnpm-lock.yaml`, `package.json` | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/onchain run keeper --loop 30` · restart ALWAYS | `deploy/mainnet/keeper.env.template` | none (worker) |
+| keeper | `packages/**`, `pnpm-lock.yaml`, `package.json` | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/onchain run keeper --loop` · restart ALWAYS (interval: `--loop N` > `KEEPER_LOOP_SEC` > 900 s; 30 s fast lane near graduation) | `deploy/mainnet/keeper.env.template` | none (worker) |
 | jobs-epoch | `apps/api/**`, `packages/**`, `pnpm-lock.yaml`, `package.json` | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/api jobs:epoch` · cron `15 0 * * *` (00:15 UTC = 07:15 WIB daily) · restart NEVER | `deploy/mainnet/jobs.env.template` | none (cron) |
 | jobs-barsnap | `apps/api/**`, `packages/**`, `pnpm-lock.yaml`, `package.json` | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/api jobs:barsnap` · cron `5 * * * *` (minute 5 of every hour, UTC/WIB alike) · restart NEVER | `deploy/mainnet/jobs.env.template` | none (cron) |
 

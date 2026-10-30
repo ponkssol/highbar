@@ -64,7 +64,7 @@ spl-token address --token So11111111111111111111111111111111111111112 --owner <R
   - a **browser** endpoint for the web service's `RPC_URL`, locked to your web domain via the endpoint's **Security** settings (referrer/domain whitelist). The web RPC URL is visible to every visitor.
 - Check the plan:
   - `getProgramAccounts` must be allowed. The indexer and the `$HIGHER` barsnap/feeshare jobs use it.
-  - The plan's requests-per-second limit must cover indexer polling (30 s), keeper (30 s), jobs and browser traffic.
+  - The plan's requests-per-second limit must cover indexer polling (30 s for active pools), keeper (900 s, 30 s while a curve is about to graduate), jobs and browser traffic.
 - WebSocket (`wss://…`) is not used by the code today, so `RPC_WS_URL` is optional.
 - The public `api.mainnet-beta.solana.com` is refused by the API startup check and by `createConfigs --send`. It also returns 429 on `getProgramAccounts`, which the indexer and the $HIGHER jobs need.
 
@@ -129,7 +129,7 @@ cd ..\..
 |---|---|---|---|
 | api | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/api start` | Pre-deploy `pnpm --filter @hb/api db:migrate`; healthcheck `/health`; **Networking → Generate Domain** (optional; the web reaches it privately) |
 | web | `pnpm install --frozen-lockfile && pnpm --filter @hb/web build` | `pnpm --filter @hb/web exec next start -H 0.0.0.0 -p ${PORT:-3000}` | **Generate Domain** or add a custom domain |
-| keeper | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/onchain run keeper --loop 30` | restart ALWAYS |
+| keeper | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/onchain run keeper --loop` (no number: `KEEPER_LOOP_SEC`, default 900 s) | restart ALWAYS |
 | jobs-epoch | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/api jobs:epoch` | Cron `15 0 * * *` (UTC = 07:15 WIB), restart NEVER |
 | jobs-barsnap | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/api jobs:barsnap` | Cron `5 * * * *`, restart NEVER |
 | mint-pool | `pnpm install --frozen-lockfile` | `pnpm --filter @hb/api mint-pool:refill --loop 30` | restart ALWAYS; no domain, no pre-deploy (the api migrates). CPU-bound: see step 6a |

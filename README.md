@@ -42,7 +42,7 @@ The API also runs pending migrations on start.
 
     pnpm --filter @hb/api dev                  # API on :4000 (indexer + scores inside)
     pnpm --filter @hb/web dev                  # web on :3000
-    pnpm --filter @hb/onchain keeper --loop 30 # migrates finished curves to DAMM v2 (DRY_RUN=true only logs)
+    pnpm --filter @hb/onchain keeper --loop    # migrates finished curves to DAMM v2 every KEEPER_LOOP_SEC (900), 30 s near graduation (DRY_RUN=true only logs)
 
 Jobs (dry-run unless `--live` or `DRY_RUN=false`; live mainnet also needs `ALLOW_MAINNET=true`):
 
@@ -74,7 +74,7 @@ One Railway project, one Postgres, services from this monorepo (root directory =
 |---|---|---|---|
 | `api` | `deploy/railway/api.json` | `pnpm --filter @hb/api start` (pre-deploy: `db:migrate`, healthcheck `/health`) | `deploy/mainnet/api.env.template` |
 | `web` | `deploy/railway/web.json` | `next start` on `$PORT` after `pnpm --filter @hb/web build` | `deploy/mainnet/web.env.template` |
-| `keeper` | `deploy/railway/keeper.json` | `pnpm --filter @hb/onchain run keeper --loop 30` | `deploy/mainnet/keeper.env.template` |
+| `keeper` | `deploy/railway/keeper.json` | `pnpm --filter @hb/onchain run keeper --loop` (interval = `KEEPER_LOOP_SEC`, default 900) | `deploy/mainnet/keeper.env.template` |
 | `jobs-epoch` | `deploy/railway/jobs-epoch.json` | cron `15 0 * * *` (00:15 UTC = 07:15 WIB) `jobs:epoch` | `deploy/mainnet/jobs.env.template` |
 | `jobs-barsnap` | `deploy/railway/jobs-barsnap.json` | cron `5 * * * *` `jobs:barsnap` | `deploy/mainnet/jobs.env.template` |
 
