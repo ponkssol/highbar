@@ -73,7 +73,7 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
         </div>
       )}
       <label className="flex h-12 items-center rounded-md border border-border px-3 focus-within:border-ink">
-        <input value={amount} placeholder="0.0" onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" className="num w-full bg-transparent text-lg outline-none" />
+        <input value={amount} placeholder="0.0" onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} inputMode="decimal" className="num w-full bg-transparent text-lg outline-none" />
         <span className="num text-sm text-ink-3">{side === "buy" ? "SOL" : `$${ticker}`}</span>
       </label>
       <div className="flex gap-2">
@@ -90,7 +90,7 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
         <span className="flex items-center gap-1">
           <button onClick={() => setSlipAuto(true)} className={`rounded-full px-2.5 py-1 text-xs ${slipAuto ? "bg-ink text-on-ink" : "border border-border text-ink-2"}`}>Auto 1%</button>
           <label className={`flex h-7 w-16 items-center rounded-full border px-2 text-xs ${slipAuto ? "border-border" : "border-ink"}`}>
-            <input value={slip} onFocus={() => setSlipAuto(false)} onChange={(e) => { setSlipAuto(false); setSlip(e.target.value.replace(/[^0-9.]/g, "")); }} className="num w-full bg-transparent outline-none" />%
+            <input value={slip} onFocus={() => setSlipAuto(false)} onChange={(e) => { setSlipAuto(false); setSlip(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0.")); }} className="num w-full bg-transparent outline-none" />%
           </label>
         </span>
       </div>

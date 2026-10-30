@@ -115,7 +115,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
               {l.numberOfPeriod > 0 && <div className="flex justify-between"><span className="text-ink-3">Vesting</span><span className="num">{l.numberOfPeriod} x {Math.round(l.frequency / 3600) >= 24 ? `${Math.round(l.frequency / 86400)}d` : `${Math.round(l.frequency / 60)}m`}, ends {fmtDate(l.endTime).split(",")[0]}</span></div>}
               {isCreator && <div className="flex justify-between"><span className="text-ink-3">Claimable now</span><span className="num">{fmtTok(toUi(l.claimable))} ${ticker}</span></div>}
               <div className="flex justify-between"><span className="text-ink-3">Claimed / unlocked</span><span className="num">{fmtTok(toUi(l.claimed))} / {fmtTok(toUi(l.unlocked))}</span></div>
-              <div className="flex justify-between"><span className="text-ink-3">Cancel / change recipient</span><span>None (permanent)</span></div>
+              <div className="flex justify-between"><span className="text-ink-3">Cancel or change recipient</span><span>None (permanent)</span></div>
               <div className="flex justify-between"><a href={`https://solscan.io/account/${l.escrow}${NETWORK === "mainnet" ? "" : "?cluster=devnet"}`} target="_blank" rel="noreferrer" className="num text-xs text-ink-3 hover:text-ink">Escrow {l.escrow.slice(0, 6)}...</a><Link href={`/locks/${l.escrow}`} className="text-xs font-medium hover:underline">Share lock</Link></div>
             </li>
           ))}
@@ -126,7 +126,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
           title={claimable > 0 ? undefined : "Nothing unlocked yet"}
           className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
           <Unlock size={14} />{claimable > 0 ? `Claim unlocked (${fmtTok(claimable)} $${ticker})`
-            : nextCliff ? `Claim unlocked · unlocks in ${fmtLeft(nextCliff - nowS)}` : "Claim unlocked · nothing to claim yet"}
+            : nextCliff ? `Claim unlocked (unlocks in ${fmtLeft(nextCliff - nowS)})` : "Claim unlocked (nothing to claim yet)"}
         </button>
       )}
       {isCreator && (bal ?? 0) > 0 && !open && (
@@ -137,7 +137,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
       {isCreator && open && (
         <div className="mt-3 space-y-3">
           <label className="block"><span className="mb-1.5 flex justify-between text-[13px] text-ink-2">Amount<button type="button" onClick={() => setAmount(String(bal ?? 0))} className="num text-xs text-ink-3 hover:text-ink">Max {fmtTok(bal ?? 0)}</button></span>
-            <input className={`${input} num`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} /></label>
+            <input className={`${input} num`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} /></label>
           <label className="block"><span className="mb-1.5 block text-[13px] text-ink-2">Unlock date (cliff)</span>
             <input type="datetime-local" className={input} value={unlock} onChange={(e) => setUnlock(e.target.value)} /></label>
           <label className="block"><span className="mb-1.5 block text-[13px] text-ink-2">Linear vesting after unlock (days, optional)</span>

@@ -24,7 +24,7 @@ function TxLink({ sig, url, network, dot }: { sig?: string | null; url?: string 
   );
 }
 const PARTS = [
-  { key: "buyback", label: "Buyback + burn", pct: 40, cls: "bg-burn" },
+  { key: "buyback", label: "Buyback and burn", pct: 40, cls: "bg-burn" },
   { key: "ops", label: "Operations", pct: 50, cls: "bg-ink" },
   { key: "treasury", label: "Treasury", pct: 10, cls: "bg-ink-3" },
 ] as const;
@@ -62,7 +62,7 @@ export default function BurnPage() {
 
       <Card>
         <h3 className="mb-1 font-semibold">Where platform fees go</h3>
-        <p className="mb-4 text-sm text-ink-2">After the creator LP rebate and trader cashback, the platform's net income is split 40 / 50 / 10. The 40% share buys $HIGHER on the market and burns it on-chain.</p>
+        <p className="mb-4 text-sm text-ink-2">After the creator LP rebate and trader cashback, the platform's net income is split into 40% buyback, 50% operations and 10% treasury. The 40% share buys $HIGHER on the market and burns it on-chain.</p>
         <div className="flex h-3 overflow-hidden rounded-full border border-border">
           {PARTS.map((p) => <div key={p.key} className={p.cls} style={{ width: `${p.pct}%` }} />)}
         </div>
@@ -77,7 +77,7 @@ export default function BurnPage() {
       </Card>
 
       <Card className="overflow-x-auto p-0">
-        <h3 className="border-b border-border px-4 py-3 font-semibold">Buyback &amp; burn history</h3>
+        <h3 className="border-b border-border px-4 py-3 font-semibold">Buyback and burn history</h3>
         {loading && !data ? <Loading /> : d.runs.length === 0 ? (
           <Empty title="No buybacks yet" hint={d.barLaunched ? "Buybacks run once enough fees accrue." : "Buybacks start after $HIGHER launches. Until then the 40% share accrues."} />
         ) : (

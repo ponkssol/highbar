@@ -18,8 +18,13 @@ export function fmtPrice(v: number, sig = 4): string {
   const neg = v < 0 ? "-" : "";
   const a = Math.abs(v);
   if (a >= 1) return neg + a.toLocaleString("en-US", { maximumFractionDigits: a >= 1000 ? 2 : 4 });
-  const zeros = Math.floor(-Math.log10(a)) - (Number.isInteger(Math.log10(a)) ? 1 : 0); // zeros after "0."
-  const digits = Math.round(a * 10 ** (zeros + sig)).toString().slice(0, sig).replace(/0+$/, "") || "0";
+  let zeros = Math.floor(-Math.log10(a)) - (Number.isInteger(Math.log10(a)) ? 1 : 0); // zeros after "0."
+  let n = Math.round(a * 10 ** (zeros + sig));
+  if (n >= 10 ** sig) { // rounding carried into the next digit (0.99999 -> 1, 0.099999 -> 0.1)
+    if (zeros === 0) return neg + "1";
+    zeros--; n = Math.round(n / 10);
+  }
+  const digits = String(n).padStart(sig, "0").replace(/0+$/, "") || "0";
   if (zeros < 4) return neg + "0." + "0".repeat(zeros) + digits;
   return neg + "0.0" + String(zeros).split("").map((d) => SUB[+d]).join("") + digits;
 }

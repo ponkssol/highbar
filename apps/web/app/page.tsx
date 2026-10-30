@@ -38,7 +38,7 @@ export default function Home() {
       <section className="grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-surface shadow-card max-lg:divide-y max-lg:divide-border lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:divide-x lg:divide-border">
         <ActivityGrid bare />
         <div className="flex items-center justify-center p-5 lg:px-8">
-          <TickGauge value={STATS.graduatedPct} label="Migrated" sub={`${STATS.graduated} / ${STATS.totalTokens} tokens`} />
+          <TickGauge value={STATS.graduatedPct} label="Migrated" sub={`${STATS.graduated} of ${STATS.totalTokens} tokens`} />
         </div>
         {STATS.loading ? <StatsSkeleton bare /> : <KpiGrid stats={STATS} bare />}
       </section>

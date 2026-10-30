@@ -123,7 +123,7 @@ export default function LaunchPage() {
                     <div className="num mt-2 text-xl font-semibold">{thresholdSolFor(id, NETWORK)} SOL</div>
                     {locked && <div className="mt-1 flex items-center gap-1 text-xs text-ink-3"><Lock size={12} />{maxNeed}</div>}
                     <div className="num mt-1 text-xs text-ink-3">~{migrationMcapSol(id, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })} SOL mcap at migration</div>
-                    <div className="num mt-1 text-xs text-ink-3">creator {s.creator}% · then {postMigrationPct(id).creator}% after migration</div>
+                    <div className="num mt-1 text-xs text-ink-3">creator {s.creator}%, then {postMigrationPct(id).creator}% after migration</div>
                   </button>
                 );
               })}
@@ -147,7 +147,7 @@ export default function LaunchPage() {
             <div className="mt-2 flex items-center gap-2">
               <div className="flex h-10 flex-1 items-center rounded border border-border bg-surface px-3 focus-within:border-ink">
                 <input aria-label="Dev buy amount in SOL" className="num w-full bg-transparent text-sm outline-none" inputMode="decimal" value={devBuy}
-                  onChange={(e) => setDevBuy(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.0" />
+                  onChange={(e) => setDevBuy(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} placeholder="0.0" />
                 <span className="text-sm text-ink-3">SOL</span>
               </div>
               {["0", "0.1", "0.5", "1"].map((p) => (
@@ -170,8 +170,8 @@ export default function LaunchPage() {
             <div className="mt-2 text-xs text-ink-3">Bought in the same transaction as launch (Block 0), so nobody can buy before you.</div>
           </div>          <dl className="space-y-1.5 rounded border border-border bg-muted p-3 text-sm">
             <div className="flex justify-between"><dt className="text-ink-3">Curve fee</dt><dd className="num">{f.total}%</dd></div>
-            <div className="flex justify-between"><dt className="text-ink-3">Creator / platform / Meteora</dt><dd className="num">{f.creator}% / {f.platform}% / {f.meteora}%</dd></div>
-            <div className="flex justify-between"><dt className="text-ink-3">After migration (1% pool fee)</dt><dd className="num">{postMigrationPct(tier).creator}% / {postMigrationPct(tier).platform}% / {postMigrationPct(tier).protocol}%</dd></div>
+            <div className="flex justify-between"><dt className="text-ink-3">Creator, platform and Meteora</dt><dd className="num">{f.creator}%, {f.platform}%, {f.meteora}%</dd></div>
+            <div className="flex justify-between"><dt className="text-ink-3">After migration (1% pool fee)</dt><dd className="num">{postMigrationPct(tier).creator}%, {postMigrationPct(tier).platform}%, {postMigrationPct(tier).protocol}%</dd></div>
             <div className="flex justify-between"><dt className="text-ink-3">Migration fee (creator share)</dt><dd className="num">{migrationFeePct(tier).fee}% ({migrationFeePct(tier).creatorShare}%)</dd></div>
             <div className="flex justify-between"><dt className="text-ink-3">Migrates at</dt><dd className="num">{thresholdSolFor(tier, NETWORK)} SOL (~{migrationMcapSol(tier, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })} SOL mcap)</dd></div>
           </dl>

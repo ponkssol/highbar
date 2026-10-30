@@ -52,11 +52,11 @@ export function FeeBreakdown({ tier }: { tier: TierId }) {
         </tbody>
       </table>
       <div className="mt-4 text-xs font-medium text-ink-3">Migration fee</div>
-      <p className="mt-1 text-sm text-ink-2">{mig.fee}% of the migrated SOL{mig.fee ? `; the creator gets ${mig.creatorShare}% of it` : ""}.</p>
+      <p className="mt-1 text-sm text-ink-2">{mig.fee}% of the migrated SOL.{mig.fee ? ` The creator gets ${mig.creatorShare}% of it.` : ""}</p>
       <div className="mt-4 text-xs font-medium text-ink-3">Platform fee split (after the creator LP rebate and trader cashback)</div>
       <table className="mt-1 w-full text-sm">
         <tbody>
-          {[["Buyback + burn $HIGHER", PLATFORM_SPLIT.buyback], ["Operations", PLATFORM_SPLIT.ops], ["Treasury", PLATFORM_SPLIT.treasury]].map(([l, v]) => (
+          {[["Buyback and burn of $HIGHER", PLATFORM_SPLIT.buyback], ["Operations", PLATFORM_SPLIT.ops], ["Treasury", PLATFORM_SPLIT.treasury]].map(([l, v]) => (
             <tr key={l as string} className="border-b border-border last:border-0">
               <td className="py-2 text-ink-2">{l}</td>
               <td className="num py-2 text-right">{Math.round((v as number) * 100)}%</td>
@@ -67,7 +67,7 @@ export function FeeBreakdown({ tier }: { tier: TierId }) {
       <ul className="mt-3 flex flex-col gap-1 text-xs text-ink-3">
         <li>Traders pay no extra app fee. Trades made on Higher Bar earn {CASHBACK_PCT}% cashback, to be paid in $HIGHER (in SOL until it launches).</li>
         <li>The swap referral reward is {REFERRAL_OF_PROTOCOL_PCT}% of Meteora&apos;s protocol fee, paid from Meteora&apos;s share.</li>
-        <li>$HIGHER has not launched yet; the buyback share accrues until it does.</li>
+        <li>$HIGHER has not launched yet. The buyback share accrues until it does.</li>
       </ul>
     </Card>
   );

@@ -29,7 +29,7 @@ export default function MilestonesPage() {
       <TopBlock title="Milestones">
         <p className="mt-2 max-w-xl text-sm text-ink-2">
           Creators earn a SOL bonus from the treasury when their token keeps its market cap above a target for every full UTC day after it migrates.
-          A day below the target restarts the count. Market cap comes from hourly DAMM v2 pool snapshots; the lowest one of each day counts.
+          A day below the target restarts the count. Market cap comes from hourly DAMM v2 pool snapshots. The lowest one of each day counts.
         </p>
       </TopBlock>
       <OfflineNote error={error} />

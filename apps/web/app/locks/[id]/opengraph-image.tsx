@@ -31,10 +31,10 @@ export default async function OgImage({ params }: { params: Promise<{ id: string
           <div style={{ display: "flex", alignItems: "center", fontSize: 40, color: "#55524A" }}>{logo && <img src={logo} width={64} height={64} style={{ borderRadius: 16, marginRight: 20, objectFit: "cover" }} />}{name} (${sym})</div>
           <div style={{ display: "flex", fontSize: 92, fontWeight: 700, marginTop: 8 }}>{amount} ${sym}</div>
           <div style={{ display: "flex", fontSize: 36, marginTop: 16, color: "#55524A" }}>
-            {l ? `${l.supplyPct.toFixed(2)}% of supply - unlocks ${fmtLockDate(l.cliffTime)}${l.numberOfPeriod > 0 ? `, vests until ${fmtLockDate(l.endTime)}` : ""}` : "Lock not found"}
+            {l ? `${l.supplyPct.toFixed(2)}% of supply, unlocks ${fmtLockDate(l.cliffTime)}${l.numberOfPeriod > 0 ? `, vests until ${fmtLockDate(l.endTime)}` : ""}` : "Lock not found"}
           </div>
         </div>
-        <div style={{ display: "flex", fontSize: 24, color: "#55524A" }}>Permanent lock via Jupiter Lock - cannot be cancelled</div>
+        <div style={{ display: "flex", fontSize: 24, color: "#55524A" }}>Permanent lock via Jupiter Lock. It cannot be cancelled.</div>
       </div>
     ),
     size,

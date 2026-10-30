@@ -63,7 +63,7 @@ export function LaunchChart() {
           {data.map((d, i) => {
             const today = i === data.length - 1;
             return (
-              <div key={i} className="group relative flex h-full flex-1 flex-col items-center justify-end" title={`${d.a} launched · ${d.b} migrated`}>
+              <div key={i} className="group relative flex h-full flex-1 flex-col items-center justify-end" title={`${d.a} launched, ${d.b} migrated`}>
                 <div className={`flex w-full max-w-[14px] flex-col overflow-hidden rounded-full ${today ? "" : "opacity-60 group-hover:opacity-100"}`} style={{ height: `${(d.a / max) * 100}%` }}>
                   <div className="flex-1 bg-ink" />
                   <div className="border-t border-ink bg-hatch" style={{ height: `${(d.b / d.a) * 100}%` }} />

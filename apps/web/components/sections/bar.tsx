@@ -74,7 +74,7 @@ export default function BarPage() {
             </tr>
           ))}</tbody>
         </table>
-        {d && <p className="border-t border-border px-4 py-3 text-xs text-ink-3">Your perks: {perkLines(d.tier).join(" · ")}. Cashback bonus so far: {tiny(d.cashbackBonusSol)} SOL.</p>}
+        {d && <p className="border-t border-border px-4 py-3 text-xs text-ink-3">Your perks: {perkLines(d.tier).join(", ")}. Cashback bonus so far: {tiny(d.cashbackBonusSol)} SOL.</p>}
       </Card>
 
       {ok && !!d?.ledger.length && (

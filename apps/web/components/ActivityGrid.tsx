@@ -72,7 +72,7 @@ export function ActivityGrid({ className = "", bare = false }: { className?: str
         {ORDER.map((t) => (
           <span key={t} className="flex items-center gap-1.5"><span className="h-[11px] w-[11px] rounded-[2px]" style={{ background: COLOR[t] }} />{LABEL[t]}</span>
         ))}
-        <span>Newer →</span>
+        <span>Newer</span>
       </div>
     </div>
   );

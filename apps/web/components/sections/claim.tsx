@@ -195,7 +195,7 @@ export default function ClaimPage() {
           <h3 className="font-semibold">LP rebates</h3>
           <p className="text-xs text-ink-3">
             After migration the platform sends you {rebates ? `${fmtPct(rebates.rebateBps.standard / 100)} (Standard, Higher) or ${fmtPct(rebates.rebateBps.max / 100)} (Max)` : "part"} of
-            the LP fees it claims on its own locked position. Paid automatically to the token creator&apos;s wallet once your pending total reaches {rebates ? fmtSol(rebates.minPayoutSol) : "0.01"} SOL; nothing to sign.
+            the LP fees it claims on its own locked position. Paid automatically to the token creator&apos;s wallet once your pending total reaches {rebates ? fmtSol(rebates.minPayoutSol) : "0.01"} SOL. There is nothing to sign.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-6 px-4 py-3 sm:grid-cols-4">

@@ -8,7 +8,7 @@ import BurnSection from "@/components/sections/burn";
 
 export function RewardsHub() {
   return (
-    <HubTabs title="Rewards" intro="Cashback, referrals, creator milestones, $HIGHER holder perks and the public buyback & burn record."
+    <HubTabs title="Rewards" intro="Cashback, referrals, creator milestones, $HIGHER holder perks and the public buyback and burn record."
       tabs={[
         { id: "cashback", label: "Cashback", component: CashbackSection },
         { id: "referral", label: "Referral", component: ReferralSection },

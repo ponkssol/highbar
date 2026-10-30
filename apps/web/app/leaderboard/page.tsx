@@ -68,7 +68,7 @@ export default function LeaderboardPage() {
       <OfflineNote error={error} />
       <Card className="overflow-x-auto p-0">
         {loading && !data ? <Loading /> : rows.length === 0 ? (
-          error ? <Empty title="Leaderboard unavailable" hint="The API did not answer. It refreshes automatically; try again in a moment." /> : <Empty title="No data yet" hint={`No ${kind} in this window. Try "All".`} />
+          error ? <Empty title="Leaderboard unavailable" hint="The API did not answer. It refreshes automatically. Try again in a moment." /> : <Empty title="No data yet" hint={`No ${kind} in this window. Try "All".`} />
         ) : kind === "tokens" ? (
           <table className="w-full min-w-[640px] text-sm">
             {head([["Token", "left"], ["Tier", "left"], ["Volume", "right"], ["Mcap", "right"], ["Progress", "left"]])}

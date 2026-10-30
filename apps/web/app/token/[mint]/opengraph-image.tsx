@@ -25,7 +25,7 @@ export default async function OgImage({ params }: { params: Promise<{ mint: stri
         <div style={{ display: "flex", fontSize: 30, fontWeight: 700 }}>highbar</div>
         <div style={{ display: "flex", flexDirection: "column", background: "#FFFFFF", border: "1px solid #E4DFD3", borderRadius: 24, padding: 48 }}>
           <div style={{ display: "flex", alignItems: "center", fontSize: 64, fontWeight: 700 }}>{logo && <img src={logo} width={88} height={88} style={{ borderRadius: 20, marginRight: 24, objectFit: "cover" }} />}{t ? `${t.name} ($${t.symbol})` : "Token not found"}</div>
-          {t && <div style={{ display: "flex", fontSize: 36, marginTop: 20, color: "#55524A" }}>{`Market cap ${mcap} - ${t.isMigrated ? "Migrated" : `${Math.round(t.progress * 100)}% bonded`}`}</div>}
+          {t && <div style={{ display: "flex", fontSize: 36, marginTop: 20, color: "#55524A" }}>{`Market cap ${mcap}, ${t.isMigrated ? "Migrated" : `${Math.round(t.progress * 100)}% bonded`}`}</div>}
         </div>
         <div style={{ display: "flex", fontSize: 24, color: "#55524A" }}>Trade on highbar</div>
       </div>
