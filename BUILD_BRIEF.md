@@ -179,7 +179,8 @@ heiger-bar/
 - **Buyback job:** Jupiter buy $BAR with capped size, burn, record proofs.
 
 ### Env vars
-`RPC_URL`, `RPC_WS_URL`, `NETWORK=devnet`, `PLATFORM_KEYPAIR_PATH`, `TREASURY_PUBKEY`, `REFERRAL_ACCOUNT`, `CONFIG_STANDARD_OFF` ... `CONFIG_MAX_ON` (6 config pubkeys), `DATABASE_URL`, `PINATA_JWT`, `HELIUS_API_KEY`, `BAR_MINT`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_RPC_URL`.
+`RPC_URL`, `RPC_WS_URL`, `NETWORK=devnet`, `PLATFORM_KEYPAIR_PATH`, `TREASURY_PUBKEY`, `REFERRAL_ACCOUNT`, `CONFIG_STANDARD_OFF` ... `CONFIG_MAX_ON` (6 config pubkeys), `DATABASE_URL`, `PINATA_JWT`, `HELIUS_API_KEY`, `BAR_MINT`.
+Web (all server-side, read at runtime; no `NEXT_PUBLIC_*` vars): `API_URL` (server-only; the browser calls the same-origin `/hb-api/*` proxy, `apps/web/app/hb-api/[...path]/route.ts`, which forwards to it, and SSR fetches use it directly), `PROXY_SHARED_SECRET` (must match the api), and `RPC_URL` / `NETWORK`, which the root layout reads on the server and passes to the browser wallet providers.
 
 ## 9. Security
 - Never commit secrets or keypairs (`.env`, `*.json` keypairs in `.gitignore`); ship `.env.example`.

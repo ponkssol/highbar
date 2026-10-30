@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Migration checksums (apps/api/src/db/migrate.ts) hash the file bytes: keep them LF in every checkout.
+apps/api/db/migrations/*.sql text eol=lf
