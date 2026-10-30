@@ -8,3 +8,8 @@ dist
 keys/
 *.db
 .next-build
+
+# filled mainnet env copies (only *.env.template is committed)
+deploy/mainnet/*.env
+deploy/mainnet/*.filled
+!deploy/mainnet/*.env.template
