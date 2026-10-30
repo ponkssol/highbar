@@ -5,6 +5,8 @@ export interface TokenRow {
   devLocked?: boolean;
   /** official ecosystem token ($HIGHER) */
   official?: boolean;
+  /** Pool already migrated to DAMM v2: progress is 100% whatever the curve reserve says now. */
+  isMigrated?: boolean;
   unlockAt?: number | null;
   mint: string;
   name: string;
@@ -62,7 +64,7 @@ export const TOKENS: TokenRow[] = names.map(([name, ticker], i) => {
 export const NOW_TS = NOW;
 /** Migration target of a row: its own thresholdSol, else the tier default for `network` (pass the runtime NETWORK from lib/settings). */
 export const targetOf = (t: Pick<TokenRow, "tier" | "thresholdSol">, network?: string | null) => t.thresholdSol || thresholdSolFor(t.tier, network);
-export const progressOf = (t: TokenRow, network?: string | null) => Math.min(1, t.raisedSol / targetOf(t, network));
+export const progressOf = (t: TokenRow, network?: string | null) => (t.isMigrated ? 1 : Math.min(1, t.raisedSol / targetOf(t, network)));
 
 export const STATS = {
   totalVolumeSol: 18_420.6,

@@ -25,6 +25,10 @@ export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
   /** Migration target in SOL from the live pool config; missing -> thresholdSolFor(tier, NETWORK). */
   thresholdSol?: number;
+  /** Pool migrated to DAMM v2: bonding shows 100% / Migrated. */
+  isMigrated?: boolean;
+  /** http(s) social links from the token metadata; a missing link is not shown. */
+  links?: { website?: string; twitter?: string; telegram?: string };
   mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; priceUsd?: number; image?: string | null; change24h: number; holders: number; now: number; devLocked?: boolean; unlockAt?: number | null; official?: boolean; score?: number | null;
   trades: { sig: string; side: "buy" | "sell"; sol: number; tokens: number; wallet: string; ts: number; devBuy?: boolean }[];
 }
@@ -72,13 +76,15 @@ function Addr({ t, copied, copy }: { t: TokenViewData; copied: boolean; copy: ()
   return (
     <>
       <button type="button" onClick={copy} aria-label="Copy address" className="num inline-flex h-7 items-center gap-1 rounded-md pr-1.5 hover:bg-muted hover:text-ink">{shortAddr(t.mint, 5)}{copied ? <Check size={12} /> : <Copy size={12} />}</button>
-      {([[Globe, "Website"], [XIcon, "X"], [Send, "Telegram"]] as const).map(([I, l]) => <a key={l} href="#" aria-label={l} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-3 hover:bg-muted hover:text-ink"><I size={13} strokeWidth={1.5} /></a>)}
+      {([[Globe, "Website", t.links?.website], [XIcon, "X", t.links?.twitter], [Send, "Telegram", t.links?.telegram]] as const)
+        .filter(([, , href]) => !!href && /^https?:\/\//i.test(href))
+        .map(([I, l, href]) => <a key={l} href={href} target="_blank" rel="noopener noreferrer nofollow" aria-label={l} title={l} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-3 hover:bg-muted hover:text-ink"><I size={13} strokeWidth={1.5} /></a>)}
     </>
   );
 }
 
 const targetSol = (t: TokenViewData) => t.thresholdSol || thresholdSolFor(t.tier, NETWORK);
-const bondingOf = (t: TokenViewData) => { const target = targetSol(t); return { target, p: target > 0 ? Math.min(1, t.raisedSol / target) : 0 }; };
+const bondingOf = (t: TokenViewData) => { const target = targetSol(t); return { target, p: t.isMigrated ? 1 : target > 0 ? Math.min(1, t.raisedSol / target) : 0 }; };
 const dash = (v: number | null | undefined, f: (n: number) => string) => (v == null || !Number.isFinite(v) ? "–" : f(v));
 
 /** One compact six-stat row (3 columns on mobile). Missing values show a dash. */
@@ -90,7 +96,7 @@ function StatRow({ t, holders }: { t: TokenViewData; holders: number }) {
     ["Holders", holders.toLocaleString("en-US")],
     ["Age", t.createdAt ? fmtAge(t.createdAt, t.now) : "–"],
     ["Creator", t.creator ? shortAddr(t.creator) : "–"],
-    ["Bonding", <><span key="v">{(p * 100).toFixed(1)}%</span><span key="b" className="mt-1.5 block h-1 rounded-full bg-border"><span className="block h-1 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></span></>],
+    ["Bonding", <><span key="v">{t.isMigrated ? "100% · Migrated" : `${(p * 100).toFixed(1)}%`}</span><span key="b" className="mt-1.5 block h-1 rounded-full bg-border"><span className="block h-1 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></span></>],
   ];
   return (
     <dl data-testid="token-stats" className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-6">
@@ -110,10 +116,10 @@ function BondingCard({ t }: { t: TokenViewData }) {
     <div data-testid="bonding-card" className="rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">Bonding progress</span>
-        <span className="num text-ink-3">{t.raisedSol.toFixed(1)} / {target} SOL</span>
+        <span className="num text-ink-3">{t.isMigrated ? "100% · Migrated" : `${t.raisedSol.toFixed(1)} / ${target} SOL`}</span>
       </div>
       <div className="mt-3 h-1.5 rounded-full bg-border"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></div>
-      <p className="mt-2 text-xs text-ink-3">{p >= 1 ? "Target reached: graduates to Meteora DAMM v2." : `Graduates to Meteora DAMM v2 at ${target} SOL.`}</p>
+      <p className="mt-2 text-xs text-ink-3">{t.isMigrated ? "Migrated to Meteora DAMM v2." : p >= 1 ? "Target reached: graduates to Meteora DAMM v2." : `Graduates to Meteora DAMM v2 at ${target} SOL.`}</p>
     </div>
   );
 }
@@ -179,7 +185,7 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
         {tab === "lock" && <DevLock mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks} reload={reloadLocks} />}
         {tab === "info" && (
           <dl className="py-2 text-sm">
-          {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s)" : "Off"], ["Graduation", `${targetSol(t)} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
+          {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s)" : "Off"], ["Graduation", t.isMigrated ? `Migrated to Meteora DAMM v2 (target ${targetSol(t)} SOL)` : `${targetSol(t)} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 border-b border-border py-2 last:border-0"><dt className="text-ink-3">{k}</dt><dd className="num truncate">{v}</dd></div>
           ))}
         </dl>

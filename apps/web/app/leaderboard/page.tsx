@@ -75,7 +75,7 @@ export default function LeaderboardPage() {
                 <td className={TD}><TierBadge tier={t.tier} /></td>
                 <td className={`${TD} num text-right`}>{fmtSol(t.volumeSol, 3)} SOL</td>
                 <td className={`${TD} num text-right`}>{fmtUsd(t.mcapUsd)}</td>
-                <td className={`${TD} w-48`}><div className="flex items-center gap-2"><div className="flex-1"><ProgressBar value={t.progress} tier={t.tier} /></div><span className="num w-10 text-right text-xs text-ink-3">{t.isMigrated ? "✓" : `${Math.round(t.progress * 100)}%`}</span></div></td>
+                <td className={`${TD} w-48`}><div className="flex items-center gap-2"><div className="flex-1"><ProgressBar value={t.isMigrated ? 1 : t.progress} tier={t.tier} /></div><span className="num w-10 text-right text-xs text-ink-3">{t.isMigrated ? "✓" : `${Math.round(t.progress * 100)}%`}</span></div></td>
               </tr>))}</tbody>
           </table>
         ) : kind === "scores" ? (

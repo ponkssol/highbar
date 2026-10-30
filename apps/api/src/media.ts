@@ -101,6 +101,27 @@ export function registerMedia(app: FastifyInstance) {
     return reply.header("cache-control", "public, max-age=86400").header("x-content-type-options", "nosniff").header("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'").type(img.type).send(img.buf);
   });
 }
+export type TokenLinks = { website?: string; twitter?: string; telegram?: string };
+const linksCache = new Map<string, { links: TokenLinks; at: number }>(); // uri_hash -> links (ok: 1h, miss: 5 min)
+/** Social links from the token's metadata JSON (website/twitter/telegram, also under extensions). Only valid http(s) URLs are returned; anything else is dropped. */
+export async function resolveLinks(uri: string): Promise<TokenLinks> {
+  if (!uri) return {};
+  const key = uriHash(uri);
+  const c = linksCache.get(key);
+  if (c && Date.now() - c.at < (Object.keys(c.links).length ? 60 * 60_000 : 5 * 60_000)) return c.links;
+  let links: TokenLinks = {};
+  try {
+    const meta = JSON.parse((await fetchBuf(uri, 256 * 1024)).buf.toString("utf8"));
+    const ext = meta && typeof meta.extensions === "object" ? meta.extensions : {};
+    for (const k of ["website", "twitter", "telegram"] as const) {
+      const v = typeof meta?.[k] === "string" && meta[k] ? meta[k] : ext?.[k];
+      try { const u = social(v, k); if (u) links[k] = u; } catch { /* invalid link: hide it */ }
+    }
+  } catch { links = {}; }
+  if (linksCache.size > 5000) linksCache.clear();
+  linksCache.set(key, { links, at: Date.now() });
+  return links;
+}
 /** Public logo URL only when the image is already cached; otherwise resolve it in the background and report none (no 404s in the UI). */
 const pending = new Set<string>();
 export function imageUrl(mint: string, uri: string): string | null {

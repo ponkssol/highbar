@@ -25,7 +25,7 @@ import { registerScores } from "./routes/scores.js";
 import { scoresStore } from "./services/scoresStore.js";
 import { runScores } from "./services/scoreJob.js";
 import { registerCandles } from "./candles/index.js";
-import { imageUrl, initMedia, registerMedia } from "./media.js";
+import { imageUrl, initMedia, registerMedia, resolveLinks, type TokenLinks } from "./media.js";
 import { assertProductionConfig } from "./security/prodCheck.js";
 import { registerErrors } from "./security/errors.js";
 import { creatorLaunchGate, registerRateLimit } from "./security/rateLimit.js";
@@ -60,7 +60,7 @@ async function views(ts: Token[]) {
   const dl = await store.devLocks(ts.map((t) => t.mint));
   const sc = await scoresStore.scores(ts.map((t) => t.mint));
   const om = officialMint();
-  return ts.map((t) => { const u = dl.get(t.mint); return { ...t, mcapUsd: t.mcapSol * SOL_USD, image: imageUrl(t.mint, t.uri), devLocked: u !== undefined, unlockAt: u ?? null, official: !!om && t.mint === om,
+  return ts.map((t) => { const u = dl.get(t.mint); return { ...t, progress: t.isMigrated ? 1 : t.progress, mcapUsd: t.mcapSol * SOL_USD, image: imageUrl(t.mint, t.uri), devLocked: u !== undefined, unlockAt: u ?? null, official: !!om && t.mint === om,
     score: sc.get(t.mint)?.score ?? null, scoreLabel: sc.get(t.mint)?.breakdown.label ?? null }; });
 }
 async function recordLocks(infos: LockInfo[]) {
@@ -88,7 +88,10 @@ app.get("/tokens", async (req) => {
 app.get("/tokens/:mint", async (req, reply) => {
   const { mint } = req.params as { mint: string };
   const t = await store.getToken(mint);
-  return t ? (await views([t]))[0] : reply.code(404).send({ error: "not found" });
+  if (!t) return reply.code(404).send({ error: "not found" });
+  // A slow metadata host must not hold up the token page: wait at most 2.5 s (the fetch keeps going and fills the cache).
+  const links = await Promise.race([resolveLinks(t.uri).catch((): TokenLinks => ({})), new Promise<TokenLinks>((r) => setTimeout(() => r({}), 2500))]);
+  return { ...(await views([t]))[0], links };
 });
 
 app.get("/tokens/:mint/trades", async (req) => {
