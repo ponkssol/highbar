@@ -10,6 +10,7 @@ import { shortAddr } from "@/lib/format";
 import { ThemeToggle } from "./ThemeToggle";
 import { NETWORK } from "@/lib/settings";
 import { NAV, isNavActive } from "./nav";
+import { Logo } from "./Logo";
 
 export function Sidebar() {
   const path = usePathname();
@@ -19,9 +20,8 @@ export function Sidebar() {
   const tierCounts = () => (["standard", "higher", "max"] as const).map((tier) => ({ tier, count: tokens.filter((t) => t.tier === tier).length }));
   return (
     <aside className="fixed inset-y-0 left-0 z-20 hidden w-sidebar md:flex flex-col border-r border-border bg-surface px-3 py-5">
-      <Link href="/" className="mb-7 flex items-center gap-2 px-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-sm bg-ink text-sm font-semibold text-on-ink">HB</span>
-        <span className="text-lg font-semibold tracking-tight">highbar</span>
+      <Link href="/" className="mb-7 flex items-center px-3" aria-label="highbar home">
+        <Logo height={28} />
       </Link>
       <nav className="flex flex-col gap-0.5">
         {NAV.map((item) => {
