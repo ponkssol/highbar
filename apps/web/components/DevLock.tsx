@@ -7,6 +7,7 @@ import { useHbWallet } from "@/lib/wallet";
 import { api } from "@/lib/api";
 import { DevLockedBadge } from "./DevLockedBadge";
 import { buildClaimLockTx, buildLockTx, toUi, type LocksResp } from "@/lib/lock";
+import { NETWORK } from "@/lib/settings";
 
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
 const fmtDate = (s: number) => new Date(s * 1000).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -96,7 +97,7 @@ export function DevLock({ mint, ticker, creator, data, reload }: { mint: string;
               {l.numberOfPeriod > 0 && <div className="flex justify-between"><span className="text-ink-3">Vesting</span><span className="num">{l.numberOfPeriod} x {Math.round(l.frequency / 3600) >= 24 ? `${Math.round(l.frequency / 86400)}d` : `${Math.round(l.frequency / 60)}m`}, ends {fmtDate(l.endTime).split(",")[0]}</span></div>}
               <div className="flex justify-between"><span className="text-ink-3">Claimed / unlocked</span><span className="num">{fmtTok(toUi(l.claimed))} / {fmtTok(toUi(l.unlocked))}</span></div>
               <div className="flex justify-between"><span className="text-ink-3">Cancel / change recipient</span><span>None (permanent)</span></div>
-              <div className="flex justify-between"><a href={`https://solscan.io/account/${l.escrow}?cluster=devnet`} target="_blank" rel="noreferrer" className="num text-xs text-ink-3 hover:text-ink">Escrow {l.escrow.slice(0, 6)}...</a><Link href={`/locks/${l.escrow}`} className="text-xs font-medium hover:underline">Share lock</Link></div>
+              <div className="flex justify-between"><a href={`https://solscan.io/account/${l.escrow}${NETWORK === "mainnet" ? "" : "?cluster=devnet"}`} target="_blank" rel="noreferrer" className="num text-xs text-ink-3 hover:text-ink">Escrow {l.escrow.slice(0, 6)}...</a><Link href={`/locks/${l.escrow}`} className="text-xs font-medium hover:underline">Share lock</Link></div>
             </li>
           ))}
         </ul>

@@ -9,6 +9,7 @@ import { fetchLock, fmtLockDate } from "@/lib/lockData";
 import { shortAddr } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+const NETWORK = process.env.NEXT_PUBLIC_NETWORK === "mainnet" || process.env.NEXT_PUBLIC_NETWORK === "mainnet-beta" ? "mainnet" : "devnet";
 const site = () => process.env.SITE_URL || "http://localhost:3000";
 const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 
@@ -53,7 +54,7 @@ export default async function LockSharePage({ params }: { params: Promise<{ id: 
         </dl>
         <div className="mt-4 flex gap-2">
           <Link href={`/token/${l.mint}`} className="inline-flex h-10 items-center rounded bg-ink px-4 text-sm font-medium text-on-ink hover:opacity-90">View token</Link>
-          <a href={`https://solscan.io/account/${l.escrow}?cluster=devnet`} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded border border-border px-4 text-sm hover:bg-muted">View escrow</a>
+          <a href={`https://solscan.io/account/${l.escrow}${NETWORK === "mainnet" ? "" : "?cluster=devnet"}`} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded border border-border px-4 text-sm hover:bg-muted">View escrow</a>
         </div>
       </div>
     </div>

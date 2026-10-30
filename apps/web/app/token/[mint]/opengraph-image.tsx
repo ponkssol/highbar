@@ -1,4 +1,5 @@
 ﻿import { ImageResponse } from "next/og";
+import { apiHeaders } from "@/lib/api";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -9,10 +10,10 @@ export default async function OgImage({ params }: { params: Promise<{ mint: stri
   const { mint } = await params;
   const API = process.env.API_URL || "http://localhost:4000";
   let t: T | null = null, logo: string | null = null;
-  try { const r = await fetch(`${API}/tokens/${mint}`, { signal: AbortSignal.timeout(4000) }); if (r.ok) t = await r.json(); } catch {}
+  try { const r = await fetch(`${API}/tokens/${mint}`, { headers: apiHeaders(), signal: AbortSignal.timeout(4000) }); if (r.ok) t = await r.json(); } catch {}
   if (t?.image) {
     try {
-      const r = await fetch(`${API}/img/${t.mint}`, { signal: AbortSignal.timeout(4000) });
+      const r = await fetch(`${API}/img/${t.mint}`, { headers: apiHeaders(), signal: AbortSignal.timeout(4000) });
       const type = r.headers.get("content-type") ?? "";
       if (r.ok && /^image\/(png|jpeg|gif)$/.test(type)) logo = `data:${type};base64,${Buffer.from(await r.arrayBuffer()).toString("base64")}`;
     } catch {}

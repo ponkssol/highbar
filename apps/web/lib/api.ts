@@ -3,6 +3,9 @@ import type { TierId } from "@hb/shared";
 import { STATS, TOKENS, type TokenRow, type Trade } from "./mock";
 
 export const apiBase = () => (typeof window === "undefined" ? process.env.API_URL || "http://localhost:4000" : "/hb-api");
+/** Server-side (SSR / OG image) calls straight to the API carry the shared proxy secret, so the API does not rate-limit them as one IP. Browser: none. */
+export const apiHeaders = (): Record<string, string> =>
+  typeof window === "undefined" && process.env.PROXY_SHARED_SECRET ? { "x-hb-proxy-secret": process.env.PROXY_SHARED_SECRET } : {};
 
 export interface ApiToken {
   mint: string; pool: string; config: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
@@ -18,7 +21,7 @@ export interface ApiStats {
 export type ApiTrade = Trade & { feeSol?: number; viaUi?: boolean; devBuy?: boolean };
 
 async function get<T>(path: string, timeoutMs = 4000): Promise<T> {
-  const res = await fetch(`${apiBase()}${path}`, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+  const res = await fetch(`${apiBase()}${path}`, { cache: "no-store", headers: apiHeaders(), signal: AbortSignal.timeout(timeoutMs) });
   if (!res.ok) throw new Error(`${path}: ${res.status}`);
   return res.json() as Promise<T>;
 }

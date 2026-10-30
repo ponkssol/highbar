@@ -4,6 +4,7 @@ import { useAppKitAccount, useAppKitProvider } from "@reown/appkit/react";
 import { useAppKitConnection } from "@reown/appkit-adapter-solana/react";
 import { Connection, PublicKey, Transaction, VersionedTransaction, clusterApiUrl, type Signer } from "@solana/web3.js";
 import { getAppKitModal, useRpcUrl, useWalletReady } from "@/app/providers";
+import { NETWORK } from "./settings";
 
 type AnyTx = Transaction | VersionedTransaction;
 interface SolanaProvider {
@@ -21,7 +22,7 @@ export function useHbWallet() {
   const { walletProvider } = useAppKitProvider<SolanaProvider>("solana");
   const { connection: akConn } = useAppKitConnection();
   const rpcUrl = useRpcUrl();
-  const fallbackConn = useMemo(() => connFor(rpcUrl || clusterApiUrl("devnet")), [rpcUrl]);
+  const fallbackConn = useMemo(() => connFor(rpcUrl || clusterApiUrl(NETWORK === "mainnet" ? "mainnet-beta" : "devnet")), [rpcUrl]);
   const connection = (akConn as unknown as Connection | undefined) ?? fallbackConn;
   const publicKey = useMemo(() => { try { return address ? new PublicKey(address) : null; } catch { return null; } }, [address]);
 

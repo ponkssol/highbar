@@ -9,6 +9,7 @@ import { TIERS } from "@hb/shared";
 import { TierDot } from "./ui";
 import { shortAddr } from "@/lib/format";
 import { ThemeToggle } from "./ThemeToggle";
+import { NETWORK } from "@/lib/settings";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutGrid },
@@ -64,7 +65,7 @@ export function Sidebar() {
           <AddrDot address={address} size={28} />
           <div className="min-w-0">
             <div className="num truncate text-sm font-medium">{shortAddr(address)}</div>
-            <div className="num text-xs text-ink-3">{bal != null ? `${bal.toFixed(3)} SOL` : "…"} · devnet</div>
+            <div className="num text-xs text-ink-3">{bal != null ? `${bal.toFixed(3)} SOL` : "…"} · {NETWORK}</div>
           </div>
         </div>
       ) : (

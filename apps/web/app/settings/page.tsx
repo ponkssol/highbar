@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { TopBlock } from "@/components/TopBar";
 import { Card } from "@/components/ui";
 import { Tabs } from "@/components/PageStates";
-import { DEFAULT_SETTINGS, useSettings, type Explorer, type PriorityFee, type Theme } from "@/lib/settings";
+import { DEFAULT_SETTINGS, NETWORK, useSettings, type Explorer, type PriorityFee, type Theme } from "@/lib/settings";
 
 function Row({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -41,7 +41,7 @@ export default function SettingsPage() {
         <Row title="Explorer" hint="Transaction and address links open here.">
           <Tabs<Explorer> value={s.explorer} onChange={(explorer) => update({ explorer })} options={[{ id: "solscan", label: "Solscan" }, { id: "solana", label: "Solana Explorer" }, { id: "solanafm", label: "SolanaFM" }]} />
         </Row>
-        <Row title="Network" hint="highbar currently runs on devnet.">
+        <Row title="Network" hint={`highbar currently runs on ${NETWORK}.`}>
           <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm"><span className="h-2 w-2 rounded-full bg-buy" />Solana Devnet</span>
         </Row>
         <Row title="Reset">

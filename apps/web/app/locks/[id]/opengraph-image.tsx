@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { fetchLock, fmtLockDate } from "@/lib/lockData";
+import { apiHeaders } from "@/lib/api";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -13,7 +14,7 @@ export default async function OgImage({ params }: { params: Promise<{ id: string
   let logo: string | null = null;
   if (l?.token?.image) {
     try {
-      const r = await fetch(`${process.env.API_URL || "http://localhost:4000"}/img/${l.mint}`, { signal: AbortSignal.timeout(4000) });
+      const r = await fetch(`${process.env.API_URL || "http://localhost:4000"}/img/${l.mint}`, { headers: apiHeaders(), signal: AbortSignal.timeout(4000) });
       const type = r.headers.get("content-type") ?? "";
       if (r.ok && /^image\/(png|jpeg|gif)$/.test(type)) logo = `data:${type};base64,${Buffer.from(await r.arrayBuffer()).toString("base64")}`;
     } catch {}
