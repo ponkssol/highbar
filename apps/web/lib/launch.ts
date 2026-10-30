@@ -56,6 +56,8 @@ export async function launchToken(input: LaunchInput, creator: string, wallet: L
     const signedRandom = await wallet.sign(Transaction.from(unb64(r.tx)));
     onStep?.("send");
     const sig = await sendAndConfirmRaw(wallet.connection, signedRandom.serialize(), { onSent: () => onStep?.("confirm") });
+    // fire and forget: lets the API index the new token right away (it verifies the tx on chain)
+    void post("/mint/confirm", { mint: r.mint, signature: sig }).catch(() => {});
     return { mint: r.mint, pool: r.pool, signature: sig, vanity: false, mintSource: r.mintSource ?? "random", image: meta.image ?? "" };
   }
   if (!r.mint.endsWith("high")) throw new Error("unexpected mint address from the server");
@@ -65,16 +67,16 @@ export async function launchToken(input: LaunchInput, creator: string, wallet: L
   const full = await post<{ tx: string; signature: string }>("/tx/launch/sign", { mint: r.mint, tx: b64(signed.serialize({ requireAllSignatures: false, verifySignatures: false })) });
   onStep?.("send");
   const signature = await sendAndConfirmRaw(wallet.connection, unb64(full.tx), { onSent: () => onStep?.("confirm") });
-  void confirmLater(r.mint);
+  void confirmLater(r.mint, signature);
   return { mint: r.mint, pool: r.pool, signature, vanity: true, mintSource: "pool", image: meta.image ?? "" };
 }
 
 /** Best effort, off the critical path: mark the mint used. The tx is already confirmed, so the first call normally succeeds
  *  (retries cover an RPC node that lags behind, the server sweeper covers the rest). */
-async function confirmLater(mint: string) {
+async function confirmLater(mint: string, signature: string) {
   for (let i = 0; i < 6; i++) {
     if (i) await new Promise((res) => setTimeout(res, 3000));
-    const ok = await post<{ used: boolean }>("/mint/confirm", { mint }).then((x) => x.used).catch(() => false);
+    const ok = await post<{ used: boolean }>("/mint/confirm", { mint, signature }).then((x) => x.used).catch(() => false);
     if (ok) return;
   }
 }
