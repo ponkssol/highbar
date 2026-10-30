@@ -7,15 +7,16 @@ import { Empty, Loading, OfflineNote, TD, TH } from "@/components/PageStates";
 import { useApiData } from "@/lib/pagesData";
 import { useHbWallet } from "@/lib/wallet";
 import { fmtAge, fmtSol, shortAddr } from "@/lib/format";
+import { REFERRAL_OF_PROTOCOL_PCT, REFERRAL_VOLUME_PCT } from "@/lib/fees";
 
-type Ledger = { period: string; referees: number; trades: number; volumeSol: number; platformFeeSol: number; amountSol: number; paidSig: string | null; paidAt: number | null; pending: boolean; paidUrl: string | null };
+type Ledger = { period: string; referees: number; trades: number; volumeSol: number; referralFeeSol: number; amountSol: number; paidSig: string | null; paidAt: number | null; pending: boolean; paidUrl: string | null };
 type Referee = { wallet: string; joinedAt: number; trades: number; volumeSol: number };
 type Referral = {
   wallet: string; network?: "devnet" | "mainnet"; param: string; rewardBps: number; minPayoutSol: number; live: boolean;
   referredBy: { referrer: string; createdAt: number } | null; referees: number; referredVolumeSol: number;
   earnedSol: number; paidSol: number; unpaidSol: number; pendingSol: number; ledger: Ledger[]; items: Referee[];
 };
-const EMPTY: Referral = { wallet: "", param: "ref", rewardBps: 2000, minPayoutSol: 0.001, live: false, referredBy: null, referees: 0, referredVolumeSol: 0, earnedSol: 0, paidSol: 0, unpaidSol: 0, pendingSol: 0, ledger: [], items: [] };
+const EMPTY: Referral = { wallet: "", param: "ref", rewardBps: 10000, minPayoutSol: 0.001, live: false, referredBy: null, referees: 0, referredVolumeSol: 0, earnedSol: 0, paidSol: 0, unpaidSol: 0, pendingSol: 0, ledger: [], items: [] };
 const ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const tiny = (v: number) => (v > 0 && v < 0.0001 ? v.toFixed(8) : fmtSol(v, 4));
 
@@ -40,8 +41,10 @@ export default function ReferralPage() {
     <div className="flex flex-col gap-4">
       <TopBlock title="Referral">
         <p className="mt-2 max-w-xl text-sm text-ink-2">
-          Share your link. Wallets that sign in through it are tied to you for good, and you earn {d.rewardBps / 100}% of the platform&apos;s share of
-          the trading fees on their Higher Bar trades. Rewards are tallied per UTC day and paid in SOL once they reach {d.minPayoutSol} SOL.
+          Share your link. Wallets that sign in through it are tied to you for good. Rewards come only from the swap referral fee Meteora pays
+          Higher Bar on curve trades ({REFERRAL_OF_PROTOCOL_PCT}% of Meteora&apos;s protocol fee, about {REFERRAL_VOLUME_PCT}% of volume), not from
+          creators, traders or the platform&apos;s share. Each UTC day, {d.rewardBps >= 10000 ? "the" : `${d.rewardBps / 100}% of the`} referral income your
+          referred wallets&apos; trades generated is shared out by their trading volume, never more than was actually received. Paid in SOL once you reach {d.minPayoutSol} SOL.
         </p>
         <form className="mt-4 flex max-w-xl gap-2" onSubmit={(e) => { e.preventDefault(); find(); }}>
           <input aria-label="Wallet address" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={wallet.address ?? "Wallet address"}
@@ -68,7 +71,7 @@ export default function ReferralPage() {
               <Card key={k}><div className="text-[13px] text-ink-3">{k}</div><div className="num mt-1 text-lg font-semibold">{v}</div></Card>
             ))}
           </div>
-          {d.pendingSol > 0 && <p className="text-xs text-ink-3">{tiny(d.pendingSol)} SOL is an estimate for days that are not closed yet.</p>}
+          {d.pendingSol > 0 && <p className="text-xs text-ink-3">{tiny(d.pendingSol)} SOL is an upper estimate for days that are not closed yet.</p>}
           {!!d.ledger.length && (
             <Card className="overflow-x-auto p-0">
               <h3 className="border-b border-border px-4 py-3 font-semibold">Rewards</h3>

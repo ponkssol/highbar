@@ -23,7 +23,7 @@ export default function AboutPage() {
           <li>After migration the Meteora DAMM v2 pool fee is 1%. With the creator&apos;s locked LP share plus the fixed platform LP rebate, creator / platform / Meteora get {per((id) => { const p = postMigrationPct(id); return `${p.creator} / ${p.platform} / ${p.protocol}%`; })}.</li>
           <li>Migration fee: {per((id) => `${migrationFeePct(id).fee}%`)} of the migrated SOL; the creator gets {per((id) => `${migrationFeePct(id).creatorShare}%`)} of it.</li>
           <li>Traders pay no extra app fee. Trades made here earn {CASHBACK_PCT}% cashback, to be paid in $HIGHER (in SOL until $HIGHER launches).</li>
-          <li>The referral reward on swaps comes out of Meteora&apos;s protocol fee ({REFERRAL_OF_PROTOCOL_PCT}% of it), not from creators or traders.</li>
+          <li>The referral reward on swaps comes out of Meteora&apos;s protocol fee ({REFERRAL_OF_PROTOCOL_PCT}% of it), not from creators or traders. The user referral program is funded only from that income, never from the platform&apos;s share.</li>
           <li>The platform&apos;s net share splits {pct(PLATFORM_SPLIT.buyback)} buyback and burn of $HIGHER, {pct(PLATFORM_SPLIT.ops)} operations, {pct(PLATFORM_SPLIT.treasury)} treasury. $HIGHER has not launched yet.</li>
         </ul>
         <TierTargets />

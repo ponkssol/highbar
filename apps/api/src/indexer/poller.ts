@@ -62,7 +62,8 @@ async function indexTrades(t: Token, limit: number) {
       const sig = `${s.signature}:${i++}`;
       const devBuy = initInTx && !devTagged && ev.side === "buy"; if (devBuy) devTagged = true;
       const added = await store.addTrade({ sig, pool: t.pool, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6,
-        feeSol: Number(ev.feeLamports) / L, wallet: ev.trader, viaUi: !!REFERRAL && ev.referralTokenAccount === REFERRAL, ts, ...(devBuy ? { devBuy: true } : {}) });
+        feeSol: Number(ev.feeLamports) / L, wallet: ev.trader, viaUi: !!REFERRAL && ev.referralTokenAccount === REFERRAL, ts, ...(devBuy ? { devBuy: true } : {}),
+        referralFeeLamports: !!REFERRAL && ev.referralTokenAccount === REFERRAL ? ev.referralFeeLamports : null });
       if (added) await recordTrade({ sig, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6, ts });
       if (added) await store.addActivity({ id: `trade:${sig}`, type: "trade", mint: t.mint, symbol: t.symbol, ts, amount: Number(ev.solLamports) / L, side: ev.side, wallet: ev.trader, sig: s.signature });
     }

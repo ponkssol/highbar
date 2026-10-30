@@ -2,13 +2,14 @@
  *  tsx src/jobs/runReferralMilestone.ts <referral|milestone> [--period yesterday|YYYY-MM-DD] [--live | --dry-run] [--snapshots] [--loop 900]
  *  Dry-run (DRY_RUN unset/true, or --dry-run) simulates every payout tx and writes no rewards / bonuses. --live (or DRY_RUN=false) sends;
  *  mainnet also needs ALLOW_MAINNET=true. The RPC genesis hash must match NETWORK. Payout txs are signed once (pending sig persisted before send).
+ *  referral: referrers are funded ONLY from the referral wallet's swap-referral income (services/referral.ts) and paid BY the referral wallet
+ *  (REFERRAL_KEYPAIR_PATH / REFERRAL_KEYPAIR_JSON; without it the job is dry-run only). The platform key never pays referrers.
  *  milestone reads the score job's hourly DAMM v2 snapshots (token_snapshots, 0003). --snapshots runs that score job first (off-chain
  *  writes + read-only RPC, same in both modes); normally the API's SCORES_INTERVAL_MS loop or jobs:scores keeps them fresh. */
 import { referralWallet, loadPlatformKeypair } from "@hb/onchain";
 import { requireDb, db } from "../db/pool.js";
 import { migrate } from "../db/migrate.js";
-import { previewSplit } from "../services/treasury.js";
-import { capAccruals, computeReferralAccruals, payReferrals, writeReferralAccruals } from "../services/referral.js";
+import { payReferrals, planReferralPeriod, referralSigner, writeReferralPeriod } from "../services/referral.js";
 import { evaluate, payMilestones, writeBonuses } from "../services/milestone.js";
 import { runScores } from "../services/scoreJob.js";
 import { jobs } from "./config.js";
@@ -33,15 +34,14 @@ async function once() {
     const p = period(opt("period"));
     if (live && !isClosed(p)) throw new Error(`period ${p.id} is still open; live referral rewards only run for closed periods`);
     res.period = p.id;
-    const raw = await computeReferralAccruals(p, exclude);
-    const cap = rewards2.referralCapToOps ? (await previewSplit(p)).ops : null;
-    const { rows, capped } = capAccruals(raw, cap);
-    if (live) await writeReferralAccruals(p, rows);
+    const signer = referralSigner(payer);
+    const plan = await planReferralPeriod(p, [...exclude, signer.publicKey.toBase58()]);
+    const ledger = live ? await writeReferralPeriod(p, plan) : "not written (dry-run)";
+    const { rows, ...pool } = plan;
     res.referral = {
-      rewardBps: rewards2.referralRewardBps, referrers: rows.length, trades: rows.reduce((a, x) => a + x.trades, 0),
-      volumeLamports: rows.reduce((a, x) => a + x.volume, 0n), platformFeeLamports: rows.reduce((a, x) => a + x.platformFee, 0n),
-      accruedLamports: rows.reduce((a, x) => a + x.amount, 0n), opsCapLamports: cap, capped,
-      payouts: await payReferrals(payer, live, live ? null : { period: p.id, rows }),
+      source: "Meteora DBC swap referral fee received by REFERRAL_WALLET (not the platform share)", signer: signer.publicKey.toBase58(),
+      signerHasKey: "secretKey" in signer, ...pool, ledger, top: rows.slice().sort((a, b) => (b.amount > a.amount ? 1 : -1)).slice(0, 10),
+      ...(await payReferrals(signer, live, live ? null : { plan })),
     };
   }
   if (cmd === "milestone") {

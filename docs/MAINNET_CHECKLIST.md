@@ -33,7 +33,7 @@ You need 3 separate wallets. Only #1 is a hot key on Railway.
 |---|---|---|---|
 | 1 | **Platform key**: DBC config fee claimer, pays claims, cashback, creator LP rebates, buyback and keeper migrations | `solana-keygen new -o C:\Users\Ponks_sol\hb-mainnet-keys\platform.json` | `PLATFORM_KEYPAIR_JSON` (sealed) on keeper + jobs; pubkey as `PLATFORM_PUBKEY` / `FEE_CLAIMER_PUBKEY` |
 | 2 | **Treasury**: receives claimed fees and is the config leftover receiver | Phantom/Solflare/Ledger wallet you control. A single wallet is OK; a multisig is a later [NICE] | `TREASURY_PUBKEY` (public key only) |
-| 3 | **Referral wallet**: its WSOL ATA receives the referral fee on every swap | a fresh wallet; **never trade or swap from it** (the SDK/Jupiter would close its WSOL ATA) | `REFERRAL_WALLET` + `PLATFORM_REFERRAL_TOKEN_ACCOUNT` |
+| 3 | **Referral wallet**: its WSOL ATA receives the referral fee on every swap; it is the only source of user referral payouts and signs them | a fresh wallet; **never trade or swap from it** (the SDK/Jupiter would close its WSOL ATA) | `REFERRAL_WALLET` + `PLATFORM_REFERRAL_TOKEN_ACCOUNT`; jobs only: `REFERRAL_KEYPAIR_PATH` (secret, never committed) |
 
 Rules the code enforces:
 - The platform key must not be the referral wallet. Buyback refuses this, and the API warns.
@@ -201,6 +201,12 @@ Also:
   - Keep `BUYBACK_MAX_ORDER_SOL` small.
 - **$HIGHER fee share payouts** [NICE]: keep `BAR_FEE_SHARE_LIVE=false` until the legal review.
 - **Referral and milestone payouts** [NICE]: run them dry-run by hand first (`jobs:referral`, `jobs:milestone`). Add cron services later.
+- **User referral funds flow** [NICE]: referrers are paid only from the referral wallet's swap-referral income (20% of Meteora's protocol fee, ~0.04% of curve volume), never from the platform share.
+  - Swap -> referral fee lands as WSOL in `PLATFORM_REFERRAL_TOKEN_ACCOUNT` -> `jobs:referral --live` (signed by the referral wallet) closes and re-creates that WSOL ATA in one tx (unwrap, rent returned) -> sends SOL to referrers. The referral wallet pays its own tx fees (~5000 lamports per batch).
+  - Set `REFERRAL_KEYPAIR_PATH` only on the jobs service, pointing at the referral wallet's key file (must match `REFERRAL_WALLET`; must not be the platform key; the job refuses otherwise). Without it the job is dry-run only. The platform key never pays referrers.
+  - Seed the referral wallet once with ~0.02 SOL: the payout pre-check wants the payout + 0.01 SOL buffer, and it pays tx fees. Afterwards it is self-funding.
+  - Unallocated income (non-referred trades) accumulates in the referral wallet. Moving it anywhere (e.g. to the treasury) is a manual transfer by the key holder; nothing sweeps it automatically.
+  - First live run: dry-run, check `income` vs the WSOL ATA balance change for that day, then `ALLOW_MAINNET=true ... jobs:referral -- --live --period <day>` once.
 
 ## 10. Rollback
 
@@ -216,7 +222,7 @@ Pools, curves and LP locks live on-chain. Rolling back the app never touches use
 
 ## Later [NICE]
 
-- Treasury multisig (e.g. Squads). If it becomes the fee claimer, claims need multisig proposals, so keep the platform key as claimer and use the multisig as receiver. Rebate / cashback / referral payouts are sent from the platform key, so it then needs top-ups from the vault (multisig proposals; not automated).
+- Treasury multisig (e.g. Squads). If it becomes the fee claimer, claims need multisig proposals, so keep the platform key as claimer and use the multisig as receiver. Rebate / cashback / milestone payouts are sent from the platform key, so it then needs top-ups from the vault (multisig proposals; not automated). User referral payouts come from the referral wallet and are unaffected.
 - Redis-backed rate limits before running more than 1 api replica (limits are in-memory per instance).
 - Migrate Railway config-as-code files to Railway's newer Infrastructure-as-Code before 2026-12-01.
 - Error tracking (Sentry) and uptime checks on `/health`.

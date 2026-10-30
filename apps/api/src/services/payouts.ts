@@ -6,19 +6,24 @@ import { db } from "../db/pool.js";
 /** Generic SOL payout batching shared by the referral, milestone and creator LP rebate jobs (same safety as cashback: simulate in dry-run,
  *  live = sign once, persist the signature as pending BEFORE sending, confirm, then mark paid; reconcile settles crashes). */
 export interface Due { wallet: string; lamports: bigint; ref: string[] }
+/** A signing keypair, or only a public key (dry-run simulation; live sending refuses). */
+export type Payer = Keypair | { publicKey: PublicKey };
 export interface PayoutResult { wallets: string[]; refs: string[]; lamports: bigint; sig?: string; status: "paid" | "would-pay" | "failed"; note?: string }
 
 export const isKey = (w: string) => { try { return PublicKey.isOnCurve(new PublicKey(w).toBytes()); } catch { return false; } };
 
 export async function payBatches(o: {
-  payer: Keypair; live: boolean; due: Due[]; batch: number; memo: (b: Due[]) => string;
+  payer: Payer; live: boolean; due: Due[]; batch: number; memo: (b: Due[]) => string;
+  /** dry-run only: lamports a not-yet-sent preparatory tx would add to the payer (referral WSOL unwrap) */
+  extraBalance?: bigint;
   markPending: (sig: string, b: Due[]) => Promise<void>; markPaid: (sig: string) => Promise<void>;
 }): Promise<PayoutResult[]> {
   const due = o.due.filter((d) => d.lamports > 0n && d.wallet !== o.payer.publicKey.toBase58() && isKey(d.wallet));
   if (!due.length) return [];
   const conn = getConnection(), out: PayoutResult[] = [];
   const total = due.reduce((a, d) => a + d.lamports, 0n);
-  const bal = BigInt(await conn.getBalance(o.payer.publicKey, "confirmed"));
+  if (o.live && !("secretKey" in o.payer)) throw new Error(`live payouts need the secret key of ${o.payer.publicKey.toBase58()}`);
+  const bal = BigInt(await conn.getBalance(o.payer.publicKey, "confirmed")) + (o.live ? 0n : o.extraBalance ?? 0n);
   if (bal < total + 10_000_000n) {
     const note = `payer ${o.payer.publicKey.toBase58()} has ${bal} lamports, needs ${total} + 0.01 SOL buffer`;
     if (o.live) throw new Error(note);
@@ -30,12 +35,12 @@ export async function payBatches(o: {
     for (const d of b) tx.add(SystemProgram.transfer({ fromPubkey: o.payer.publicKey, toPubkey: new PublicKey(d.wallet), lamports: d.lamports }));
     tx.add(memoIx(o.memo(b)));
     const base = { wallets: b.map((d) => d.wallet), refs: b.flatMap((d) => d.ref), lamports: b.reduce((a, d) => a + d.lamports, 0n) };
-    if (!o.live) { const sim = await simulate(tx, o.payer.publicKey); out.push({ ...base, status: sim.ok ? "would-pay" : "failed", note: sim.err }); continue; }
+    if (!o.live) { const sim = await simulate(tx, o.payer.publicKey); out.push({ ...base, status: sim.ok ? "would-pay" : "failed", note: sim.err && o.extraBalance ? `${sim.err} (simulated before the WSOL unwrap it depends on)` : sim.err }); continue; }
     // pre-flight simulation before the one and only signature
     const sim = await simulate(tx, o.payer.publicKey);
     if (!sim.ok) { out.push({ ...base, status: "failed", note: `simulation failed: ${sim.err}` }); continue; }
     try {
-      const sig = await sendOnce(tx, [o.payer], (s) => o.markPending(s, b));
+      const sig = await sendOnce(tx, [o.payer as Keypair], (s) => o.markPending(s, b));
       await o.markPaid(sig);
       out.push({ ...base, sig, status: "paid" });
     } catch (e) { out.push({ ...base, status: "failed", note: (e as Error).message }); } // stays pending; reconcile settles it next run

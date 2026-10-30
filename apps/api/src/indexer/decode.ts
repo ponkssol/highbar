@@ -14,7 +14,8 @@ const MIG_ACCTS = acctNames("migration_damm_v2");
 
 export type DbcEvent =
   | { kind: "swap"; pool: string; config: string; trader: string; side: "buy" | "sell"; solLamports: bigint; tokenAmount: bigint;
-      feeLamports: bigint; feeBaseAmount: bigint; quoteReserve: bigint; referralTokenAccount?: string; hasReferral: boolean }
+      feeLamports: bigint; feeBaseAmount: bigint; quoteReserve: bigint; referralTokenAccount?: string; hasReferral: boolean;
+      /** referral fee paid to the swap's referral account, in quote lamports (0 when the fee is collected in the base token) */ referralFeeLamports: bigint }
   | { kind: "init"; pool: string; mint: string; config: string; creator: string; name: string; symbol: string; uri: string }
   | { kind: "complete"; pool: string }
   | { kind: "migrated"; pool: string; dammPool: string }
@@ -94,10 +95,11 @@ export function decodeDbcEvents(tx: RawTx): DbcEvent[] {
 /** trade_direction: 0 = BaseToQuote (sell), 1 = QuoteToBase (buy). Assumes quote = SOL and fees collected in quote. */
 function normalizeSwap(name: string, d: any) {
   const side: "buy" | "sell" = Number(field(d, "trade_direction")) === 1 ? "buy" : "sell";
-  let inAmt: bigint, outAmt: bigint, fee: bigint, quoteReserve: bigint, feeOnBase: boolean;
+  let inAmt: bigint, outAmt: bigint, fee: bigint, quoteReserve: bigint, feeOnBase: boolean, refFee: bigint;
   if (name.startsWith("EvtSwap3")) {
     inAmt = big(field(d, "included_transfer_fee_amount_in")); outAmt = big(field(d, "excluded_transfer_fee_amount_out"));
-    fee = big(field(d, "trading_fee")) + big(field(d, "protocol_fee")) + big(field(d, "referral_fee"));
+    refFee = big(field(d, "referral_fee"));
+    fee = big(field(d, "trading_fee")) + big(field(d, "protocol_fee")) + refFee;
     quoteReserve = big(field(d, "quote_reserve"));
     feeOnBase = !!field(d, "fee_on_base_token");
   } else {
@@ -105,10 +107,11 @@ function normalizeSwap(name: string, d: any) {
     const r = field(d, "swap_result");
     inAmt = name.startsWith("EvtSwap2") ? big(field(r, "included_fee_input_amount")) : big(field(d, "amount_in"));
     outAmt = big(field(r, "output_amount"));
-    fee = big(field(r, "trading_fee")) + big(field(r, "protocol_fee")) + big(field(r, "referral_fee"));
+    refFee = big(field(r, "referral_fee"));
+    fee = big(field(r, "trading_fee")) + big(field(r, "protocol_fee")) + refFee;
     quoteReserve = name.startsWith("EvtSwap2") ? big(field(d, "quote_reserve_amount")) : 0n;
   }
-  const fees = feeOnBase ? { feeLamports: 0n, feeBaseAmount: fee } : { feeLamports: fee, feeBaseAmount: 0n };
+  const fees = feeOnBase ? { feeLamports: 0n, feeBaseAmount: fee, referralFeeLamports: 0n } : { feeLamports: fee, feeBaseAmount: 0n, referralFeeLamports: refFee };
   return side === "buy"
     ? { side, solLamports: inAmt, tokenAmount: outAmt, quoteReserve, ...fees }
     : { side, solLamports: outAmt, tokenAmount: inAmt, quoteReserve, ...fees };

@@ -8,7 +8,8 @@ export interface Token {
   volumeSol: number; volume24hSol: number; trades: number; creatorFeesSol: number; feesSol: number; updatedAt: number;
 }
 /** sig = "<txsig>:<ixIdx>" */
-export interface TradeRow { sig: string; pool: string; mint: string; side: "buy" | "sell"; sol: number; tokens: number; feeSol: number; wallet: string; viaUi: boolean; ts: number; /** first buy inside the pool-creation tx (Block 0) */ devBuy?: boolean }
+export interface TradeRow { sig: string; pool: string; mint: string; side: "buy" | "sell"; sol: number; tokens: number; feeSol: number; wallet: string; viaUi: boolean; ts: number; /** first buy inside the pool-creation tx (Block 0) */ devBuy?: boolean;
+  /** write-only: referral fee paid to the platform referral account in this swap (via_ui trades), lamports */ referralFeeLamports?: bigint | null }
 export type ActivityType = "launch" | "burn" | "graduate" | "trade";
 export interface Activity { id: string; type: ActivityType; mint: string; symbol: string; ts: number; amount?: number; side?: "buy" | "sell"; wallet?: string; sig?: string }
 export interface LockMeta { mint: string; creator: string; cliffTime: number; endTime: number; total: string; locked: string; cancelled: boolean; seenAt: number }
@@ -69,8 +70,8 @@ export const store = {
   /** Insert a swap; false when sig+ix_idx already exists. */
   async addTrade(t: TradeRow, q: Q = db): Promise<boolean> {
     const { sig, ixIdx } = splitSig(t.sig);
-    const r = await q.query(`INSERT INTO trades (sig,ix_idx,pool,mint,side,sol,tokens,fee_sol,wallet,via_ui,dev_buy,ts) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING`,
-      [sig, ixIdx, t.pool, t.mint, t.side, t.sol, t.tokens, t.feeSol, t.wallet, t.viaUi, !!t.devBuy, Math.round(t.ts)]);
+    const r = await q.query(`INSERT INTO trades (sig,ix_idx,pool,mint,side,sol,tokens,fee_sol,wallet,via_ui,dev_buy,ts,referral_fee_lamports) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING`,
+      [sig, ixIdx, t.pool, t.mint, t.side, t.sol, t.tokens, t.feeSol, t.wallet, t.viaUi, !!t.devBuy, Math.round(t.ts), t.referralFeeLamports == null ? null : t.referralFeeLamports.toString()]);
     return (r.rowCount ?? 0) > 0;
   },
   async tradesFor(mint: string, limit = 100): Promise<TradeRow[]> {
