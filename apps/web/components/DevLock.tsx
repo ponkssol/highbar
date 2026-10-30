@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { PublicKey } from "@solana/web3.js";
 import { AlertTriangle, Lock, Unlock, X } from "lucide-react";
 import { useHbWallet } from "@/lib/wallet";
 import { api } from "@/lib/api";
 import { DevLockedBadge } from "./DevLockedBadge";
-import { buildClaimLockTx, buildLockTx, toUi, type LocksResp } from "@/lib/lock";
+import { buildClaimLockTx, buildLockTx, toUi, TOKEN_DECIMALS, type LocksResp } from "@/lib/lock";
 import { NETWORK } from "@/lib/settings";
 import { shortAddr } from "@/lib/format";
 
@@ -20,6 +21,16 @@ const lockStatus = (l: LockRow, now: number) => Number(l.claimable) > 0 ? "Claim
 /** Lock duration quick picks (days). The lock is time based: no cliff or vesting options in the form. */
 const DURATIONS = [7, 30, 90, 180, 365] as const;
 const MAX_DAYS = 3650;
+/** Token amount quick picks (percent of the max lockable balance). */
+const AMOUNT_PCTS = [10, 20, 50, 100] as const;
+/** Raw base units to a plain decimal string (no exponent, trailing zeros trimmed, leading zero kept). */
+const rawToStr = (raw: bigint, decimals: number) => {
+  if (decimals <= 0) return raw.toString();
+  const s = raw.toString().padStart(decimals + 1, "0");
+  const frac = s.slice(-decimals).replace(/0+$/, "");
+  return frac ? `${s.slice(0, -decimals)}.${frac}` : s.slice(0, -decimals);
+};
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const fmtDay = (s: number) => new Date(s * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 /** Share of supply with a leading zero (0.5, 12.34). Tiny shares read "under 0.01". */
 const fmtShare = (p: number) => (p > 0 && p < 0.01 ? "under 0.01" : p.toLocaleString("en-US", { minimumIntegerDigits: 1, maximumFractionDigits: 2 }));
@@ -43,8 +54,11 @@ export function useIsCreator(creator: string) {
  *  mode="view": read-only schedule for the token page tab. mode="form": creator actions with the form open (used in the Dev Lock modal). */
 export function DevLock({ mint, ticker, creator, data, reload, mode = "full", onDone }: LockProps & { mode?: "full" | "view" | "form"; onDone?: () => void }) {
   const { publicKey, connection, sendTransaction } = useHbWallet();
+  const router = useRouter();
   const isCreator = useIsCreator(creator) && mode !== "view";
   const [bal, setBal] = useState<number | null>(null);
+  // Exact balance in base units + decimals: quick picks round down from this so they never exceed the balance.
+  const [balRaw, setBalRaw] = useState<{ raw: bigint; decimals: number } | null>(null);
   const [open, setOpen] = useState(mode === "form"); // the modal opens straight into the form, with the lock list and Claim above it
   const [amount, setAmount] = useState("");
   const [chipDays, setChipDays] = useState<number>(30);
@@ -55,11 +69,18 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    if (!isCreator || !publicKey) { setBal(null); return; }
+    if (!isCreator || !publicKey) { setBal(null); setBalRaw(null); return; }
     let alive = true;
     connection.getParsedTokenAccountsByOwner(publicKey, { mint: new PublicKey(mint) })
-      .then((r) => { if (!alive) return; const b = r.value.reduce((a, x) => a + (x.account.data.parsed.info.tokenAmount.uiAmount ?? 0), 0); setBal(b); setAmount((v) => v || String(b)); })
-      .catch(() => alive && setBal(null));
+      .then((r) => {
+        if (!alive) return;
+        const b = r.value.reduce((a, x) => a + (x.account.data.parsed.info.tokenAmount.uiAmount ?? 0), 0);
+        const raw = r.value.reduce((a, x) => a + BigInt(x.account.data.parsed.info.tokenAmount.amount ?? "0"), BigInt(0));
+        const decimals = Number(r.value[0]?.account.data.parsed.info.tokenAmount.decimals ?? Math.log10(TOKEN_DECIMALS));
+        setBal(b); setBalRaw({ raw, decimals });
+        setAmount((v) => v || rawToStr(raw, decimals));
+      })
+      .catch(() => { if (alive) { setBal(null); setBalRaw(null); } });
     return () => { alive = false; };
   }, [isCreator, publicKey, connection, mint, data]);
 
@@ -78,6 +99,10 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
   const nextCliff = locks.filter((l) => Number(l.locked) > 0 && l.cliffTime > nowS).reduce<number | null>((m, l) => (m === null || l.cliffTime < m ? l.cliffTime : m), null);
   const claimable = data?.claimableTokens ?? 0;
   const amt = Number(amount) || 0;
+  const hasBal = !!balRaw && balRaw.raw > BigInt(0);
+  /** Amount string for a percent of the max lockable balance, rounded down to the token decimals. 100% is the exact max. */
+  const pctAmount = (p: number) => (balRaw ? rawToStr((balRaw.raw * BigInt(p)) / BigInt(100), balRaw.decimals) : "0");
+  const maxAmount = balRaw ? rawToStr(balRaw.raw, balRaw.decimals) : String(bal ?? 0);
   const days = customDays ? Number(customDays) : chipDays;
   const daysOk = Number.isInteger(days) && days >= 1 && days <= MAX_DAYS;
   // Days map to the same unlock timestamp the API already takes (unlockAt, unix seconds). No vesting: vestingDays stays 0.
@@ -98,8 +123,16 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
       const r = await buildLockTx({ creator: publicKey.toBase58(), mint, amount: amt, unlockAt: unlockAtFor(days), vestingDays: 0 });
       const sig = await sendTransaction(r.transaction);
       await connection.confirmTransaction(sig, "confirmed");
-      await api.confirmLock(r.escrow).catch(() => {});
+      // Record the escrow with the api. The RPC behind it can lag a moment after "confirmed", so retry briefly.
+      for (let i = 0; i < 5; i++) {
+        const ok = await api.confirmLock(r.escrow).then(() => true, () => false);
+        if (ok) break;
+        await sleep(1500);
+      }
       setMsg(`Locked. Tx ${sig.slice(0, 8)}`); setOpen(mode === "form"); setAgree(false); reload();
+      // Close the modal and open the new lock's detail page (/locks/[escrow]). The page keeps retrying if the escrow is not readable yet.
+      onDone?.();
+      router.push(`/locks/${r.escrow}`);
     } catch (e) { setMsg(`Lock failed: ${(e as Error).message}`); } finally { setBusy(false); }
   };
   const claim = async () => {
@@ -173,12 +206,22 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
               <span className="shrink-0 text-sm text-ink-3">days</span>
             </label>
           </div>
-          <label className="block"><span className="mb-1.5 flex justify-between text-[13px] text-ink-2">Token amount<button type="button" onClick={() => setAmount(String(bal ?? 0))} className="num text-xs text-ink-3 hover:text-ink">Max {fmtTok(bal ?? 0)}</button></span>
+          <label className="block"><span className="mb-1.5 flex justify-between text-[13px] text-ink-2">Token amount<button type="button" onClick={() => setAmount(maxAmount)} className="num text-xs text-ink-3 hover:text-ink">Max {fmtTok(bal ?? 0)}</button></span>
             <input className={`${input} num`} inputMode="decimal" placeholder="0" value={amount} data-testid="lock-amount" onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} />
+            <div className="mt-2 grid grid-cols-4 gap-1.5" role="group" aria-label="Amount quick picks" data-testid="lock-amount-picks">
+              {AMOUNT_PCTS.map((p) => {
+                const v = pctAmount(p);
+                const on = hasBal && amount !== "" && Number(amount) === Number(v);
+                return (
+                  <button key={p} type="button" aria-pressed={on} disabled={!hasBal} data-testid={`lock-pct-${p}`} onClick={() => setAmount(v)}
+                    className={`num h-9 rounded border text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${on ? "border-gold-line bg-gold-soft font-semibold text-gold-text" : "border-border text-ink-2 hover:bg-muted hover:text-ink"}`}>{p}%</button>
+                );
+              })}
+            </div>
             {supply != null && amt > 0 && <span className="num mt-1 block text-xs text-ink-3" data-testid="lock-supply-pct">{fmtShare((amt / supply) * 100)}% of supply</span>}
           </label>
           {amt > 0 && daysOk && <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-ink" data-testid="lock-summary">Locks <span className="num font-medium">{fmtTok(amt)} ${ticker}</span> until <span className="num font-medium">{fmtDay(unlockAtFor(days))}</span></p>}
-          <p className="flex gap-2 text-xs text-ink-3"><AlertTriangle size={14} className="mt-px shrink-0" />Tokens stay locked until the unlock date. Nobody, including you, can withdraw them early or cancel the lock. Powered by Jupiter Lock.</p>
+          <p className="flex gap-2 text-xs text-ink-3"><AlertTriangle size={14} className="mt-px shrink-0" />Tokens stay locked until the unlock date. Nobody, including you, can withdraw them early or cancel the lock.</p>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" required checked={agree} onChange={(e) => setAgree(e.target.checked)} data-testid="lock-agree" />
             <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-gold-text underline-offset-4 hover:underline">Terms and Conditions</a></span>
@@ -187,7 +230,13 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
             <button type="button" onClick={() => (mode === "form" ? onDone?.() : setOpen(false))} className="h-10 flex-1 rounded border border-border text-sm hover:bg-muted">Cancel</button>
             <button type="button" onClick={lock} disabled={busy || !!err} title={err || undefined} data-testid="lock-submit" className="h-10 flex-1 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Locking..." : "Lock tokens"}</button>
           </div>
-          <p className="text-xs text-ink-3" data-testid="lock-tip">Protocol tip: {data?.tipSol ?? 0.005} SOL</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-ink-3" data-testid="lock-tip">Protocol tip: {data?.tipSol ?? 0.005} SOL</p>
+            <a href="https://lock.jup.ag" target="_blank" rel="noopener noreferrer" data-testid="jup-lock-badge"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] text-ink-3 transition-colors hover:border-ink-3 hover:text-ink">
+              <img src="/brand/jupiter.svg" alt="" width={14} height={14} className="h-3.5 w-3.5" />Secured by Jupiter Lock
+            </a>
+          </div>
           {err && <p className="text-xs text-ink-3">{err}</p>}
         </div>
       )}
@@ -239,7 +288,7 @@ export function DevLockButton({ className = "", devLocked, unlockAt, ...p }: Loc
               <h2 id="dev-lock-title" className="flex items-center gap-2 text-base font-semibold"><Lock size={16} strokeWidth={1.5} />Dev token lock</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-ink-3 hover:bg-muted hover:text-ink"><X size={18} /></button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-4 md:pb-5">
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-4 md:pb-5">
               <DevLock {...p} mode="form" onDone={() => setOpen(false)} />
             </div>
           </div>

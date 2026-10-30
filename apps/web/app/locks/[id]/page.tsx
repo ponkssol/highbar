@@ -8,11 +8,14 @@ import { ShareButtons } from "@/components/ShareButtons";
 import { fetchLock, fmtLockDate } from "@/lib/lockData";
 import { shortAddr } from "@/lib/format";
 import { LockDonut } from "@/components/LockDonut";
+import { LockPending } from "./LockPending";
 
 export const dynamic = "force-dynamic";
 const network = () => (process.env.NETWORK === "mainnet" || process.env.NETWORK === "mainnet-beta" ? "mainnet" : "devnet"); // runtime server env
 const site = () => process.env.SITE_URL || "http://localhost:3000";
 const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+/** Looks like a Solana address (base58, 32 to 44 chars). Only these get the pending state, anything else is a plain 404. */
+const isAddress = (s: string) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -27,7 +30,16 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function LockSharePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const l = await fetchLock(id);
-  if (!l) notFound();
+  if (!l) {
+    // A lock created a moment ago can be briefly unreadable (RPC lag). Show a retrying state instead of a hard 404.
+    if (!isAddress(id)) notFound();
+    return (
+      <div className="flex flex-col gap-4">
+        <TopBlock title="Dev token lock" />
+        <LockPending />
+      </div>
+    );
+  }
   const sym = l.token?.symbol || "?";
   const rows: [string, string][] = [
     ["Amount", `${fmtTok(l.totalTokens)} $${sym}`], ["% of supply", `${l.supplyPct.toFixed(2)}%`],
