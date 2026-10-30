@@ -3,7 +3,7 @@ import { store } from "../store.js";
 import { scoresStore } from "../services/scoresStore.js";
 import { SCORE_MAX } from "../services/score.js";
 
-/** Higher Bar score + holder endpoints (written by services/scoreJob.ts). */
+/** highbar score + holder endpoints (written by services/scoreJob.ts). */
 export function registerScores(app: FastifyInstance) {
   app.get("/tokens/:mint/score", async (req, reply) => {
     const { mint } = req.params as { mint: string };

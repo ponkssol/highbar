@@ -345,7 +345,7 @@ app.post("/tx/lock/claim", async (req, reply) => {
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
 
-// Higher Bar scores / holders / hourly snapshots (off-chain; read-only RPC for graduated tokens' DAMM v2 price).
+// highbar scores / holders / hourly snapshots (off-chain; read-only RPC for graduated tokens' DAMM v2 price).
 // Standalone: pnpm --filter @hb/api jobs:scores -- --loop 600. SCORES_INTERVAL_MS=0 disables it here.
 const SCORES_MS = Number(process.env.SCORES_INTERVAL_MS ?? 600_000);
 if (SCORES_MS > 0) {

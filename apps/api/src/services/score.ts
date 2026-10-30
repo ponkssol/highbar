@@ -1,6 +1,6 @@
 import type { TierId } from "@hb/shared";
 
-/** Higher Bar score (BUILD_BRIEF section 7): 0-100 from tier, anti-sniper, dev lock and holder spread. Pure, no I/O. */
+/** highbar score (BUILD_BRIEF section 7): 0-100 from tier, anti-sniper, dev lock and holder spread. Pure, no I/O. */
 export const SCORE_MAX = { tier: 30, antiSniper: 15, devLock: 25, spread: 30 } as const;
 export const TIER_POINTS: Record<TierId, number> = { standard: 10, higher: 20, max: 30 };
 /** Lock earns full duration credit at >= 90 days left and full size credit at >= 5% of supply. */
@@ -24,7 +24,7 @@ export interface ScoreBreakdown {
   tier: number; antiSniper: number; devLock: number; spread: number;
   holders: number; top10Pct: number; lockedPct: number; lockDaysLeft: number;
 }
-export type ScoreLabel = "Higher Bar" | "Solid" | "Early";
+export type ScoreLabel = "highbar" | "Solid" | "Early";
 
 const clamp = (x: number) => Math.max(0, Math.min(1, x));
 const r1 = (x: number) => Math.round(x * 10) / 10;
@@ -54,4 +54,4 @@ export function computeScore(i: ScoreInput): { score: number; label: ScoreLabel;
   const score = Math.max(0, Math.min(100, Math.round(tier + antiSniper + devLock + spread)));
   return { score, label: scoreLabel(score), breakdown };
 }
-export const scoreLabel = (s: number): ScoreLabel => (s >= 70 ? "Higher Bar" : s >= 40 ? "Solid" : "Early");
+export const scoreLabel = (s: number): ScoreLabel => (s >= 70 ? "highbar" : s >= 40 ? "Solid" : "Early");

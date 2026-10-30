@@ -28,7 +28,7 @@ export function registerPages(app: FastifyInstance) {
 
     if (kind === "scores") {
       return tokens.filter((t) => sc(t.mint) != null && (from === 0 || inWin(t.createdAt)))
-        // breakdown is always present (null only for a malformed scores row) so the web Higher Bar table never reads a missing object.
+        // breakdown is always present (null only for a malformed scores row) so the web highbar table never reads a missing object.
         .map((t) => { const b = scores.get(t.mint)?.breakdown ?? null; return { ...base(t), label: b?.label ?? null, breakdown: b, volumeSol: t.volumeSol }; })
         .sort((a, b) => b.score! - a.score! || b.volumeSol - a.volumeSol).slice(0, limit);
     }

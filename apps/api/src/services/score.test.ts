@@ -14,7 +14,7 @@ test("bare standard token with one holder scores low", () => {
 test("max tier + anti-sniper + long 10% lock + wide spread reaches 100", () => {
   const r = computeScore({ tier: "max", antiSniper: true, lock: { lockedTokens: 100_000_000, unlockAt: now + 365 * 86400 }, balances: flat(400), nowSec: now });
   assert.equal(r.breakdown.devLock, SCORE_MAX.devLock); assert.equal(r.breakdown.spread, SCORE_MAX.spread);
-  assert.equal(r.score, 100); assert.equal(r.label, "Higher Bar");
+  assert.equal(r.score, 100); assert.equal(r.label, "highbar");
 });
 
 test("expired or empty locks give no credit; short locks give partial credit", () => {

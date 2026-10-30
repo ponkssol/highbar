@@ -30,7 +30,7 @@ async function dammPrice(mint: string, config: string, known: string | null): Pr
   return { pool: pool!, priceSol: Number(getPriceFromSqrtPrice(state.sqrtPrice, 6, 9).toString()) };
 }
 
-/** Recompute Higher Bar scores + holders for every token and write an hourly price snapshot
+/** Recompute highbar scores + holders for every token and write an hourly price snapshot
  *  (curve price while bonding, DAMM v2 pool price after migration when `rpc`). Off-chain only; sends nothing. */
 export async function runScores(log: (m: string) => void = console.log, opts: { rpc?: boolean } = {}) {
   const now = Date.now(), nowSec = Math.floor(now / 1000), bucket = Math.floor(now / HOUR) * HOUR;

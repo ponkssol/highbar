@@ -1,5 +1,5 @@
 import { db, tx } from "../db/pool.js";
-import type { ScoreBreakdown } from "./score.js";
+import { scoreLabel, type ScoreBreakdown } from "./score.js";
 
 /** Postgres access for scores / holders / snapshots / migration info (tables in db/migrations/0003). */
 export const scoresStore = {
@@ -38,7 +38,8 @@ export const scoresStore = {
   async scores(mints?: string[]): Promise<Map<string, { score: number; breakdown: ScoreBreakdown & { label: string }; updatedAt: number }>> {
     const r = await db.query<{ mint: string; score: number; breakdown_json: ScoreBreakdown & { label: string }; updated_at: string }>(
       mints ? "SELECT * FROM scores WHERE mint = ANY($1)" : "SELECT * FROM scores", mints ? [mints] : []);
-    return new Map(r.rows.map((x) => [x.mint, { score: x.score, breakdown: x.breakdown_json, updatedAt: Number(x.updated_at) }]));
+    // label is derived from the score on read, so rows written before a label rename (old brand text) never surface it.
+    return new Map(r.rows.map((x) => [x.mint, { score: x.score, breakdown: { ...x.breakdown_json, label: scoreLabel(x.score) }, updatedAt: Number(x.updated_at) }]));
   },
   async holders(mint: string, limit: number) {
     return (await db.query<{ wallet: string; balance: number }>("SELECT wallet, balance FROM holders WHERE mint = $1 ORDER BY balance DESC, wallet LIMIT $2", [mint, limit])).rows;

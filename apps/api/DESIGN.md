@@ -1,4 +1,4 @@
-# Higher Bar — apps/api design (Step 5 + Step 7 draft)
+# highbar — apps/api design (Step 5 + Step 7 draft)
 
 > Status: draft, local only. The repo `ponkssol/heiger-bar` currently contains only `.gitattributes` (branch `main`), so BUILD_BRIEF.md could not be read; this follows PLAN.md. Re-align once the brief lands.
 

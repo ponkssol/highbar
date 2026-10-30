@@ -12,7 +12,7 @@ import type { Period } from "../jobs/period.js";
 import { isKey, payBatches, reconcile, type Due, type PayoutResult, type Payer } from "./payouts.js";
 
 /** User referral program (BUILD_BRIEF section 5 "Referral"). Referrers are funded ONLY from the platform's swap-referral income:
- *  the referral fee the Meteora DBC program pays into REFERRAL_WALLET's WSOL account on Higher Bar swaps (20% of Meteora's protocol fee).
+ *  the referral fee the Meteora DBC program pays into REFERRAL_WALLET's WSOL account on highbar swaps (20% of Meteora's protocol fee).
  *  Nothing comes from the platform fee share, and payouts are signed by the referral wallet itself, never by the platform key.
  *
  *  Income measurement: per swap, from the indexed swap event (trades.referral_fee_lamports, the exact amount the program moved into the
@@ -44,7 +44,7 @@ export async function bindReferral(referee: string, referrer: string, source = "
 /** SQL for a via_ui trade's referral fee in lamports ($n = REFERRAL_FEE_BPS_OF_TRADE_FEE). */
 const REF_FEE = (n: number) => `coalesce(t.referral_fee_lamports, floor(round(t.fee_sol * 1e9) * $${n} / 10000))`;
 
-/** Referral income received in the period: the referral fee of every Higher Bar (via_ui) swap. */
+/** Referral income received in the period: the referral fee of every highbar (via_ui) swap. */
 export async function referralIncome(p: Period, q: Q = db) {
   const r = (await q.query<{ income: string; n: number; derived: number }>(
     `SELECT coalesce(sum(${REF_FEE(3)}), 0)::bigint::text AS income, count(*)::int AS n, count(*) FILTER (WHERE t.referral_fee_lamports IS NULL)::int AS derived

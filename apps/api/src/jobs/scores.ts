@@ -1,4 +1,4 @@
-/** Higher Bar score + holders + snapshots job (off-chain, read-only RPC). tsx src/jobs/scores.ts [--no-rpc] [--loop SEC] */
+/** highbar score + holders + snapshots job (off-chain, read-only RPC). tsx src/jobs/scores.ts [--no-rpc] [--loop SEC] */
 import { db, requireDb } from "../db/pool.js";
 import { migrate } from "../db/migrate.js";
 import { runScores } from "../services/scoreJob.js";
