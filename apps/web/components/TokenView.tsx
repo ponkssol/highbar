@@ -14,6 +14,7 @@ import { Price, TierBadge } from "./ui";
 import { DeltaPill } from "./StatsPanel";
 import { DevLock, DevLockButton, LockedBadge } from "./DevLock";
 import { DevLockedBadge } from "./DevLockedBadge";
+import { TabBar, TabPanels, useUrlTab } from "./TabBar";
 import { OfficialBadge } from "./OfficialBadge";
 import { ScoreBadge } from "./ScoreBadge";
 import { ScoreCard } from "./ScoreCard";
@@ -138,65 +139,65 @@ function holderRows(trades: TokenViewData["trades"]) {
 
 type TabId = "trades" | "holders" | "score" | "fees" | "lock" | "info";
 const TAB_LABEL: Record<TabId, string> = { trades: "Trades", holders: "Holders", score: "Score", fees: "Fees", lock: "Dev lock", info: "Info" };
+const TAB_IDS = Object.keys(TAB_LABEL) as TabId[];
 
-/** Secondary info lives in tabs under the chart instead of a stack of side cards. */
+/** Secondary info lives in tabs under the chart instead of a stack of side cards. The open tab is kept in ?tab= (replaceState). */
 function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksResp | null; reloadLocks: () => void }) {
   const holders = holderRows(t.trades);
   // t.holders is the API's live count; the list is rebuilt from the last trades, so it can be shorter.
   const partial = holders.length < t.holders;
-  const [tab, setTab] = useState<TabId>("trades");
+  const [tab, setTab] = useUrlTab(TAB_IDS, "trades");
+  const panel = (k: TabId) => {
+    if (k === "trades") return t.trades.length === 0 ? <p className="py-6 text-sm text-ink-3">No trades yet.</p> : (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead><tr className="h-10 text-xs text-ink-3">
+            <th className="pl-0 pr-4 text-left font-medium">Time</th><th className="px-4 text-left font-medium">Type</th><th className="px-4 text-right font-medium">SOL</th>
+            <th className="px-4 text-right font-medium">${t.ticker}</th><th className="px-4 text-left font-medium">Wallet</th><th className="px-4" /></tr></thead>
+          <tbody>
+            {t.trades.map((tr) => (
+              <tr key={tr.sig} className="h-11 border-t border-border hover:bg-muted">
+                <td className="num pl-0 pr-4 text-ink-3">{fmtAge(tr.ts, t.now)} ago</td>
+                <td className="px-4"><span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize text-on-ink ${tr.side === "buy" ? "bg-buy" : "bg-sell"}`}>{tr.side}</span>{tr.devBuy && <span title="Creator buy in the launch transaction (Block 0)" className="ml-1.5 rounded-full border border-ink px-2 py-0.5 text-xs font-medium">Dev</span>}</td>
+                <td className="num px-4 text-right">{tr.sol}</td>
+                <td className="num px-4 text-right">{tr.tokens.toLocaleString("en-US")}</td>
+                <td className="num px-4 text-ink-2">{shortAddr(tr.wallet)}</td>
+                <td className="px-4 text-right"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label="View transaction on Solscan" className="text-ink-3 hover:text-ink"><ExternalLink size={14} aria-hidden /></a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+    if (k === "holders") return (
+      <div>
+        <div data-testid="holders-head" className="flex items-baseline justify-between pb-2 text-xs text-ink-3"><span>{partial ? "Top holders from recent trades" : "Holders"}</span><span className="num">{t.holders.toLocaleString("en-US")} holder{t.holders === 1 ? "" : "s"}</span></div>
+        {holders.length === 0 ? <p className="px-4 py-6 text-sm text-ink-3">No holders yet.</p> : (
+          <table className="w-full text-sm"><tbody>
+            {holders.map((h, i) => (
+              <tr key={h.wallet} className="h-11 border-t border-border first:border-0"><td className="num pl-0 pr-4 text-ink-3">#{i + 1}</td><td className="num px-4">{shortAddr(h.wallet)}</td><td className="num px-4 text-right">{h.tokens.toLocaleString("en-US", { maximumFractionDigits: 0 })}</td><td className="num px-4 text-right text-ink-3">{h.pct.toFixed(1)}%</td></tr>
+            ))}
+          </tbody></table>)}
+      </div>
+    );
+    if (k === "score") return <ScoreCard mint={t.mint} />;
+    if (k === "fees") return <FeeBreakdown tier={t.tier} />;
+    if (k === "lock") return <DevLock mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks} reload={reloadLocks} mode="view" />;
+    return (
+      <dl className="py-2 text-sm">
+        {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s, exponential decay)" : "Off"], ["Migration", t.isMigrated ? `Migrated to Meteora DAMM v2 (target ${targetSol(t)} SOL)` : `${targetSol(t)} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-4 border-b border-border py-2 last:border-0"><dt className="text-ink-3">{k}</dt><dd className="num truncate">{v}</dd></div>
+        ))}
+      </dl>
+    );
+  };
   return (
     <section data-testid="token-tabs">
-      <div role="tablist" className="no-scrollbar flex gap-5 overflow-x-auto border-b border-border">
-        {(Object.keys(TAB_LABEL) as TabId[]).map((k) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-            className={`-mb-px whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm transition-colors ${tab === k ? "border-gold font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"}`}>{TAB_LABEL[k]}{k === "holders" && <span data-testid="holders-tab-count" className="num ml-1.5 text-xs text-ink-3">{t.holders.toLocaleString("en-US")}</span>}</button>
-        ))}
+      <div className="no-scrollbar overflow-x-auto border-b border-border">
+        <TabBar label="Token details" value={tab} onSelect={setTab}
+          items={TAB_IDS.map((k) => ({ id: k, label: k === "holders" ? <>{TAB_LABEL[k]}<span data-testid="holders-tab-count" className="num ml-1.5 text-xs text-ink-3">{t.holders.toLocaleString("en-US")}</span></> : TAB_LABEL[k] }))} />
       </div>
-      <div className="pt-3">
-        {tab === "trades" && (t.trades.length === 0 ? <p className="py-6 text-sm text-ink-3">No trades yet.</p> : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
-            <thead><tr className="h-10 text-xs text-ink-3">
-              <th className="pl-0 pr-4 text-left font-medium">Time</th><th className="px-4 text-left font-medium">Type</th><th className="px-4 text-right font-medium">SOL</th>
-              <th className="px-4 text-right font-medium">${t.ticker}</th><th className="px-4 text-left font-medium">Wallet</th><th className="px-4" /></tr></thead>
-            <tbody>
-              {t.trades.map((tr) => (
-                <tr key={tr.sig} className="h-11 border-t border-border hover:bg-muted">
-                  <td className="num pl-0 pr-4 text-ink-3">{fmtAge(tr.ts, t.now)} ago</td>
-                  <td className="px-4"><span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize text-on-ink ${tr.side === "buy" ? "bg-buy" : "bg-sell"}`}>{tr.side}</span>{tr.devBuy && <span title="Creator buy in the launch transaction (Block 0)" className="ml-1.5 rounded-full border border-ink px-2 py-0.5 text-xs font-medium">Dev</span>}</td>
-                  <td className="num px-4 text-right">{tr.sol}</td>
-                  <td className="num px-4 text-right">{tr.tokens.toLocaleString("en-US")}</td>
-                  <td className="num px-4 text-ink-2">{shortAddr(tr.wallet)}</td>
-                  <td className="px-4 text-right"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label="View transaction on Solscan" className="text-ink-3 hover:text-ink"><ExternalLink size={14} aria-hidden /></a></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
-        ))}
-        {tab === "holders" && (
-          <div>
-          <div data-testid="holders-head" className="flex items-baseline justify-between pb-2 text-xs text-ink-3"><span>{partial ? "Top holders from recent trades" : "Holders"}</span><span className="num">{t.holders.toLocaleString("en-US")} holder{t.holders === 1 ? "" : "s"}</span></div>
-          {holders.length === 0 ? <p className="px-4 py-6 text-sm text-ink-3">No holders yet.</p> : (
-        <table className="w-full text-sm"><tbody>
-          {holders.map((h, i) => (
-            <tr key={h.wallet} className="h-11 border-t border-border first:border-0"><td className="num pl-0 pr-4 text-ink-3">#{i + 1}</td><td className="num px-4">{shortAddr(h.wallet)}</td><td className="num px-4 text-right">{h.tokens.toLocaleString("en-US", { maximumFractionDigits: 0 })}</td><td className="num px-4 text-right text-ink-3">{h.pct.toFixed(1)}%</td></tr>
-          ))}
-        </tbody></table>)}
-          </div>
-        )}
-        {tab === "score" && <ScoreCard mint={t.mint} />}
-        {tab === "fees" && <FeeBreakdown tier={t.tier} />}
-        {tab === "lock" && <DevLock mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks} reload={reloadLocks} mode="view" />}
-        {tab === "info" && (
-          <dl className="py-2 text-sm">
-          {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s, exponential decay)" : "Off"], ["Migration", t.isMigrated ? `Migrated to Meteora DAMM v2 (target ${targetSol(t)} SOL)` : `${targetSol(t)} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-4 border-b border-border py-2 last:border-0"><dt className="text-ink-3">{k}</dt><dd className="num truncate">{v}</dd></div>
-          ))}
-        </dl>
-        )}
-      </div>
+      <TabPanels k={tab} className="pt-3">{panel(tab)}</TabPanels>
     </section>
   );
 }

@@ -9,6 +9,7 @@ import { DevLockedBadge } from "@/components/DevLockedBadge";
 import { OfficialBadge } from "@/components/OfficialBadge";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useApiData } from "@/lib/pagesData";
+import { TabPanels, useUrlTab } from "@/components/TabBar";
 import { ChampionsHeader, RomanRank } from "@/components/arena";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
@@ -32,8 +33,10 @@ const HINT: Record<Kind, string> = {
   traders: "Traders by curve volume.", migrations: "Tokens that migrated in the window, fastest first.", survivors: "Migrated tokens ranked by days their DAMM v2 market cap held above the floor.",
 };
 
+const KINDS: Kind[] = ["tokens", "scores", "creators", "traders", "migrations", "survivors"];
+
 export default function LeaderboardPage() {
-  const [kind, setKind] = useState<Kind>("tokens");
+  const [kind, setKind] = useUrlTab<Kind>(KINDS, "tokens");
   const [win, setWin] = useState<Win>("week");
   const [sortTok, setSortTok] = useState<SortTok>("volumeSol");
   const { data, loading, error } = useApiData<unknown>(`/leaderboard/${kind}?window=${win}&limit=100`, []);
@@ -58,18 +61,19 @@ export default function LeaderboardPage() {
         <ChampionsHeader><p className="mt-2 max-w-xl font-serif text-[15px] leading-snug text-ink-2 md:text-[17px]">The arena's best tokens, creators and traders.</p></ChampionsHeader>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="max-w-full overflow-x-auto">
-            <Tabs value={kind} onChange={setKind} options={[{ id: "tokens", label: "Tokens" }, { id: "scores", label: "highbar" }, { id: "creators", label: "Creators" }, { id: "traders", label: "Traders" }, { id: "migrations", label: "Migrations" }, { id: "survivors", label: "Survivors" }]} />
+            <Tabs label="Leaderboard" value={kind} onChange={setKind} options={[{ id: "tokens", label: "Tokens" }, { id: "scores", label: "highbar" }, { id: "creators", label: "Creators" }, { id: "traders", label: "Traders" }, { id: "migrations", label: "Migrations" }, { id: "survivors", label: "Survivors" }]} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {kind === "tokens" && <Tabs value={sortTok} onChange={setSortTok} options={[{ id: "volumeSol", label: "Volume" }, { id: "mcapUsd", label: "Mcap" }, { id: "progress", label: "Progress" }]} />}
-            <Tabs value={win} onChange={setWin} options={[{ id: "24h", label: "24h" }, { id: "7d", label: "7d" }, { id: "week", label: "This week" }, { id: "all", label: "All" }]} />
+            {kind === "tokens" && <Tabs label="Sort by" value={sortTok} onChange={setSortTok} options={[{ id: "volumeSol", label: "Volume" }, { id: "mcapUsd", label: "Mcap" }, { id: "progress", label: "Progress" }]} />}
+            <Tabs label="Time window" value={win} onChange={setWin} options={[{ id: "24h", label: "24h" }, { id: "7d", label: "7d" }, { id: "week", label: "This week" }, { id: "all", label: "All" }]} />
           </div>
         </div>
         <p className="mt-2 text-xs text-ink-3">{HINT[kind]}{win === "week" && " Weeks run Monday to Sunday, UTC."}</p>
       </TopBlock>
       <OfflineNote error={error} />
       <Card className="overflow-x-auto p-0">
-        {loading && !data ? <Loading /> : rows.length === 0 ? (
+        <TabPanels k={kind}>
+        {loading && !data ? <Loading rows={8} /> : rows.length === 0 ? (
           error ? <Empty title="Leaderboard unavailable" hint="The API did not answer. It refreshes automatically. Try again in a moment." /> : <Empty title="No data yet" hint={`No ${kind} in this window. Try "All".`} />
         ) : kind === "tokens" ? (
           <table className="w-full min-w-[640px] text-sm">
@@ -145,6 +149,7 @@ export default function LeaderboardPage() {
               </tr>))}</tbody>
           </table>
         )}
+        </TabPanels>
       </Card>
     </div>
   );

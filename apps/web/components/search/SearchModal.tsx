@@ -7,6 +7,7 @@ import { fmtDateTimeUS } from "@/lib/date";
 import { explorerAddr } from "@/lib/settings";
 import { hotCoins, isAddress, loadSpark, searchAll, SEARCH_MIN_CHARS, topTraders, type HotCoin, type SearchResult, type SearchToken, type SearchUser, type Trader } from "@/lib/search";
 import { clearHistory, getFavs, getHistory, HISTORY_EVENT, pushHistory, toggleFav, type HistoryKind, type SavedToken } from "@/lib/searchHistory";
+import { Segmented } from "../TabBar";
 
 /** Carousel data survives closing and reopening the modal for a minute, so a quick reopen shows cards at once. */
 const memo: { hot?: { at: number; v: HotCoin[] }; traders?: { at: number; v: Trader[] } } = {};
@@ -273,12 +274,8 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
           {!query && (
             <div>
               <div className="flex items-center justify-between px-5 pt-4 md:px-6">
-                <div role="tablist" aria-label="Discover" className="inline-flex rounded-full bg-control p-[3px]">
-                  {([["hot", "Hot coins"], ["traders", "Top traders"]] as const).map(([id, label]) => (
-                    <button key={id} type="button" role="tab" aria-selected={tab === id} aria-controls={`${uid}-strip`} id={`${uid}-tab-${id}`} onClick={() => setTab(id)}
-                      className={`rounded-full px-3.5 py-1.5 text-[13px] font-medium ${tab === id ? "bg-gold-soft text-ink" : "text-ink-3 hover:text-ink"}`}>{label}</button>
-                  ))}
-                </div>
+                <Segmented label="Discover" tone="soft" value={tab} onChange={setTab} options={[{ id: "hot", label: "Hot coins" }, { id: "traders", label: "Top traders" }]}
+                  tabId={(id) => `${uid}-tab-${id}`} controls={`${uid}-strip`} className="inline-flex rounded-full bg-control p-[3px]" indClassName="inset-y-[3px]" itemClassName="rounded-full px-3.5 py-1.5 text-[13px]" />
                 <div className="flex items-center gap-1">
                   <button type="button" onClick={() => scrollBy(-1)} disabled={ends.left} aria-label="Scroll left" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-2 hover:bg-control disabled:opacity-30"><ChevronLeft size={17} strokeWidth={1.5} /></button>
                   <button type="button" onClick={() => scrollBy(1)} disabled={ends.right} aria-label="Scroll right" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-2 hover:bg-control disabled:opacity-30"><ChevronRight size={17} strokeWidth={1.5} /></button>

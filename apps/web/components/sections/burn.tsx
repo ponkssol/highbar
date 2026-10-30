@@ -1,18 +1,24 @@
 "use client";
-import { ExternalLink, Flame } from "lucide-react";
+import type { ReactNode } from "react";
+import { ExternalLink } from "lucide-react";
 import { TopBlock } from "@/components/TopBar";
 import { BurnBadge, Card } from "@/components/ui";
 import { Empty, Loading, OfflineNote, TD, TH } from "@/components/PageStates";
+import { SoonChip } from "@/components/SoonChip";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useApiData } from "@/lib/pagesData";
 import { fmtAge, shortAddr } from "@/lib/format";
 
-type Run = { id: string; ts: number; period?: string; status?: string; amount?: number; sig?: string; sol?: number; buySig?: string | null; burnSig?: string | null; buyUrl?: string | null; burnUrl?: string | null };
+type Run = { id: string; ts: number; period?: string; mode?: string; status?: string; amount?: number; sig?: string; sol?: number; buySig?: string | null; burnSig?: string | null; buyUrl?: string | null; burnUrl?: string | null; dryRun?: boolean; mock?: boolean };
 type BurnData = {
   network?: "devnet" | "mainnet"; mode?: "jupiter" | "mock"; estimated?: boolean; burnOrders?: number;
   barLaunched: boolean; barMint: string | null; dryRun: boolean; barBurned: number; platformFeesSol: number;
   split: { buyback: number; ops: number; treasury: number }; pendingBuybackSol: number; maxOrderSol: number; maxSlippageBps: number; runs: Run[];
 };
 const MOCK: BurnData = { barLaunched: false, barMint: null, dryRun: true, barBurned: 0, platformFeesSol: 0, split: { buyback: 0, ops: 0, treasury: 0 }, pendingBuybackSol: 0, maxOrderSol: 1, maxSlippageBps: 100, runs: [] };
+/** Rows that are not real buybacks: the devnet mock path (mode "mock") and anything flagged dry run or mock. The api leaves mock
+ *  rows out since GO_PUBLIC_DATE (faedeb2), this keeps older api builds from showing them. */
+const realRun = (r: Run) => r.mode !== "mock" && r.dryRun !== true && r.mock !== true && r.status !== "would-buy";
 const solscan = (kind: "tx" | "account", id: string, network?: string) => `https://solscan.io/${kind}/${id}${network === "mainnet" ? "" : "?cluster=devnet"}`;
 
 function TxLink({ sig, url, network, dot }: { sig?: string | null; url?: string | null; network?: string; dot?: string }) {
@@ -29,33 +35,41 @@ const PARTS = [
   { key: "treasury", label: "Treasury", pct: 10, cls: "bg-ink-3" },
 ] as const;
 
+/** One KPI: label, value (Soon before $HIGHER launches, a skeleton until the first answer) and a small note. */
+function Kpi({ label, value, unit, note }: { label: ReactNode; value: ReactNode; unit?: string; note?: ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 text-[13px] text-ink-3">{label}</div>
+      <div className="num mt-1 flex min-h-11 items-center text-kpi">{value}{unit && typeof value !== "object" && <span className="ml-1 self-end pb-1 text-sm text-ink-3">{unit}</span>}</div>
+      {note && <div className="text-xs text-ink-3">{note}</div>}
+    </div>
+  );
+}
+
 export default function BurnPage() {
-  const { data, loading, error } = useApiData<BurnData>("/burn", MOCK, 30_000);
+  const { data, error } = useApiData<BurnData>("/burn", MOCK, 30_000);
   const d = data ?? MOCK;
+  const ready = !!data;
+  // Same pre-launch signal as the dashboard's "$HIGHER burned" KPI: GET /burn barLaunched (api: BAR_MINT set or the official launch detected).
+  const launched = ready && d.barLaunched;
+  const runs = d.runs.filter(realRun);
+  const wait = <Skeleton className="h-9 w-28" />;
+  const soon = <SoonChip />;
+  const sol = (v: number) => v.toFixed(4);
   return (
     <div className="flex flex-col gap-4">
       <TopBlock title="Burn">
         <div className="mt-3 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <div>
-            <div className="flex items-center gap-2 text-[13px] text-ink-3">$HIGHER burned <BurnBadge /></div>
-            <div className="num mt-1 text-kpi">{d.barBurned.toLocaleString("en-US")}</div>
-            {!d.barLaunched && <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-ink-2"><Flame size={12} />$HIGHER not launched yet</div>}
-            {d.barMint && (
-              <a href={solscan("account", d.barMint, d.network)} target="_blank" rel="noreferrer" className="num mt-1 inline-flex items-center gap-1 text-xs text-ink-3 hover:underline">
+          <Kpi label={<>$HIGHER burned <BurnBadge /></>} value={!ready ? wait : launched ? d.barBurned.toLocaleString("en-US") : soon}
+            note={launched && d.barMint ? (
+              <a href={solscan("account", d.barMint, d.network)} target="_blank" rel="noreferrer" className="num inline-flex items-center gap-1 hover:underline">
                 {d.mode === "mock" ? "mock $HIGHER " : "$HIGHER "}{shortAddr(d.barMint, 4)}<ExternalLink size={12} />
               </a>
-            )}
-          </div>
-          <div>
-            <div className="text-[13px] text-ink-3">Pending buyback</div>
-            <div className="num mt-1 text-kpi">{d.pendingBuybackSol.toFixed(4)}<span className="ml-1 text-sm text-ink-3">SOL</span></div>
-            <div className="text-xs text-ink-3">40% of platform fees, max {d.maxOrderSol} SOL per order, {d.maxSlippageBps / 100}% slippage</div>
-          </div>
-          <div>
-            <div className="text-[13px] text-ink-3">Platform fees {d.estimated === false ? "(claimed)" : "(est.)"}</div>
-            <div className="num mt-1 text-kpi">{d.platformFeesSol.toFixed(4)}<span className="ml-1 text-sm text-ink-3">SOL</span></div>
-            <div className="text-xs text-ink-3">Buyback mode: {d.dryRun ? "dry run (no transactions)" : "live"}{d.mode === "mock" ? ", devnet mock mint" : ""}</div>
-          </div>
+            ) : launched ? undefined : "Burns start once $HIGHER launches."} />
+          <Kpi label="Pending buyback" value={!ready ? wait : launched ? sol(d.pendingBuybackSol) : soon} unit="SOL"
+            note={`40% of platform fees, max ${d.maxOrderSol} SOL per order, ${d.maxSlippageBps / 100}% slippage`} />
+          <Kpi label={`Platform fees ${d.estimated === false ? "(claimed)" : "(est.)"}`} value={!ready ? wait : sol(d.platformFeesSol)} unit="SOL"
+            note={launched ? (d.mode === "mock" ? "Devnet mock mint" : "Buybacks run on Jupiter") : "The 40% buyback share accrues until launch."} />
         </div>
       </TopBlock>
       <OfflineNote error={error} />
@@ -68,22 +82,24 @@ export default function BurnPage() {
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {PARTS.map((p) => (
-            <div key={p.key} className="flex items-center justify-between rounded border border-border px-3 py-2 text-sm">
+            <div key={p.key} className="flex min-h-10 items-center justify-between rounded border border-border px-3 py-2 text-sm">
               <span className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${p.cls}`} />{p.label} <span className="num text-ink-3">{p.pct}%</span></span>
-              <span className="num">{d.split[p.key].toFixed(4)} SOL</span>
+              {ready ? <span className="num">{sol(d.split[p.key])} SOL</span> : <Skeleton className="h-3.5 w-20" />}
             </div>
           ))}
         </div>
       </Card>
 
       <Card className="overflow-x-auto p-0">
-        <h3 className="border-b border-border px-4 py-3 font-semibold">Buyback and burn history</h3>
-        {loading && !data ? <Loading /> : d.runs.length === 0 ? (
-          <Empty title="No buybacks yet" hint={d.barLaunched ? "Buybacks run once enough fees accrue." : "Buybacks start after $HIGHER launches. Until then the 40% share accrues."} />
+        <h3 className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 font-semibold">Buyback and burn history{ready && !launched && <SoonChip />}</h3>
+        {!ready ? <Loading rows={3} /> : !launched ? (
+          <Empty title="No buybacks before launch" hint="Buybacks start after $HIGHER launches. Until then the 40% share accrues, and every buy and burn will link its transaction here." />
+        ) : runs.length === 0 ? (
+          <Empty title="No buybacks yet" hint="Buybacks run once enough fees accrue." />
         ) : (
           <table className="w-full min-w-[640px] text-sm">
             <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} text-left`}>Buy</th><th className={`${TH} text-left`}>Burn</th><th className={`${TH} text-right`}>SOL spent</th><th className={`${TH} text-right`}>$HIGHER burned</th><th className={`${TH} text-right`}>Time</th></tr></thead>
-            <tbody>{d.runs.map((r) => (
+            <tbody>{runs.map((r) => (
               <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted">
                 <td className={TD}><TxLink sig={r.buySig ?? (r.burnSig === undefined ? r.sig : null)} url={r.buyUrl} network={d.network} dot="bg-buy" /></td>
                 <td className={TD}>{r.burnSig || r.status === "burned" ? <TxLink sig={r.burnSig} url={r.burnUrl} network={d.network} dot="bg-burn" /> : <span className="text-xs text-ink-3">{r.status === "failed" ? "failed" : "pending"}</span>}</td>

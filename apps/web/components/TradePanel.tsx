@@ -9,6 +9,7 @@ import { useAntiSniper } from "@/lib/antiSniper";
 import { buildSwapTx } from "@/lib/tx";
 import { currentPoint, quote as curveQuote, readCurve, type CurveState } from "@/lib/curve";
 import { PublicKey } from "@solana/web3.js";
+import { Segmented } from "./TabBar";
 
 /** SOL kept back for network fees and the token account rent when checking a buy against the wallet balance. */
 const SOL_RESERVE = 0.01;
@@ -102,12 +103,8 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
 
   return (
     <div data-testid="trade-panel" className={`flex flex-col gap-4 ${bare ? "" : "rounded-lg border border-border bg-surface p-4"}`}>
-      <div className="grid grid-cols-2 rounded-full border border-border bg-muted p-1" role="group" aria-label="Trade side">
-        {(["buy", "sell"] as const).map((s) => (
-          <button key={s} type="button" aria-pressed={side === s} onClick={() => pick(s)}
-            className={`h-9 rounded-full text-sm font-medium capitalize ${side === s ? (s === "buy" ? "bg-buy text-on-ink" : "bg-sell text-on-ink") : "text-ink-2"}`}>{s}</button>
-        ))}
-      </div>
+      <Segmented label="Trade side" tone="trade" value={side} onChange={pick} options={[{ id: "buy", label: "Buy" }, { id: "sell", label: "Sell" }]}
+        className="grid grid-cols-2 rounded-full border border-border bg-muted p-1" itemClassName="h-9 rounded-full text-sm font-medium" />
       {sniperActive && (
         <div className="rounded-md border border-border bg-muted p-3 text-sm">
           <div className="flex items-center justify-between font-medium"><span className="flex items-center gap-2"><ShieldCheck size={16} strokeWidth={1.5} />Current fee <span className="num">{(feeBps / 100).toFixed(2)}%</span></span><span className="num text-xs text-ink-3">{sniper.remaining}s</span></div>

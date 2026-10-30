@@ -1,14 +1,16 @@
 "use client";
 import { useApiData } from "@/lib/pagesData";
 import { ScoreBadge } from "./ScoreBadge";
+import { Skeleton } from "./ui/Skeleton";
 
 type Breakdown = { tier: number; antiSniper: number; devLock: number; spread: number; holders: number; top10Pct: number; lockedPct: number; lockDaysLeft: number; label: string };
 type Resp = { score: number | null; label: string | null; breakdown: Breakdown | null; max: { tier: number; antiSniper: number; devLock: number; spread: number }; updatedAt: number | null };
 
 /** highbar score with its four parts (GET /tokens/:mint/score). */
 export function ScoreCard({ mint }: { mint: string }) {
-  const { data } = useApiData<Resp | null>(`/tokens/${mint}/score`, null, 60_000);
-  if (!data || data.score == null || !data.breakdown) return null;
+  const { data, loading } = useApiData<Resp | null>(`/tokens/${mint}/score`, null, 60_000);
+  if (!data && loading) return <ScoreSkeleton />;
+  if (!data || data.score == null || !data.breakdown) return <p className="py-6 text-sm text-ink-3">No score yet.</p>;
   const b = data.breakdown, m = data.max;
   const parts: [string, number, number, string][] = [
     ["Tier", b.tier, m.tier, ""],
@@ -32,6 +34,22 @@ export function ScoreCard({ mint }: { mint: string }) {
         ))}
       </dl>
       <p className="mt-3 text-xs text-ink-3">Holders are counted from bonding-curve trades. Updated every few minutes.</p>
+    </div>
+  );
+}
+
+/** Same footprint as the loaded card, so the Score tab does not collapse while it loads. */
+function ScoreSkeleton() {
+  return (
+    <div role="status" aria-label="Loading score" className="rounded-lg border border-border bg-surface p-4">
+      <div className="mb-3 flex items-center justify-between"><Skeleton className="h-4 w-28" /><Skeleton className="h-6 w-12 rounded-full" /></div>
+      <div className="mb-3 flex items-baseline gap-2"><Skeleton className="h-10 w-16" /><Skeleton className="h-3.5 w-24" /></div>
+      <div className="flex flex-col gap-2.5">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i}><div className="flex h-5 items-center justify-between"><Skeleton className="h-3.5 w-24" /><Skeleton className="h-3.5 w-12" /></div><Skeleton className="mt-1 h-1.5 w-full rounded-full" /></div>
+        ))}
+      </div>
+      <Skeleton className="mt-3 h-3 w-64 max-w-full" />
     </div>
   );
 }

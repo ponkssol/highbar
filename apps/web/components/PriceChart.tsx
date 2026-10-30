@@ -5,6 +5,7 @@ import { CHART_LOCALIZATION } from "@/lib/date";
 import type { IChartApi, ISeriesApi, MouseEventParams, UTCTimestamp } from "lightweight-charts";
 import { apiBase } from "@/lib/api";
 import { DeltaPill } from "./StatsPanel";
+import { Segmented } from "./TabBar";
 
 export const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 type TF = (typeof TIMEFRAMES)[number];
@@ -148,12 +149,8 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
             )}
           </>) : <span className="text-[11px] text-ink-3">Price in SOL</span>}
         </div>
-        <div className="flex gap-1 text-xs" role="tablist" aria-label="Timeframe">
-          {TIMEFRAMES.map((t) => (
-            <button key={t} role="tab" aria-selected={tf === t} onClick={() => setTf(t)}
-              className={`num h-11 min-w-11 rounded-md px-2 md:h-7 md:min-w-0 ${tf === t ? "bg-gold-soft font-semibold text-gold-text ring-1 ring-gold-line" : "text-ink-3 hover:text-ink"}`}>{t}</button>
-          ))}
-        </div>
+        <Segmented label="Timeframe" tone="ring" value={tf} onChange={setTf} options={TIMEFRAMES.map((t) => ({ id: t, label: t }))}
+          className="flex gap-1 text-xs" indClassName="inset-y-0" itemClassName="num h-11 min-w-11 rounded-md px-2 md:h-7 md:min-w-0" />
       </div>
       <div className="relative min-h-0 flex-1">
         <div ref={box} className="absolute inset-0" />
