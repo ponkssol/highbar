@@ -4,7 +4,7 @@ import { useApiData } from "./pagesData";
 
 export type BarInfo = {
   network: "devnet" | "mainnet"; barMint: string | null; barMintUrl: string | null; enabled: boolean; tiers: BarTier[]; baseCashbackBps: number;
-  maxTierMinBar: number; gateMaxTier: boolean; symbol?: string; launched?: boolean; officialSource?: "env" | "override" | "detected" | null; feeShareBps: number; opsSplitBps: number; feeShareLive: boolean; limits: string[];
+  maxTierMinBar: number; gateMaxTier: boolean; maxTierBlocked?: boolean; symbol?: string; launched?: boolean; officialSource?: "env" | "override" | "detected" | null; feeShareBps: number; opsSplitBps: number; feeShareLive: boolean; limits: string[];
 };
 export type FeeShareRow = { period: string; balanceRaw: string; amountSol: number; poolSol: number; paidSig: string | null; paidAt: number | null; pending: boolean; paidUrl: string | null };
 export type BarWallet = {
@@ -13,7 +13,7 @@ export type BarWallet = {
 };
 export const BAR_INFO_FALLBACK: BarInfo = {
   network: "devnet", barMint: null, barMintUrl: null, enabled: false, tiers: [...BAR_TIERS], baseCashbackBps: 5, maxTierMinBar: MAX_TIER_MIN_BAR,
-  gateMaxTier: false, feeShareBps: 2000, opsSplitBps: 5000, feeShareLive: false, limits: [],
+  gateMaxTier: false, maxTierBlocked: false, feeShareBps: 2000, opsSplitBps: 5000, feeShareLive: false, limits: [],
 };
 
 export const useBarInfo = () => useApiData<BarInfo>("/bar", BAR_INFO_FALLBACK, 60_000);

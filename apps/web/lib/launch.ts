@@ -77,3 +77,56 @@ function toDataUrl(f: File): Promise<string> {
   if (f.size > 2 * 1024 * 1024) return Promise.reject(new Error("Image must be 2 MB or smaller"));
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error("Could not read image")); r.readAsDataURL(f); });
 }
+/** Limits the API enforces: POST /metadata (apps/api media.ts, 2 MB image, png jpeg webp gif checked by magic bytes)
+ *  and POST /tx/launch (name 32 bytes, symbol 10 bytes, dev buy at most DEV_BUY_MAX_SOL and the tier threshold). */
+export const NAME_MAX_BYTES = 32;
+export const TICKER_MAX_BYTES = 10;
+export const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+export const DEV_BUY_MAX_SOL = 20;
+export const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
+const IMAGE_NAMES: Record<string, string> = { "image/png": "PNG", "image/jpeg": "JPG", "image/webp": "WEBP", "image/gif": "GIF" };
+
+/** Name and ticker as the API stores them: control and zero width characters removed, then trimmed. */
+export const cleanLabel = (s: string) => s.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/g, "").trim();
+export const utf8Bytes = (s: string) => new TextEncoder().encode(s).length;
+
+/** Real image type from the first bytes, the same signatures the API checks. */
+export function sniffImage(b: Uint8Array): string | null {
+  const ascii = (from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
+  if (b.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((x, i) => b[i] === x)) return "image/png";
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (b.length >= 6 && (ascii(0, 6) === "GIF87a" || ascii(0, 6) === "GIF89a")) return "image/gif";
+  if (b.length >= 12 && ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
+  return null;
+}
+
+/** Checks a logo before upload. Resolves to an error message, or null when the API will accept it. */
+export async function checkImage(f: File): Promise<string | null> {
+  if (!IMAGE_NAMES[f.type]) return "Use a PNG, JPG, WEBP or GIF image.";
+  if (f.size === 0) return "This file is empty.";
+  if (f.size > IMAGE_MAX_BYTES) return `This image is ${(f.size / 1024 / 1024).toFixed(1)} MB. The limit is 2 MB.`;
+  const real = sniffImage(new Uint8Array(await f.slice(0, 16).arrayBuffer()));
+  if (!real) return "This file is not a valid PNG, JPG, WEBP or GIF image.";
+  if (real !== f.type) return `This file is really a ${IMAGE_NAMES[real]} but is named as a ${IMAGE_NAMES[f.type]}. Export it again or fix the file name.`;
+  return null;
+}
+
+/** Plain copy for dev buy quote errors (the API passes through SDK messages). */
+export function friendlyQuoteError(raw: string, maxSol: number): string {
+  if (/insufficient|liquidity/i.test(raw)) return "This dev buy is bigger than the curve can fill. Try a smaller amount.";
+  if (/must be <=|capped/i.test(raw)) return `Dev buy is capped at ${maxSol} SOL.`;
+  if (/fetch|network|timeout|50\d/i.test(raw)) return "Could not reach highbar for a quote. Try again in a moment.";
+  return "No quote right now. Try again in a moment.";
+}
+
+/** Plain copy for launch errors. Readable API messages pass through. */
+export function friendlyLaunchError(raw: string): string {
+  if (/user rejected|rejected the request|declined|cancel/i.test(raw)) return "You cancelled the request in your wallet.";
+  if (/insufficient|liquidity in bonding curve/i.test(raw)) return "This dev buy is bigger than the curve can fill. Try a smaller amount.";
+  if (/devBuySol must be <=\s*([\d.]+)/.test(raw)) return `Dev buy is capped at ${/<=\s*([\d.]+)/.exec(raw)![1]} SOL.`;
+  if (/has not launched yet/i.test(raw)) return "Max tier opens to $HIGHER holders once $HIGHER launches. Pick Standard or Higher for now.";
+  if (/launches are paused/i.test(raw)) return "Launches are paused for a moment. Try again soon.";
+  if (/name max 32 bytes|symbol max 10 bytes/i.test(raw)) return "Name fits 32 bytes and ticker fits 10 bytes. Shorten them and try again.";
+  if (/fetch|network/i.test(raw)) return "Could not reach highbar. Check your connection and try again.";
+  return raw ? raw[0].toUpperCase() + raw.slice(1) : "Something went wrong. Try again.";
+}
