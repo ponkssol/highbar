@@ -2,26 +2,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Coins, Flame, Gem, HandCoins, Info, LayoutGrid, Lock, MoreHorizontal, Rocket, Settings, Target, Trophy, Users, Wallet } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { NAV, isNavActive, type NavItem } from "./nav";
 
-const MAIN = [
-  { href: "/", label: "Home", icon: LayoutGrid },
-  { href: "/launch", label: "Launch", icon: Rocket },
-  { href: "/locks", label: "Locks", icon: Lock },
-  { href: "/portfolio", label: "Portfolio", icon: Wallet },
-];
-const MORE = [
-  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-  { href: "/claim", label: "Claim fees", icon: Coins },
-  { href: "/burn", label: "Burn", icon: Flame },
-  { href: "/cashback", label: "Cashback", icon: HandCoins },
-  { href: "/bar", label: "$HIGHER perks", icon: Gem },
-  { href: "/referral", label: "Referral", icon: Users },
-  { href: "/milestones", label: "Milestones", icon: Target },
-  { href: "/about", label: "About", icon: Info },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+const byHref = (h: string) => NAV.find((n) => n.href === h)!;
+const MAIN: NavItem[] = ["/", "/launch", "/rewards", "/portfolio"].map(byHref);
+const MORE: NavItem[] = NAV.filter((n) => !MAIN.includes(n));
 
 /** Mobile-only (<768px) app-style bottom navigation; the sidebar takes over from md up. */
 export function BottomNav() {
@@ -34,8 +21,7 @@ export function BottomNav() {
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [open]);
-  const isActive = (h: string) => (h === "/" ? path === "/" || path.startsWith("/token") : path.startsWith(h));
-  const moreActive = open || MORE.some((m) => isActive(m.href));
+  const moreActive = open || MORE.some((m) => isNavActive(path, m));
   const item = (active: boolean) =>
     `relative flex h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium ${active ? "text-ink" : "text-ink-3"}`;
   const pill = (active: boolean) => active && <span aria-hidden className="absolute top-0 h-[3px] w-6 rounded-full bg-ink" />;
@@ -44,8 +30,9 @@ export function BottomNav() {
       <nav aria-label="Main" data-testid="bottom-nav"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
         <div className="flex h-16">
-          {MAIN.map(({ href, label, icon: Icon }) => {
-            const a = isActive(href);
+          {MAIN.map((n) => {
+            const { href, label, icon: Icon } = n;
+            const a = isNavActive(path, n);
             return (
               <Link key={href} href={href} aria-current={a ? "page" : undefined} className={item(a)}>
                 {pill(a)}
@@ -69,11 +56,11 @@ export function BottomNav() {
               <span className="h-1 w-10 rounded-full bg-border-strong" />
             </button>
             <div className="flex flex-col">
-              {MORE.map(({ href, label, icon: Icon }) => (
-                <Link key={href} href={href} className={`flex h-[52px] items-center gap-3 rounded-md px-3 text-sm ${isActive(href) ? "bg-muted font-medium text-ink" : "text-ink-2"}`}>
+              {MORE.map((n) => { const { href, label, icon: Icon } = n; return (
+                <Link key={href} href={href} className={`flex h-[52px] items-center gap-3 rounded-md px-3 text-sm ${isNavActive(path, n) ? "bg-muted font-medium text-ink" : "text-ink-2"}`}>
                   <Icon size={22} strokeWidth={1.5} />{label}
                 </Link>
-              ))}
+              ); })}
               <div className="mt-2 border-t border-border pt-2 [&>button]:mb-0 [&>button]:h-[52px] [&>button]:w-full"><ThemeToggle /></div>
             </div>
           </div>
@@ -81,4 +68,4 @@ export function BottomNav() {
       )}
     </>
   );
-}
+}

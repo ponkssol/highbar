@@ -4,6 +4,7 @@ import { ArrowUpDown, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "./ui";
 import { WalletButton } from "./WalletButton";
+import { useInHub } from "./HubTabs";
 
 export function TopBar({ search, onSearch }: { search?: string; onSearch?: (v: string) => void }) {
   // Mobile: the row is hidden behind the header search icon (hb-search event); md+ always shows it.
@@ -34,6 +35,8 @@ export function TopBar({ search, onSearch }: { search?: string; onSearch?: (v: s
 
 /** Page header: search row + title + optional content. No horizontal inset, so it lines up with page cards. */
 export function TopBlock({ title, children, search, onSearch }: { title?: string; children?: ReactNode; search?: string; onSearch?: (v: string) => void }) {
+  // Inside a tabbed hub the hub owns the search row + title; the section keeps only its intro/controls.
+  if (useInHub()) return children ? <section className="pb-1 [&>p:first-child]:mt-0 [&>div:first-child]:mt-0 [&>form:first-child]:mt-0">{children}</section> : null;
   return (
     <section className="pb-2">
       <TopBar search={search} onSearch={onSearch} />
@@ -41,4 +44,4 @@ export function TopBlock({ title, children, search, onSearch }: { title?: string
       {children}
     </section>
   );
-}
+}

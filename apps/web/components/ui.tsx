@@ -20,7 +20,7 @@ export function LinkButton({ href, variant = "primary", className = "", children
 
 export function Card({ children, className = "", highlight = false }: { children: ReactNode; className?: string; highlight?: boolean }) {
   return (
-    <div className={`rounded border p-3 shadow-card md:p-4 ${highlight ? "bg-ink text-on-ink border-ink" : "bg-surface border-border"} ${className}`}>
+    <div className={`rounded-lg border shadow-card ${/(^|\s)p[xy]?-/.test(className) ? "" : "p-4 md:p-5"} ${highlight ? "bg-ink text-on-ink border-ink" : "bg-surface border-border"} ${className}`}>
       {children}
     </div>
   );
@@ -84,4 +84,4 @@ export function Price({ v, prefix = "" }: { v: number; prefix?: string }) {
   if (!m) return <>{prefix}{s}</>;
   const n = [...m[2]].map((ch) => ch.charCodeAt(0) - 0x2080).join("");
   return <span title={`${prefix}${v.toFixed(Math.min(20, n.length + 12)).replace(/0+$/, "")}`}>{prefix}{m[1]}<sub className="mx-[1px] align-[-0.25em] text-[0.62em] leading-none">{n}</sub>{m[3]}</span>;
-}
+}

@@ -11,8 +11,21 @@ const nextConfig = {
   reactStrictMode: true,
   devIndicators: false,
   transpilePackages: ["@hb/shared"],
-  // $HIGHER perks page lives at /bar (kept for old links); /higher is the friendly alias.
-  async redirects() { return [{ source: "/higher", destination: "/bar", permanent: false }]; },
+  // Merged pages: old URLs stay valid (API-generated /cashback, /burn, /referral links too). Incoming query strings (e.g. ?ref=) are kept.
+  // /higher is the friendly $HIGHER perks alias; it points straight at the merged tab (not via /bar) so it is a single hop.
+  async redirects() {
+    const to = (source, page, tab) => ({ source, destination: `/${page}?tab=${tab}`, permanent: false });
+    return [
+      to("/higher", "rewards", "bar"),
+      to("/cashback", "rewards", "cashback"),
+      to("/referral", "rewards", "referral"),
+      to("/milestones", "rewards", "milestones"),
+      to("/bar", "rewards", "bar"),
+      to("/burn", "rewards", "burn"),
+      to("/claim", "portfolio", "claim"),
+      to("/about", "settings", "about"),
+    ];
+  },
   webpack: (config) => {
     config.resolve.extensionAlias = { ".js": [".ts", ".tsx", ".js"] };
     config.externals = [...(config.externals || []), "pino-pretty", "lokijs", "encoding"];
