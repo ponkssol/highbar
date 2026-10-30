@@ -103,3 +103,5 @@ export const REWARD_PERIOD_MS = 86_400_000;
 export const BUYBACK_DEFAULTS = { maxOrderSol: 1, maxSlippageBps: 100, maxPriceImpactBps: 100, maxOrdersPerRun: 5 } as const;
 /** Smallest cashback payout; smaller balances carry over to the next period. */
 export const CASHBACK_MIN_PAYOUT_SOL = 0.001;
+
+export * from "./referralMilestone.js";
