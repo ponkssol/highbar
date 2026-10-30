@@ -99,7 +99,7 @@ export function KpiGrid({ stats, className = "", bare = false }: { stats: { tota
     <div className={`grid min-w-0 grid-cols-2 overflow-hidden ${bare ? "" : "rounded-lg border border-border bg-surface"} [&>*]:border-border [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(odd)]:border-r ${className}`}>
       <KpiCell label="Total volume" value={stats.totalVolumeSol.toLocaleString("en-US", { maximumFractionDigits: 0 })} unit="SOL" delta={stats.volumeDelta} spark={seeded(14, 50, 40, 3)} href="/" />
       <KpiCell label="Fees to creators" value={stats.creatorFeesSol.toFixed(1)} unit="SOL" delta={stats.creatorDelta} spark={seeded(14, 50, 40, 5)} href="/leaderboard" />
-      <KpiCell label="$HIGHER burned" value={stats.barLaunched === false ? "Not launched yet" : `${(stats.barBurned / 1e6).toFixed(2)}M`} delta={stats.burnDelta} spark={seeded(14, 50, 40, 11)} href="/rewards?tab=burn" badge={<BurnBadge />} />
+      <KpiCell label="$HIGHER burned" value={stats.barLaunched === false ? "Soon" : `${(stats.barBurned / 1e6).toFixed(2)}M`} delta={stats.burnDelta} spark={seeded(14, 50, 40, 11)} href="/rewards?tab=burn" badge={<BurnBadge />} />
       <KpiCell label="Active traders 24h" value={(stats.activeTraders24h ?? 0).toLocaleString("en-US")} delta={0} spark={seeded(14, 50, 40, 17)} href="/leaderboard" />
     </div>
   );

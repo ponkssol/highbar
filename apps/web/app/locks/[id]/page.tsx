@@ -7,6 +7,7 @@ import { TopBlock } from "@/components/TopBar";
 import { ShareButtons } from "@/components/ShareButtons";
 import { fetchLock, fmtLockDate } from "@/lib/lockData";
 import { shortAddr } from "@/lib/format";
+import { LockDonut } from "@/components/LockDonut";
 
 export const dynamic = "force-dynamic";
 const network = () => (process.env.NETWORK === "mainnet" || process.env.NETWORK === "mainnet-beta" ? "mainnet" : "devnet"); // runtime server env
@@ -52,6 +53,7 @@ export default async function LockSharePage({ params }: { params: Promise<{ id: 
         <dl className="mt-6 grid gap-x-8 text-sm md:grid-cols-2">
           {rows.map(([k, v]) => <div key={k} className="flex justify-between border-b border-border py-2"><dt className="text-ink-3">{k}</dt><dd className="num">{v}</dd></div>)}
         </dl>
+        <div className="mt-6"><LockDonut lock={l} symbol={sym} fmt={fmtTok} /></div>
         <div className="mt-4 flex gap-2">
           <Link href={`/token/${l.mint}`} className="inline-flex h-10 items-center rounded bg-ink px-4 text-sm font-medium text-on-ink hover:opacity-90">View token</Link>
           <a href={`https://solscan.io/account/${l.escrow}${network() === "mainnet" ? "" : "?cluster=devnet"}`} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded border border-border px-4 text-sm hover:bg-muted">View escrow</a>
