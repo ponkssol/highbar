@@ -1,7 +1,7 @@
 import { DAMM_V2_MIGRATION_FEE_ADDRESS } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { PublicKey, type Keypair } from "@solana/web3.js";
 import { deriveBaseKeyForLocker, deriveLockerEscrowAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { getClient, getConnection, isMain, loadConfigs, loadLegacyConfigs, loadPlatformKeypair, sendTx, testConfigEntries, withRetry } from "./client.js";
+import { getClient, getConnection, isMain, network, loadConfigs, loadLegacyConfigs, loadPlatformKeypair, sendTx, testConfigEntries, unfilledEnv, withRetry } from "./client.js";
 
 /** DRY_RUN defaults to true; set DRY_RUN=false to actually send. */
 export const DRY_RUN = (process.env.DRY_RUN ?? "true").toLowerCase() !== "false";
@@ -66,6 +66,13 @@ if (isMain(import.meta.url)) {
   const loopSec = i >= 0 ? Number(process.argv[i + 1] ?? 30) : 0;
   const tick = async () => console.log(new Date().toISOString(), DRY_RUN ? "[DRY_RUN]" : "", JSON.stringify(await runKeeperOnce()));
   (async () => {
+    const unfilled = unfilledEnv();
+    if (unfilled.length) { console.error(`placeholder <FILL_ME> left in: ${unfilled.join(", ")}`); process.exit(1); }
+    if (!DRY_RUN && network() === "mainnet") {
+      if (process.env.ALLOW_MAINNET !== "true") { console.error("refusing live mainnet keeper without ALLOW_MAINNET=true"); process.exit(1); }
+      const g = await getConnection().getGenesisHash();
+      if (g !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") { console.error(`RPC is not mainnet (genesis ${g})`); process.exit(1); }
+    }
     do {
       try { await tick(); } catch (e) { console.error(e); }
       if (loopSec) await new Promise((r) => setTimeout(r, loopSec * 1000));

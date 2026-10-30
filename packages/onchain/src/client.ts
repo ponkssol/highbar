@@ -11,14 +11,33 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export type DevnetConfigs = Record<string, string>;
 export type LegacyConfig = { key: string; address: string };
 
+/** NETWORK env -> cluster (anything but mainnet/mainnet-beta is devnet). */
+export function network(): "devnet" | "mainnet" {
+  return process.env.NETWORK === "mainnet" || process.env.NETWORK === "mainnet-beta" ? "mainnet" : "devnet";
+}
+
+/** Tier config key -> env var that overrides it (the BUILD_BRIEF names). */
+export const CONFIG_ENV: Record<string, string> = {
+  standard_off: "CONFIG_STANDARD_OFF", standard_on: "CONFIG_STANDARD_ON",
+  higher_off: "CONFIG_HIGHER_OFF", higher_on: "CONFIG_HIGHER_ON",
+  max_off: "CONFIG_MAX_OFF", max_on: "CONFIG_MAX_ON",
+};
+
+/** configs.<network>.json next to package.json. Mainnet never falls back to the devnet file. */
+export function configFilePath(net = network()): string {
+  return path.resolve(here, "..", `configs.${net}.json`);
+}
 function readConfigFile(): Record<string, unknown> {
-  const p = path.resolve(here, "..", "configs.devnet.json");
+  const p = configFilePath();
+  if (!fs.existsSync(p)) return {};
   return JSON.parse(fs.readFileSync(p, "utf8").replace(/^\uFEFF/, ""));
 }
 
-/** Active configs (string entries only). New launches use these. */
+/** Active configs (string entries only): configs.<network>.json, overridden by CONFIG_* env vars. New launches use these. */
 export function loadConfigs(): DevnetConfigs {
-  return Object.fromEntries(Object.entries(readConfigFile()).filter(([, v]) => typeof v === "string")) as DevnetConfigs;
+  const file = Object.fromEntries(Object.entries(readConfigFile()).filter(([, v]) => typeof v === "string")) as DevnetConfigs;
+  for (const [k, envName] of Object.entries(CONFIG_ENV)) { const v = process.env[envName]?.trim(); if (v) file[k] = v; }
+  return file;
 }
 
 /** Retired configs: no new launches, but existing pools must still be indexed/cranked. */
@@ -29,6 +48,7 @@ export function loadLegacyConfigs(): LegacyConfig[] {
 
 /** Devnet-only test configs from env TEST_CONFIGS="higher_off=<config>,..." (never part of configs.devnet.json / the launch list). */
 export function testConfigEntries(): [string, string][] {
+  if (network() === "mainnet") return [];
   return (process.env.TEST_CONFIGS ?? "").split(",").map((s) => s.trim().split("=") as [string, string]).filter(([k, v]) => /^(standard|higher|max)_(on|off)$/.test(k ?? "") && !!v);
 }
 
@@ -40,7 +60,9 @@ export function allTierConfigEntries(): [string, string][] {
   return [...active, ...legacy, ...testConfigEntries()];
 }
 
+/** Devnet: DEVNET_RPC || RPC_URL || public devnet. Mainnet: RPC_URL only (DEVNET_RPC is ignored; the startup check refuses the public endpoint). */
 export function rpcUrl(): string {
+  if (network() === "mainnet") return process.env.RPC_URL || "https://api.mainnet-beta.solana.com";
   return process.env.DEVNET_RPC || process.env.RPC_URL || "https://api.devnet.solana.com";
 }
 
@@ -57,7 +79,15 @@ export function getClient(): DynamicBondingCurveClient {
   return _client;
 }
 
+/** Platform (claim/buyback/keeper) keypair. Railway: PLATFORM_KEYPAIR_JSON = the secret key JSON array as a sealed variable;
+ *  local: PLATFORM_KEYPAIR_PATH = a keypair file. Devnet falls back to keys/devnet.keypair.json; mainnet never does. */
 export function loadPlatformKeypair(): Keypair {
+  const json = process.env.PLATFORM_KEYPAIR_JSON?.trim();
+  if (json) {
+    try { return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(json))); }
+    catch { throw new Error("PLATFORM_KEYPAIR_JSON is not a valid secret key JSON array"); }
+  }
+  if (network() === "mainnet" && !process.env.PLATFORM_KEYPAIR_PATH) throw new Error("PLATFORM_KEYPAIR_JSON or PLATFORM_KEYPAIR_PATH must be set on mainnet (no devnet keypair fallback)");
   const kpPath = process.env.PLATFORM_KEYPAIR_PATH ?? path.resolve(here, "..", "keys", "devnet.keypair.json");
   return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(path.resolve(kpPath), "utf8"))));
 }
@@ -65,7 +95,7 @@ export function loadPlatformKeypair(): Keypair {
 export function configPubkey(tier: string, antiSniper: boolean): PublicKey {
   const key = `${tier}_${antiSniper ? "on" : "off"}`;
   const v = loadConfigs()[key];
-  if (!v) throw new Error(`config ${key} not in configs.devnet.json`);
+  if (!v) throw new Error(`config ${key} not set (${CONFIG_ENV[key] ?? key} or configs.${network()}.json)`);
   return new PublicKey(v);
 }
 
@@ -74,16 +104,19 @@ const ATA_PROGRAM = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 const WSOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
 const wsolAta = (owner: PublicKey) => PublicKey.findProgramAddressSync([owner.toBuffer(), TOKEN_PROGRAM.toBuffer(), WSOL_MINT.toBuffer()], ATA_PROGRAM)[0];
 
-/** Platform referral wallet: env REFERRAL_WALLET, else configs.referral_wallet. */
+/** Platform referral wallet: env REFERRAL_WALLET (alias REFERRAL_ACCOUNT), else configs.<network>.json referral_wallet. */
 export function referralWallet(): PublicKey | null {
-  const w = process.env.REFERRAL_WALLET || loadConfigs().referral_wallet;
+  const w = process.env.REFERRAL_WALLET || process.env.REFERRAL_ACCOUNT || loadConfigs().referral_wallet;
   return w ? new PublicKey(w) : null;
 }
 
 /** Referral token account (quote/WSOL ATA of the referral wallet; legacy fallback: configs.referral_wsol_ata). */
 export function referralAta(): PublicKey {
   const w = referralWallet();
-  return w ? wsolAta(w) : new PublicKey(loadConfigs().referral_wsol_ata);
+  if (w) return wsolAta(w);
+  const legacy = loadConfigs().referral_wsol_ata;
+  if (!legacy) throw new Error(`REFERRAL_WALLET is not set (and configs.${network()}.json has no referral_wallet)`);
+  return new PublicKey(legacy);
 }
 
 let _refOk: { at: number; ok: boolean } | undefined;
@@ -159,3 +192,9 @@ export function arg(name: string, def?: string): string | undefined {
 
 export const isMain = (metaUrl: string) =>
   !!process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(metaUrl);
+/** Env vars still holding the deploy/mainnet template placeholder. */
+export function unfilledEnv(env: NodeJS.ProcessEnv = process.env): string[] {
+  return Object.entries(env).filter(([, v]) => typeof v === "string" && v.includes("<FILL_ME>")).map(([k]) => k);
+}
+/** RPC URL without query string / api keys, for logs. */
+export const maskRpc = (u: string) => u.replace(/\?.*$/, "?…").replace(/(api[-_]?key[=/])[^&/]+/i, "$1…");

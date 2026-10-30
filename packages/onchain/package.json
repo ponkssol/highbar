@@ -1,32 +1,39 @@
 {
-    "name":  "@hb/onchain",
-    "version":  "0.1.0",
-    "private":  true,
-    "type":  "module",
-    "main":  "src/index.ts",
-    "types": "src/index.ts",
-    "exports": { ".": "./src/index.ts", "./browser": "./src/browser.ts" },
-    "scripts":  {
-                    "typecheck":  "tsc --noEmit -p .",
-                    "configs:dry":  "tsx src/createConfigs.ts --dry-run",
-                    "configs:create":  "tsx src/createConfigs.ts",
-                    "launch":  "tsx src/launch.ts",
-                    "buy":  "tsx src/trade.ts buy",
-                    "sell":  "tsx src/trade.ts sell",
-                    "quote":  "tsx src/trade.ts buy --quote-only",
-                    "keeper":  "tsx src/keeper.ts"
-                },
-    "dependencies":  {
-                         "@coral-xyz/anchor":  "^0.32.1",
-                         "@hb/shared":  "workspace:*",
-                         "@meteora-ag/dynamic-bonding-curve-sdk":  "^2.0.0",
-                         "@solana/web3.js":  "^1.99.0",
-                         "bn.js":  "^5.2.5",
-                         "dotenv":  "^18.0.9",
-                         "@solana/spl-token":  "^0.4.9"
-                     },
-    "devDependencies":  {
-                            "@types/bn.js":  "^5.2.0",
-                            "tsx":  "^4.23.15"
-                        }
+  "name": "@hb/onchain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./src/browser.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "configs:dry": "tsx src/createConfigs.ts --dry-run",
+    "configs:create": "tsx src/createConfigs.ts --send",
+    "launch": "tsx src/launch.ts",
+    "buy": "tsx src/trade.ts buy",
+    "sell": "tsx src/trade.ts sell",
+    "quote": "tsx src/trade.ts buy --quote-only",
+    "keeper": "tsx src/keeper.ts",
+    "configs:simulate": "tsx src/createConfigs.ts --simulate",
+    "configs:mainnet:print": "tsx src/createConfigs.ts --network mainnet --print",
+    "configs:mainnet:simulate": "tsx src/createConfigs.ts --network mainnet --simulate",
+    "test": "tsx --test src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@hb/shared": "workspace:*",
+    "@meteora-ag/dynamic-bonding-curve-sdk": "^2.0.0",
+    "@solana/web3.js": "^1.99.0",
+    "bn.js": "^5.2.5",
+    "dotenv": "^18.0.9",
+    "@solana/spl-token": "^0.4.9"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.2.0",
+    "tsx": "^4.23.15"
+  }
 }
