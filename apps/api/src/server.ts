@@ -25,6 +25,7 @@ import { mintPoolFailure, registerMint, startMintSweeper } from "./routes/mint.j
 import { launchConfigs, platformReferrals, resolveLaunchMint, validateLaunchTx, vanityMode } from "./services/mintPool/index.js";
 import { db } from "./db/pool.js";
 import { registerScores } from "./routes/scores.js";
+import { registerSearch } from "./routes/search.js";
 import { scoresStore } from "./services/scoresStore.js";
 import { runScores } from "./services/scoreJob.js";
 import { registerCandles } from "./candles/index.js";
@@ -82,6 +83,7 @@ registerMint(app);
 registerCandles(app);
 registerMedia(app);
 registerScores(app);
+registerSearch(app);
 app.get("/health", async () => ({ ok: true, tokens: await store.tokenCount(), dryRun: DRY_RUN, time: Date.now() }));
 
 app.get("/tokens", async (req) => {
