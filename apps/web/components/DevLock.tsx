@@ -17,7 +17,12 @@ const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits:
 const fmtLeft = (s: number) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m ${Math.max(0, s % 60)}s`; };
 type LockRow = LocksResp["locks"][number];
 const lockStatus = (l: LockRow, now: number) => Number(l.claimable) > 0 ? "Claimable" : now < l.cliffTime ? "Locked" : Number(l.locked) > 0 ? "Vesting" : "Fully claimed";
-const isoLocal = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+/** Lock duration quick picks (days). The lock is time based: no cliff or vesting options in the form. */
+const DURATIONS = [7, 30, 90, 180, 365] as const;
+const MAX_DAYS = 3650;
+const fmtDay = (s: number) => new Date(s * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+/** Share of supply with a leading zero (0.5, 12.34). Tiny shares read "under 0.01". */
+const fmtShare = (p: number) => (p > 0 && p < 0.01 ? "under 0.01" : p.toLocaleString("en-US", { minimumIntegerDigits: 1, maximumFractionDigits: 2 }));
 
 /** Token header pill: live countdown to the latest cliff among active locks (same rule as the API's unlockAt). */
 export function LockedBadge({ data }: { data: LocksResp | null }) {
@@ -42,9 +47,10 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
   const [bal, setBal] = useState<number | null>(null);
   const [open, setOpen] = useState(mode === "form"); // the modal opens straight into the form, with the lock list and Claim above it
   const [amount, setAmount] = useState("");
-  const [unlock, setUnlock] = useState(() => isoLocal(new Date(Date.now() + 30 * 86_400_000)));
-  const [vestDays, setVestDays] = useState("0");
-  const [ack, setAck] = useState(false);
+  const [chipDays, setChipDays] = useState<number>(30);
+  const [customDays, setCustomDays] = useState("");
+  const [agree, setAgree] = useState(false);
+  const [supply, setSupply] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -57,6 +63,14 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
     return () => { alive = false; };
   }, [isCreator, publicKey, connection, mint, data]);
 
+  // Total supply for the percent-of-supply hint (read only). Unknown supply hides the hint.
+  useEffect(() => {
+    if (!isCreator) return;
+    let alive = true;
+    connection.getTokenSupply(new PublicKey(mint)).then((r) => { if (alive && r.value.uiAmount) setSupply(r.value.uiAmount); }).catch(() => {});
+    return () => { alive = false; };
+  }, [isCreator, connection, mint]);
+
   const locks = data?.locks ?? [];
   const [nowS, setNowS] = useState(() => Math.floor(Date.now() / 1000));
   useEffect(() => { if (!isCreator || !locks.length) return; const id = setInterval(() => setNowS(Math.floor(Date.now() / 1000)), 1000); return () => clearInterval(id); }, [isCreator, locks.length]);
@@ -64,26 +78,28 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
   const nextCliff = locks.filter((l) => Number(l.locked) > 0 && l.cliffTime > nowS).reduce<number | null>((m, l) => (m === null || l.cliffTime < m ? l.cliffTime : m), null);
   const claimable = data?.claimableTokens ?? 0;
   const amt = Number(amount) || 0;
-  const unlockAt = Math.floor(new Date(unlock).getTime() / 1000);
-  const vd = Math.max(0, Math.floor(Number(vestDays) || 0));
+  const days = customDays ? Number(customDays) : chipDays;
+  const daysOk = Number.isInteger(days) && days >= 1 && days <= MAX_DAYS;
+  // Days map to the same unlock timestamp the API already takes (unlockAt, unix seconds). No vesting: vestingDays stays 0.
+  const unlockAtFor = (d: number) => Math.floor(Date.now() / 1000) + d * 86_400;
   const err = useMemo(() => {
     if (!(amt > 0)) return "Enter an amount to lock.";
     if (bal !== null && amt > bal) return "Amount exceeds your balance.";
-    if (!(unlockAt > Date.now() / 1000 + 60)) return "Unlock date must be in the future.";
-    if (vd > 3650) return "Vesting can be at most 3650 days.";
-    if (!ack) return "Confirm that the lock is permanent.";
+    if (!(Number.isInteger(days) && days >= 1)) return "Pick a lock duration in whole days.";
+    if (days > MAX_DAYS) return `A lock can last at most ${MAX_DAYS} days.`;
+    if (!agree) return "Agree to the Terms and Conditions to lock.";
     return "";
-  }, [amt, bal, unlockAt, vd, ack]);
+  }, [amt, bal, days, agree]);
 
   const lock = async () => {
     if (!publicKey || err) return;
     setBusy(true); setMsg("");
     try {
-      const r = await buildLockTx({ creator: publicKey.toBase58(), mint, amount: amt, unlockAt, vestingDays: vd });
+      const r = await buildLockTx({ creator: publicKey.toBase58(), mint, amount: amt, unlockAt: unlockAtFor(days), vestingDays: 0 });
       const sig = await sendTransaction(r.transaction);
       await connection.confirmTransaction(sig, "confirmed");
       await api.confirmLock(r.escrow).catch(() => {});
-      setMsg(`Locked. Tx ${sig.slice(0, 8)}`); setOpen(mode === "form"); setAck(false); reload();
+      setMsg(`Locked. Tx ${sig.slice(0, 8)}`); setOpen(mode === "form"); setAgree(false); reload();
     } catch (e) { setMsg(`Lock failed: ${(e as Error).message}`); } finally { setBusy(false); }
   };
   const claim = async () => {
@@ -137,22 +153,39 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
         </button>
       )}
       {isCreator && open && (
-        <div className="mt-3 space-y-3">
+        <div className="mt-4 space-y-4 border-t border-border pt-4" data-testid="lock-form">
           {publicKey && <div className="flex justify-between text-[13px]" data-testid="lock-recipient"><span className="text-ink-2">Recipient</span><span className="num text-ink">Your wallet {shortAddr(publicKey.toBase58())}</span></div>}
-          <label className="block"><span className="mb-1.5 flex justify-between text-[13px] text-ink-2">Amount<button type="button" onClick={() => setAmount(String(bal ?? 0))} className="num text-xs text-ink-3 hover:text-ink">Max {fmtTok(bal ?? 0)}</button></span>
-            <input className={`${input} num`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} /></label>
-          <label className="block"><span className="mb-1.5 block text-[13px] text-ink-2">Unlock date (cliff)</span>
-            <input type="datetime-local" className={input} value={unlock} onChange={(e) => setUnlock(e.target.value)} /></label>
-          <label className="block"><span className="mb-1.5 block text-[13px] text-ink-2">Linear vesting after unlock (days, optional)</span>
-            <input className={`${input} num`} inputMode="numeric" value={vestDays} onChange={(e) => setVestDays(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <div className="flex gap-2 rounded-md border border-border bg-muted p-3 text-xs text-ink-2">
-            <AlertTriangle size={16} className="shrink-0" />
-            <span>This lock is permanent. Nobody, including you, can cancel it or change the recipient. Tokens stay locked until the unlock date{vd > 0 ? `, then release daily over ${vd} days` : ""}. Powered by Jupiter Lock.</span>
+          <div>
+            <span className="mb-1.5 block text-[13px] text-ink-2" id="lock-duration-label">Lock duration</span>
+            <div className="grid grid-cols-5 gap-1.5" role="group" aria-labelledby="lock-duration-label">
+              {DURATIONS.map((d) => {
+                const on = !customDays && chipDays === d;
+                return (
+                  <button key={d} type="button" aria-pressed={on} data-testid={`lock-chip-${d}`} onClick={() => { setChipDays(d); setCustomDays(""); }}
+                    className={`num h-9 rounded border text-[13px] transition-colors ${on ? "border-gold-line bg-gold-soft font-semibold text-gold-text" : "border-border text-ink-2 hover:bg-muted hover:text-ink"}`}>{d} days</button>
+                );
+              })}
+            </div>
+            <label className="mt-2 flex items-center gap-2">
+              <span className="sr-only">Custom duration in days</span>
+              <input className={`${input} num ${customDays ? "border-gold-line" : ""}`} inputMode="numeric" placeholder="Custom" value={customDays} data-testid="lock-custom-days"
+                onChange={(e) => setCustomDays(e.target.value.replace(/[^0-9]/g, "").replace(/^0+/, ""))} />
+              <span className="shrink-0 text-sm text-ink-3">days</span>
+            </label>
           </div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />I understand this cannot be undone</label>
+          <label className="block"><span className="mb-1.5 flex justify-between text-[13px] text-ink-2">Token amount<button type="button" onClick={() => setAmount(String(bal ?? 0))} className="num text-xs text-ink-3 hover:text-ink">Max {fmtTok(bal ?? 0)}</button></span>
+            <input className={`${input} num`} inputMode="decimal" placeholder="0" value={amount} data-testid="lock-amount" onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} />
+            {supply != null && amt > 0 && <span className="num mt-1 block text-xs text-ink-3" data-testid="lock-supply-pct">{fmtShare((amt / supply) * 100)}% of supply</span>}
+          </label>
+          {amt > 0 && daysOk && <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-ink" data-testid="lock-summary">Locks <span className="num font-medium">{fmtTok(amt)} ${ticker}</span> until <span className="num font-medium">{fmtDay(unlockAtFor(days))}</span></p>}
+          <p className="flex gap-2 text-xs text-ink-3"><AlertTriangle size={14} className="mt-px shrink-0" />Tokens stay locked until the unlock date. Nobody, including you, can withdraw them early or cancel the lock. Powered by Jupiter Lock.</p>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" required checked={agree} onChange={(e) => setAgree(e.target.checked)} data-testid="lock-agree" />
+            <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-gold-text underline-offset-4 hover:underline">Terms and Conditions</a></span>
+          </label>
           <div className="flex gap-2">
-            <button onClick={() => (mode === "form" ? onDone?.() : setOpen(false))} className="h-10 flex-1 rounded border border-border text-sm hover:bg-muted">Cancel</button>
-            <button onClick={lock} disabled={busy || !!err} title={err || undefined} className="h-10 flex-1 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:opacity-40">{busy ? "Locking..." : "Lock tokens"}</button>
+            <button type="button" onClick={() => (mode === "form" ? onDone?.() : setOpen(false))} className="h-10 flex-1 rounded border border-border text-sm hover:bg-muted">Cancel</button>
+            <button type="button" onClick={lock} disabled={busy || !!err} title={err || undefined} data-testid="lock-submit" className="h-10 flex-1 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Locking..." : "Lock tokens"}</button>
           </div>
           <p className="text-xs text-ink-3" data-testid="lock-tip">Protocol tip: {data?.tipSol ?? 0.005} SOL</p>
           {err && <p className="text-xs text-ink-3">{err}</p>}
