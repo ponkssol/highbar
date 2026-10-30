@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Coins, Flame, LayoutGrid, Lock, MoreHorizontal, Rocket, Settings, Trophy, Wallet } from "lucide-react";
+import { Coins, Flame, HandCoins, Info, LayoutGrid, Lock, MoreHorizontal, Rocket, Settings, Trophy, Wallet } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 const MAIN = [
@@ -15,6 +15,8 @@ const MORE = [
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/claim", label: "Claim fees", icon: Coins },
   { href: "/burn", label: "Burn", icon: Flame },
+  { href: "/cashback", label: "Cashback", icon: HandCoins },
+  { href: "/about", label: "About", icon: Info },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

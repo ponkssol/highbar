@@ -77,7 +77,7 @@ export const store = {
     return (await db.query(`SELECT ${TRADE_COLS} FROM trades WHERE mint = $1 ORDER BY ts DESC, sig DESC, ix_idx DESC LIMIT $2`, [mint, limit])).rows.map(tradeOut);
   },
   async walletTrades(wallet: string, limit = 200): Promise<(TradeRow & { symbol: string })[]> {
-    return (await db.query(`SELECT ${TRADE_COLS.replace(/(^|, )(sig|pool|mint|side|sol|tokens|wallet|ts)\b/g, "$1t.$2").replace("sig || ':' || ix_idx", "t.sig || ':' || t.ix_idx")}, coalesce(k.symbol,'') AS symbol
+    return (await db.query(`SELECT t.sig || ':' || t.ix_idx AS sig, t.pool, t.mint, t.side, t.sol, t.tokens, t.fee_sol AS "feeSol", t.wallet, t.via_ui AS "viaUi", t.ts, t.dev_buy AS "devBuy", coalesce(k.symbol,'') AS symbol
       FROM trades t LEFT JOIN tokens k ON k.mint = t.mint WHERE t.wallet = $1 ORDER BY t.ts DESC, t.sig DESC, t.ix_idx DESC LIMIT $2`, [wallet, limit])).rows
       .map((r) => { const { symbol, ...rest } = r; return { ...tradeOut(rest), symbol }; });
   },

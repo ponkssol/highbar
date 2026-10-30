@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useHbWallet, useSolBalance } from "@/lib/wallet";
 import { AddrDot, WalletButton } from "./WalletButton";
-import { Coins, Flame, LayoutGrid, Lock, Rocket, Settings, Trophy, Wallet } from "lucide-react";
+import { Coins, Flame, HandCoins, Info, LayoutGrid, Lock, Rocket, Settings, Trophy, Wallet } from "lucide-react";
 import { useTokens } from "@/lib/useApi";
 import { TIERS } from "@hb/shared";
 import { TierDot } from "./ui";
@@ -18,6 +18,8 @@ const NAV = [
   { href: "/claim", label: "Claim fees", icon: Coins },
   { href: "/locks", label: "Locks", icon: Lock },
   { href: "/burn", label: "Burn", icon: Flame },
+  { href: "/cashback", label: "Cashback", icon: HandCoins },
+  { href: "/about", label: "About", icon: Info },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

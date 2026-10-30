@@ -12,6 +12,7 @@ const PriceChart = dynamic(() => import("./PriceChart").then((m) => m.PriceChart
 import { TradePanel } from "./TradePanel";
 import { TokenLogo } from "./TokenLogo";
 import { Price, TierBadge, TierDot } from "./ui";
+import { DeltaPill } from "./StatsPanel";
 import { DevLock, LockedBadge } from "./DevLock";
 import { DevLockedBadge } from "./DevLockedBadge";
 import { useLocks, type LocksResp } from "@/lib/lock";
@@ -26,34 +27,37 @@ export interface TokenViewData {
 function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
   const [copied, setCopied] = useState(false);
   const copy = () => { navigator.clipboard?.writeText(t.mint); setCopied(true); setTimeout(() => setCopied(false), 1200); };
-  const up = t.change24h >= 0;
-  const chip = "inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-full bg-[color-mix(in_srgb,var(--hb-ink)_8%,transparent)] px-2 text-[11px] font-medium leading-none text-ink-2";
+  const quote = () => (
+    <>
+      {t.priceUsd != null && <span data-testid="token-price-usd" className="num text-xs text-ink-3"><Price v={t.priceUsd} prefix="$" /></span>}
+      <DeltaPill v={t.change24h} />
+      <span className="text-[11px] text-ink-3">24h</span>
+    </>
+  );
   return (
-    <div data-testid="token-header" className="col-span-12 rounded-lg border border-border bg-bg p-3 md:p-4">
+    <div data-testid="token-header" className="col-span-12 rounded-lg border border-border bg-surface p-3 shadow-card md:p-4">
       <Link href="/" className="inline-flex items-center gap-1 text-[13px] text-ink-3 hover:text-ink"><ArrowLeft size={14} />All tokens</Link>
-      <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="md:hidden"><TokenLogo src={t.image} name={t.ticker} size={40} radius={10} /></span><span className="hidden md:inline-flex"><TokenLogo src={t.image} name={t.ticker} size={48} radius={12} /></span>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-[17px] font-semibold leading-tight tracking-tight md:text-2xl">{t.name}</h1>
-            <div className="num text-[12px] text-ink-3">${t.ticker}</div>
+      <div className="mt-3 flex items-start gap-3">
+        <span className="md:hidden"><TokenLogo src={t.image} name={t.ticker} size={40} radius={10} /></span>
+        <span className="hidden md:inline-flex"><TokenLogo src={t.image} name={t.ticker} size={44} radius={12} /></span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-lg font-semibold leading-none">{t.name}</h1>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="num text-xs text-ink-3">${t.ticker}</span>
+                <TierBadge tier={t.tier} />
+                {t.antiSniper && <span title="Anti-sniper" className="inline-flex items-center gap-1 text-xs text-ink-3"><ShieldCheck size={12} strokeWidth={1.75} />anti-sniper</span>}
+                {t.devLocked ? <span data-testid="locked-badge"><DevLockedBadge devLocked unlockAt={t.unlockAt} /></span> : <LockedBadge data={locks} />}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <div data-testid="token-price" className="flex items-baseline gap-1"><span className="num text-xl font-semibold leading-none tracking-tight md:text-2xl"><Price v={t.priceSol} /></span><span className="text-xs text-ink-3">SOL</span></div>
+              <div className="hidden items-center gap-2 sm:flex">{quote()}</div>
+            </div>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 md:order-none">
-          <span className={chip}><TierDot tier={t.tier} />{TIERS[t.tier].label}</span>
-          {t.antiSniper && <span title="Anti-sniper" className={chip}><ShieldCheck size={12} strokeWidth={1.75} />anti-sniper</span>}
-          {t.devLocked ? <span data-testid="locked-badge"><DevLockedBadge devLocked unlockAt={t.unlockAt} size="md" /></span> : <LockedBadge data={locks} />}
-        </div>
-        <div className="flex items-center gap-1.5 text-[12px] text-ink-3 md:hidden">
-          <Addr t={t} copied={copied} copy={copy} />
-        </div>
-        <div className="md:ml-auto md:text-right">
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <span data-testid="token-price" className="num whitespace-nowrap text-[22px] font-semibold leading-tight md:text-[28px]"><Price v={t.priceSol} /><span className="ml-1 text-[12px] font-normal text-ink-3">SOL</span></span>
-            <span className={`num inline-flex h-5 items-center whitespace-nowrap rounded-full bg-[color-mix(in_srgb,var(--hb-ink)_8%,transparent)] px-1.5 text-[11px] font-medium leading-none ${up ? "text-buy" : "text-sell"}`}>{up ? "+" : ""}{t.change24h.toFixed(2)}% 24h</span>
-          </div>
-          {t.priceUsd != null && <div data-testid="token-price-usd" className="num mt-0.5 text-[12px] text-ink-3"><Price v={t.priceUsd} prefix="$" /></div>}
-          <div className="mt-1 hidden items-center gap-1.5 text-[12px] text-ink-3 md:flex md:justify-end"><Addr t={t} copied={copied} copy={copy} /></div>
+          <div className="mt-1.5 flex items-center justify-end gap-2 sm:hidden">{quote()}</div>
+          <div className="mt-1 flex text-xs text-ink-3"><Addr t={t} copied={copied} copy={copy} /></div>
         </div>
       </div>
     </div>
@@ -63,8 +67,8 @@ function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
 function Addr({ t, copied, copy }: { t: TokenViewData; copied: boolean; copy: () => void }) {
   return (
     <>
-      <button type="button" onClick={copy} aria-label="Copy address" className="num inline-flex h-7 items-center gap-1 rounded-md px-1.5 hover:bg-muted hover:text-ink">{shortAddr(t.mint, 5)}{copied ? <Check size={12} /> : <Copy size={12} />}</button>
-      {([[Globe, "Website"], [XIcon, "X"], [Send, "Telegram"]] as const).map(([I, l]) => <a key={l} href="#" aria-label={l} className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--hb-ink)_6%,transparent)] hover:text-ink"><I size={13} strokeWidth={1.5} /></a>)}
+      <button type="button" onClick={copy} aria-label="Copy address" className="num inline-flex h-7 items-center gap-1 rounded-md pr-1.5 hover:bg-muted hover:text-ink">{shortAddr(t.mint, 5)}{copied ? <Check size={12} /> : <Copy size={12} />}</button>
+      {([[Globe, "Website"], [XIcon, "X"], [Send, "Telegram"]] as const).map(([I, l]) => <a key={l} href="#" aria-label={l} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-3 hover:bg-muted hover:text-ink"><I size={13} strokeWidth={1.5} /></a>)}
     </>
   );
 }
@@ -91,7 +95,7 @@ function Bonding({ t }: { t: TokenViewData }) {
 }
 
 function Stats({ t }: { t: TokenViewData }) {
-  const rows: [string, string][] = [["Market cap", fmtUsd(t.mcapUsd)], ["Holders", t.holders.toLocaleString("en-US")], ["Age", fmtAge(t.createdAt, t.now)], ["Creator", shortAddr(t.creator)], ["Volume 24h", `${fmtSol(t.volume24hSol, 1)} SOL`]];
+  const rows: [string, string][] = [["Market cap", fmtUsd(t.mcapUsd)], ["Holders", holderRows(t.trades).length.toLocaleString("en-US")], ["Age", fmtAge(t.createdAt, t.now)], ["Creator", shortAddr(t.creator)], ["Volume 24h", `${fmtSol(t.volume24hSol, 1)} SOL`]];
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <h3 className="mb-2 font-semibold">Stats</h3>
@@ -102,7 +106,16 @@ function Stats({ t }: { t: TokenViewData }) {
   );
 }
 
+function holderRows(trades: TokenViewData["trades"]) {
+  const net = new Map<string, number>();
+  for (const tr of trades) net.set(tr.wallet, (net.get(tr.wallet) ?? 0) + (tr.side === "buy" ? tr.tokens : -tr.tokens));
+  const rows = [...net].filter(([, n]) => n > 1e-6).sort((a, b) => b[1] - a[1]);
+  const total = rows.reduce((s, [, n]) => s + n, 0);
+  return rows.map(([wallet, tokens]) => ({ wallet, tokens, pct: total ? (tokens / total) * 100 : 0 }));
+}
+
 function Tabs({ t }: { t: TokenViewData }) {
+  const holders = holderRows(t.trades);
   const [tab, setTab] = useState<"trades" | "holders" | "info">("trades");
   return (
     <div className="rounded-lg border border-border bg-surface">
@@ -133,11 +146,13 @@ function Tabs({ t }: { t: TokenViewData }) {
         </div>
       )}
       {tab === "holders" && (
+        holders.length === 0 ? <p className="px-4 py-6 text-sm text-ink-3">No holders yet.</p> : (
         <table className="w-full text-sm"><tbody>
-          {t.trades.slice(0, 8).map((tr, i) => (
-            <tr key={tr.sig} className="h-11 border-t border-border first:border-0"><td className="num px-4 text-ink-3">#{i + 1}</td><td className="num px-4">{shortAddr(tr.wallet)}</td><td className="num px-4 text-right">{(12 - i * 1.3).toFixed(2)}%</td></tr>
+          {holders.map((h, i) => (
+            <tr key={h.wallet} className="h-11 border-t border-border first:border-0"><td className="num px-4 text-ink-3">#{i + 1}</td><td className="num px-4">{shortAddr(h.wallet)}</td><td className="num px-4 text-right">{h.tokens.toLocaleString("en-US", { maximumFractionDigits: 0 })}</td><td className="num px-4 text-right text-ink-3">{h.pct.toFixed(1)}%</td></tr>
           ))}
         </tbody></table>
+        )
       )}
       {tab === "info" && (
         <dl className="p-4 text-sm">
@@ -157,9 +172,15 @@ export function TokenView({ t }: { t: TokenViewData }) {
   return (
     <div className="grid grid-cols-12 gap-3 pb-20 md:gap-4 md:pb-0">
       <div className="col-span-12"><TopBar /></div>
-      <Header t={t} locks={locks.data} />
-      {/* tablet: right column under header (trade first); desktop: right 4 cols sticky */}
-      <aside className="col-span-12 lg:order-last lg:col-span-4 lg:min-w-[360px]">
+      {/* below lg the chart follows the trade column; on lg they share the left stack */}
+      <div className="contents lg:col-span-8 lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
+        <Header t={t} locks={locks.data} />
+        <section className="order-3 col-span-12 flex flex-col gap-4 lg:order-none">
+          <PriceChart mint={t.mint} className="h-[300px] md:h-[420px]" />
+          <Tabs t={t} />
+        </section>
+      </div>
+      <aside className="order-2 col-span-12 lg:order-none lg:col-span-4 lg:min-w-[360px]">
         <div className="grid gap-4 md:grid-cols-2 lg:sticky lg:top-20 lg:grid-cols-1">
           <div className="hidden md:block">{panel()}</div>
           <DevLock mint={t.mint} ticker={t.ticker} creator={t.creator} data={locks.data} reload={locks.reload} />
@@ -168,12 +189,8 @@ export function TokenView({ t }: { t: TokenViewData }) {
           <Stats t={t} />
         </div>
       </aside>
-      <section className="col-span-12 flex flex-col gap-4 lg:col-span-8">
-        <PriceChart mint={t.mint} className="h-[300px] md:h-[420px]" />
-        <Tabs t={t} />
-      </section>
       {/* mobile sticky actions + bottom sheet */}
-      <div className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 grid grid-cols-2 gap-2 border-t border-border bg-surface p-3 md:hidden">
+      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-2 gap-2 border-t border-border bg-surface p-3 md:hidden">
         <button onClick={() => setSheet("buy")} className="h-12 rounded-md bg-buy font-semibold text-white">Buy</button>
         <button onClick={() => setSheet("sell")} className="h-12 rounded-md bg-sell font-semibold text-white">Sell</button>
       </div>
