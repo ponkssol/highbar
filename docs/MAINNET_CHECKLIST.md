@@ -187,7 +187,8 @@ Also:
 ## 9. Turn on live operations (after the smoke test)
 
 - **Keeper live** [BLOCKER before any curve fills]:
-  - Trading on a curve stops at the threshold (40, 80 or 100 SOL) until it is migrated to DAMM v2.
+  - Trading on a curve stops at the threshold (85, 150 or 250 SOL on mainnet; devnet configs keep 40, 80 or 100 SOL) until it is migrated to DAMM v2.
+  - After migration the DAMM v2 pool fee is 1%; DAMM v2 takes a 20% protocol cut, so the locked LP earns 0.8% of volume: creator 0.16% / 0.32% / 0.40%, platform 0.64% / 0.48% / 0.40% (Standard / Higher / Max, LP split 20/80, 40/60, 50/50).
   - In Railway → keeper → Variables, set `DRY_RUN=false` and `ALLOW_MAINNET=true`.
   - [UNVERIFIED] DAMM v2 migration was only tested on devnet (`docs/devnet-migration-test.md`). Watch the first real migration live.
 - **Fee claims** [NICE for day 1]: on jobs-epoch, set `DRY_RUN=false` and `ALLOW_MAINNET=true` only after a dry-run epoch looks right. Cashback and the 40/50/10 split also go live with this.

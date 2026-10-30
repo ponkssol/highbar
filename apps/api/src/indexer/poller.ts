@@ -1,7 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { getPriceFromSqrtPrice } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { TIERS, type TierId } from "@hb/shared";
+import { TIERS, networkOf, thresholdSolFor, type TierId } from "@hb/shared";
 import { getClient, getConnection, allTierConfigEntries, referralAta, sleep, withRetry } from "@hb/onchain";
 import { decodeDbcEvents, type RawTx } from "./decode.js";
 import { store, type Token } from "../store.js";
@@ -82,7 +82,7 @@ export async function indexOnce(log: (m: string) => void = console.log) {
       const ps = account.poolState;
       const mint = ps.baseMint.toBase58();
       const prev = await store.getToken(mint).then((x) => (x?.mint === mint ? x : null));
-      const thresholdSol = config ? Number(config.migrationQuoteThreshold.toString()) / L : TIERS[cfg.tier].migrationQuoteThresholdSol;
+      const thresholdSol = config ? Number(config.migrationQuoteThreshold.toString()) / L : thresholdSolFor(cfg.tier, networkOf(process.env.NETWORK)); // on-chain value wins; fallback per network
       const quoteReserveSol = Number(ps.quoteReserve.toString()) / L;
       const priceSol = Number(getPriceFromSqrtPrice(ps.sqrtPrice, 6, 9).toString());
       const meta = prev?.name ? prev : await fetchMetadata(mint).catch(() => ({ name: "", symbol: "", uri: "" }));

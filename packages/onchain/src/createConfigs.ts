@@ -6,12 +6,13 @@ import {
   DynamicBondingCurveClient, buildCurve, BaseFeeMode, MigrationOption, MigrationFeeOption,
   ActivationType, TokenType, TokenDecimal, CollectFeeMode, MigratedCollectFeeMode,
 } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { TIERS, ANTI_SNIPER, CURVE_FEE_BPS, DAMM_V2_POOL_FEE_BPS, type TierId, type ConfigKey } from "@hb/shared";
+import { TIERS, ANTI_SNIPER, CURVE_FEE_BPS, DAMM_V2_POOL_FEE_BPS, thresholdSolFor, type TierId, type ConfigKey, type Network } from "@hb/shared";
 
 const WSOL = new PublicKey("So11111111111111111111111111111111111111112");
 
-/** `thresholdSolOverride` is only for devnet test configs (e.g. the 1 SOL migration test). */
-export function buildTierConfig(tierId: TierId, antiSniper: boolean, thresholdSolOverride?: number) {
+/** Migration threshold = thresholdSolFor(tier, network): mainnet (default) 85/150/250 SOL, devnet 40/80/100 SOL.
+ *  `thresholdSolOverride` is only for devnet test configs (e.g. the 1 SOL migration test). */
+export function buildTierConfig(tierId: TierId, antiSniper: boolean, thresholdSolOverride?: number, network: Network = "mainnet") {
   const tier = TIERS[tierId];
   return buildCurve({
     token: {
@@ -50,7 +51,7 @@ export function buildTierConfig(tierId: TierId, antiSniper: boolean, thresholdSo
     lockedVesting: { totalLockedVestingAmount: 0, numberOfVestingPeriod: 0, cliffUnlockAmount: 0, totalVestingDuration: 0, cliffDurationFromMigrationTime: 0 },
     activationType: ActivationType.Timestamp,
     percentageSupplyOnMigration: 20,
-    migrationQuoteThreshold: thresholdSolOverride ?? tier.migrationQuoteThresholdSol,
+    migrationQuoteThreshold: thresholdSolOverride ?? thresholdSolFor(tierId, network),
   });
 }
 
@@ -122,7 +123,7 @@ async function main() {
   for (const tierId of Object.keys(TIERS) as TierId[]) for (const on of onlyOn ? [true] : [false, true]) keys.push([`${tierId}_${on ? "on" : "off"}` as ConfigKey, tierId, on]);
   for (const [key, tierId, on] of keys) {
     const t = TIERS[tierId];
-    console.log(key, JSON.stringify({ thresholdSol: t.migrationQuoteThresholdSol, creatorTradingFeePct: t.creatorTradingFeePercentage, migrationFeePct: t.migrationFeePercentage, creatorMigrationFeePct: t.creatorMigrationFeePercentage,
+    console.log(key, JSON.stringify({ thresholdSol: thresholdSolFor(tierId, net), creatorTradingFeePct: t.creatorTradingFeePercentage, migrationFeePct: t.migrationFeePercentage, creatorMigrationFeePct: t.creatorMigrationFeePercentage,
       lpPlatformPct: t.lpPlatformPercentage, lpCreatorPct: t.lpCreatorPercentage, baseFee: on ? `${ANTI_SNIPER.startFeeBps}->${ANTI_SNIPER.endFeeBps} bps over ${ANTI_SNIPER.decaySeconds}s` : `${CURVE_FEE_BPS} bps flat`, migration: "DAMM v2", poolFeeBps: DAMM_V2_POOL_FEE_BPS }));
   }
   if (mode === "print") { console.log("print only: nothing built on-chain"); return; }
@@ -134,7 +135,7 @@ async function main() {
   const payer = mode === "send" ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(path.resolve(kpPath), "utf8")))) : null;
   const out: Partial<Record<ConfigKey, string>> = {};
   for (const [key, tierId, on] of keys) {
-    const params = buildTierConfig(tierId, on);
+    const params = buildTierConfig(tierId, on, undefined, net);
     const config = Keypair.generate();
     const tx = await client.partner.createConfig({ ...params, config: config.publicKey, feeClaimer: feeClaimer!, leftoverReceiver: leftoverReceiver!, quoteMint: WSOL, payer: payerPub! });
     if (mode === "simulate") {

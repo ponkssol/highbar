@@ -19,7 +19,7 @@
 |---|---|---|---|
 | Curve trading fee | 1.25% (creator 0.30%, protocol 0.95%) | 1% (creator 0% or ~0.5%, sources conflict) | 1% |
 | Extra app fee | 0.45% on web/mobile (0.40% with referral) | none known | none |
-| Graduation | 0.015 SOL flat | ~85 SOL to Raydium CPMM | creator picks 40/80/100+ SOL |
+| Graduation | curve graduates at ~85 SOL (0.015 SOL flat graduation fee) | ~85 SOL to Raydium CPMM | creator picks 85/150/250 SOL |
 | Creator LP share | no | no (LP locked to platform) | yes, locked |
 | Trader cashback | no | no | 0.05% |
 | Token buyback | not on fee page | ~60% of platform revenue to $STONK (unverified) | 40% of platform net to $BAR |
@@ -29,12 +29,15 @@ Migration target is set **per DBC config**, not per token, and cannot change aft
 
 | Config | Tier | migrationQuoteThreshold | Anti-sniper |
 |---|---|---|---|
-| 1 | Standard | 40 SOL (example) | OFF |
-| 2 | Standard | 40 SOL | ON |
-| 3 | Higher | 80 SOL (example) | OFF |
-| 4 | Higher | 80 SOL | ON |
-| 5 | Max | 100 SOL (example) | OFF |
-| 6 | Max | 100 SOL | ON |
+| 1 | Standard | 85 SOL | OFF |
+| 2 | Standard | 85 SOL | ON |
+| 3 | Higher | 150 SOL | OFF |
+| 4 | Higher | 150 SOL | ON |
+| 5 | Max | 250 SOL | OFF |
+| 6 | Max | 250 SOL | ON |
+
+- **Mainnet targets: 85 / 150 / 250 SOL.** pump.fun graduates at ~85 SOL, so Standard matches it and Higher / Max raise the bar. Source of truth: `MAINNET_THRESHOLD_SOL` / `thresholdSolFor(tier, network)` in `packages/shared`.
+- **Devnet** keeps the existing 6 configs at 40 / 80 / 100 SOL (`DEVNET_THRESHOLD_SOL`), so nothing on devnet has to be recreated.
 
 - **Anti-sniper OFF:** flat 1% base fee from the first trade.
 - **Anti-sniper ON:** fee scheduler (linear or exponential) starting high and decaying to 1%, e.g. 25% to 1% over the first few minutes (example, not final). DBC: base fee min 0.25%, total fee max 99%.
@@ -47,12 +50,12 @@ Migration target is set **per DBC config**, not per token, and cannot change aft
 | Tier | creatorTradingFeePercentage | Creator | Platform |
 |---|---|---|---|
 | Standard | 50% | 0.4% | 0.4% |
-| Higher | 62.5% | 0.5% | 0.3% |
+| Higher | 62% | 0.496% | 0.304% |
 | Max | 75% | 0.6% | 0.2% |
 
-**Migration fee (% of migrated quote):** Standard 1.5% (creator 0%), Higher 1% (creator 50%), Max 0.5% (creator 50%). Meteora also takes a fixed 0.2% of liquidity at migration.
+**Migration fee (% of migrated quote):** Standard 1% (creator 0%), Higher 1% (creator 50%), Max 0% (creator 0%). Meteora also takes a fixed 0.2% of liquidity at migration. These are the on-chain values: DBC fee percentages are whole-number u8s, so the earlier targets (Higher 62.5% creator trading share, Standard 1.5%, Max 0.5% migration fee at 50% creator) cannot be set on a config.
 
-**After migration (DAMM v2):** pool fee 1%. Meteora takes 20%, 80% goes to LP holders. LP split creator/platform, permanently locked: Standard 20/80, Higher 40/60, Max 50/50. (DBC rule: at least 10% must stay locked after 1 day.)
+**After migration (DAMM v2):** pool fee 1%. DAMM v2 takes a 20% protocol cut (0.2% of volume), so LP holders receive 0.8%. LP split creator/platform, permanently locked: Standard 20/80, Higher 40/60, Max 50/50, so the creator earns 0.16% / 0.32% / 0.40% of post-migration volume and the platform 0.64% / 0.48% / 0.40%. (DBC rule: at least 10% must stay locked after 1 day.)
 
 **Pool creation fee:** 0 (free launch).
 
@@ -60,16 +63,16 @@ Migration target is set **per DBC config**, not per token, and cannot change aft
 
 **Trader cashback:** 0.05% of volume, paid by the platform off-chain (not native to DBC).
 
-### Simulation per token (example: 500 SOL curve volume, reaches migration, anti-sniper OFF, referral active)
+### Simulation per token (example: 500 SOL curve volume, reaches migration at the mainnet targets 85/150/250 SOL, anti-sniper OFF, referral active)
 | | Creator | Platform ops | $BAR buyback | Treasury | Meteora | Trader pays |
 |---|---|---|---|---|---|---|
 | pump.fun (web app) | 1.5 | 7.015 (total) | - | - | - | 8.5 |
 | StonkFun (unverified) | 0 | 1.5 | 2.25 | - | 1.25 (Raydium) | 5.0 |
-| HB Standard | 2.0 | 1.275 | 1.02 | 0.255 | 0.88 | 5.0 (4.75 after cashback) |
-| HB Higher | 2.9 | 0.925 | 0.74 | 0.185 | 0.96 | 5.0 (4.75) |
-| HB Max | 3.25 | 0.6 | 0.48 | 0.12 | 1.0 | 5.0 (4.75) |
+| HB Standard (85 SOL) | 2.0 | 1.4 | 1.12 | 0.28 | 0.97 | 5.0 (4.75 after cashback) |
+| HB Higher (150 SOL) | 3.23 | 1.11 | 0.888 | 0.222 | 1.1 | 5.0 (4.75) |
+| HB Max (250 SOL) | 3.0 | 0.475 | 0.38 | 0.095 | 1.3 | 5.0 (4.75) |
 
-Creators earn ~1.3x / 1.9x / 2.2x pump.fun. Traders pay ~44% less than pump.fun web.
+Curve phase only (post-migration DAMM v2 LP fees come on top). Creators earn ~1.3x / 2.2x / 2.0x pump.fun. Traders pay ~44% less than pump.fun web. pump.fun graduates at ~85 SOL, the same as HB Standard. Migration fees scale with the target, so the creator and platform migration shares above are larger than with the earlier 40/80/100 SOL example values (now devnet only). All numbers use the on-chain fee values (see `ONCHAIN_PERCENT_NOTE`).
 
 ## 6. $BAR buyback & burn
 1. Claim platform fees (curve share, migration fee, DAMM v2 LP fees, referral cut) into a **multisig treasury**.
@@ -77,7 +80,7 @@ Creators earn ~1.3x / 1.9x / 2.2x pump.fun. Traders pay ~44% less than pump.fun 
 3. Split the rest: **40% buyback & burn, 50% operations, 10% treasury** (example split).
 4. Scheduled bot buys $BAR via **Jupiter** in small capped orders, then burns.
 5. Publish every buy and burn with **Solscan links** on a public tracker page.
-- Example at 10,000 SOL/day curve volume (60/30/10 tier mix): traders pay 100 SOL fees, creators 45, cashback 5, Meteora 16, platform 34 (13.6 buyback, 17 ops, 3.4 treasury).
+- Example at 10,000 SOL/day curve volume (60/30/10 tier mix): traders pay 100 SOL fees, creators 44.88 (Higher at the on-chain 62%), cashback 5, Meteora 16, platform 34.12 (13.65 buyback, 17.06 ops, 3.41 treasury).
 - **Never** promise price or market $BAR as an investment. Check legal rules for fee-linked tokens.
 
 ## 7. Phase 2 features

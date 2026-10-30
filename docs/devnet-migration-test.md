@@ -1,6 +1,6 @@
 # Devnet migration test (1 SOL threshold)
 
-Goal: prove the full curve -> DAMM v2 migration path cheaply, without filling a 40 SOL curve.
+Goal: prove the full curve -> DAMM v2 migration path cheaply, without filling a 40 SOL curve (40 SOL is the devnet Standard target only; mainnet Standard is 85 SOL, Higher 150, Max 250).
 
 ## 1. Test config
 1. Copy the `standard_off` tier params (`buildTierConfig("standard", false)` in `packages/onchain/src/createConfigs.ts`).

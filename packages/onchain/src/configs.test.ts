@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { calculateFeeSchedulerEndingBaseFeeBps, BaseFeeMode } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { TIERS, ANTI_SNIPER, CURVE_FEE_BPS, DAMM_V2_POOL_FEE_BPS, type TierId } from "@hb/shared";
+import { TIERS, ANTI_SNIPER, CURVE_FEE_BPS, DAMM_V2_POOL_FEE_BPS, thresholdSolFor, type TierId } from "@hb/shared";
 import { buildTierConfig } from "./createConfigs.js";
 import { CONFIG_ENV, loadConfigs, rpcUrl, testConfigEntries } from "./client.js";
 
@@ -24,6 +24,15 @@ test("6 configs: tier economics match TIERS (threshold, creator fee, migration f
     assert.equal(c.migrationOption, 1, `${tag}: migrates to DAMM v2`);
     assert.equal(c.tokenUpdateAuthority, 1, `${tag}: immutable token authority`);
   }
+});
+
+test("thresholds per network: devnet keeps 40/80/100 SOL, mainnet (default) 85/150/250 SOL", () => {
+  const sol = (id: TierId, net?: "devnet" | "mainnet") => Number(BigInt((buildTierConfig(id, false, undefined, net) as any).migrationQuoteThreshold.toString()) / LAMPORTS);
+  assert.deepEqual(tiers.map((id) => sol(id, "devnet")), [40, 80, 100], "devnet");
+  assert.deepEqual(tiers.map((id) => sol(id, "mainnet")), [85, 150, 250], "mainnet");
+  assert.deepEqual(tiers.map((id) => sol(id)), [85, 150, 250], "default is mainnet");
+  for (const id of tiers) { assert.equal(thresholdSolFor(id, "devnet"), sol(id, "devnet")); assert.equal(thresholdSolFor(id, "mainnet"), sol(id, "mainnet")); assert.equal(TIERS[id].migrationQuoteThresholdSol, sol(id)); }
+  assert.equal(Number(BigInt((buildTierConfig("higher", false, 1, "devnet") as any).migrationQuoteThreshold.toString()) / LAMPORTS), 1, "test override still wins");
 });
 
 test("anti-sniper: exponential scheduler from startFeeBps decaying to the 1% curve fee; off = flat 1%", () => {

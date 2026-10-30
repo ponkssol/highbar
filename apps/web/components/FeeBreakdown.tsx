@@ -1,10 +1,11 @@
 import type { TierId } from "@hb/shared";
-import { PLATFORM_SPLIT, feeSplitPct } from "@/lib/fees";
+import { PLATFORM_SPLIT, feeSplitPct, lpFeeSplitPct } from "@/lib/fees";
 import { StackedBar } from "./charts";
 import { Card } from "./ui";
 
 export function FeeBreakdown({ tier }: { tier: TierId }) {
   const f = feeSplitPct(tier);
+  const lp = lpFeeSplitPct(tier);
   const rows: [string, string, string][] = [
     ["Meteora protocol", `${f.meteora}%`, "border"],
     ["Creator", `${f.creator}%`, "ink"],
@@ -26,6 +27,17 @@ export function FeeBreakdown({ tier }: { tier: TierId }) {
             <tr key={l} className="border-b border-border last:border-0">
               <td className="flex items-center gap-2 py-2"><span className={`h-2.5 w-2.5 rounded-[3px] ${sw[s]}`} />{l}</td>
               <td className="num py-2 text-right">{v}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-4 text-xs font-medium text-ink-3">After migration (DAMM v2)</div>
+      <table className="mt-1 w-full text-sm">
+        <tbody>
+          {[["Pool fee", lp.total], ["DAMM v2 protocol (20%)", lp.protocol], [`Creator LP (${lp.lpCreatorPct}% of LP)`, lp.creator], [`Platform LP (${100 - lp.lpCreatorPct}% of LP)`, lp.platform]].map(([l, v]) => (
+            <tr key={l as string} className="border-b border-border last:border-0">
+              <td className="py-2 text-ink-2">{l}</td>
+              <td className="num py-2 text-right">{v}%</td>
             </tr>
           ))}
         </tbody>

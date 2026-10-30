@@ -3,7 +3,7 @@ import { TopBar } from "./TopBar";
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowLeft, Check, Copy, ExternalLink, Globe, Send, ShieldCheck, X as XIcon } from "lucide-react";
-import { TIERS, type TierId } from "@hb/shared";
+import { TIERS, thresholdSolFor, type TierId } from "@hb/shared";
 import { ArcGauge } from "./charts";
 import { FeeBreakdown } from "./FeeBreakdown";
 import dynamic from "next/dynamic";
@@ -18,12 +18,14 @@ import { DevLockedBadge } from "./DevLockedBadge";
 import { OfficialBadge } from "./OfficialBadge";
 import { ScoreBadge } from "./ScoreBadge";
 import { ScoreCard } from "./ScoreCard";
-import { explorerTx } from "@/lib/settings";
+import { NETWORK, explorerTx } from "@/lib/settings";
 import { useLocks, type LocksResp } from "@/lib/lock";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
+  /** Migration target in SOL from the live pool config; missing -> thresholdSolFor(tier, NETWORK). */
+  thresholdSol?: number;
   mcapUsd: number; raisedSol: number; volume24hSol: number; priceSol: number; priceUsd?: number; image?: string | null; change24h: number; holders: number; now: number; devLocked?: boolean; unlockAt?: number | null; official?: boolean; score?: number | null;
   trades: { sig: string; side: "buy" | "sell"; sol: number; tokens: number; wallet: string; ts: number; devBuy?: boolean }[];
 }
@@ -78,8 +80,10 @@ function Addr({ t, copied, copy }: { t: TokenViewData; copied: boolean; copy: ()
     </>
   );
 }
+const targetSol = (t: TokenViewData) => t.thresholdSol || thresholdSolFor(t.tier, NETWORK);
+
 function Bonding({ t }: { t: TokenViewData }) {
-  const target = TIERS[t.tier].migrationQuoteThresholdSol;
+  const target = targetSol(t);
   const p = Math.min(1, t.raisedSol / target);
   return (
     <div className="flex flex-col items-center rounded-lg border border-border bg-surface p-4">
@@ -162,7 +166,7 @@ function Tabs({ t }: { t: TokenViewData }) {
       )}
       {tab === "info" && (
         <dl className="p-4 text-sm">
-          {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s)" : "Off"], ["Graduation", `${TIERS[t.tier].migrationQuoteThresholdSol} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
+          {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s)" : "Off"], ["Graduation", `${targetSol(t)} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 border-b border-border py-2 last:border-0"><dt className="text-ink-3">{k}</dt><dd className="num truncate">{v}</dd></div>
           ))}
         </dl>

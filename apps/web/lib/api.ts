@@ -35,7 +35,7 @@ export async function post<T>(path: string, body: unknown): Promise<T> {
 /** API token -> table row shape used by the UI. */
 export const toRow = (t: ApiToken): TokenRow & { pool: string; progress: number; isMigrated: boolean; priceSol: number } => ({
   mint: t.mint, pool: t.pool, name: t.name || t.mint.slice(0, 6), ticker: t.symbol || "?", tier: t.tier, mcapUsd: t.mcapUsd,
-  raisedSol: t.quoteReserveSol, volume24hSol: t.volume24hSol, createdAt: t.createdAt, creator: t.creator, antiSniper: t.antiSniper,
+  raisedSol: t.quoteReserveSol, thresholdSol: t.thresholdSol || undefined, volume24hSol: t.volume24hSol, createdAt: t.createdAt, creator: t.creator, antiSniper: t.antiSniper,
   description: "", image: t.image ?? null, devLocked: !!t.devLocked, unlockAt: t.unlockAt ?? null, official: !!t.official, progress: t.progress, isMigrated: t.isMigrated, priceSol: t.priceSol,
 });
 

@@ -1,4 +1,4 @@
-import { TIERS, type TierId } from "@hb/shared";
+import { thresholdSolFor, type TierId } from "@hb/shared";
 
 export interface TokenRow {
   image?: string | null;
@@ -17,6 +17,8 @@ export interface TokenRow {
   creator: string;
   antiSniper: boolean;
   description: string;
+  /** Migration target in SOL (live: the pool's on-chain config threshold). Missing -> thresholdSolFor(tier, network). */
+  thresholdSol?: number;
 }
 
 export interface Trade { sig: string; side: "buy" | "sell"; sol: number; tokens: number; wallet: string; ts: number }
@@ -38,7 +40,7 @@ const tiers: TierId[] = ["standard", "higher", "max"];
 
 export const TOKENS: TokenRow[] = names.map(([name, ticker], i) => {
   const tier = tiers[i % 3];
-  const target = TIERS[tier].migrationQuoteThresholdSol;
+  const target = thresholdSolFor(tier); // mock rows use the mainnet targets
   const pct = i === 2 || i === 7 ? 1 : i % 4 === 1 ? 0.8 + rnd() * 0.19 : rnd() * 0.75;
   const raised = +(target * pct).toFixed(2);
   return {
@@ -47,6 +49,7 @@ export const TOKENS: TokenRow[] = names.map(([name, ticker], i) => {
     ticker,
     tier,
     raisedSol: raised,
+    thresholdSol: target,
     mcapUsd: Math.round(4000 + raised * 1900 + rnd() * 3000),
     volume24hSol: +(raised * (0.6 + rnd() * 2)).toFixed(1),
     createdAt: NOW - Math.floor(rnd() * 3 * 86400_000),
@@ -57,7 +60,9 @@ export const TOKENS: TokenRow[] = names.map(([name, ticker], i) => {
 });
 
 export const NOW_TS = NOW;
-export const progressOf = (t: TokenRow) => Math.min(1, t.raisedSol / TIERS[t.tier].migrationQuoteThresholdSol);
+/** Migration target of a row: its own thresholdSol, else the tier default for `network` (pass the runtime NETWORK from lib/settings). */
+export const targetOf = (t: Pick<TokenRow, "tier" | "thresholdSol">, network?: string | null) => t.thresholdSol || thresholdSolFor(t.tier, network);
+export const progressOf = (t: TokenRow, network?: string | null) => Math.min(1, t.raisedSol / targetOf(t, network));
 
 export const STATS = {
   totalVolumeSol: 18_420.6,

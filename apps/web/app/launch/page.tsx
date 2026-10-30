@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { Check, ImagePlus, Lock, ShieldCheck } from "lucide-react";
-import { TIERS, type TierId } from "@hb/shared";
+import { TIERS, thresholdSolFor, type TierId } from "@hb/shared";
 import { TopBlock } from "@/components/TopBar";
 import { Avatar, Button, Card, ProgressBar, TierBadge } from "@/components/ui";
 import { feeSplitPct } from "@/lib/fees";
 import { launchToken, quoteDevBuy, type DevBuyQuote } from "@/lib/launch";
 import { useHbWallet, useSolBalance } from "@/lib/wallet";
 import { useAuth } from "@/lib/auth";
+import { NETWORK } from "@/lib/settings";
 import { fmtBar, useBarInfo, useBarWallet } from "@/lib/bar";
 
 const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
@@ -117,7 +118,7 @@ export default function LaunchPage() {
                     className={`relative rounded p-3 text-left ${sel ? "border-[1.5px] border-ink" : "border border-border hover:bg-muted"} ${locked ? "cursor-not-allowed opacity-60" : ""}`}>
                     {sel && <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-on-ink"><Check size={12} /></span>}
                     <TierBadge tier={id} />
-                    <div className="num mt-2 text-xl font-semibold">{TIERS[id].migrationQuoteThresholdSol} SOL</div>
+                    <div className="num mt-2 text-xl font-semibold">{thresholdSolFor(id, NETWORK)} SOL</div>
                     {locked && <div className="mt-1 flex items-center gap-1 text-xs text-ink-3"><Lock size={12} />{maxNeed}</div>}
                     <div className="num mt-1 text-xs text-ink-3">creator {s.creator}% · platform {s.platform}%</div>
                   </button>
@@ -167,7 +168,7 @@ export default function LaunchPage() {
           </div>          <dl className="space-y-1.5 rounded border border-border bg-muted p-3 text-sm">
             <div className="flex justify-between"><dt className="text-ink-3">Curve fee</dt><dd className="num">{f.total}%</dd></div>
             <div className="flex justify-between"><dt className="text-ink-3">Meteora / creator / platform</dt><dd className="num">{f.meteora}% / {f.creator}% / {f.platform}%</dd></div>
-            <div className="flex justify-between"><dt className="text-ink-3">Graduates at</dt><dd className="num">{TIERS[tier].migrationQuoteThresholdSol} SOL</dd></div>
+            <div className="flex justify-between"><dt className="text-ink-3">Graduates at</dt><dd className="num">{thresholdSolFor(tier, NETWORK)} SOL</dd></div>
           </dl>
           <Button className="w-full" disabled={!name || !ticker || busy || overMax} onClick={submit}>{busy ? "Launching…" : "Launch"}</Button>
           {msg && <p className="text-sm text-ink-2">{msg}</p>}
@@ -183,7 +184,7 @@ export default function LaunchPage() {
             </div>
             <p className="mt-3 line-clamp-3 text-sm text-hl-sub">{desc || "Description shows here."}</p>
             <div className="mt-4"><div className="h-1.5 rounded-full bg-ink-2"><div className="h-1.5 w-0 rounded-full bg-on-ink" /></div>
-              <div className="num mt-1 flex justify-between text-xs text-hl-sub"><span>0%</span><span>0 / {TIERS[tier].migrationQuoteThresholdSol} SOL</span></div></div>
+              <div className="num mt-1 flex justify-between text-xs text-hl-sub"><span>0%</span><span>0 / {thresholdSolFor(tier, NETWORK)} SOL</span></div></div>
           </Card>
           <Card className="mt-3"><div className="flex items-center justify-between text-sm"><TierBadge tier={tier} /><span className="num text-ink-3">$0 mcap</span></div><div className="mt-3"><ProgressBar value={0} tier={tier} /></div></Card>
         </div>

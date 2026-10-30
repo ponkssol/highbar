@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
-import { TIERS } from "@hb/shared";
-import { progressOf, type TokenRow } from "@/lib/mock";
+import { progressOf as progressAt, targetOf, type TokenRow } from "@/lib/mock";
+import { NETWORK } from "@/lib/settings";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 import { Avatar, ProgressBar, TierBadge } from "./ui";
 import { Pagination } from "./Pagination";
 import { DevLockedBadge } from "./DevLockedBadge";
 import { OfficialBadge } from "./OfficialBadge";
+
+const progressOf = (t: TokenRow) => progressAt(t, NETWORK);
 
 type Filter = "all" | "bonding" | "almost" | "graduated";
 type SortKey = "name" | "tier" | "mcap" | "progress" | "volume" | "age";
@@ -123,7 +125,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
                     <ProgressBar value={p} tier={t.tier} />
                     <div className="num mt-1 flex justify-between text-xs text-ink-3">
                       <span className="text-ink">{Math.round(p * 100)}%</span>
-                      <span>{fmtSol(t.raisedSol, 1)} / {TIERS[t.tier].migrationQuoteThresholdSol} SOL</span>
+                      <span>{fmtSol(t.raisedSol, 1)} / {targetOf(t, NETWORK)} SOL</span>
                     </div>
                   </td>
                   <td className="num px-4 py-3 text-right">{fmtSol(t.volume24hSol, 1)} SOL</td>

@@ -3,7 +3,7 @@ export type TierId = "standard" | "higher" | "max";
 export interface Tier {
   id: TierId;
   label: string;
-  /** Migration target in SOL (example values, final TBD) */
+  /** Mainnet migration target in SOL (= MAINNET_THRESHOLD_SOL). Devnet configs use DEVNET_THRESHOLD_SOL; prefer thresholdSolFor(tier, network). */
   migrationQuoteThresholdSol: number;
   /** On-chain (u8) share of the non-protocol trading fee that goes to the creator (DBC creatorTradingFeePercentage) */
   creatorTradingFeePercentage: number;
@@ -14,7 +14,7 @@ export interface Tier {
   /** Locked LP split after migration to DAMM v2, % */
   lpCreatorPercentage: number;
   lpPlatformPercentage: number;
-  /** BUILD_BRIEF section 5 targets (may be fractional; see ONCHAIN_PERCENT_NOTE) */
+  /** BUILD_BRIEF section 5 targets, aligned with the on-chain whole-number values (see ONCHAIN_PERCENT_NOTE) */
   brief: { creatorTradingFeePercentage: number; migrationFeePercentage: number; creatorMigrationFeePercentage: number };
 }
 
@@ -22,6 +22,8 @@ export const BPS = 10_000;
 export const CURVE_FEE_BPS = 100; // 1%
 export const METEORA_PROTOCOL_SHARE = 0.2; // 20% of trading fee
 export const DAMM_V2_POOL_FEE_BPS = 100; // 1%
+/** DAMM v2 protocol cut of the post-migration pool fee (20%), so LP holders receive 0.8% of volume. */
+export const DAMM_V2_PROTOCOL_SHARE = 0.2;
 export const TRADER_CASHBACK_BPS = 5; // 0.05%, paid off-chain by platform
 
 export const ANTI_SNIPER = {
@@ -31,49 +33,58 @@ export const ANTI_SNIPER = {
   decaySeconds: 60,
 } as const;
 
+/** Mainnet migration targets in SOL. pump.fun's curve graduates at ~85 SOL, so Standard matches it and Higher / Max raise the bar. */
+export const MAINNET_THRESHOLD_SOL: Record<TierId, number> = { standard: 85, higher: 150, max: 250 };
+/** Devnet migration targets in SOL: what the 6 existing devnet configs were created with (checked on-chain), kept so they need no recreating. */
+export const DEVNET_THRESHOLD_SOL: Record<TierId, number> = { standard: 40, higher: 80, max: 100 };
+/** Migration target of a tier on a network: the devnet value for "devnet", the mainnet value otherwise. */
+export const thresholdSolFor = (tier: TierId, network?: string | null): number => (network === "devnet" ? DEVNET_THRESHOLD_SOL : MAINNET_THRESHOLD_SOL)[tier];
+
 export const TIERS: Record<TierId, Tier> = {
   standard: {
     id: "standard",
     label: "Standard",
-    migrationQuoteThresholdSol: 40,
+    migrationQuoteThresholdSol: MAINNET_THRESHOLD_SOL.standard, // 85 (devnet configs: 40)
     creatorTradingFeePercentage: 50,
-    migrationFeePercentage: 1, // brief: 1.5 (not expressible on-chain, see ONCHAIN_PERCENT_NOTE)
+    migrationFeePercentage: 1, // earlier target 1.5 is not expressible on-chain (see ONCHAIN_PERCENT_NOTE)
     creatorMigrationFeePercentage: 0,
     lpCreatorPercentage: 20,
     lpPlatformPercentage: 80,
-    brief: { creatorTradingFeePercentage: 50, migrationFeePercentage: 1.5, creatorMigrationFeePercentage: 0 },
+    brief: { creatorTradingFeePercentage: 50, migrationFeePercentage: 1, creatorMigrationFeePercentage: 0 },
   },
   higher: {
     id: "higher",
     label: "Higher",
-    migrationQuoteThresholdSol: 80,
-    creatorTradingFeePercentage: 62, // brief: 62.5 (u8 on-chain; 62 keeps the deployed configs and the platform side of the rounding)
+    migrationQuoteThresholdSol: MAINNET_THRESHOLD_SOL.higher, // 150 (devnet configs: 80)
+    creatorTradingFeePercentage: 62, // earlier target 62.5 (u8 on-chain; 62 keeps the deployed configs and the platform side of the rounding)
     migrationFeePercentage: 1,
     creatorMigrationFeePercentage: 50,
     lpCreatorPercentage: 40,
     lpPlatformPercentage: 60,
-    brief: { creatorTradingFeePercentage: 62.5, migrationFeePercentage: 1, creatorMigrationFeePercentage: 50 },
+    brief: { creatorTradingFeePercentage: 62, migrationFeePercentage: 1, creatorMigrationFeePercentage: 50 },
   },
   max: {
     id: "max",
     label: "Max",
-    migrationQuoteThresholdSol: 100,
+    migrationQuoteThresholdSol: MAINNET_THRESHOLD_SOL.max, // 250 (devnet configs: 100)
     creatorTradingFeePercentage: 75,
-    migrationFeePercentage: 0, // brief: 0.5 (not expressible on-chain)
-    creatorMigrationFeePercentage: 0, // brief: 50; the SDK requires 0 when migrationFeePercentage is 0
+    migrationFeePercentage: 0, // earlier target 0.5 is not expressible on-chain
+    creatorMigrationFeePercentage: 0, // the SDK requires 0 when migrationFeePercentage is 0
     lpCreatorPercentage: 50,
     lpPlatformPercentage: 50,
-    brief: { creatorTradingFeePercentage: 75, migrationFeePercentage: 0.5, creatorMigrationFeePercentage: 50 },
+    brief: { creatorTradingFeePercentage: 75, migrationFeePercentage: 0, creatorMigrationFeePercentage: 0 },
   },
 };
 
-/** Why TIERS differ from BUILD_BRIEF section 5 (verified in @meteora-ag/dynamic-bonding-curve-sdk 2.0.0):
+/** Why the fee percentages are whole numbers (verified in @meteora-ag/dynamic-bonding-curve-sdk 2.0.0):
  *  - creatorTradingFeePercentage, migrationFee.feePercentage and migrationFee.creatorFeePercentage are `u8` in the DBC
  *    program IDL, and the SDK's validateMigrationFee() throws "must be whole numbers"; creatorFeePercentage must be 0 when
- *    feePercentage is 0. So 62.5 / 1.5 / 0.5 cannot be set on a config.
- *  - TIERS holds the values the 6 devnet configs were created with (checked on-chain), so no config has to be recreated.
- *    `brief` keeps the approved target; feeModel(tier, "brief") reproduces the section 5 simulation table.
- *  - Getting closer would need recreating configs (e.g. Standard 2%, Max 1% migration fee), or an off-chain top-up. */
+ *    feePercentage is 0. So the earlier targets 62.5 / 1.5 / 0.5 cannot be set on a config.
+ *  - TIERS fee percentages are the values the 6 devnet configs were created with (checked on-chain), so no devnet config has to be
+ *    recreated. Thresholds differ per network: devnet configs keep DEVNET_THRESHOLD_SOL (40/80/100), mainnet configs are created
+ *    with MAINNET_THRESHOLD_SOL (85/150/250); see thresholdSolFor.
+ *    `brief` is aligned with these on-chain values, so feeModel(tier, "brief") = feeModel(tier) = the section 5 simulation table.
+ *  - Getting the earlier fractional targets back would need recreating configs (e.g. Standard 2%, Max 1% migration fee), or an off-chain top-up. */
 export const ONCHAIN_PERCENT_NOTE = "DBC fee percentages are whole-number u8 values on-chain";
 
 export type ConfigKey = `${TierId}_${"on" | "off"}`;
@@ -95,13 +106,22 @@ export function curveFeeSplit(tier: Tier, values: "onchain" | "brief" = "onchain
   return { total, protocol, creator, platform: rest - creator };
 }
 
+/** Post-migration (DAMM v2) fee split in bps of pool volume: 1% pool fee, 20% to DAMM v2 protocol, 80% to the locked LP,
+ *  split by lpCreatorPercentage / lpPlatformPercentage. Creator: 16 / 32 / 40 bps (0.16% / 0.32% / 0.40%) for Standard / Higher / Max. */
+export function lpFeeSplit(tier: Tier) {
+  const total = DAMM_V2_POOL_FEE_BPS;
+  const protocol = total * DAMM_V2_PROTOCOL_SHARE;
+  const lp = total - protocol;
+  return { total, protocol, lp, creator: (lp * tier.lpCreatorPercentage) / 100, platform: (lp * tier.lpPlatformPercentage) / 100 };
+}
+
 /** Referral account share of Meteora's protocol fee (20% of protocol = 4% of the total fee). */
 export const REFERRAL_SHARE_OF_PROTOCOL = 0.2;
 /** Meteora's fixed cut of migrated liquidity. */
 export const METEORA_MIGRATION_LIQUIDITY_SHARE = 0.002;
 
 /** Per-token fee model in SOL (BUILD_BRIEF section 5 simulation): curve volume, reaches migration, anti-sniper OFF.
- *  `values`: "onchain" = TIERS (what the configs do), "brief" = approved targets. */
+ *  `values`: "onchain" = TIERS (what the configs do), "brief" = approved targets. Uses the mainnet threshold (TIERS). */
 export function feeModel(tier: Tier, values: "onchain" | "brief" = "onchain", o: { volumeSol?: number; referral?: boolean; cashback?: boolean } = {}) {
   const v = o.volumeSol ?? 500, referral = o.referral ?? true, cashback = o.cashback ?? true;
   const p = values === "brief" ? tier.brief : tier;
