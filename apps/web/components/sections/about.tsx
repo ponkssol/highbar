@@ -13,7 +13,7 @@ export default function AboutPage() {
   return (
     <div className="flex flex-col gap-4">
       <TopBlock title="About">
-        <p className="mt-2 max-w-xl text-sm text-ink-2">Higher Bar is a Solana launchpad where the creator picks the bonding target. A higher target means deeper liquidity when the pool migrates, and higher creator earnings through graduation than on pump.fun.</p>
+        <p className="mt-2 max-w-xl text-sm text-ink-2">highbar is a Solana launchpad where the creator picks the bonding target. A higher target means deeper liquidity when the pool migrates, and higher creator earnings through graduation than on pump.fun.</p>
       </TopBlock>
       <Card>
         <h2 className="font-semibold">How it works</h2>
@@ -31,7 +31,7 @@ export default function AboutPage() {
       </Card>
       <Card>
         <h2 className="font-semibold">Credit</h2>
-        <p className="mt-2 text-sm text-ink-2">The original idea is from ContextChain. Higher Bar is the build: tiered migration targets, creator fees, and a public buyback record.</p>
+        <p className="mt-2 text-sm text-ink-2">The original idea is from ContextChain. highbar is the build: tiered migration targets, creator fees, and a public buyback record.</p>
         <div className="mt-4 flex flex-wrap gap-2 text-sm">
           <Link href="/launch" className="rounded border border-border px-3 py-1.5 hover:bg-muted">Launch a token</Link>
           <Link href="/rewards?tab=cashback" className="rounded border border-border px-3 py-1.5 hover:bg-muted">Cashback</Link>

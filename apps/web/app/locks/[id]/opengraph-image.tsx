@@ -25,8 +25,10 @@ const ADV: Record<string, number> = {
 };
 const textWidth = (t: string, px: number, spacing: number) => [...t].reduce((w, c) => w + (ADV[c] ?? 720) * px / 1000, 0) + spacing * Math.max(0, [...t].length - 1);
 const fit = (t: string, px: number, maxw: number, spacing: number) => { while (px > 14 && textWidth(t, px, spacing) > maxw) px--; return px; };
+// Brand mark: bronze column (25 x 24) plus the HIGHBAR wordmark in Big Shoulders Black, about 119px wide in total, centred on CX.
+const BRAND_X = CX - 59.6;
 
-type Assets = { bg: string; brand: string; jup: string; fonts: { name: string; data: Buffer; weight: 500 | 600; style: "normal" }[] };
+type Assets = { bg: string; column: string; jup: string; fonts: { name: string; data: Buffer; weight: 500 | 600 | 900; style: "normal" }[] };
 let assets: Promise<Assets> | null = null;
 /** Static art and Cinzel live in public/og and are read from disk once per server process (nodejs runtime, `next start` runs in apps/web). */
 const loadAssets = () =>
@@ -34,10 +36,13 @@ const loadAssets = () =>
     const dir = path.join(process.cwd(), "public", "og");
     const read = (f: string) => readFile(path.join(dir, f));
     const uri = async (f: string, type: string) => `data:${type};base64,${(await read(f)).toString("base64")}`;
-    const [bg, brand, jup, medium, semibold] = await Promise.all([
-      uri("parchment.jpg", "image/jpeg"), uri("brand.png", "image/png"), uri("jupiter-mark.png", "image/png"), read("Cinzel-Medium.ttf"), read("Cinzel-SemiBold.ttf"),
+    const [bg, column, jup, medium, semibold, wordmark] = await Promise.all([
+      uri("parchment.jpg", "image/jpeg"), uri("brand-column.png", "image/png"), uri("jupiter-mark.png", "image/png"), read("Cinzel-Medium.ttf"), read("Cinzel-SemiBold.ttf"), read("BigShoulders-Black.ttf"),
     ]);
-    return { bg, brand, jup, fonts: [{ name: "Cinzel", data: medium, weight: 500, style: "normal" }, { name: "Cinzel", data: semibold, weight: 600, style: "normal" }] };
+    return {
+      bg, column, jup,
+      fonts: [{ name: "Cinzel", data: medium, weight: 500, style: "normal" }, { name: "Cinzel", data: semibold, weight: 600, style: "normal" }, { name: "Big Shoulders", data: wordmark, weight: 900, style: "normal" }],
+    };
   })().catch((e) => { assets = null; throw e; }));
 
 /** Days between lock and unlock ("365 days"), hours when shorter than a day. */
@@ -104,7 +109,11 @@ export default async function OgImage({ params }: { params: Promise<{ id: string
     (
       <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", background: "#EFE2C6", fontFamily: a ? "Cinzel" : "serif" }}>
         {a && <img src={a.bg} width={1200} height={630} style={{ position: "absolute", left: 0, top: 0 }} />}
-        {a && <img src={a.brand} width={144} height={24} style={{ position: "absolute", left: CX - 72, top: 80 - 12 + DY, opacity: 0.9 }} />}
+        {a && <img src={a.column} width={25} height={24} style={{ position: "absolute", left: BRAND_X, top: 80 - 12 + DY, opacity: 0.9 }} />}
+        {a && (
+          // Live wordmark next to the column: cap height 22px, ink 35px right of the column's left edge, baseline 22.33px below the mark's top (Big Shoulders: ascent 0.9855, descent 0.2145 em)
+          <div style={{ position: "absolute", left: BRAND_X + 33.9, top: 80 - 12 + DY + 22.33 - 0.8855 * 27.5, display: "flex", fontFamily: "Big Shoulders", fontWeight: 900, fontSize: 27.5, lineHeight: 1, color: ink(), whiteSpace: "nowrap" }}>HIGHBAR</div>
+        )}
 
         <Line y={172} px={60} spacing={9}>TOKEN LOCK</Line>
         {l ? (

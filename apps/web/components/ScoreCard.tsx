@@ -19,7 +19,7 @@ export function ScoreCard({ mint }: { mint: string }) {
   return (
     <div data-testid="score-card" className="rounded-lg border border-border bg-surface p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="font-semibold">Higher Bar score</h3>
+        <h3 className="font-semibold">highbar score</h3>
         <ScoreBadge score={data.score} size="md" />
       </div>
       <div className="num mb-3 flex items-baseline gap-2"><span className="text-kpi">{data.score}</span><span className="text-sm text-ink-3">/ 100 · {data.label}</span></div>

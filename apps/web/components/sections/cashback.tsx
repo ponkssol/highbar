@@ -33,7 +33,7 @@ export default function CashbackPage() {
     <div className="flex flex-col gap-4">
       <TopBlock title="Cashback">
         <p className="mt-2 max-w-xl text-sm text-ink-2">
-          Trades made on Higher Bar accrue {EMPTY.bps / 100}% of volume.{" "}
+          Trades made on highbar accrue {EMPTY.bps / 100}% of volume.{" "}
           {d.live ? `Cashback will be paid in $HIGHER once it launches. Until then it is tallied per UTC day and paid in SOL to your wallet once it reaches ${d.minPayoutSol ?? 0.001} SOL. Every payout links its transaction.` : "Payouts are not live yet, so this balance stays accrued."}
         </p>
         <form className="mt-4 flex max-w-xl gap-2" onSubmit={(e) => { e.preventDefault(); find(); }}>
@@ -75,7 +75,7 @@ export default function CashbackPage() {
           <Card className="overflow-x-auto p-0">
             <h3 className="border-b border-border px-4 py-3 font-semibold">Accruing trades</h3>
             {loading && !data ? <Loading /> : d.rows.length === 0 ? (
-              <Empty title="No platform trades yet" hint="Cashback starts once this wallet buys or sells through Higher Bar." />
+              <Empty title="No platform trades yet" hint="Cashback starts once this wallet buys or sells through highbar." />
             ) : (
               <table className="w-full min-w-[520px] text-sm">
                 <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} text-left`}>Token</th><th className={`${TH} text-left`}>Side</th><th className={`${TH} text-right`}>Volume</th><th className={`${TH} text-right`}>Cashback</th><th className={`${TH} text-right`}>Time</th></tr></thead>

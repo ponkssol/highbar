@@ -28,7 +28,7 @@ type SortTok = "volumeSol" | "mcapUsd" | "progress";
 const NA = "\u2014";
 const dur = (ms: number) => { const h = ms / 3600_000; return h < 1 ? `${Math.max(1, Math.round(ms / 60_000))}m` : h < 48 ? `${h.toFixed(1)}h` : `${(h / 24).toFixed(1)}d`; };
 const HINT: Record<Kind, string> = {
-  tokens: "Top tokens by curve volume.", scores: "Higher Bar score: tier, anti-sniper, dev lock and holder spread (0-100).", creators: "Creators by volume on their tokens.",
+  tokens: "Top tokens by curve volume.", scores: "highbar score: tier, anti-sniper, dev lock and holder spread (0-100).", creators: "Creators by volume on their tokens.",
   traders: "Traders by curve volume.", migrations: "Tokens that migrated in the window, fastest first.", survivors: "Migrated tokens ranked by days their DAMM v2 market cap held above the floor.",
 };
 
@@ -58,7 +58,7 @@ export default function LeaderboardPage() {
         <ChampionsHeader><p className="mt-2 max-w-xl font-serif text-[15px] leading-snug text-ink-2 md:text-[17px]">The arena's best tokens, creators and traders.</p></ChampionsHeader>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="max-w-full overflow-x-auto">
-            <Tabs value={kind} onChange={setKind} options={[{ id: "tokens", label: "Tokens" }, { id: "scores", label: "Higher Bar" }, { id: "creators", label: "Creators" }, { id: "traders", label: "Traders" }, { id: "migrations", label: "Migrations" }, { id: "survivors", label: "Survivors" }]} />
+            <Tabs value={kind} onChange={setKind} options={[{ id: "tokens", label: "Tokens" }, { id: "scores", label: "highbar" }, { id: "creators", label: "Creators" }, { id: "traders", label: "Traders" }, { id: "migrations", label: "Migrations" }, { id: "survivors", label: "Survivors" }]} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {kind === "tokens" && <Tabs value={sortTok} onChange={setSortTok} options={[{ id: "volumeSol", label: "Volume" }, { id: "mcapUsd", label: "Mcap" }, { id: "progress", label: "Progress" }]} />}

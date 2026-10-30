@@ -65,7 +65,7 @@ export function FeeBreakdown({ tier }: { tier: TierId }) {
         </tbody>
       </table>
       <ul className="mt-3 flex flex-col gap-1 text-xs text-ink-3">
-        <li>Traders pay no extra app fee. Trades made on Higher Bar earn {CASHBACK_PCT}% cashback, to be paid in $HIGHER (in SOL until it launches).</li>
+        <li>Traders pay no extra app fee. Trades made on highbar earn {CASHBACK_PCT}% cashback, to be paid in $HIGHER (in SOL until it launches).</li>
         <li>The swap referral reward is {REFERRAL_OF_PROTOCOL_PCT}% of Meteora&apos;s protocol fee, paid from Meteora&apos;s share.</li>
         <li>$HIGHER has not launched yet. The buyback share accrues until it does.</li>
       </ul>

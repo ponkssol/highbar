@@ -42,7 +42,7 @@ export default function ReferralPage() {
       <TopBlock title="Referral">
         <p className="mt-2 max-w-xl text-sm text-ink-2">
           Share your link. Wallets that sign in through it are tied to you for good. Rewards come only from the swap referral fee Meteora pays
-          Higher Bar on curve trades ({REFERRAL_OF_PROTOCOL_PCT}% of Meteora&apos;s protocol fee, about {REFERRAL_VOLUME_PCT}% of volume), not from
+          highbar on curve trades ({REFERRAL_OF_PROTOCOL_PCT}% of Meteora&apos;s protocol fee, about {REFERRAL_VOLUME_PCT}% of volume), not from
           creators, traders or the platform&apos;s share. Each UTC day, {d.rewardBps >= 10000 ? "the" : `${d.rewardBps / 100}% of the`} referral income your
           referred wallets&apos; trades generated is shared out by their trading volume, never more than was actually received. Paid in SOL once you reach {d.minPayoutSol} SOL.
         </p>
