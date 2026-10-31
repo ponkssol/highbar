@@ -5,6 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])';
+/** 12x8 webp of the hero, shown blurred while the real image loads. */
+const HERO_BLUR = "data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAADQAQCdASoMAAgAA4BaJbACdAEfQLLMAAD8+1rXE4EHzSb2KL4Aypzc2Mdu0Rr/lC3HKVaA31+3+vWlubshv8nelRgAAA==";
 
 /** First visit welcome. Mounted by SiteOverlays on the client only, after hydration, so it never appears in SSR HTML.
  *  Blocking on purpose: no close button, Esc and backdrop clicks do nothing, the rest of the page is inert and scroll is locked until Continue. */
@@ -63,7 +65,7 @@ export function WelcomeModal({ onContinue }: { onContinue: () => void }) {
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby="hb-welcome-title" aria-describedby="hb-welcome-desc"
         className="hb-modal relative max-h-[94dvh] w-full overflow-y-auto overscroll-contain rounded-t-[20px] border border-border bg-surface p-2.5 pb-[calc(18px+env(safe-area-inset-bottom))] shadow-[0_24px_80px_-24px_rgba(0,0,0,.45)] md:max-w-[460px] md:rounded-lg md:p-3 md:pb-6">
         <div className="relative aspect-[3/2] w-full overflow-hidden rounded-[14px] bg-muted md:rounded-[12px]">
-          <Image src="/brand/welcome-hero.webp" alt="A golden highbar column mark glowing in the clouds between marble arches, with classical statues playing music on the steps below" fill sizes="(min-width: 768px) 436px, 100vw" className="object-cover" loading="eager" />
+          <Image src="/brand/welcome-hero.webp" alt="A golden highbar column mark glowing in the clouds between marble arches, with classical statues playing music on the steps below" fill sizes="(min-width: 768px) 436px, 100vw" className="object-cover" loading="lazy" placeholder="blur" blurDataURL={HERO_BLUR} />
           <div className="pointer-events-none absolute inset-0 rounded-[inherit] ring-1 ring-inset ring-black/5 dark:ring-white/[.06]" aria-hidden />
         </div>
         <div className="px-3 pt-5 text-center md:px-5 md:pt-6">
