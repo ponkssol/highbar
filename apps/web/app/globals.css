@@ -12,6 +12,10 @@ html.dark body{background:transparent;}
 html.dark main{background:transparent;}
 
 html{color:var(--hb-ink);}
+/* Solana mark next to SOL amounts: solid white on the dark theme. The light theme and bright or inverted fills (ink, gold, buy, sell) use the text color instead, so the mark keeps its contrast. */
+:root{--hb-sol-mark:currentColor;}
+.dark{--hb-sol-mark:#FFFFFF;}
+.dark :is(.bg-ink,.bg-gold,.bg-buy,.bg-sell){--hb-sol-mark:currentColor;}
 /* Keep the scrollbar lane reserved, so a tab whose panel is shorter or taller than the window does not shift the page sideways. */
 html{scrollbar-gutter:stable;}
 body{background:transparent;color:var(--hb-ink);}
