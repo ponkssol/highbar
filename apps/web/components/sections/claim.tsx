@@ -3,7 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Coins, ExternalLink, Rocket, Wallet } from "lucide-react";
 import { Transaction } from "@solana/web3.js";
 import { TopBlock } from "@/components/TopBar";
-import { Button, Card, LinkButton, TierBadge } from "@/components/ui";
+import { Button, Card, LinkButton, NA, TierBadge } from "@/components/ui";
+import { InfoTip } from "@/components/InfoTip";
+import { SolAmt } from "@/components/Sol";
+import { TableCard } from "@/components/ui/TableCard";
+import { TableScroll } from "@/components/ui/Scroll";
+import { Stacked, StackedItem } from "@/components/ui/Stacked";
 import { Empty, Loading, TD, TH } from "@/components/PageStates";
 import { useHbWallet, useWalletModal } from "@/lib/wallet";
 import { useAuth } from "@/lib/auth";
@@ -120,14 +125,14 @@ export default function ClaimPage() {
   return (
     <div className="flex flex-col gap-4">
       <TopBlock title="Claim fees" />
-      <Card className="p-5">
+      <Card>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
-            <div><div className="text-[13px] text-ink-3">Total claimable</div><div className="num mt-1 text-kpi">{data ? fmtSol(data.totalSol) : "-"} SOL</div>
-              {totalToken > EPS && <div className="num text-xs text-ink-3">+ {fmtTok(totalToken)} tokens</div>}</div>
-            <div><div className="text-[13px] text-ink-3">Trading fees</div><div className="num mt-1 text-lg font-semibold">{data ? fmtSol(data.totalTradingSol) : "-"} SOL</div></div>
-            <div><div className="text-[13px] text-ink-3">Migration fees</div><div className="num mt-1 text-lg font-semibold">{data ? fmtSol(data.totalMigrationSol) : "-"} SOL</div></div>
-            <div><div className="text-[13px] text-ink-3">LP fees</div><div className="num mt-1 text-lg font-semibold">{data ? fmtSol(data.totalLpSol ?? 0) : "-"} SOL</div></div>
+            <div><div className="text-[13px] text-ink-3">Total claimable</div><div className="num mt-1 text-kpi">{data ? <SolAmt>{fmtSol(data.totalSol)}</SolAmt> : NA}</div>
+              {totalToken > EPS && <div className="num text-xs text-ink-3">plus {fmtTok(totalToken)} tokens</div>}</div>
+            <div><div className="text-[13px] text-ink-3">Trading fees</div><div className="num mt-1 text-lg font-semibold">{data ? <SolAmt>{fmtSol(data.totalTradingSol)}</SolAmt> : NA}</div></div>
+            <div><div className="text-[13px] text-ink-3">Migration fees</div><div className="num mt-1 text-lg font-semibold">{data ? <SolAmt>{fmtSol(data.totalMigrationSol)}</SolAmt> : NA}</div></div>
+            <div><div className="text-[13px] text-ink-3">LP fees</div><div className="num mt-1 text-lg font-semibold">{data ? <SolAmt>{fmtSol(data.totalLpSol ?? 0)}</SolAmt> : NA}</div></div>
           </div>
           <Button disabled={!allJobs.length || !!busy} onClick={() => run(allJobs, "all")}>
             <Coins size={16} strokeWidth={1.5} />{busy === "all" ? "Claiming." : `Claim all${allJobs.length > 1 ? ` (${allJobs.length} txs)` : ""}`}
@@ -141,95 +146,120 @@ export default function ClaimPage() {
         )}
       </Card>
 
-      <Card className="overflow-hidden p-0">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h3 className="font-semibold">Your tokens</h3>
-          <Button variant="secondary" className="h-8" disabled={loading} onClick={load}>{loading ? "Refreshing." : "Refresh"}</Button>
-        </div>
+      <TableCard title="Your tokens" aside={<Button variant="secondary" size="sm" disabled={loading} onClick={load}>{loading ? "Refreshing." : "Refresh"}</Button>}>
         {loading && !data ? <Loading label="Reading fees on-chain." /> : error && !data ? (
           <Empty title="Could not load your fees" hint={error} action={<Button variant="secondary" className="mt-2" onClick={load}>Try again</Button>} />
         ) : !rows.length ? (
           <Empty title="You haven't launched any tokens yet" hint="Launch a token to start earning creator trading fees."
             action={<LinkButton href="/launch" className="mt-2"><Rocket size={16} />Launch a token</LinkButton>} />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[880px] text-sm">
-              <thead className="text-left text-xs text-ink-3"><tr>
-                <th className={TH}>Token</th><th className={TH}>Tier</th><th className={TH}>Status</th>
-                <th className={`${TH} text-right`}>Trading fees</th><th className={`${TH} text-right`}>Migration fee</th><th className={`${TH} text-right`}>LP fees</th><th className={`${TH} text-right`}></th>
-              </tr></thead>
-              <tbody>
-                {rows.map((r) => {
-                  const jobs = jobsFor(r);
-                  return (
-                    <tr key={r.pool} className="border-t border-border">
-                      <td className={TD}><div className="font-medium">{r.symbol}</div><div className="text-xs text-ink-3">{r.name}</div></td>
-                      <td className={TD}><TierBadge tier={r.tier} /></td>
-                      <td className={TD}>{r.migrated ? "Migrated" : "Bonding"}{r.error && <div className="text-xs text-sell">Could not read on-chain</div>}</td>
-                      <td className={`${TD} num text-right`}>{fmtSol(r.tradingFeeSol)} SOL{r.tradingFeeToken > EPS && <div className="text-xs text-ink-3">+ {fmtTok(r.tradingFeeToken)} {r.symbol}</div>}</td>
-                      <td className={`${TD} num text-right`}>
-                        {!r.migrationFeeSharePct ? <span className="text-ink-3">None</span>
-                          : !r.migrated ? <span className="text-ink-3">At migration ({r.migrationFeeSharePct}%)</span>
-                          : r.migrationFeeWithdrawn ? <span className="text-ink-3">Claimed</span> : `${fmtSol(r.migrationFeeSol)} SOL`}
-                      </td>
-                      <td className={`${TD} num text-right`}>
-                        {!r.migrated ? <span className="text-ink-3">After migration</span>
-                          : r.lp?.error ? <span className="text-xs text-sell">Could not read LP</span>
-                          : !r.lp?.positions.length ? <span className="text-ink-3">No position</span>
-                          : <>{fmtSol(r.lpFeeSol)} SOL{r.lpFeeToken > EPS && <div className="text-xs text-ink-3">+ {fmtTok(r.lpFeeToken)} {r.symbol}</div>}
-                            <div className="text-xs text-ink-3">{r.lp.positions.length > 1 ? `${r.lp.positions.length} positions, ` : ""}{fmtPct(r.lp.positions.reduce((s, p) => s + p.lockedSharePct, 0))} of pool locked</div></>}
-                      </td>
-                      <td className={`${TD} text-right`}>
-                        <Button variant="secondary" className="h-8" disabled={!jobs.length || !!busy} onClick={() => run(jobs, r.pool)}>{busy === r.pool ? "Claiming." : "Claim"}</Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <Stacked className="sm:hidden" label="Your tokens">
+              {rows.map((r) => {
+                const jobs = jobsFor(r);
+                return (
+                  <StackedItem key={r.pool} title={<><span>{r.symbol}</span><TierBadge tier={r.tier} /></>}
+                    value={<span className="text-xs text-ink-3">{r.migrated ? "Migrated" : "Bonding"}</span>}
+                    rows={[["Trading fees", <TradingCell key="t" r={r} />], ["Migration fee", <MigrationCell key="m" r={r} />], ["LP fees", <LpCell key="l" r={r} />]]}
+                    footer={<>
+                      {r.error && <div className="mb-2 text-xs text-sell">Could not read on-chain</div>}
+                      <Button variant="secondary" size="sm" className="w-full" disabled={!jobs.length || !!busy} onClick={() => run(jobs, r.pool)}>{busy === r.pool ? "Claiming." : "Claim"}</Button>
+                    </>} />
+                );
+              })}
+            </Stacked>
+            <TableScroll className="hidden sm:block" sticky label="Your tokens">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-ink-3"><tr>
+                  <th className={TH}>Token</th><th className={TH}>Tier</th><th className={TH}>Status</th>
+                  <th className={`${TH} whitespace-nowrap text-right`}>Trading fees</th><th className={`${TH} whitespace-nowrap text-right`}>Migration fee</th><th className={`${TH} whitespace-nowrap text-right`}>LP fees</th><th className={`${TH} text-right`}><span className="sr-only">Claim</span></th>
+                </tr></thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const jobs = jobsFor(r);
+                    return (
+                      <tr key={r.pool} className="border-t border-border">
+                        <td className={TD}><div className="font-medium">{r.symbol}</div><div className="text-xs text-ink-3">{r.name}</div></td>
+                        <td className={TD}><TierBadge tier={r.tier} /></td>
+                        <td className={TD}>{r.migrated ? "Migrated" : "Bonding"}{r.error && <div className="text-xs text-sell">Could not read on-chain</div>}</td>
+                        <td className={`${TD} num text-right`}><TradingCell r={r} /></td>
+                        <td className={`${TD} num text-right`}><MigrationCell r={r} /></td>
+                        <td className={`${TD} num text-right`}><LpCell r={r} /></td>
+                        <td className={`${TD} text-right`}>
+                          <Button variant="secondary" size="sm" disabled={!jobs.length || !!busy} onClick={() => run(jobs, r.pool)}>{busy === r.pool ? "Claiming." : "Claim"}</Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </TableScroll>
+          </>
         )}
-      </Card>
+      </TableCard>
 
-      <Card className="overflow-hidden p-0">
-        <div className="flex flex-col gap-1 border-b border-border px-4 py-3">
-          <h3 className="font-semibold">LP rebates</h3>
-          <p className="text-xs text-ink-3">
-            After migration the platform sends you {rebates ? `${fmtPct(rebates.rebateBps.standard / 100)} (Standard, Higher) or ${fmtPct(rebates.rebateBps.max / 100)} (Max)` : "part"} of
-            the LP fees it claims on its own locked position. Paid automatically to the token creator&apos;s wallet once your pending total reaches {rebates ? fmtSol(rebates.minPayoutSol) : "0.01"} SOL. There is nothing to sign.
-          </p>
-        </div>
+      <TableCard title="LP rebates" info={<InfoTip label="How LP rebates work" width={300}>
+          After migration the platform sends you {rebates ? `${fmtPct(rebates.rebateBps.standard / 100)} (Standard, Higher) or ${fmtPct(rebates.rebateBps.max / 100)} (Max)` : "part"} of
+          the LP fees it claims on its own locked position. Paid automatically to the token creator&apos;s wallet once your pending total reaches {rebates ? fmtSol(rebates.minPayoutSol) : "0.01"} SOL. There is nothing to sign.
+        </InfoTip>}>
         <div className="grid grid-cols-2 gap-6 px-4 py-3 sm:grid-cols-4">
-          <div><div className="text-[13px] text-ink-3">Pending</div><div className="num mt-1 text-lg font-semibold">{rebates ? fmtSol(rebates.pendingSol) : "-"} SOL</div></div>
-          <div><div className="text-[13px] text-ink-3">Paid</div><div className="num mt-1 text-lg font-semibold">{rebates ? fmtSol(rebates.paidSol) : "-"} SOL</div></div>
+          <div><div className="text-[13px] text-ink-3">Pending</div><div className="num mt-1 text-lg font-semibold">{rebates ? <SolAmt>{fmtSol(rebates.pendingSol)}</SolAmt> : NA}</div></div>
+          <div><div className="text-[13px] text-ink-3">Paid</div><div className="num mt-1 text-lg font-semibold">{rebates ? <SolAmt>{fmtSol(rebates.paidSol)}</SolAmt> : NA}</div></div>
         </div>
         {rebates && rebates.rows.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead className="text-left text-xs text-ink-3"><tr>
-                <th className={TH}>Date</th><th className={TH}>Token</th><th className={`${TH} text-right`}>Platform LP claim</th><th className={`${TH} text-right`}>Rebate</th><th className={`${TH} text-right`}>Status</th>
-              </tr></thead>
-              <tbody>
-                {rebates.rows.map((r) => (
-                  <tr key={`${r.claimSig}:${r.pool}`} className="border-t border-border">
-                    <td className={TD}>{fmtDateUS(r.createdAt)}</td>
-                    <td className={TD}><div className="font-medium">{r.symbol || r.mint.slice(0, 6)}</div><div className="text-xs text-ink-3">{r.name}</div></td>
-                    <td className={`${TD} num text-right`}><a className="inline-flex items-center gap-1 hover:text-ink" href={explorerTx(r.claimSig)} target="_blank" rel="noreferrer">{fmtSol(r.claimedSol)} SOL<ExternalLink size={12} /></a></td>
-                    <td className={`${TD} num text-right`}>{fmtSol(r.rebateSol)} SOL<div className="text-xs text-ink-3">{fmtPct(r.rebateBps / 100)}</div></td>
-                    <td className={`${TD} text-right`}>
-                      {r.skipReason ? <span className="text-xs text-ink-3">Not eligible: {r.skipReason}</span>
-                        : r.paidSig ? <a className="inline-flex items-center gap-1 text-buy hover:underline" href={explorerTx(r.paidSig)} target="_blank" rel="noreferrer">Paid<ExternalLink size={12} /></a>
-                        : r.pending ? <span className="text-ink-2">Sending</span> : <span className="text-ink-3">Pending</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <Stacked className="border-t border-border sm:hidden" label="LP rebates">
+              {rebates.rows.map((r) => (
+                <StackedItem key={`${r.claimSig}:${r.pool}`} title={<><span>{r.symbol || r.mint.slice(0, 6)}</span><span className="text-xs font-normal text-ink-3">{fmtDateUS(r.createdAt)}</span></>}
+                  value={<SolAmt>{fmtSol(r.rebateSol)}</SolAmt>}
+                  rows={[["Platform LP claim", <a key="c" className="inline-flex items-center gap-1 hover:text-ink" href={explorerTx(r.claimSig)} target="_blank" rel="noreferrer"><SolAmt>{fmtSol(r.claimedSol)}</SolAmt><ExternalLink size={12} /></a>],
+                    ["Rebate rate", fmtPct(r.rebateBps / 100)], ["Status", <RebateStatus key="s" r={r} />]]} />
+              ))}
+            </Stacked>
+            <TableScroll className="hidden border-t border-border sm:block" label="LP rebates">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-ink-3"><tr>
+                  <th className={TH}>Date</th><th className={TH}>Token</th><th className={`${TH} whitespace-nowrap text-right`}>Platform LP claim</th><th className={`${TH} text-right`}>Rebate</th><th className={`${TH} text-right`}>Status</th>
+                </tr></thead>
+                <tbody>
+                  {rebates.rows.map((r) => (
+                    <tr key={`${r.claimSig}:${r.pool}`} className="border-t border-border">
+                      <td className={`${TD} whitespace-nowrap`}>{fmtDateUS(r.createdAt)}</td>
+                      <td className={TD}><div className="font-medium">{r.symbol || r.mint.slice(0, 6)}</div><div className="text-xs text-ink-3">{r.name}</div></td>
+                      <td className={`${TD} num text-right`}><a className="inline-flex items-center gap-1 hover:text-ink" href={explorerTx(r.claimSig)} target="_blank" rel="noreferrer"><SolAmt>{fmtSol(r.claimedSol)}</SolAmt><ExternalLink size={12} /></a></td>
+                      <td className={`${TD} num text-right`}><SolAmt>{fmtSol(r.rebateSol)}</SolAmt><div className="text-xs text-ink-3">{fmtPct(r.rebateBps / 100)}</div></td>
+                      <td className={`${TD} text-right`}><RebateStatus r={r} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
+          </>
         ) : (
           <div className="px-4 pb-4 text-sm text-ink-3">{rebates ? "No LP rebates yet. They start once a token has migrated and the platform claims its LP fees." : "Rebate history unavailable."}</div>
         )}
-      </Card>
+      </TableCard>
     </div>
   );
-}
+}
+function TradingCell({ r }: { r: Row }) {
+  return <><SolAmt>{fmtSol(r.tradingFeeSol)}</SolAmt>{r.tradingFeeToken > EPS && <div className="text-xs text-ink-3">plus {fmtTok(r.tradingFeeToken)} {r.symbol}</div>}</>;
+}
+function MigrationCell({ r }: { r: Row }) {
+  return !r.migrationFeeSharePct ? <span className="text-ink-3">None</span>
+    : !r.migrated ? <span className="text-ink-3">At migration ({r.migrationFeeSharePct}%)</span>
+    : r.migrationFeeWithdrawn ? <span className="text-ink-3">Claimed</span> : <SolAmt>{fmtSol(r.migrationFeeSol)}</SolAmt>;
+}
+function LpCell({ r }: { r: Row }) {
+  if (!r.migrated) return <span className="text-ink-3">After migration</span>;
+  if (r.lp?.error) return <span className="text-xs text-sell">Could not read LP</span>;
+  if (!r.lp?.positions.length) return <span className="text-ink-3">No position</span>;
+  return <><SolAmt>{fmtSol(r.lpFeeSol)}</SolAmt>{r.lpFeeToken > EPS && <div className="text-xs text-ink-3">plus {fmtTok(r.lpFeeToken)} {r.symbol}</div>}
+    <div className="text-xs text-ink-3">{r.lp.positions.length > 1 ? `${r.lp.positions.length} positions, ` : ""}{fmtPct(r.lp.positions.reduce((s, p) => s + p.lockedSharePct, 0))} of pool locked</div></>;
+}
+function RebateStatus({ r }: { r: RebateRow }) {
+  return r.skipReason ? <span className="text-xs text-ink-3">Not eligible: {r.skipReason}</span>
+    : r.paidSig ? <a className="inline-flex items-center gap-1 text-buy hover:underline" href={explorerTx(r.paidSig)} target="_blank" rel="noreferrer">Paid<ExternalLink size={12} /></a>
+    : r.pending ? <span className="text-ink-2">Sending</span> : <span className="text-ink-3">Pending</span>;
+}
+

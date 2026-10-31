@@ -2,7 +2,12 @@
 import type { ReactNode } from "react";
 import { ExternalLink } from "lucide-react";
 import { TopBlock } from "@/components/TopBar";
-import { BurnBadge, Card } from "@/components/ui";
+import { BurnBadge, Card, NA } from "@/components/ui";
+import { InfoTip } from "@/components/InfoTip";
+import { SolAmt } from "@/components/Sol";
+import { TableCard } from "@/components/ui/TableCard";
+import { TableScroll } from "@/components/ui/Scroll";
+import { Stacked, StackedItem } from "@/components/ui/Stacked";
 import { Empty, Loading, OfflineNote, TD, TH } from "@/components/PageStates";
 import { SoonChip } from "@/components/SoonChip";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -22,7 +27,7 @@ const realRun = (r: Run) => r.mode !== "mock" && r.dryRun !== true && r.mock !==
 const solscan = (kind: "tx" | "account", id: string, network?: string) => `https://solscan.io/${kind}/${id}${network === "mainnet" ? "" : "?cluster=devnet"}`;
 
 function TxLink({ sig, url, network, dot }: { sig?: string | null; url?: string | null; network?: string; dot?: string }) {
-  if (!sig) return <span className="text-ink-3">-</span>;
+  if (!sig) return <span className="text-ink-3">{NA}</span>;
   return (
     <a href={url ?? solscan("tx", sig, network)} target="_blank" rel="noreferrer" className="num inline-flex items-center gap-2 hover:underline">
       {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}{shortAddr(sig, 6)}<ExternalLink size={14} className="text-ink-3" />
@@ -36,11 +41,11 @@ const PARTS = [
 ] as const;
 
 /** One KPI: label, value (Soon before $HIGHER launches, a skeleton until the first answer) and a small note. */
-function Kpi({ label, value, unit, note }: { label: ReactNode; value: ReactNode; unit?: string; note?: ReactNode }) {
+function Kpi({ label, value, unit, note, info }: { label: ReactNode; value: ReactNode; unit?: "SOL"; note?: ReactNode; info?: ReactNode }) {
   return (
     <div>
-      <div className="flex items-center gap-2 text-[13px] text-ink-3">{label}</div>
-      <div className="num mt-1 flex min-h-11 items-center text-kpi">{value}{unit && typeof value !== "object" && <span className="ml-1 self-end pb-1 text-sm text-ink-3">{unit}</span>}</div>
+      <div className="flex items-center gap-2 text-[13px] text-ink-3">{label}{info}</div>
+      <div className="num mt-1 flex min-h-11 items-center text-kpi">{unit === "SOL" && typeof value !== "object" ? <SolAmt>{value}</SolAmt> : value}</div>
       {note && <div className="text-xs text-ink-3">{note}</div>}
     </div>
   );
@@ -67,7 +72,7 @@ export default function BurnPage() {
               </a>
             ) : launched ? undefined : "Burns start once $HIGHER launches."} />
           <Kpi label="Pending buyback" value={!ready ? wait : launched ? sol(d.pendingBuybackSol) : soon} unit="SOL"
-            note={`40% of platform fees, max ${d.maxOrderSol} SOL per order, ${d.maxSlippageBps / 100}% slippage`} />
+            info={<InfoTip label="Buyback limits">40% of platform fees, max {d.maxOrderSol} SOL per order, {d.maxSlippageBps / 100}% slippage</InfoTip>} />
           <Kpi label={`Platform fees ${d.estimated === false ? "(claimed)" : "(est.)"}`} value={!ready ? wait : sol(d.platformFeesSol)} unit="SOL"
             note={launched ? (d.mode === "mock" ? "Devnet mock mint" : "Buybacks run on Jupiter") : "The 40% buyback share accrues until launch."} />
         </div>
@@ -75,8 +80,9 @@ export default function BurnPage() {
       <OfflineNote error={error} />
 
       <Card>
-        <h3 className="mb-1 font-semibold">Where platform fees go</h3>
-        <p className="mb-4 text-sm text-ink-2">After the creator LP rebate and trader cashback, the platform's net income is split into 40% buyback, 50% operations and 10% treasury. The 40% share buys $HIGHER on the market and burns it on-chain.</p>
+        <h3 className="mb-4 flex items-center gap-1.5 font-semibold">Where platform fees go
+          <InfoTip label="How platform fees are split">After the creator LP rebate and trader cashback, the platform&apos;s net income is split into 40% buyback, 50% operations and 10% treasury. The 40% share buys $HIGHER on the market and burns it on-chain.</InfoTip>
+        </h3>
         <div className="flex h-3 overflow-hidden rounded-full border border-border">
           {PARTS.map((p) => <div key={p.key} className={p.cls} style={{ width: `${p.pct}%` }} />)}
         </div>
@@ -84,32 +90,44 @@ export default function BurnPage() {
           {PARTS.map((p) => (
             <div key={p.key} className="flex min-h-10 items-center justify-between rounded border border-border px-3 py-2 text-sm">
               <span className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${p.cls}`} />{p.label} <span className="num text-ink-3">{p.pct}%</span></span>
-              {ready ? <span className="num">{sol(d.split[p.key])} SOL</span> : <Skeleton className="h-3.5 w-20" />}
+              {ready ? <span className="num"><SolAmt>{sol(d.split[p.key])}</SolAmt></span> : <Skeleton className="h-3.5 w-20" />}
             </div>
           ))}
         </div>
       </Card>
 
-      <Card className="overflow-x-auto p-0">
-        <h3 className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 font-semibold">Buyback and burn history{ready && !launched && <SoonChip />}</h3>
+      <TableCard title="Buyback and burn history" aside={ready && !launched ? <SoonChip /> : undefined}>
         {!ready ? <Loading rows={3} /> : !launched ? (
           <Empty title="No buybacks before launch" hint="Buybacks start after $HIGHER launches. Until then the 40% share accrues, and every buy and burn will link its transaction here." />
         ) : runs.length === 0 ? (
           <Empty title="No buybacks yet" hint="Buybacks run once enough fees accrue." />
         ) : (
-          <table className="w-full min-w-[640px] text-sm">
-            <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} text-left`}>Buy</th><th className={`${TH} text-left`}>Burn</th><th className={`${TH} text-right`}>SOL spent</th><th className={`${TH} text-right`}>$HIGHER burned</th><th className={`${TH} text-right`}>Time</th></tr></thead>
-            <tbody>{runs.map((r) => (
-              <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted">
-                <td className={TD}><TxLink sig={r.buySig ?? (r.burnSig === undefined ? r.sig : null)} url={r.buyUrl} network={d.network} dot="bg-buy" /></td>
-                <td className={TD}>{r.burnSig || r.status === "burned" ? <TxLink sig={r.burnSig} url={r.burnUrl} network={d.network} dot="bg-burn" /> : <span className="text-xs text-ink-3">{r.status === "failed" ? "failed" : "pending"}</span>}</td>
-                <td className={`${TD} num text-right`}>{r.sol?.toFixed(3) ?? "-"}</td>
-                <td className={`${TD} num text-right`}>{(r.amount ?? 0).toLocaleString("en-US")}</td>
-                <td className={`${TD} num text-right text-ink-3`}>{fmtAge(r.ts)} ago</td>
-              </tr>))}</tbody>
-          </table>
+          <>
+            <Stacked className="sm:hidden" label="Buyback and burn history">
+              {runs.map((r) => (
+                <StackedItem key={r.id} title={<span className="num">{(r.amount ?? 0).toLocaleString("en-US")} $HIGHER</span>}
+                  value={r.sol != null ? <SolAmt>{r.sol.toFixed(3)}</SolAmt> : <span className="text-ink-3">{NA}</span>}
+                  rows={[["Buy", <TxLink key="b" sig={r.buySig ?? (r.burnSig === undefined ? r.sig : null)} url={r.buyUrl} network={d.network} dot="bg-buy" />],
+                    ["Burn", r.burnSig || r.status === "burned" ? <TxLink key="u" sig={r.burnSig} url={r.burnUrl} network={d.network} dot="bg-burn" /> : <span key="u" className="text-xs text-ink-3">{r.status === "failed" ? "failed" : "pending"}</span>],
+                    ["Time", `${fmtAge(r.ts)} ago`]]} />
+              ))}
+            </Stacked>
+            <TableScroll className="hidden sm:block" label="Buyback and burn history">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} text-left`}>Buy</th><th className={`${TH} text-left`}>Burn</th><th className={`${TH} text-right`}>SOL spent</th><th className={`${TH} text-right`}>$HIGHER burned</th><th className={`${TH} text-right`}>Time</th></tr></thead>
+                <tbody>{runs.map((r) => (
+                  <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted">
+                    <td className={TD}><TxLink sig={r.buySig ?? (r.burnSig === undefined ? r.sig : null)} url={r.buyUrl} network={d.network} dot="bg-buy" /></td>
+                    <td className={TD}>{r.burnSig || r.status === "burned" ? <TxLink sig={r.burnSig} url={r.burnUrl} network={d.network} dot="bg-burn" /> : <span className="text-xs text-ink-3">{r.status === "failed" ? "failed" : "pending"}</span>}</td>
+                    <td className={`${TD} num text-right`}>{r.sol != null ? <SolAmt>{r.sol.toFixed(3)}</SolAmt> : NA}</td>
+                    <td className={`${TD} num text-right`}>{(r.amount ?? 0).toLocaleString("en-US")}</td>
+                    <td className={`${TD} num whitespace-nowrap text-right text-ink-3`}>{fmtAge(r.ts)} ago</td>
+                  </tr>))}</tbody>
+              </table>
+            </TableScroll>
+          </>
         )}
-      </Card>
+      </TableCard>
     </div>
   );
 }
