@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TableScroll } from "../ui/Scroll";
 import type { ReactNode } from "react";
 import { TopBar } from "@/components/TopBar";
 import { DocsToc, type TocItem } from "./DocsToc";
@@ -77,10 +78,11 @@ export function Note({ children }: { children: ReactNode }) {
   return <div className="rounded-md border border-gold-line bg-gold-soft px-4 py-3 text-[13px] leading-relaxed text-ink-2 md:text-sm">{children}</div>;
 }
 
-/** Soft table: hairline row dividers only, numbers in mono. Scrolls sideways on small screens. */
-export function DocTable({ head, rows, caption }: { head: ReactNode[]; rows: ReactNode[][]; caption?: string }) {
-  return (
-    <div className="overflow-x-auto rounded-md border border-border">
+/** Soft table: hairline row dividers only, numbers in mono. Wide tables scroll sideways on small screens with the first column pinned and an edge fade.
+ *  `transpose` swaps rows and columns below sm (for a one-row table with many columns). */
+export function DocTable({ head, rows, caption, transpose = false }: { head: ReactNode[]; rows: ReactNode[][]; caption?: string; transpose?: boolean }) {
+  const table = (
+    <TableScroll sticky={head.length > 3} label={caption}>
       <table className={`w-full text-left text-[13px] ${head.length > 3 ? "min-w-[560px]" : ""}`}>
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
@@ -90,6 +92,26 @@ export function DocTable({ head, rows, caption }: { head: ReactNode[]; rows: Rea
           {rows.map((r, i) => (
             <tr key={i} className="border-b border-border last:border-0">
               {r.map((c, j) => <td key={j} className={`px-3 py-2.5 ${j === 0 ? "font-medium text-ink" : "num text-ink-2"}`}>{c}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableScroll>
+  );
+  if (!transpose) return <div className="overflow-hidden rounded-md border border-border">{table}</div>;
+  return (
+    <div className="overflow-hidden rounded-md border border-border">
+      <div className="hidden sm:block">{table}</div>
+      <table className="w-full text-left text-[13px] sm:hidden">
+        {caption && <caption className="sr-only">{caption}</caption>}
+        <thead>
+          <tr className="border-b border-border bg-muted text-xs text-ink-3"><th scope="col" className="px-3 py-2.5 font-medium">{head[0]}</th>{rows.map((r, i) => <th key={i} scope="col" className="px-3 py-2.5 text-right font-medium">{r[0]}</th>)}</tr>
+        </thead>
+        <tbody>
+          {head.slice(1).map((h, j) => (
+            <tr key={j} className="border-b border-border last:border-0">
+              <th scope="row" className="px-3 py-2.5 font-medium text-ink">{h}</th>
+              {rows.map((r, i) => <td key={i} className="num px-3 py-2.5 text-right text-ink-2">{r[j + 1]}</td>)}
             </tr>
           ))}
         </tbody>

@@ -61,7 +61,7 @@ export default function LocksPage() {
                   <td className="px-4 py-3"><Link href={`/token/${l.mint}`} className="flex items-center gap-3"><TokenLogo src={l.token?.image} name={l.token?.symbol || "?"} size={32} /><span className="min-w-0"><span className="block font-medium">{l.token?.name || shortAddr(l.mint)}</span><span className="num text-xs text-ink-3">${l.token?.symbol || "?"}</span></span></Link></td>
                   <td className="num px-4 py-3 text-right">{fmtTok(l.totalTokens)}</td>
                   <td className="num px-4 py-3 text-right">{fmtPct(l.supplyPct)}</td>
-                  <td className="num px-4 py-3 text-ink-2">{l.lockedAt ? fmtLockDate(l.lockedAt) : "-"}</td>
+                  <td className="num px-4 py-3 text-ink-2">{l.lockedAt ? fmtLockDate(l.lockedAt) : "\u2014"}</td>
                   <td className="num px-4 py-3">{fmtLockDate(l.cliffTime)}</td>
                   <td className="w-56 px-4 py-3">
                     <div className="h-1.5 w-full rounded-full bg-border"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${Math.min(100, l.unlockedPct)}%` }} /></div>

@@ -1,4 +1,5 @@
 "use client";
+import { SolAmt } from "./Sol";
 import { Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useHbWallet, useSolBalance, useWalletModal } from "@/lib/wallet";
@@ -17,7 +18,8 @@ export function WalletButton({ full = false, compact = false, size: sz = "sm" }:
   const bal = useSolBalance(publicKey, connection);
   const open = useWalletModal();
   const { status, signIn } = useAuth();
-  const size = compact ? "h-[30px] rounded-full px-2.5 text-[12px] gap-1.5" : sz === "lg" ? "h-10 rounded px-4 text-sm gap-2" : "h-8 rounded-full px-3 text-[13px] gap-2";
+  // Header controls share one height (36px). The sm pill stays 32px for inline use.
+  const size = compact ? "h-9 rounded-full px-3 text-[12px] gap-1.5" : sz === "lg" ? "h-9 rounded px-4 text-sm gap-2" : "h-8 rounded-full px-3 text-[13px] gap-2";
   const base = `relative inline-flex shrink-0 items-center whitespace-nowrap font-medium leading-none transition-opacity after:absolute after:inset-x-0 after:-inset-y-[6px] after:content-[''] ${size} ${full ? "w-full justify-center" : ""}`;
   if (isConnected && address) {
     const unverified = status !== "verified";
@@ -27,7 +29,7 @@ export function WalletButton({ full = false, compact = false, size: sz = "sm" }:
         <AddrDot address={address} size={compact ? 12 : 14} />
         <span className="num">{shortAddr(address)}</span>
         {unverified && <span role="button" aria-label="Sign in" title={status === "signing" ? "Signing in…" : "Not signed in, click to sign in"} onClick={(e) => { e.stopPropagation(); if (status !== "signing") void signIn(); }} className={`h-1.5 w-1.5 shrink-0 rounded-full ${status === "signing" ? "animate-pulse bg-ink-3" : "bg-burn"}`} />}
-        {!compact && bal != null && <span className="num text-ink-3">{bal.toFixed(2)} SOL</span>}
+        {!compact && bal != null && <span className="num text-ink-3"><SolAmt>{bal.toFixed(2)}</SolAmt></span>}
       </button>
     );
   }

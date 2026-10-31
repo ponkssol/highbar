@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SolAmt } from "@/components/Sol";
 import { Plus } from "lucide-react";
 import {
   ANTI_SNIPER_SCHEDULE, BUYBACK_DEFAULTS, CASHBACK_MIN_PAYOUT_SOL, CURVE_FEE_BPS, DAMM_V2_POOL_FEE_BPS, DAMM_V2_PROTOCOL_SHARE, LP_REBATE_BPS,
@@ -34,6 +35,8 @@ const num = (v: number, d = 3) => v.toLocaleString("en-US", { maximumFractionDig
 const bpsPct = (bps: number, d = 3) => `${num(bps / 100, d)}%`;
 const share = (frac: number) => `${num(frac * 100)}%`;
 const sol = (v: number) => `${num(v, 3)} SOL`;
+/** Table cells: the Solana mark in front of the number (prose keeps the word). */
+const solC = (v: number) => <SolAmt>{num(v, 3)}</SolAmt>;
 const curve = (id: TierId) => curveFeeSplit(TIERS[id]);
 const post = (id: TierId) => postMigrationSplit(TIERS[id]);
 const migFeeSol = (id: TierId) => (MAINNET_THRESHOLD_SOL[id] * TIERS[id].migrationFeePercentage) / 100;
@@ -106,8 +109,8 @@ export default function DocsPageRoute() {
         <p>Every trade on the curve pays a {bpsPct(CURVE_FEE_BPS)} fee. Meteora keeps {share(METEORA_PROTOCOL_SHARE)} of it ({bpsPct(curve("standard").protocol)} of the trade) and the rest is split between the creator and the platform by tier.</p>
         <DocTable caption="Tiers and fees" head={["Tier", "Migrates at", "Creator on the curve", "Platform on the curve", "Meteora", "Migration fee", "Creator share of it"]}
           rows={IDS.map((id) => [
-            TIERS[id].label, sol(MAINNET_THRESHOLD_SOL[id]), bpsPct(curve(id).creator), bpsPct(curve(id).platform), bpsPct(curve(id).protocol),
-            `${TIERS[id].migrationFeePercentage}%${migFeeSol(id) > 0 ? ` (${sol(migFeeSol(id))})` : ""}`, `${TIERS[id].creatorMigrationFeePercentage}%`,
+            TIERS[id].label, solC(MAINNET_THRESHOLD_SOL[id]), bpsPct(curve(id).creator), bpsPct(curve(id).platform), bpsPct(curve(id).protocol),
+            <span key="m" className="whitespace-nowrap">{TIERS[id].migrationFeePercentage}%{migFeeSol(id) > 0 && <> ({solC(migFeeSol(id))})</>}</span>, `${TIERS[id].creatorMigrationFeePercentage}%`,
           ])} />
         <p>Fees on the curve are shown as a share of each trade. Higher is stored on-chain as {TIERS.higher.creatorTradingFeePercentage}% of the non Meteora fee because the program only accepts whole numbers, which gives the creator {bpsPct(curve("higher").creator)} of every trade. The migration fee is taken from the SOL raised when the token graduates. On Higher, half of it goes to the creator, which is {sol(migFeeSol("higher") * TIERS.higher.creatorMigrationFeePercentage / 100)}.</p>
         <Note>Traders never pay an extra app fee on top of the {bpsPct(CURVE_FEE_BPS)} curve fee. The ticker HIGHER is reserved for the official token.</Note>
@@ -117,7 +120,7 @@ export default function DocsPageRoute() {
         <p>Every token trades on its own Meteora bonding curve, priced in SOL. Each buy pushes the price up the curve and each sell moves it back down. The progress bar on a token shows how much SOL the curve holds compared to its tier target.</p>
         <p>When the curve reaches the target, it graduates: the pool migrates to a Meteora DAMM v2 pool. The SOL raised, minus the migration fee, goes into the new pool together with {SUPPLY_ON_MIGRATION_PCT}% of the token supply. Meteora keeps a fixed {share(METEORA_MIGRATION_LIQUIDITY_SHARE)} of the migrated liquidity.</p>
         <DocTable caption="Migration targets" head={["Tier", "Migration target", "Approx. market cap at migration", "Locked LP to creator", "Locked LP to platform"]}
-          rows={IDS.map((id) => [TIERS[id].label, sol(MAINNET_THRESHOLD_SOL[id]), sol(migrationMcapSol(id, "mainnet")), `${TIERS[id].lpCreatorPercentage}%`, `${TIERS[id].lpPlatformPercentage}%`])} />
+          rows={IDS.map((id) => [TIERS[id].label, solC(MAINNET_THRESHOLD_SOL[id]), solC(migrationMcapSol(id, "mainnet")), `${TIERS[id].lpCreatorPercentage}%`, `${TIERS[id].lpPlatformPercentage}%`])} />
         <p>The liquidity in the DAMM v2 pool is locked forever. It is split into two permanent positions, one for the creator and one for the platform, in the shares above. Nobody can pull it.</p>
         <SubHead>After migration</SubHead>
         <p>The DAMM v2 pool charges a {bpsPct(DAMM_V2_POOL_FEE_BPS)} fee on every trade. Meteora keeps {share(DAMM_V2_PROTOCOL_SHARE)} of it ({bpsPct(lpFeeSplit(TIERS.standard).protocol)} of the trade) and the remaining {bpsPct(lpFeeSplit(TIERS.standard).lp)} goes to the locked LP positions. With the <DocLink href="#lp-rebate">creator LP rebate</DocLink>, creators end up with {IDS.map((id) => `${bpsPct(post(id).creator)} on ${TIERS[id].label}`).join(", ")} of post migration volume.</p>
@@ -132,7 +135,7 @@ export default function DocsPageRoute() {
           <>The creator&apos;s dev buy in the launch transaction pays the normal minimum fee, not the anti-sniper fee.</>,
           <>With anti-sniper off, the fee is a flat {bpsPct(CURVE_FEE_BPS)} from the first trade.</>,
         ]} />
-        <DocTable caption="Anti-sniper fee over time" head={["Seconds after launch", ...[0, 10, 20, 30, 45, 60].map((s) => `${s}s`)]}
+        <DocTable transpose caption="Anti-sniper fee over time" head={["Seconds after launch", ...[0, 10, 20, 30, 45, 60].map((s) => `${s}s`)]}
           rows={[["Trading fee", ...[0, 10, 20, 30, 45, 60].map((s) => bpsPct(scheduledFeeBps(S, s), 2))]]} />
         <p>The trade panel on a token shows the live fee while the decay is running.</p>
       </DocSection>

@@ -8,7 +8,7 @@ const ROMAN: [number, string][] = [[1000, "M"], [900, "CM"], [500, "D"], [400, "
 export function toRoman(n: number) {
   let out = "";
   for (const [v, s] of ROMAN) while (n >= v) { out += s; n -= v; }
-  return out || "–";
+  return out || "\u2014";
 }
 
 const MEDAL = ["border-gold-line bg-gold-soft text-gold-text", "border-border text-silver", "border-border text-bronze"];
@@ -40,7 +40,7 @@ function Banner({ eyebrow, title, children, testid }: { eyebrow: string; title: 
       <div aria-hidden className="hb-arcade" />
       <div aria-hidden className="hb-hero-veil" />
       <div aria-hidden className="hb-frame" />
-      <div className="relative min-w-0 px-5 py-6 md:px-8 md:py-8">
+      <div className="relative min-w-0 px-4 py-4 md:px-8 md:py-7">
         <div className="hb-eyebrow">{eyebrow}</div>
         {title}
         {children}
@@ -73,7 +73,7 @@ export function ArenaBanner() {
 export function ChampionsHeader({ children }: { children?: ReactNode }) {
   return (
     <Banner testid="champions-header" eyebrow="Leaderboard"
-      title={<h1 className="mt-2.5 text-xl font-semibold leading-tight md:text-[34px]">Champions</h1>}>
+      title={<h1 className="mt-1.5 text-xl font-semibold leading-tight md:mt-2.5 md:text-[34px]">Champions</h1>}>
       {children}
     </Banner>
   );

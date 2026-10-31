@@ -1,4 +1,5 @@
 "use client";
+import { SolAmt } from "@/components/Sol";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -198,7 +199,7 @@ export default function LaunchPage() {
                       <span className="mb-1.5 block font-medium text-ink">{TIERS[id].label} tier</span>
                       {locked && <span className="mb-1.5 flex items-start gap-1.5 text-ink"><Lock size={12} className="mt-0.5 shrink-0" aria-hidden />{maxNeed}</span>}
                       {id === "max" && !maxGated && <span className="mb-1.5 block">{maxOpen}</span>}
-                      <span className="flex justify-between gap-3"><span className="text-ink-3">Mcap at migration</span><span className="num text-ink">~{migrationMcapSol(id, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })} SOL</span></span>
+                      <span className="flex justify-between gap-3"><span className="text-ink-3">Mcap at migration</span><span className="num inline-flex items-center text-ink">~<SolAmt>{migrationMcapSol(id, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })}</SolAmt></span></span>
                       <span className="flex justify-between gap-3"><span className="text-ink-3">Creator fee</span><span className="num text-ink">{s.creator}%</span></span>
                       <span className="flex justify-between gap-3"><span className="text-ink-3">Creator after migration</span><span className="num text-ink">{postMigrationPct(id).creator}%</span></span>
                     </InfoTip>
@@ -225,7 +226,7 @@ export default function LaunchPage() {
                 <label htmlFor="launch-devbuy">Dev buy (optional)</label>
                 <InfoTip id="launch-devbuy-help" label="Dev buy help">Bought in the same transaction as launch (Block 0), so nobody can buy before you.</InfoTip>
               </span>
-              {balance !== null && <span className="num text-xs text-ink-3">Balance {balance.toFixed(3)} SOL</span>}
+              {balance !== null && <span className="num flex items-center gap-1 text-xs text-ink-3">Balance <SolAmt>{balance.toFixed(3)}</SolAmt></span>}
             </div>
             <div className="mt-2 flex items-center gap-2">
               <div className="flex h-10 flex-1 items-center rounded border border-border bg-surface px-3 focus-within:border-ink">
@@ -239,7 +240,7 @@ export default function LaunchPage() {
                 {overMax ? <div role="alert" className="text-sell">Dev buy is capped at {capSol} SOL. Lower it to see how much of the supply you get.</div> : q ? (
                   <>
                     <div>You receive <span className="num font-medium">~{fmtTok(q.estTokens)} ${ticker || "TOKEN"}</span> <span className="num text-ink-3">({q.supplyPct.toFixed(2)}% of supply)</span></div>
-                    <div className="num text-ink-3">Fee {q.feePct.toFixed(2)}% (~{q.feeSol.toFixed(4)} SOL){anti && !q.minFeeApplied ? " (anti-sniper starting fee applies to the dev buy)" : ""}</div>
+                    <div className="num text-ink-3">Fee {q.feePct.toFixed(2)}% (~<SolAmt>{q.feeSol.toFixed(4)}</SolAmt>){anti && !q.minFeeApplied ? " (anti-sniper starting fee applies to the dev buy)" : ""}</div>
                   </>
                 ) : <div className={qErr ? "text-sell" : "text-ink-3"}>{qErr ? friendlyQuoteError(qErr, capSol) : "Quoting…"}</div>}
                 {lowBalance && <div className="text-sell">Not enough SOL: about {needSol.toFixed(3)} SOL needed including launch rent and fees.</div>}
@@ -250,7 +251,7 @@ export default function LaunchPage() {
             <div className="flex justify-between"><dt className="text-ink-3">Creator, platform and Meteora</dt><dd className="num">{f.creator}%, {f.platform}%, {f.meteora}%</dd></div>
             <div className="flex justify-between"><dt className="text-ink-3">After migration (1% pool fee)</dt><dd className="num">{postMigrationPct(tier).creator}%, {postMigrationPct(tier).platform}%, {postMigrationPct(tier).protocol}%</dd></div>
             <div className="flex justify-between"><dt className="text-ink-3">Migration fee (creator share)</dt><dd className="num">{migrationFeePct(tier).fee}% ({migrationFeePct(tier).creatorShare}%)</dd></div>
-            <div className="flex justify-between"><dt className="text-ink-3">Migrates at</dt><dd className="num">{thresholdSolFor(tier, NETWORK)} SOL (~{migrationMcapSol(tier, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })} SOL mcap)</dd></div>
+            <div className="flex justify-between"><dt className="text-ink-3">Migrates at</dt><dd className="num inline-flex flex-wrap items-center justify-end gap-x-1"><SolAmt>{thresholdSolFor(tier, NETWORK)}</SolAmt><span className="inline-flex items-center">(~<SolAmt>{migrationMcapSol(tier, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })}</SolAmt>&nbsp;mcap)</span></dd></div>
           </dl>
           <Button className="w-full" disabled={busy} onClick={submit}>{busy ? "Launching…" : "Launch"}</Button>
           {tried && invalid && <p role="alert" className="text-sm text-sell">Fix the fields marked in red first.</p>}
@@ -267,7 +268,7 @@ export default function LaunchPage() {
             </div>
             <p className="mt-3 line-clamp-3 text-sm text-hl-sub">{desc || "Description shows here."}</p>
             <div className="mt-4"><div className="h-1.5 rounded-full bg-ink-2"><div className="h-1.5 w-0 rounded-full bg-on-ink" /></div>
-              <div className="num mt-1 flex justify-between text-xs text-hl-sub"><span>0%</span><span>0 of {thresholdSolFor(tier, NETWORK)} SOL</span></div></div>
+              <div className="num mt-1 flex justify-between text-xs text-hl-sub"><span>0%</span><SolAmt>0 of {thresholdSolFor(tier, NETWORK)}</SolAmt></div></div>
           </Card>
           <Card className="mt-3"><div className="flex items-center justify-between text-sm"><TierBadge tier={tier} /><span className="num text-ink-3">$0 mcap</span></div><div className="mt-3"><ProgressBar value={0} tier={tier} /></div></Card>
         </div>

@@ -1,4 +1,5 @@
 "use client";
+import { SolAmt } from "./Sol";
 import { TokenLogo } from "./TokenLogo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -104,7 +105,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
                   <span className="num text-right text-sm">{fmtUsd(t.mcapUsd)}</span>
                 </div>
                 <div className="mt-3 flex items-center gap-3"><div className="flex-1"><ProgressBar value={p} tier={t.tier} /></div><span className="num text-right text-xs">{Math.round(p * 100)}%{t.isMigrated && <span className="ml-1 text-ink-3">Migrated</span>}</span></div>
-                <div className="num mt-2 flex justify-between text-xs text-ink-3"><span>Vol {fmtSol(t.volume24hSol, 1)} SOL</span><span>{fmtAge(t.createdAt, Date.now())}</span><span>{shortAddr(t.creator)}</span></div>
+                <div className="num mt-2 flex justify-between text-xs text-ink-3"><span className="inline-flex items-center gap-1">Vol <SolAmt>{fmtSol(t.volume24hSol, 1)}</SolAmt></span><span>{fmtAge(t.createdAt, Date.now())}</span><span>{shortAddr(t.creator)}</span></div>
               </Link>
             </li>
           );
@@ -138,10 +139,10 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
                     <ProgressBar value={p} tier={t.tier} />
                     <div className="num mt-1 flex justify-between text-xs text-ink-3">
                       <span className="text-ink">{Math.round(p * 100)}%</span>
-                      <span>{t.isMigrated ? "Migrated" : `${fmtSol(t.raisedSol, 1)} of ${targetOf(t, NETWORK)} SOL`}</span>
+                      <span>{t.isMigrated ? "Migrated" : <SolAmt>{fmtSol(t.raisedSol, 1)} of {targetOf(t, NETWORK)}</SolAmt>}</span>
                     </div>
                   </td>
-                  <td className="num px-4 py-3 text-right">{fmtSol(t.volume24hSol, 1)} SOL</td>
+                  <td className="num px-4 py-3 text-right"><SolAmt>{fmtSol(t.volume24hSol, 1)}</SolAmt></td>
                   <td className="num px-4 py-3 text-right text-ink-2">{fmtAge(t.createdAt, Date.now())}</td>
                   <td className="num px-4 py-3 text-ink-2">{shortAddr(t.creator)}</td>
                   <td className="px-2 py-3">{t.antiSniper && <span title="Anti-sniper on"><ShieldCheck size={16} strokeWidth={1.5} className="text-ink-2" /></span>}</td>

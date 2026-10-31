@@ -48,7 +48,7 @@ export default async function LockSharePage({ params }: { params: Promise<{ id: 
   const sym = l.token?.symbol || "?";
   const rows: [string, string][] = [
     ["Amount", `${fmtTok(l.totalTokens)} $${sym}`], ["% of supply", fmtPct(l.supplyPct)],
-    ["Locked on", l.lockedAt ? fmtLockDate(l.lockedAt) : "-"], ["Unlocks", fmtLockDate(l.cliffTime)],
+    ["Locked on", l.lockedAt ? fmtLockDate(l.lockedAt) : "\u2014"], ["Unlocks", fmtLockDate(l.cliffTime)],
     ["Vesting", l.numberOfPeriod > 0 ? `${l.numberOfPeriod} daily releases, ends ${fmtLockDate(l.endTime)}` : "None (all at unlock)"],
     ["Unlocked so far", `${l.unlockedPct.toFixed(1)}%`], ["Cancel or change recipient", "None (permanent)"],
     ["Creator", shortAddr(l.creator, 6)], ["Escrow", shortAddr(l.escrow, 6)],

@@ -1,4 +1,5 @@
 "use client";
+import { SolAmt } from "./Sol";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BurnBadge } from "./ui";
@@ -87,7 +88,7 @@ export function KpiCell({ label, value, unit, delta, spark, href, badge, classNa
     <Link href={href} className={`flex min-w-0 flex-col justify-between gap-2 p-3 transition-colors md:gap-3 md:p-5 hover:bg-muted ${className}`}>
       <div className="flex min-w-0 items-start justify-between gap-1.5 text-[12px] text-ink-3 md:text-[13px]"><span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1"><span className="min-w-0 leading-tight [overflow-wrap:anywhere]">{label}</span>{badge && <span className="hidden md:inline-flex">{badge}</span>}</span><DeltaPill v={delta} /></div>
       <div className="flex min-w-0 items-end justify-between gap-2">
-        <div className="flex items-baseline gap-1"><span className="num text-2xl font-semibold tracking-tight">{value}</span>{unit && <span className="text-xs text-ink-3">{unit}</span>}</div>
+        <div className="flex items-baseline gap-1"><span className="num text-2xl font-semibold tracking-tight">{unit === "SOL" ? <SolAmt>{value}</SolAmt> : value}</span>{unit && unit !== "SOL" && <span className="text-xs text-ink-3">{unit}</span>}</div>
         <span className="hidden min-[400px]:block md:block"><Sparkline values={spark} /></span><span className="min-[400px]:hidden md:hidden"><Sparkline values={spark} w={48} h={20} /></span>
       </div>
     </Link>

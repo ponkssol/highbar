@@ -1,4 +1,5 @@
 "use client";
+import { SolAmt } from "../Sol";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, ExternalLink, Search, Star, Wallet, X } from "lucide-react";
@@ -14,7 +15,7 @@ const memo: { hot?: { at: number; v: HotCoin[] }; traders?: { at: number; v: Tra
 const FRESH_MS = 60_000;
 
 const mcap = (t: { marketCapUsd: number | null; marketCapSol: number | null }) =>
-  t.marketCapUsd != null ? fmtUsd(t.marketCapUsd) : t.marketCapSol != null ? `${fmtSol(t.marketCapSol, 1)} SOL` : "";
+  t.marketCapUsd != null ? fmtUsd(t.marketCapUsd) : t.marketCapSol != null ? <SolAmt>{fmtSol(t.marketCapSol, 1)}</SolAmt> : "";
 const isMac = () => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 type Opt = { id: string; run: () => void };
@@ -91,9 +92,9 @@ function TraderCard({ t }: { t: Trader }) {
       <span className="mt-auto">
         <span className="block text-[11px] text-ink-3">{t.pnlSol != null ? "PnL est." : "Volume"}</span>
         <span className={`num block text-sm font-semibold ${t.pnlSol == null ? "text-ink" : t.pnlSol >= 0 ? "text-buy" : "text-sell opacity-80"}`}>
-          {t.pnlSol != null ? `${t.pnlSol >= 0 ? "+" : ""}${fmtSol(t.pnlSol)} SOL` : `${fmtSol(t.volumeSol, 1)} SOL`}
+          {t.pnlSol != null ? <SolAmt>{t.pnlSol >= 0 ? "+" : ""}{fmtSol(t.pnlSol)}</SolAmt> : <SolAmt>{fmtSol(t.volumeSol, 1)}</SolAmt>}
         </span>
-        {t.pnlSol != null && <span className="num block text-[11px] text-ink-3">{fmtSol(t.volumeSol, 1)} SOL volume</span>}
+        {t.pnlSol != null && <span className="num flex items-center gap-1 text-[11px] text-ink-3"><SolAmt>{fmtSol(t.volumeSol, 1)}</SolAmt> volume</span>}
       </span>
     </a>
   );
@@ -303,7 +304,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                 {tokens.length > 0 && <Section title="Coins">{tokens.map((t) => { const id = `${uid}-t-${t.mint}`; return <TokenRow key={id} id={id} t={t} active={id === activeId} fav={favs.includes(t.mint)} onOpen={() => openToken(t)} onHover={() => setActive(idx(id))} />; })}</Section>}
                 {users.length > 0 && <Section title="Users">{users.map((u: SearchUser) => { const id = `${uid}-u-${u.wallet}`; return (
                   <ActionRow key={id} id={id} active={id === activeId} icon={<Wallet size={15} strokeWidth={1.5} />} title={u.label || shortAddr(u.wallet, 5)}
-                    sub={<>{shortAddr(u.wallet, 5)}{u.volumeSol != null && <span className="ml-2">{fmtSol(u.volumeSol, 1)} SOL volume</span>}{u.pnlSol != null && <span className={`ml-2 ${u.pnlSol >= 0 ? "text-buy" : "text-sell opacity-80"}`}>PnL est. {u.pnlSol >= 0 ? "+" : ""}{fmtSol(u.pnlSol)} SOL</span>}</>} onRun={() => openWallet(u.wallet)} onHover={() => setActive(idx(id))} />); })}</Section>}
+                    sub={<>{shortAddr(u.wallet, 5)}{u.volumeSol != null && <span className="ml-2 inline-flex items-center gap-1"><SolAmt>{fmtSol(u.volumeSol, 1)}</SolAmt> volume</span>}{u.pnlSol != null && <span className={`ml-2 ${u.pnlSol >= 0 ? "text-buy" : "text-sell opacity-80"}`}>PnL est. <SolAmt>{u.pnlSol >= 0 ? "+" : ""}{fmtSol(u.pnlSol)}</SolAmt></span>}</>} onRun={() => openWallet(u.wallet)} onHover={() => setActive(idx(id))} />); })}</Section>}
                 {noHit && addr && (
                   <Section title="No match yet">
                     <ActionRow id={`${uid}-ot`} active={activeId === `${uid}-ot`} icon={<Search size={15} strokeWidth={1.5} />} title="Open token" sub={shortAddr(addr, 6)} onRun={() => opts[idx(`${uid}-ot`)]?.run()} onHover={() => setActive(idx(`${uid}-ot`))} />
