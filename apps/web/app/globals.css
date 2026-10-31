@@ -88,4 +88,8 @@ h1 .num,h2 .num,h3 .num{letter-spacing:normal}
   .h-10,.h-11{height:40px}
   .min-h-11{min-height:40px}
   .w-10,.w-11{width:40px}
-}
+}/* Wide tables: pinned first column (TableScroll sticky). The cell takes the card surface so scrolled columns slide under it, and a hairline appears once scrolled. */
+.hb-sticky-first :is(th,td):first-child{position:sticky;left:0;z-index:1;background-color:var(--hb-surface)}
+.hb-sticky-first tr:hover>:is(th,td):first-child{background-color:var(--hb-surface-muted)}
+.hb-sticky-first[data-scrolled] :is(th,td):first-child{box-shadow:inset -1px 0 0 var(--hb-border)}
+.hb-sticky-first thead tr.bg-muted>:is(th,td):first-child{background-color:var(--hb-surface-muted)}

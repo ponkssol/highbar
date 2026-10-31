@@ -1,22 +1,37 @@
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { TIERS, type TierId } from "@hb/shared";
 import { fmtPrice } from "@/lib/format";
 
-type Variant = "primary" | "secondary" | "ghost";
+type Variant = "primary" | "secondary" | "ghost" | "gold";
+type Size = "sm" | "md" | "lg";
 const VAR: Record<Variant, string> = {
   primary: "bg-ink text-on-ink hover:opacity-90 border border-ink",
   secondary: "hb-ctrl text-ink",
   ghost: "bg-transparent text-ink hover:bg-muted",
+  gold: "bg-gold text-gold-ink border border-gold hover:opacity-90",
 };
-const BASE = "hb-press inline-flex items-center justify-center gap-2 h-10 px-4 rounded text-sm font-medium transition-opacity duration-150 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap";
+/** Control heights: sm 32px, md 40px (default), lg 48px. One radius (12px) and one weight (500) for every button. */
+const SIZE: Record<Size, string> = { sm: "h-8 px-3 text-[13px]", md: "h-10 px-4 text-sm", lg: "h-12 px-5 text-sm" };
+const BASE = "hb-press inline-flex items-center justify-center gap-2 rounded font-medium transition-opacity duration-150 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap";
+export const buttonClass = (variant: Variant = "primary", size: Size = "md") => `${BASE} ${SIZE[size]} ${VAR[variant]}`;
 
-export function Button({ variant = "primary", className = "", ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
-  return <button {...p} className={`${BASE} ${VAR[variant]} ${className}`} />;
+export function Button({ variant = "primary", size = "md", className = "", ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size }) {
+  return <button {...p} className={`${buttonClass(variant, size)} ${className}`} />;
 }
-export function LinkButton({ href, variant = "primary", className = "", children }: { href: string; variant?: Variant; className?: string; children: ReactNode }) {
-  return <Link href={href} className={`${BASE} ${VAR[variant]} ${className}`}>{children}</Link>;
+export function LinkButton({ href, variant = "primary", size = "md", className = "", children }: { href: string; variant?: Variant; size?: Size; className?: string; children: ReactNode }) {
+  return <Link href={href} className={`${buttonClass(variant, size)} ${className}`}>{children}</Link>;
 }
+
+/** Text input: sm 32px, md 40px. Thin border that darkens on focus. */
+export const inputClass = (size: Size = "md") =>
+  `${size === "sm" ? "h-8 text-[13px]" : "h-10 text-sm"} w-full min-w-0 rounded border border-border bg-surface px-3 outline-none placeholder:text-ink-3 focus:border-ink`;
+export function Input({ size = "md", className = "", ...p }: Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & { size?: Size }) {
+  return <input {...p} className={`${inputClass(size)} ${className}`} />;
+}
+
+/** The one empty-value placeholder (em dash). */
+export const NA = "\u2014";
 
 export function Card({ children, className = "", highlight = false }: { children: ReactNode; className?: string; highlight?: boolean }) {
   return (
