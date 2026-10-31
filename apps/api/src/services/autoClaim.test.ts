@@ -9,14 +9,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import BN from "bn.js";
 import { PGlite } from "@electric-sql/pglite";
-import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { Keypair, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction, createCloseAccountInstruction,
+  getAssociatedTokenAddressSync } from "@solana/spl-token";
 import type { Q } from "../db/pool.js";
 
 // TREASURY_PUBKEY is set on jobs-epoch; autoclaim must ignore it. Set before jobs/config.ts is loaded (dynamic imports below).
 const TREASURY = Keypair.generate().publicKey;
 process.env.TREASURY_PUBKEY = TREASURY.toBase58();
 const { autoclaimSettings, chunk, CHUNK, dbcDecoder, partnerFeesOf, planAutoclaim, readAccounts, runAutoclaim, runsFeeClaims, epochSkipsFeeClaims, withAutoclaimLock } = await import("./autoClaim.js");
-const { FeeClaimer, recordClaim } = await import("./feeClaimer.js");
+const { FeeClaimer, recordClaim, closeFreshBaseAta } = await import("./feeClaimer.js");
 const { tokenOpenBook } = await import("../openbook/read.js");
 const { resetOpenbookTablesCache } = await import("../openbook/write.js");
 
@@ -27,16 +29,16 @@ const CFG = key(), FOREIGN_CFG = key();
 const MIN = 10_000_000n; // CLAIM_MIN_SOL default 0.01
 
 // ---------- fakes ----------
-type Pool = { quote: bigint; base?: bigint; migrated?: boolean; config?: string; wrap?: boolean };
+type Pool = { quote: bigint; base?: bigint; migrated?: boolean; config?: string; wrap?: boolean; baseMint?: string };
 /** Account data = JSON; the fake decoder returns what the DBC coder would (virtualPool fields wrapped in poolState like 2.0.0). */
 const enc = (o: unknown) => Buffer.from(JSON.stringify(o, (_k, v) => (typeof v === "bigint" ? v.toString() : v)));
 const poolData = (p: Pool) => enc({ kind: "pool", ...p, config: p.config ?? CFG });
-const cfgData = (feeClaimer: string) => enc({ kind: "config", feeClaimer });
+const cfgData = (feeClaimer: string, tokenType = 1) => enc({ kind: "config", feeClaimer, tokenType });
 const decode = (account: "virtualPool" | "poolConfig", data: Buffer) => {
   const o = JSON.parse(data.toString());
-  if (account === "poolConfig") { if (o.kind !== "config") throw new Error("not a config"); return { feeClaimer: new PublicKey(o.feeClaimer) }; }
+  if (account === "poolConfig") { if (o.kind !== "config") throw new Error("not a config"); return { feeClaimer: new PublicKey(o.feeClaimer), tokenType: o.tokenType }; }
   if (o.kind !== "pool") throw new Error("not a pool");
-  const s = { partnerQuoteFee: new BN(o.quote), partnerBaseFee: new BN(o.base ?? "0"), isMigrated: o.migrated ? 1 : 0, config: new PublicKey(o.config) };
+  const s = { partnerQuoteFee: new BN(o.quote), partnerBaseFee: new BN(o.base ?? "0"), isMigrated: o.migrated ? 1 : 0, config: new PublicKey(o.config), ...(o.baseMint ? { baseMint: new PublicKey(o.baseMint) } : {}) };
   return o.wrap === false ? s : { poolState: s };
 };
 function fakeConn(accounts: Map<string, Buffer | null>) {
@@ -273,4 +275,85 @@ test("advisory lock: a second run (lock taken) does nothing; the lock SQL runs o
     const txFn = async <R>(fn: (c: Q) => Promise<R>) => { await pg.query("BEGIN"); try { const r = await fn(q); await pg.query("COMMIT"); return r; } catch (e) { await pg.query("ROLLBACK"); throw e; } };
     assert.deepEqual(await withAutoclaimLock(txFn, async () => ++ran), { ran: true, value: 1 });
   } finally { await pg.close(); }
+});
+
+// ---------- base ATA rent (claimPartnerTradingFee creates the receiver's base ATA whenever it is missing) ----------
+const DBC_ID = new PublicKey("dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN");
+const isCreate = (ix: TransactionInstruction, ata: PublicKey) => ix.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID) && ix.keys[1].pubkey.equals(ata);
+const isClose = (ix: TransactionInstruction, acct: PublicKey) => (ix.programId.equals(TOKEN_PROGRAM_ID) || ix.programId.equals(TOKEN_2022_PROGRAM_ID)) && ix.data[0] === 9 && ix.keys[0].pubkey.equals(acct);
+/** What DBC SDK 2.0.0 returns: [create base ATA if missing] + create WSOL ATA + claim_trading_fee + close WSOL (unwrap). */
+function sdkLike(owner: PublicKey, baseMint: PublicKey, baseProgram: PublicKey, baseAtaMissing: boolean) {
+  const tx = new Transaction(), baseAta = getAssociatedTokenAddressSync(baseMint, owner, true, baseProgram), wsol = getAssociatedTokenAddressSync(NATIVE_MINT, owner, true);
+  if (baseAtaMissing) tx.add(createAssociatedTokenAccountIdempotentInstruction(SIGNER.publicKey, baseAta, owner, baseMint, baseProgram));
+  tx.add(createAssociatedTokenAccountIdempotentInstruction(SIGNER.publicKey, wsol, owner, NATIVE_MINT));
+  tx.add(new TransactionInstruction({ programId: DBC_ID, keys: [], data: Buffer.from([1]) }));
+  tx.add(createCloseAccountInstruction(wsol, owner, owner));
+  return { tx, baseAta, wsol };
+}
+/** Run one Test Coin pool through runAutoclaim (simulate) and capture the built claim tx + SDK params. */
+async function claimTx(o: { base?: bigint; ataInRead: boolean; sdkCreates: boolean; receiver?: PublicKey | null; tokenType?: number }) {
+  const baseMint = Keypair.generate().publicKey, tokenType = o.tokenType ?? 1, prog = tokenType === 0 ? TOKEN_PROGRAM_ID : TOKEN_2022_PROGRAM_ID;
+  const owner = o.receiver ?? SIGNER.publicKey;
+  const ata = getAssociatedTokenAddressSync(baseMint, owner, true, prog);
+  const accounts = new Map<string, Buffer | null>([[CFG, cfgData(SIGNER.publicKey.toBase58(), tokenType)]]);
+  const r = row(); accounts.set(r.pool, poolData({ quote: 35_964_879n, base: o.base ?? 0n, baseMint: baseMint.toBase58() }));
+  if (o.ataInRead) accounts.set(ata.toBase58(), Buffer.alloc(165));
+  const params: any[] = [], built: Transaction[] = [], conn = fakeConn(accounts);
+  const dbc = { ...fakeDbc().dbc, partner: { ...fakeDbc().dbc.partner, claimPartnerTradingFee: async (p: any) => { params.push(p); return sdkLike(owner, baseMint, prog, o.sdkCreates).tx; } } };
+  const base: Record<string, string> = o.receiver ? { CLAIM_RECEIVER: o.receiver.toBase58() } : {};
+  await runAutoclaim({ q: mockQ([r]).q, conn, decode, signer: SIGNER, settings: settings(base), log: () => {},
+    claimerOpts: { dbc, amm: noAmm, conn: offline, simulate: (async (t: Transaction) => { built.push(t); return { ok: true }; }) as any } });
+  assert.equal(built.length, 1);
+  return { tx: built[0], p: params[0], ata, calls: conn.calls };
+}
+
+test("base fee 0 + base ATA missing: maxBaseAmount 0 and the ATA the SDK creates is closed in the same tx (owner = destination = authority)", async () => {
+  for (const tokenType of [1, 0]) {
+    const { tx, p, ata, calls } = await claimTx({ ataInRead: false, sdkCreates: true, tokenType });
+    assert.deepEqual(calls, [2, 1], "pool+config read, then one batched ATA read");
+    assert.equal(p.maxBaseAmount.toString(), "0");
+    const ci = tx.instructions.findIndex((ix) => isCreate(ix, ata)), xi = tx.instructions.findIndex((ix) => isClose(ix, ata));
+    assert.ok(ci >= 0 && xi > ci, "create ... close pair");
+    assert.equal(xi, tx.instructions.length - 1, "close is the last instruction, after the claim + WSOL unwrap");
+    const close = tx.instructions[xi];
+    assert.ok(close.programId.equals(tokenType === 0 ? TOKEN_PROGRAM_ID : TOKEN_2022_PROGRAM_ID));
+    assert.ok(close.keys[1].pubkey.equals(SIGNER.publicKey) && close.keys[2].pubkey.equals(SIGNER.publicKey));
+    assert.equal(tx.instructions.filter((ix) => ix.programId.equals(TOKEN_PROGRAM_ID) || ix.programId.equals(TOKEN_2022_PROGRAM_ID)).filter((ix) => ix.data[0] === 9).length, 2, "WSOL close + base close only");
+  }
+});
+
+test("base ATA already exists: nothing extra (no create, no close); never closes a pre-existing ATA even if the SDK raced a create", async () => {
+  const a = await claimTx({ ataInRead: true, sdkCreates: false });
+  assert.equal(a.tx.instructions.length, 3);
+  assert.ok(!a.tx.instructions.some((ix) => isClose(ix, a.ata) || isCreate(ix, a.ata)));
+  assert.equal(a.p.maxBaseAmount.toString(), "0");
+  const raced = await claimTx({ ataInRead: true, sdkCreates: true });
+  assert.ok(!raced.tx.instructions.some((ix) => isClose(ix, raced.ata)), "seen in the batched read = pre-existing: left alone");
+});
+
+test("base fee > 0: unchanged path (U64_MAX, ATA created and kept to receive the tokens, no close)", async () => {
+  const { tx, p, ata, calls } = await claimTx({ base: 5n, ataInRead: false, sdkCreates: true });
+  assert.equal(p.maxBaseAmount.toString(), "18446744073709551615");
+  assert.ok(tx.instructions.some((ix) => isCreate(ix, ata)));
+  assert.ok(!tx.instructions.some((ix) => isClose(ix, ata)));
+  assert.deepEqual(calls, [2], "no ATA read needed");
+});
+
+test("CLAIM_RECEIVER = another wallet: no close (the signer cannot close the receiver's ATA)", async () => {
+  const other = Keypair.generate().publicKey;
+  const { tx, ata } = await claimTx({ ataInRead: false, sdkCreates: true, receiver: other });
+  assert.ok(tx.instructions.some((ix) => isCreate(ix, ata)));
+  assert.ok(!tx.instructions.some((ix) => isClose(ix, ata)));
+});
+
+test("closeFreshBaseAta: only the non-WSOL ATA created in this tx; no create -> no-op", () => {
+  const me = SIGNER.publicKey, mint = Keypair.generate().publicKey;
+  const fresh = sdkLike(me, mint, TOKEN_2022_PROGRAM_ID, true);
+  assert.ok(closeFreshBaseAta(fresh.tx, me, mint)!.equals(fresh.baseAta));
+  assert.ok(!fresh.tx.instructions.some((ix) => isClose(ix, fresh.wsol) && ix !== fresh.tx.instructions[3]), "WSOL ATA is not closed twice");
+  const existing = sdkLike(me, mint, TOKEN_2022_PROGRAM_ID, false), n = existing.tx.instructions.length;
+  assert.equal(closeFreshBaseAta(existing.tx, me, mint), null);
+  assert.equal(existing.tx.instructions.length, n);
+  const other = sdkLike(me, mint, TOKEN_2022_PROGRAM_ID, true);
+  assert.equal(closeFreshBaseAta(other.tx, me, Keypair.generate().publicKey), null, "baseMint given: only that mint's ATA");
 });

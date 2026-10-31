@@ -6,6 +6,7 @@
  *  Receiver: always the signer (TREASURY_PUBKEY is ignored) unless CLAIM_RECEIVER is set. Gating: CLAIM_LIVE=true or --live,
  *  and on mainnet also ALLOW_MAINNET=true; anything else simulates and logs would-claim lines. DRY_RUN is NOT read. */
 import { PublicKey, type Connection, type Keypair } from "@solana/web3.js";
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import type { Q } from "../db/pool.js";
 import { FeeClaimer, meetsMin, type ClaimResult, type FeeClaimerOpts, type ForTokenOpts } from "./feeClaimer.js";
 
@@ -73,16 +74,17 @@ export type DecodeFn = (account: "virtualPool" | "poolConfig", data: Buffer) => 
 export const dbcDecoder = (program: { coder: { accounts: { decode(name: string, data: Buffer): any } } }): DecodeFn =>
   (account, data) => program.coder.accounts.decode(account, data);
 
-export interface PartnerFees { quote: bigint; base: bigint; migrated: boolean; config: string }
+export interface PartnerFees { quote: bigint; base: bigint; migrated: boolean; config: string; baseMint?: string }
 const bi = (v: any) => BigInt(v?.toString() ?? "0");
 /** Partner fee fields of a decoded virtualPool (some coder versions wrap the fields in poolState). */
 export function partnerFeesOf(decoded: any): PartnerFees {
   const s = decoded?.poolState ?? decoded;
-  return { quote: bi(s.partnerQuoteFee), base: bi(s.partnerBaseFee), migrated: Number(s.isMigrated ?? 0) > 0, config: s.config?.toBase58?.() ?? String(s.config) };
+  const baseMint = s.baseMint ? (s.baseMint.toBase58?.() ?? String(s.baseMint)) : undefined;
+  return { quote: bi(s.partnerQuoteFee), base: bi(s.partnerBaseFee), migrated: Number(s.isMigrated ?? 0) > 0, config: s.config?.toBase58?.() ?? String(s.config), ...(baseMint ? { baseMint } : {}) };
 }
 
 export interface TokenRow { mint: string; pool: string; config: string; is_migrated: boolean; damm_pool: string | null }
-export interface Candidate { row: TokenRow; fees: PartnerFees; migrated: boolean; trading: boolean }
+export interface Candidate { row: TokenRow; fees: PartnerFees; migrated: boolean; trading: boolean; /** config tokenType: 0 SPL Token, else Token-2022 */ tokenType?: number }
 export interface Plan { candidates: Candidate[]; skipped: { mint: string; reason: string }[]; belowMin: number }
 
 /** Which tokens to touch this run. Trading claim when the partner fee meets the threshold; migrated tokens always go through
@@ -90,18 +92,18 @@ export interface Plan { candidates: Candidate[]; skipped: { mint: string; reason
  *  Largest partner fee first, so the per-run cap takes the biggest claims. */
 export function planAutoclaim(rows: TokenRow[], accounts: Map<string, Buffer | null>, decode: DecodeFn, signer: PublicKey, minLamports: bigint): Plan {
   const plan: Plan = { candidates: [], skipped: [], belowMin: 0 };
-  const claimerOf = new Map<string, string | null>();
-  const feeClaimer = (config: string) => {
-    if (!claimerOf.has(config)) {
+  const cfgOf = new Map<string, { fc: string | null; tokenType?: number }>();
+  const cfg = (config: string) => {
+    if (!cfgOf.has(config)) {
       const d = accounts.get(config);
-      let fc: string | null = null;
-      try { fc = d ? (decode("poolConfig", d).feeClaimer?.toBase58() ?? null) : null; } catch { fc = null; }
-      claimerOf.set(config, fc);
+      let v: { fc: string | null; tokenType?: number } = { fc: null };
+      try { if (d) { const c = decode("poolConfig", d); v = { fc: c.feeClaimer?.toBase58() ?? null, tokenType: c.tokenType == null ? undefined : Number(c.tokenType) }; } } catch { v = { fc: null }; }
+      cfgOf.set(config, v);
     }
-    return claimerOf.get(config)!;
+    return cfgOf.get(config)!;
   };
   for (const row of rows) {
-    const fc = feeClaimer(row.config);
+    const { fc, tokenType } = cfg(row.config);
     if (fc !== signer.toBase58()) { plan.skipped.push({ mint: row.mint, reason: `config ${row.config} feeClaimer is ${fc ?? "unknown"}, not the signer` }); continue; }
     const data = accounts.get(row.pool);
     if (!data) { plan.skipped.push({ mint: row.mint, reason: `pool ${row.pool} not found` }); continue; }
@@ -110,7 +112,7 @@ export function planAutoclaim(rows: TokenRow[], accounts: Map<string, Buffer | n
     const migrated = row.is_migrated || fees.migrated;
     const trading = meetsMin(fees.quote, fees.base, minLamports);
     if (!trading && fees.quote > 0n) plan.belowMin++;
-    if (trading || migrated) plan.candidates.push({ row, fees, migrated, trading });
+    if (trading || migrated) plan.candidates.push({ row, fees, migrated, trading, tokenType });
   }
   plan.candidates.sort((a, b) => (b.fees.quote > a.fees.quote ? 1 : b.fees.quote < a.fees.quote ? -1 : 0));
   return plan;
@@ -142,6 +144,12 @@ export async function runAutoclaim(d: AutoclaimDeps): Promise<AutoclaimSummary> 
   const accounts = await readAccounts(d.conn, [...rows.map((r) => r.pool), ...rows.map((r) => r.config)]);
   const plan = planAutoclaim(rows, accounts, d.decode, d.signer.publicKey, s.minLamports);
   for (const k of plan.skipped) log(`[autoclaim] skip ${k.mint}: ${k.reason}`);
+  // second batched read: does the receiver's base ATA already exist? (base fee 0: a fresh one is created + closed in the claim tx)
+  const owner = s.receiver ?? d.signer.publicKey;
+  const ataOf = new Map<Candidate, string>();
+  for (const c of plan.candidates) if (c.trading && c.fees.base === 0n && c.fees.baseMint && c.tokenType != null)
+    ataOf.set(c, getAssociatedTokenAddressSync(new PublicKey(c.fees.baseMint), owner, true, c.tokenType === 0 ? TOKEN_PROGRAM_ID : TOKEN_2022_PROGRAM_ID).toBase58());
+  const atas = ataOf.size ? await readAccounts(d.conn, [...ataOf.values()]) : new Map<string, Buffer | null>();
   const budget = { left: s.maxPerRun };
   const opts: FeeClaimerOpts = { ...d.claimerOpts, receiver: s.receiver, minLamports: s.minLamports, budget, q: d.q };
   const claimer = d.makeClaimer ? d.makeClaimer(opts) : new FeeClaimer(d.signer, s.live, opts);
@@ -149,7 +157,8 @@ export async function runAutoclaim(d: AutoclaimDeps): Promise<AutoclaimSummary> 
     claimed: 0, wouldClaim: 0, skipped: 0, failed: 0, capped: 0, lamports: 0n, results: [] };
   for (const c of plan.candidates) {
     if (budget.left <= 0) { sum.capped++; continue; }
-    const fo: ForTokenOpts = { partner: { quote: c.fees.quote, base: c.fees.base } };
+    const ata = ataOf.get(c);
+    const fo: ForTokenOpts = { partner: { quote: c.fees.quote, base: c.fees.base }, baseMint: c.fees.baseMint, ...(ata ? { baseAtaExists: atas.get(ata) != null } : {}) };
     try {
       for (const r of await claimer.forToken(c.row.mint, c.row.pool, c.migrated, c.row.damm_pool, c.row.config, fo)) {
         sum.results.push(r);

@@ -1,6 +1,6 @@
 import BN from "bn.js";
 import { PublicKey, type Connection, type Keypair, type Transaction } from "@solana/web3.js";
-import { NATIVE_MINT, createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, NATIVE_MINT, createAssociatedTokenAccountIdempotentInstruction, createCloseAccountInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { CpAmm, getUnClaimLpFee } from "@meteora-ag/cp-amm-sdk";
 import { getClient, getConnection } from "@hb/onchain";
 import { db, type Q } from "../db/pool.js";
@@ -26,13 +26,29 @@ export interface FeeClaimerOpts {
   simulate?: typeof simulate;
   send?: typeof sendOnce;
 }
-/** Pre-read partner fee of the DBC pool (autoclaim batch read): forToken then skips its own getPoolFeeMetrics RPC. */
-export interface ForTokenOpts { partner?: { quote: bigint; base: bigint } }
+/** Pre-read partner fee of the DBC pool (autoclaim batch read): forToken then skips its own getPoolFeeMetrics RPC.
+ *  baseAtaExists: whether the receiver's base-token ATA existed in that batched read (undefined = not read; the SDK's own
+ *  existence check, i.e. whether it emitted a create instruction, is then the only signal). */
+export interface ForTokenOpts { partner?: { quote: bigint; base: bigint }; baseMint?: string; baseAtaExists?: boolean }
 
 const U64_MAX = new BN("18446744073709551615");
 const big = (b: BN) => BigInt(b.toString());
 /** The threshold rule shared by the DBC trading and DAMM v2 LP claims. */
 export const meetsMin = (lamports: bigint, base: bigint, min: bigint) => base > 0n || (lamports > 0n && lamports >= min);
+
+/** claimPartnerTradingFee (DBC SDK 2.0.0 resolveTradingFeeAccounts -> getOrCreateATAs) ALWAYS adds a createIdempotent for the
+ *  receiver's base-token ATA when it is missing, whatever maxBaseAmount is (the program needs an initialized token_a_account).
+ *  With a zero base fee that ATA stays empty and its rent (~0.0015 SOL) is stranded. When the claim moves no base tokens
+ *  (maxBaseAmount = 0) and the ATA was created by THIS tx, close it again at the end of the same tx (destination + authority =
+ *  owner): net rent 0. Pre-existing ATAs are never touched (no create in the tx = nothing to close). Returns the closed ATA. */
+export function closeFreshBaseAta(tx: Transaction, owner: PublicKey, baseMint?: PublicKey): PublicKey | null {
+  const create = tx.instructions.find((ix) => ix.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID) && ix.keys.length >= 6
+    && ix.keys[2].pubkey.equals(owner) && !ix.keys[3].pubkey.equals(NATIVE_MINT) && (!baseMint || ix.keys[3].pubkey.equals(baseMint)));
+  if (!create) return null;
+  const ata = create.keys[1].pubkey, tokenProgram = create.keys[5].pubkey;
+  tx.add(createCloseAccountInstruction(ata, owner, owner, [], tokenProgram));
+  return ata;
+}
 
 /** Claims platform (partner) fees for every indexed token into the treasury.
  *  Verified against @meteora-ag/dynamic-bonding-curve-sdk 2.0.0 and @meteora-ag/cp-amm-sdk 1.5.1 typings:
@@ -102,8 +118,7 @@ export class FeeClaimer {
     let q: bigint, b: bigint;
     if (o.partner) ({ quote: q, base: b } = o.partner);
     else { const m = await this.dbc.state.getPoolFeeMetrics(pool); q = big(m.current.partnerQuoteFee); b = big(m.current.partnerBaseFee); }
-    if (meetsMin(q, b, this.min)) out.push(await this.exec({ ...base, source: "dbc_trading", lamports: q, baseAmount: b },
-      () => this.dbc.partner.claimPartnerTradingFee({ feeClaimer: me, payer: me, pool, maxBaseAmount: U64_MAX, maxQuoteAmount: U64_MAX, receiver: this.receiver })));
+    if (meetsMin(q, b, this.min)) out.push(await this.exec({ ...base, source: "dbc_trading", lamports: q, baseAmount: b }, () => this.tradingTx(pool, b, o)));
     if (!migrated) return out;
     // 2) partner migration fee (program rejects a second withdraw; simulation catches that) + 3) partner surplus
     out.push(await this.exec({ ...base, source: "dbc_migration", lamports: 0n, baseAmount: 0n, measure: "receiver", quietSimFail: true }, () => this.dbc.partner.partnerWithdrawMigrationFee({ pool, sender: me })));
@@ -127,6 +142,16 @@ export class FeeClaimer {
       })));
     }
     return out;
+  }
+
+  /** Partner trading fee claim. Base fee 0: maxBaseAmount = 0 (no base transfer) and a base ATA the SDK creates for this claim
+   *  is closed in the same tx (closeFreshBaseAta), unless the batched read saw it already existing. Base fee > 0: unchanged
+   *  (ATA created if needed, receives the tokens). Close needs the owner's signature, so only when the receiver is the signer. */
+  private async tradingTx(pool: PublicKey, baseFee: bigint, o: ForTokenOpts): Promise<Transaction> {
+    const me = this.claimer.publicKey;
+    const tx = await this.dbc.partner.claimPartnerTradingFee({ feeClaimer: me, payer: me, pool, maxBaseAmount: baseFee > 0n ? U64_MAX : new BN(0), maxQuoteAmount: U64_MAX, receiver: this.receiver });
+    if (baseFee === 0n && o.baseAtaExists !== true && !this.receiver) closeFreshBaseAta(tx, me, o.baseMint ? new PublicKey(o.baseMint) : undefined);
+    return tx;
   }
 
   /** measure: "receiver" = SOL the fee receiver gained (migration fee: amount unknown before the claim); { vault } = SOL that left
