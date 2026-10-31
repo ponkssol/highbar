@@ -19,7 +19,7 @@ import { IndexChip } from "./OpenBookTab";
 import { Addr, BUCKET_COLOR, Chip, COLORS, fmtNum, fmtPct, fmtSolOb, fmtTokens, KV, Lbl, Nil, Panel, Prov, RECIPIENT_COLOR, Scan, SecHead, Sol, SolFig, TD, TH, mix } from "./ObUi";
 
 const PAGE = 25;
-const ROLE_LABEL: Record<string, string> = { feeReceiver: "Fee receiver", treasury: "Treasury", lockTip: "Lock tips" };
+const ROLE_LABEL: Record<string, string> = { feeReceiver: "Fee receiver", feeClaimer: "Fee claimer", platform: "Platform", referral: "Referral", treasury: "Treasury", leftoverReceiver: "Leftover receiver", lockTip: "Lock tips" };
 const ROLE_NOTE: Record<string, string> = {
   feeReceiver: "Receives the platform share of DBC fees. The ops and treasury buckets stay here, nothing is swept out.",
   lockTip: "Receives the flat lock tip paid with each Dev Lock transaction.",
@@ -51,29 +51,57 @@ function Totals({ t }: { t: PlatformOpenBook["totals"] }) {
   );
 }
 
+/** Thin line wallet glyph, one for every treasury card. Inherits the muted warm tone from its tile. */
+function WalletIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 7.5V7a2 2 0 0 1 2-2h9.5a1 1 0 0 1 1 1v1.5" />
+      <rect x="4" y="7.5" width="16" height="11.5" rx="2.5" />
+      <path d="M20 11.25h-3.25a2 2 0 0 0 0 4H20" />
+      <circle cx="16.9" cy="13.25" r="0.55" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Card title from the wallet's roles. The API sends roles only, the names are UI copy. */
+const walletTitle = (roles: string[]) => {
+  if (roles.includes("feeReceiver")) return "Platform fee wallet";
+  if (roles.includes("lockTip") && !roles.includes("feeReceiver")) return "Lock-tip wallet";
+  if (roles.includes("treasury")) return "Treasury wallet";
+  if (roles.includes("referral")) return "Referral wallet";
+  return "Platform wallet";
+};
+
 function WalletCard({ w, net }: { w: TreasuryWallet; net?: string | null }) {
   const roles = arr(w.roles), spark = arr(w.spark).map((p) => num(p.balanceSol)).filter((v): v is number => v != null);
   const isTip = roles.includes("lockTip") && !roles.includes("feeReceiver");
-  const title = roles.includes("feeReceiver") ? "Platform fee wallet" : isTip ? "Lock-tip wallet" : roles.includes("treasury") ? "Treasury" : "Platform wallet";
-  const color = isTip ? COLORS.blue : COLORS.gold, ch = num(w.netChange24hSol);
+  const title = walletTitle(roles);
+  const color = isTip ? COLORS.blue : COLORS.gold, ch = num(w.netChange24hSol), bal = num(w.balanceSol);
+  // The snapshot job stores no lamports when the account does not exist on chain, and a missing account holds 0 SOL.
+  // So a row read at a slot with no balance shows 0. Without a slot nothing was read and the value stays a placeholder.
+  const shown = bal ?? (num(w.slot) != null ? 0 : null);
   return (
-    <Panel className="flex flex-col p-4" >
-      <div className="flex items-start gap-3">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border" style={{ borderColor: mix(color, 35), background: mix(color, 10) }}><i className="h-2.5 w-2.5 rotate-45 rounded-[2px]" style={{ background: color }} /></span>
+    <Panel className="flex h-full min-w-0 flex-col p-4">
+      <div data-testid="ob-wallet" className="flex items-center gap-3">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border bg-control" style={{ color: mix("var(--hb-gold-text)", 70) }}><WalletIcon /></span>
         <div className="min-w-0 flex-1">
-          <h3 className="flex items-center gap-1.5 font-sans text-[13.5px] font-medium tracking-normal text-ink">{title}{roles.some((r) => ROLE_NOTE[r]) && <InfoTip label={`About the ${title.toLowerCase()}`}>{roles.map((r) => ROLE_NOTE[r]).filter(Boolean).join(" ")}</InfoTip>}</h3>
+          <h3 className="flex min-w-0 items-center gap-1.5 font-sans text-[13.5px] font-medium leading-tight tracking-normal text-ink"><span className="truncate">{title}</span>{roles.some((r) => ROLE_NOTE[r]) && <InfoTip label={`About the ${title.toLowerCase()}`}>{roles.map((r) => ROLE_NOTE[r]).filter(Boolean).join(" ")}</InfoTip>}</h3>
           <Addr a={w.address} net={net} className="text-[11.5px] text-ink-3" />
         </div>
-        <div className="flex flex-wrap justify-end gap-1">{roles.map((r) => <Chip key={r} className="h-[20px] px-2 text-[10.5px]">{ROLE_LABEL[r] ?? r}</Chip>)}</div>
       </div>
-      <div className="mt-3 flex items-baseline font-mono text-[26px] leading-none tracking-tight">{num(w.balanceSol) != null ? <SolFig><Scan kind="account" id={w.address} net={net} className="text-ink">{fmtSolOb(num(w.balanceSol)!, 4)}</Scan></SolFig> : <Nil />}<Prov p={w.provenance} className="ml-2" /></div>
-      <Spark values={spark} color={color} className="mt-2" />
-      <div className="mt-3 flex flex-col gap-1.5 border-t border-border pt-3 text-[12px]">
-        <KV k="Net change 24h" v={ch == null ? <Nil /> : <span className={`num ${ch < 0 ? "text-sell" : ch > 0 ? "text-buy" : "text-ink-2"}`}><SolFig>{ch > 0 ? "+" : ""}{fmtSolOb(ch, 4)}</SolFig></span>} />
-        {num(w.wsolSol) != null && <KV k="Wrapped SOL" v={<Sol v={w.wsolSol} />} />}
-        {num(w.higherHeldTokens) != null && <KV k="$HIGHER held" v={<span className="num">{fmtTokens(num(w.higherHeldTokens)!)}</span>} />}
-        {str(w.ownerLabel) && <KV k="Owner" v={<Addr a={w.owner} net={net} label={w.ownerLabel} />} />}
-        <KV k="Read at slot" v={<span className="num text-ink-2" title={num(w.balanceAt) != null ? fmtDateTimeUS(num(w.balanceAt)!) : undefined}>{num(w.slot) != null ? <Scan kind="block" id={num(w.slot)} net={net}>{fmtNum(num(w.slot)!)}</Scan> : <Nil />}</span>} />
+      <div className="mt-3 flex min-h-[20px] flex-wrap gap-1">{roles.map((r) => <Chip key={r} className="h-[20px] px-2 text-[10.5px]">{ROLE_LABEL[r] ?? r}</Chip>)}</div>
+      <div className="mt-3 flex h-[26px] items-center gap-2 font-mono text-[26px] leading-none tracking-tight">
+        {shown == null ? <Nil /> : <SolFig><Scan kind="account" id={w.address} net={net} className="text-ink">{fmtSolOb(shown, 4)}</Scan></SolFig>}{bal != null && <Prov p={w.provenance} />}
+      </div>
+      {spark.length > 1 && <Spark values={spark} color={color} className="mt-3" />}
+      <div className="mt-auto pt-3">
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-[12px]">
+          <KV k="Net change 24h" v={ch == null ? <Nil /> : <span className={`num ${ch < 0 ? "text-sell" : ch > 0 ? "text-buy" : "text-ink-2"}`}><SolFig>{ch > 0 ? "+" : ""}{fmtSolOb(ch, 4)}</SolFig></span>} />
+          {num(w.wsolSol) != null && <KV k="Wrapped SOL" v={<Sol v={w.wsolSol} />} />}
+          {num(w.higherHeldTokens) != null && <KV k="$HIGHER held" v={<span className="num">{fmtTokens(num(w.higherHeldTokens)!)}</span>} />}
+          {str(w.ownerLabel) && <KV k="Owner" v={<Addr a={w.owner} net={net} label={w.ownerLabel} />} />}
+          <KV k="Read at slot" v={<span className="num text-ink-2" title={num(w.balanceAt) != null ? fmtDateTimeUS(num(w.balanceAt)!) : undefined}>{num(w.slot) != null ? <Scan kind="block" id={num(w.slot)} net={net}>{fmtNum(num(w.slot)!)}</Scan> : <Nil />}</span>} />
+        </div>
       </div>
     </Panel>
   );
@@ -304,7 +332,7 @@ export function OpenBookPlatform({ ob, tokens, window: w, q }: { ob: PlatformOpe
           {wallets.length > 0 && (
             <section id="ob-treasury" aria-labelledby="ob-treasury-h" className="scroll-mt-20">
               <SecHead id="ob-treasury-h" title="Treasury wallets" sub="Live balances, read from chain" />
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{wallets.map((x, i) => <WalletCard key={x.address ?? i} w={x} net={net} />)}</div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{wallets.map((x, i) => <WalletCard key={x.address ?? i} w={x} net={net} />)}</div>
             </section>
           )}
           <Flow ob={ob} />
