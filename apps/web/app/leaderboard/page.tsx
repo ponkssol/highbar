@@ -122,13 +122,14 @@ export default function LeaderboardPage() {
           <div className="flex flex-wrap items-center gap-2">
             {kind === "tokens" && <Tabs label="Sort by" value={sortTok} onChange={setSortTok} options={[{ id: "volumeSol", label: "Volume" }, { id: "mcapUsd", label: "Mcap" }, { id: "progress", label: "Progress" }]} />}
             <Tabs label="Time window" value={win} onChange={setWin} options={[{ id: "24h", label: "24h" }, { id: "7d", label: "7d" }, { id: "week", label: "This week" }, { id: "all", label: "All" }]} />
-            {win === "week" && <InfoTip label="About the weekly window">Weeks run Monday to Sunday, UTC.</InfoTip>}
+            {/* Kept in the row (just hidden) for the other windows, so the right aligned tabs do not slide when it comes and goes. */}
+            <span className={win === "week" ? "inline-flex" : "invisible inline-flex"} aria-hidden={win !== "week" || undefined}><InfoTip label="About the weekly window">Weeks run Monday to Sunday, UTC.</InfoTip></span>
           </div>
         </div>
       </TopBlock>
       <OfflineNote error={error} />
       <TableCard title={label} info={<InfoTip label={`About ${label}`}>{HINT[kind]}</InfoTip>} testId="leaderboard-card">
-        <TabPanels k={kind}>
+        <TabPanels k={`${kind}:${win}`}>
         {loading && !data ? <Loading rows={8} /> : rows.length === 0 ? (
           error ? <Empty title="Leaderboard unavailable" hint="The API did not answer. It refreshes automatically. Try again in a moment." /> : <Empty title="No data yet" hint={`No ${kind} in this window. Try "All".`} />
         ) : (

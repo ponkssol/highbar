@@ -12,6 +12,8 @@ html.dark body{background:transparent;}
 html.dark main{background:transparent;}
 
 html{color:var(--hb-ink);}
+/* Keep the scrollbar lane reserved, so a tab whose panel is shorter or taller than the window does not shift the page sideways. */
+html{scrollbar-gutter:stable;}
 body{background:transparent;color:var(--hb-ink);}
 body{font-family:var(--font-inter),Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
 /* Arena display type: Cinzel for headings, rank numerals and display text only. Numbers/prices/tables stay sans/mono (.num). */

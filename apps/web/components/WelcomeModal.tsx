@@ -25,7 +25,9 @@ export function WelcomeModal({ onContinue }: { onContinue: () => void }) {
     const prev = { overflow: body.style.overflow, paddingRight: body.style.paddingRight };
     const bar = window.innerWidth - document.documentElement.clientWidth;
     body.style.overflow = "hidden";
-    if (bar > 0) body.style.paddingRight = `${bar}px`;
+    // With a reserved scrollbar lane (scrollbar-gutter: stable on html) the page does not move, so no padding is needed.
+    const lane = getComputedStyle(document.documentElement).getPropertyValue("scrollbar-gutter").startsWith("stable");
+    if (bar > 0 && !lane) body.style.paddingRight = `${bar}px`;
     // Everything else becomes inert: no clicks, no focus, hidden from screen readers.
     const others = Array.from(body.children).filter((c): c is HTMLElement => c !== el && c instanceof HTMLElement && !c.hasAttribute("inert"));
     others.forEach((c) => c.setAttribute("inert", ""));

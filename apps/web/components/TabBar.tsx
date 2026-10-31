@@ -58,6 +58,31 @@ export function useSlidingIndicator(active: string) {
   return { list, ind, ready };
 }
 
+let releaseFloor: ((restore: boolean) => string) | null = null;
+
+/** Called right before a tab or filter switch. The new panel can be shorter than the old one (or show a short skeleton first), and
+ *  when the page gets shorter than the scrolled position the browser pulls everything up, tab bar included. So the body keeps at
+ *  least the height that is on screen now. The floor only shrinks as the reader scrolls back up and is gone once it no longer
+ *  holds anything, so it never adds space they can scroll into. */
+export function holdScrollFloor() {
+  if (typeof window === "undefined" || window.scrollY <= 0) return;
+  const body = document.body;
+  // A floor left by an earlier switch is swapped in place. Letting it go first would shrink the page and pull the scroll up.
+  const prev = releaseFloor ? releaseFloor(false) : body.style.minHeight;
+  let floor = Math.ceil(window.scrollY + window.innerHeight);
+  body.style.minHeight = `${floor}px`;
+  const onScroll = () => {
+    const need = Math.ceil(window.scrollY + window.innerHeight);
+    if (need >= floor) return;
+    floor = need;
+    if (window.scrollY <= 0) { release(true); return; }
+    body.style.minHeight = `${floor}px`;
+  };
+  const release = (restore: boolean) => { window.removeEventListener("scroll", onScroll); if (restore) body.style.minHeight = prev; releaseFloor = null; return prev; };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  releaseFloor = release;
+}
+
 export type TabItem<T extends string> = { id: T; label: ReactNode; href?: string; testId?: string };
 
 const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
@@ -67,7 +92,8 @@ const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey
  *  kept in view, so nothing wraps or clips at 390 or 360. */
 const SEG_TRACK = "relative inline-flex w-max items-center gap-0.5 rounded-full border border-seg-line bg-seg p-1";
 const SEG_ITEM = "relative z-[1] inline-flex h-8 items-center justify-center whitespace-nowrap rounded-full px-3.5 text-[13px] leading-none transition-colors duration-200";
-const SEG_ON = "font-semibold text-seg-on-ink";
+// One weight for on and off: a bolder active label is wider, so the pills (and every tab after them) would nudge sideways on a switch.
+const SEG_ON = "font-medium text-seg-on-ink";
 const SEG_OFF = "font-medium text-ink-3 hover:text-ink-2";
 const SEG_IND = "inset-y-1 rounded-full bg-seg-on";
 
@@ -93,9 +119,9 @@ export function TabBar<T extends string>({ items, value, onSelect, label, classN
           const cls = cx(SEG_ITEM, on ? SEG_ON : SEG_OFF, on && !ready && "bg-seg-on");
           const common = { "data-tab-id": t.id, "data-testid": t.testId, role: "tab", "aria-selected": on, className: cls } as const;
           return t.href ? (
-            <a key={t.id} {...common} href={t.href} aria-current={on ? "page" : undefined} onClick={(e) => { if (!plainClick(e)) return; e.preventDefault(); onSelect(t.id); }}>{t.label}</a>
+            <a key={t.id} {...common} href={t.href} aria-current={on ? "page" : undefined} onClick={(e) => { if (!plainClick(e)) return; e.preventDefault(); if (!on) holdScrollFloor(); onSelect(t.id); }}>{t.label}</a>
           ) : (
-            <button key={t.id} {...common} type="button" onClick={() => onSelect(t.id)}>{t.label}</button>
+            <button key={t.id} {...common} type="button" onClick={() => { if (!on) holdScrollFloor(); onSelect(t.id); }}>{t.label}</button>
           );
         })}
       </div>
@@ -122,7 +148,7 @@ export function Segmented<T extends string>({ options, value, onChange, label, t
         {options.map((o) => {
           const on = o.id === value;
           return (
-            <button key={o.id} data-tab-id={o.id} id={tabId?.(o.id)} aria-controls={controls} type="button" role="tab" aria-selected={on} onClick={() => onChange(o.id)}
+            <button key={o.id} data-tab-id={o.id} id={tabId?.(o.id)} aria-controls={controls} type="button" role="tab" aria-selected={on} onClick={() => { if (!on) holdScrollFloor(); onChange(o.id); }}
               className={cx(SEG_ITEM, fill && "flex-1", on ? onText : SEG_OFF, on && !ready && pill, itemClassName)}>{o.label}</button>
           );
         })}

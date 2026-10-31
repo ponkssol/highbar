@@ -312,6 +312,9 @@ function Methodology({ ob }: { ob: PlatformOpenBook | null }) {
 export function OpenBookPlatform({ ob, tokens, window: w, q }: { ob: PlatformOpenBook | null; tokens: ObTokensPage | null; window: ObWindow; q: string }) {
   const net = ob?.meta?.network;
   const router = useRouter();
+  // The window chips swap the page segment and Next focuses the new one, which scrolls it to the top. Put the reader back where they were.
+  const keepY = useRef<number | null>(null);
+  useEffect(() => { if (keepY.current === null) return; window.scrollTo(0, keepY.current); keepY.current = null; }, [w]);
   const wallets = arr(ob?.treasuryWallets);
   const winHref = useMemo(() => (id: ObWindow) => { const s = new URLSearchParams(); if (id !== "all") s.set("window", id); if (q) s.set("q", q); const t = s.toString(); return `/open-book${t ? `?${t}` : ""}`; }, [q]);
   return (
@@ -322,7 +325,7 @@ export function OpenBookPlatform({ ob, tokens, window: w, q }: { ob: PlatformOpe
         </nav>
         <div className="flex flex-wrap items-center gap-2">
           <IndexChip meta={ob?.meta} />
-          <TabBar label="Time window" value={w} onSelect={(id) => router.push(winHref(id), { scroll: false })} outerClassName="max-w-full"
+          <TabBar label="Time window" value={w} onSelect={(id) => { keepY.current = window.scrollY; router.push(winHref(id), { scroll: false }); }} outerClassName="max-w-full"
             items={OB_WINDOWS.map((o) => ({ id: o.id, label: o.label, href: winHref(o.id), testId: `ob-window-${o.id}` }))} />
         </div>
       </div>
