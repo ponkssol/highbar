@@ -41,8 +41,8 @@ export function OfflineNote({ error }: { error: string | null }) {
   );
 }
 /** Pill segmented control (soft gold pill that slides between options). */
-export function Tabs<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { id: T; label: string }[]; label?: string }) {
-  return <Segmented value={value} onChange={onChange} options={options} label={label} className="inline-flex rounded-full bg-control p-1" itemClassName="h-8 rounded-full border border-transparent px-3 text-sm" />;
+export function Tabs<T extends string>({ value, onChange, options, label, fade }: { value: T; onChange: (v: T) => void; options: { id: T; label: string }[]; label?: string; fade?: "bg" | "surface" }) {
+  return <Segmented value={value} onChange={onChange} options={options} label={label} fade={fade} outerClassName="max-w-full" />;
 }
 export const TH = "px-4 py-2 font-medium";
 export const TD = "px-4 py-3";

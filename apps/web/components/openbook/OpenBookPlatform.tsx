@@ -3,6 +3,7 @@
  *  interactive parts: window chips, token search, status filter, sorting and cursor paging. Aggregates link to the Methodology
  *  section, single accounts and transactions link to Solscan. */
 import { TableScroll } from "../ui/Scroll";
+import { Segmented, TabBar } from "../TabBar";
 import { InfoTip } from "../InfoTip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,7 +13,7 @@ import { TIERS, type TierId } from "@hb/shared";
 import { fmtDateTimeUS, fmtDateUS } from "@/lib/date";
 import { arr, fetchObTokens, num, OB_WINDOWS, providerLabel, str, type ObTokenRow, type ObTokensPage, type ObWindow, type PlatformOpenBook, type TokensQuery, type TreasuryWallet } from "@/lib/openbook";
 import { TokenLogo } from "../TokenLogo";
-import { CTRL_ON, TierBadge } from "../ui";
+import { TierBadge } from "../ui";
 import { FeeFlow, Spark, type FlowLink, type FlowNode } from "./charts";
 import { IndexChip } from "./OpenBookTab";
 import { Addr, BUCKET_COLOR, Chip, COLORS, fmtNum, fmtPct, fmtSolOb, fmtTokens, KV, Lbl, Nil, Panel, Prov, RECIPIENT_COLOR, Scan, SecHead, Sol, SolFig, TD, TH, mix } from "./ObUi";
@@ -23,7 +24,6 @@ const ROLE_NOTE: Record<string, string> = {
   feeReceiver: "Receives the platform share of DBC fees. The ops and treasury buckets stay here, nothing is swept out.",
   lockTip: "Receives the flat lock tip paid with each Dev Lock transaction.",
 };
-const chip = "hb-ctrl inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12px] text-ink-2";
 const M = "#methodology";
 
 function Card({ label, children, sub, gold }: { label: string; children: ReactNode; sub?: ReactNode; gold?: boolean }) {
@@ -205,7 +205,7 @@ function Tokens({ initial, initialQ }: { initial: ObTokensPage | null; initialQ:
               className="min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-3" />
             {qIn && <button type="button" aria-label="Clear search" onClick={() => { setQIn(""); setQ(""); }} className="text-ink-3 hover:text-ink"><X size={13} /></button>}
           </label>
-          {(["all", "bonding", "migrated"] as const).map((s) => <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)} className={`${chip} ${status === s ? `${CTRL_ON} text-ink` : ""}`}>{s === "all" ? "All" : s === "bonding" ? "Bonding" : "Migrated"}</button>)}
+          <Segmented label="Token status" value={status} onChange={setStatus} outerClassName="max-w-full" options={[{ id: "all", label: "All" }, { id: "bonding", label: "Bonding" }, { id: "migrated", label: "Migrated" }]} />
         </div>} />
       <Panel className="overflow-hidden">
         <TableScroll sticky label="All tokens">
@@ -283,6 +283,7 @@ function Methodology({ ob }: { ob: PlatformOpenBook | null }) {
 
 export function OpenBookPlatform({ ob, tokens, window: w, q }: { ob: PlatformOpenBook | null; tokens: ObTokensPage | null; window: ObWindow; q: string }) {
   const net = ob?.meta?.network;
+  const router = useRouter();
   const wallets = arr(ob?.treasuryWallets);
   const winHref = useMemo(() => (id: ObWindow) => { const s = new URLSearchParams(); if (id !== "all") s.set("window", id); if (q) s.set("q", q); const t = s.toString(); return `/open-book${t ? `?${t}` : ""}`; }, [q]);
   return (
@@ -293,9 +294,8 @@ export function OpenBookPlatform({ ob, tokens, window: w, q }: { ob: PlatformOpe
         </nav>
         <div className="flex flex-wrap items-center gap-2">
           <IndexChip meta={ob?.meta} />
-          <div role="group" aria-label="Time window" className="flex gap-1">
-            {OB_WINDOWS.map((o) => <Link key={o.id} href={winHref(o.id)} scroll={false} aria-current={w === o.id ? "true" : undefined} data-testid={`ob-window-${o.id}`} className={`${chip} ${w === o.id ? `${CTRL_ON} text-ink` : ""}`}>{o.label}</Link>)}
-          </div>
+          <TabBar label="Time window" value={w} onSelect={(id) => router.push(winHref(id), { scroll: false })} outerClassName="max-w-full"
+            items={OB_WINDOWS.map((o) => ({ id: o.id, label: o.label, href: winHref(o.id), testId: `ob-window-${o.id}` }))} />
         </div>
       </div>
       {ob ? (

@@ -4,7 +4,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { TopBar } from "./TopBar";
 import { TabBar, TabPanels, useUrlTab } from "./TabBar";
 import { InfoTip } from "./InfoTip";
-import { ScrollRow } from "./ui/Scroll";
 
 /** True when a section renders inside a tabbed hub: TopBlock then skips its own search row and title. */
 export const HubContext = createContext(false);
@@ -33,11 +32,9 @@ export function HubTabs({ title, intro, tabs }: { title: string; intro?: ReactNo
         <h1 className="mt-0 flex items-center gap-2 text-xl font-semibold tracking-tight md:mt-2 md:text-2xl">
           {title}{intro && <InfoTip label={`About ${title}`} className="mt-0.5">{intro}</InfoTip>}
         </h1>
-        <nav aria-label={`${title} sections`} className="-mx-[14px] mt-4 border-b border-border md:mx-0">
-          <ScrollRow active={active.id} innerClassName="px-[14px] md:px-0">
-            <TabBar label={`${title} sections`} value={active.id} onSelect={select} testId="hub-tabs" className="w-max"
-              items={tabs.map((t) => ({ id: t.id, label: t.label, href: hrefFor(t.id) }))} />
-          </ScrollRow>
+        <nav aria-label={`${title} sections`} className="-mx-[14px] mt-4 md:mx-0">
+          <TabBar label={`${title} sections`} value={active.id} onSelect={select} testId="hub-tabs" innerClassName="px-[14px] md:px-0"
+            items={tabs.map((t) => ({ id: t.id, label: t.label, href: hrefFor(t.id) }))} />
         </nav>
       </section>
       <HubContext.Provider value={true}>

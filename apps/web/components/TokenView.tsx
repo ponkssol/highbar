@@ -13,7 +13,7 @@ import { TokenLogo } from "./TokenLogo";
 import { NA, Price, TierBadge } from "./ui";
 import { InfoTip } from "./InfoTip";
 import { SolAmt, SolHead } from "./Sol";
-import { ScrollRow, TableScroll } from "./ui/Scroll";
+import { TableScroll } from "./ui/Scroll";
 import { Stacked, StackedItem } from "./ui/Stacked";
 import { DeltaPill } from "./StatsPanel";
 import { DevLock, DevLockButton, LockedBadge } from "./DevLock";
@@ -217,10 +217,8 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
   };
   return (
     <section data-testid="token-tabs">
-      <ScrollRow active={tab} className="border-b border-border">
-        <TabBar label="Token details" value={tab} onSelect={setTab} className="w-max"
+      <TabBar label="Token details" value={tab} onSelect={setTab}
           items={TAB_IDS.map((k) => ({ id: k, label: k === "holders" ? <>{TAB_LABEL[k]}<span data-testid="holders-tab-count" className="num ml-1.5 text-xs text-ink-3">{t.holders.toLocaleString("en-US")}</span></> : k === "openbook" ? <>{TAB_LABEL[k]}<NewBadge className="ml-1.5" /></> : TAB_LABEL[k] }))} />
-      </ScrollRow>
       <TabPanels k={tab} className="pt-3">{panel(tab)}</TabPanels>
     </section>
   );

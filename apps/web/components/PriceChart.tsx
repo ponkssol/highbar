@@ -150,8 +150,8 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
             )}
           </>) : <span className="text-[11px] text-ink-3">Price in SOL</span>}
         </div>
-        <Segmented label="Timeframe" tone="ring" value={tf} onChange={setTf} options={TIMEFRAMES.map((t) => ({ id: t, label: t }))}
-          className="flex gap-1 text-xs" indClassName="inset-y-0" itemClassName="num h-11 min-w-11 rounded-md px-2 md:h-7 md:min-w-0" />
+        <Segmented label="Timeframe" value={tf} onChange={setTf} options={TIMEFRAMES.map((t) => ({ id: t, label: t }))}
+          fade="surface" outerClassName="max-w-full" itemClassName="px-3" />
       </div>
       <div className="relative min-h-0 flex-1">
         <div ref={box} className="absolute inset-0" />

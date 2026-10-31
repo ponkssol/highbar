@@ -7,14 +7,14 @@ import { NA, ProgressBar, TierBadge } from "@/components/ui";
 import { InfoTip } from "@/components/InfoTip";
 import { SolAmt } from "@/components/Sol";
 import { TableCard } from "@/components/ui/TableCard";
-import { ScrollRow, TableScroll } from "@/components/ui/Scroll";
+import { TableScroll } from "@/components/ui/Scroll";
 import { Stacked, StackedItem } from "@/components/ui/Stacked";
 import { Empty, Loading, OfflineNote, Tabs, TD, TH } from "@/components/PageStates";
 import { DevLockedBadge } from "@/components/DevLockedBadge";
 import { OfficialBadge } from "@/components/OfficialBadge";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useApiData } from "@/lib/pagesData";
-import { TabPanels, useUrlTab } from "@/components/TabBar";
+import { Segmented, TabPanels, useUrlTab } from "@/components/TabBar";
 import { ChampionsHeader, RomanRank } from "@/components/arena";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
@@ -117,9 +117,8 @@ export default function LeaderboardPage() {
       <TopBlock>
         <ChampionsHeader><p className="mt-1.5 max-w-xl font-serif text-[15px] leading-snug text-ink-2 md:mt-2 md:text-[17px]">The arena&apos;s best tokens, creators and traders.</p></ChampionsHeader>
         <div className="mt-3 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-3">
-          <ScrollRow active={kind} className="-mx-[14px] md:mx-0 md:max-w-full" innerClassName="px-[14px] md:px-0">
-            <Tabs label="Leaderboard" value={kind} onChange={setKind} options={KINDS.map((k) => ({ id: k, label: KIND_LABEL[k] }))} />
-          </ScrollRow>
+          <Segmented label="Leaderboard" value={kind} onChange={setKind} options={KINDS.map((k) => ({ id: k, label: KIND_LABEL[k] }))}
+            outerClassName="-mx-[14px] md:mx-0 md:max-w-full" innerClassName="px-[14px] md:px-0" />
           <div className="flex flex-wrap items-center gap-2">
             {kind === "tokens" && <Tabs label="Sort by" value={sortTok} onChange={setSortTok} options={[{ id: "volumeSol", label: "Volume" }, { id: "mcapUsd", label: "Mcap" }, { id: "progress", label: "Progress" }]} />}
             <Tabs label="Time window" value={win} onChange={setWin} options={[{ id: "24h", label: "24h" }, { id: "7d", label: "7d" }, { id: "week", label: "This week" }, { id: "all", label: "All" }]} />

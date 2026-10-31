@@ -61,7 +61,8 @@ export function ScrollRow({ children, className = "", innerClassName = "", tone 
     const el = ref.current;
     const on = el?.querySelector<HTMLElement>('[aria-selected="true"],[aria-current="page"],[data-on="true"]');
     if (!el || !on) return;
-    const l = on.offsetLeft - el.offsetLeft, r = l + on.offsetWidth;
+    // Rects, not offsetLeft: the item's offset parent is the pill track, not this scroller.
+    const l = on.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft, r = l + on.offsetWidth;
     if (l < el.scrollLeft + 24 || r > el.scrollLeft + el.clientWidth - 24) {
       el.scrollTo({ left: Math.max(0, l - el.clientWidth / 2 + on.offsetWidth / 2), behavior: "smooth" });
     }

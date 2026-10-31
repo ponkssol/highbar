@@ -47,7 +47,7 @@ export default function MilestonesPage() {
           </Card>
         ))}
       </div>
-      {wallet.address && <Tabs value={tab} onChange={setTab} options={[{ id: "all", label: "All tokens" }, { id: "mine", label: "My tokens" }]} />}
+      {wallet.address && <Tabs label="Token filter" value={tab} onChange={setTab} options={[{ id: "all", label: "All tokens" }, { id: "mine", label: "My tokens" }]} />}
       <TableCard title="Migrated tokens" info={<InfoTip label="When tracking starts">Tokens are tracked from the day after they migrate to DAMM v2.</InfoTip>}>
         {loading && !data ? <Loading /> : d.tokens.length === 0 ? (
           <Empty title={mine ? "None of your tokens has migrated yet" : "No migrated tokens tracked yet"} hint="Tokens are tracked from the day after they migrate to DAMM v2." />

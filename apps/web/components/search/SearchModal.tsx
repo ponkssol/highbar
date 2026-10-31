@@ -275,8 +275,8 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
           {!query && (
             <div>
               <div className="flex items-center justify-between px-5 pt-4 md:px-6">
-                <Segmented label="Discover" tone="soft" value={tab} onChange={setTab} options={[{ id: "hot", label: "Hot coins" }, { id: "traders", label: "Top traders" }]}
-                  tabId={(id) => `${uid}-tab-${id}`} controls={`${uid}-strip`} className="inline-flex rounded-full bg-control p-[3px]" indClassName="inset-y-[3px]" itemClassName="rounded-full px-3.5 py-1.5 text-[13px]" />
+                <Segmented label="Discover" value={tab} onChange={setTab} options={[{ id: "hot", label: "Hot coins" }, { id: "traders", label: "Top traders" }]}
+                  tabId={(id) => `${uid}-tab-${id}`} controls={`${uid}-strip`} fade="surface" />
                 <div className="flex items-center gap-1">
                   <button type="button" onClick={() => scrollBy(-1)} disabled={ends.left} aria-label="Scroll left" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-2 hover:bg-control disabled:opacity-30"><ChevronLeft size={17} strokeWidth={1.5} /></button>
                   <button type="button" onClick={() => scrollBy(1)} disabled={ends.right} aria-label="Scroll right" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-2 hover:bg-control disabled:opacity-30"><ChevronRight size={17} strokeWidth={1.5} /></button>

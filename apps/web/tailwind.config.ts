@@ -18,6 +18,7 @@ const config: Config = {
         buy: "var(--hb-buy)",
         sell: "var(--hb-sell)",
         burn: "var(--hb-burn)",
+        seg: { DEFAULT: "var(--hb-seg)", line: "var(--hb-seg-line)", on: "var(--hb-seg-on)", "on-ink": "var(--hb-seg-on-ink)" },
         gold: { DEFAULT: "var(--hb-gold)", ink: "var(--hb-gold-ink)", text: "var(--hb-gold-text)", soft: "var(--hb-gold-soft)" },
         silver: "var(--hb-silver)",
         control: { DEFAULT: "var(--hb-control)", hover: "var(--hb-control-hover)" },

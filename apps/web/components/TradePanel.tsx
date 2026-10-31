@@ -107,7 +107,7 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
   return (
     <div data-testid="trade-panel" className={`flex flex-col gap-4 ${bare ? "" : "rounded-lg border border-border bg-surface p-4"}`}>
       <Segmented label="Trade side" tone="trade" value={side} onChange={pick} options={[{ id: "buy", label: "Buy" }, { id: "sell", label: "Sell" }]}
-        className="grid grid-cols-2 rounded-full border border-border bg-muted p-1" itemClassName="h-9 rounded-full text-sm font-medium" />
+        fill itemClassName="h-9 text-sm" />
       {sniperActive && (
         <div className="rounded-md border border-border bg-muted p-3 text-sm">
           <div className="flex items-center justify-between font-medium"><span className="flex items-center gap-2"><ShieldCheck size={16} strokeWidth={1.5} />Current fee <span className="num">{(feeBps / 100).toFixed(2)}%</span></span><span className="num text-xs text-ink-3">{sniper.remaining}s</span></div>

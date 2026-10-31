@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { ScrollRow } from "./ui/Scroll";
 
 /** Shared tab motion: one sliding indicator (transform only), a short crossfade between panels and the active tab kept in the URL
  *  without a navigation. Every tab set and segmented control on the site uses these so they all move the same way. */
@@ -57,54 +58,76 @@ export function useSlidingIndicator(active: string) {
   return { list, ind, ready };
 }
 
-export type TabItem<T extends string> = { id: T; label: ReactNode; href?: string };
+export type TabItem<T extends string> = { id: T; label: ReactNode; href?: string; testId?: string };
 
 const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 
-/** Underline tabs: the hub pages and the token page. Items with `href` render as links (middle click still opens a new tab). */
-export function TabBar<T extends string>({ items, value, onSelect, label, className = "", testId }: {
+/** The one tab look used on every page: a dark rounded pill track, a warm filled pill under the active tab (it slides, transform
+ *  only) and muted text on the rest. Rows that do not fit scroll sideways with a hidden scrollbar, edge fades and the active tab
+ *  kept in view, so nothing wraps or clips at 390 or 360. */
+const SEG_TRACK = "relative inline-flex w-max items-center gap-0.5 rounded-full border border-seg-line bg-seg p-1";
+const SEG_ITEM = "relative z-[1] inline-flex h-8 items-center justify-center whitespace-nowrap rounded-full px-3.5 text-[13px] leading-none transition-colors duration-200";
+const SEG_ON = "font-semibold text-seg-on-ink";
+const SEG_OFF = "font-medium text-ink-3 hover:text-ink-2";
+const SEG_IND = "inset-y-1 rounded-full bg-seg-on";
+
+type Frame = { scroll?: boolean; fade?: "bg" | "surface"; outerClassName?: string; innerClassName?: string };
+
+/** Wraps a track in the shared horizontal scroller unless the caller lays it out itself (`scroll={false}`). */
+function SegFrame({ children, active, scroll = true, fade = "bg", outerClassName = "", innerClassName = "" }: Frame & { children: ReactNode; active: string }) {
+  if (!scroll) return <>{children}</>;
+  return <ScrollRow active={active} tone={fade} className={outerClassName} innerClassName={innerClassName}>{children}</ScrollRow>;
+}
+
+/** Page level tabs: the hub pages and the token page. Items with `href` render as links (middle click still opens a new tab). */
+export function TabBar<T extends string>({ items, value, onSelect, label, className = "", testId, ...frame }: {
   items: TabItem<T>[]; value: T; onSelect: (id: T) => void; label: string; className?: string; testId?: string;
-}) {
+} & Frame) {
   const { list, ind, ready } = useSlidingIndicator(value);
   return (
-    <div ref={list} role="tablist" aria-label={label} data-testid={testId} className={cx("relative flex gap-5", className)}>
-      {items.map((t) => {
-        const on = t.id === value;
-        const cls = cx("relative whitespace-nowrap pb-3 pt-1 text-sm", on ? "font-medium text-ink" : "text-ink-3 hover:text-ink", on && !ready && "shadow-[inset_0_-2px_0_var(--hb-gold)]");
-        const common = { "data-tab-id": t.id, role: "tab", "aria-selected": on, className: cls } as const;
-        return t.href ? (
-          <a key={t.id} {...common} href={t.href} aria-current={on ? "page" : undefined} onClick={(e) => { if (!plainClick(e)) return; e.preventDefault(); onSelect(t.id); }}>{t.label}</a>
-        ) : (
-          <button key={t.id} {...common} type="button" onClick={() => onSelect(t.id)}>{t.label}</button>
-        );
-      })}
-      <span ref={ind} aria-hidden className={cx("hb-tab-ind bottom-0 h-0.5 rounded-full bg-gold", !ready && "opacity-0")} />
-    </div>
+    <SegFrame active={value} {...frame}>
+      <div ref={list} role="tablist" aria-label={label} data-testid={testId} className={cx(SEG_TRACK, className)}>
+        <span ref={ind} aria-hidden className={cx("hb-tab-ind", SEG_IND, !ready && "opacity-0")} />
+        {items.map((t) => {
+          const on = t.id === value;
+          const cls = cx(SEG_ITEM, on ? SEG_ON : SEG_OFF, on && !ready && "bg-seg-on");
+          const common = { "data-tab-id": t.id, "data-testid": t.testId, role: "tab", "aria-selected": on, className: cls } as const;
+          return t.href ? (
+            <a key={t.id} {...common} href={t.href} aria-current={on ? "page" : undefined} onClick={(e) => { if (!plainClick(e)) return; e.preventDefault(); onSelect(t.id); }}>{t.label}</a>
+          ) : (
+            <button key={t.id} {...common} type="button" onClick={() => onSelect(t.id)}>{t.label}</button>
+          );
+        })}
+      </div>
+    </SegFrame>
   );
 }
 
-/** Pill segmented control. `tone` picks the pill look: soft gold (default, same as hb-ctrl-on), a borderless soft gold pill, the chart's
- *  gold ring, or buy and sell. `tabId` and `controls` wire the tabs to an external tabpanel. */
-export function Segmented<T extends string>({ options, value, onChange, label, tone = "gold", className = "", itemClassName = "", indClassName = "inset-y-1", tabId, controls }: {
+/** Segmented control in the same pill look as TabBar. `tone="trade"` keeps the buy and sell colours on the active pill, every other
+ *  tone renders the shared warm pill. `fill` stretches the track and splits it evenly (the trade side switch). `tabId` and
+ *  `controls` wire the tabs to an external tabpanel. */
+export function Segmented<T extends string>({ options, value, onChange, label, tone, fill = false, className = "", itemClassName = "", tabId, controls, ...frame }: {
   options: { id: T; label: ReactNode }[]; value: T; onChange: (v: T) => void; label?: string;
-  tone?: "gold" | "soft" | "ring" | "trade"; className?: string; itemClassName?: string; indClassName?: string;
+  tone?: "pill" | "trade"; fill?: boolean; className?: string; itemClassName?: string;
   tabId?: (id: T) => string; controls?: string;
-}) {
+} & Frame) {
   const { list, ind, ready } = useSlidingIndicator(value);
-  const pill = tone === "ring" ? "rounded-md bg-gold-soft ring-1 ring-gold-line" : tone === "trade" ? (value === "sell" ? "rounded-full bg-sell" : "rounded-full bg-buy") : tone === "soft" ? "rounded-full bg-gold-soft" : "rounded-full border hb-ctrl-on";
-  const onText = tone === "trade" ? "text-on-ink" : tone === "ring" ? "font-semibold text-gold-text" : "font-medium text-ink";
-  const offText = tone === "ring" ? "text-ink-3 hover:text-ink" : tone === "soft" ? "font-medium text-ink-3 hover:text-ink" : "text-ink-2 hover:text-ink";
+  const trade = tone === "trade";
+  const pill = trade ? (value === "sell" ? "bg-sell" : "bg-buy") : "bg-seg-on";
+  const onText = trade ? "font-semibold text-on-ink" : SEG_ON;
   return (
-    <div ref={list} role="tablist" aria-label={label} className={cx("relative", className)}>
-      <span ref={ind} aria-hidden className={cx("hb-tab-ind", indClassName, pill, !ready && "opacity-0")} />
-      {options.map((o) => {
-        const on = o.id === value;
-        return (
-          <button key={o.id} data-tab-id={o.id} id={tabId?.(o.id)} aria-controls={controls} type="button" role="tab" aria-selected={on} onClick={() => onChange(o.id)}
-            className={cx("relative z-[1] whitespace-nowrap", on ? onText : offText, on && !ready && pill, itemClassName)}>{o.label}</button>
-        );
-      })}
-    </div>
+    <SegFrame active={value} {...frame} scroll={fill ? false : frame.scroll}>
+      <div ref={list} role="tablist" aria-label={label} className={cx(SEG_TRACK, fill && "!flex !w-full", className)}>
+        <span ref={ind} aria-hidden className={cx("hb-tab-ind inset-y-1 rounded-full", pill, !ready && "opacity-0")} />
+        {options.map((o) => {
+          const on = o.id === value;
+          return (
+            <button key={o.id} data-tab-id={o.id} id={tabId?.(o.id)} aria-controls={controls} type="button" role="tab" aria-selected={on} onClick={() => onChange(o.id)}
+              className={cx(SEG_ITEM, fill && "flex-1", on ? onText : SEG_OFF, on && !ready && pill, itemClassName)}>{o.label}</button>
+          );
+        })}
+      </div>
+    </SegFrame>
   );
 }
 

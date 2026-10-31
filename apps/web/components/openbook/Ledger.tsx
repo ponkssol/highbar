@@ -2,6 +2,7 @@
 /** Fee ledger: every transaction of one token with its fee parts, from GET /tokens/:mint/openbook/ledger. Filters reset the cursor,
  *  pagination is cursor-based Prev and Next, rows expand into the full cost breakdown. */
 import { TableScroll } from "../ui/Scroll";
+import { Segmented } from "../TabBar";
 import { InfoTip } from "../InfoTip";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Download, Search, X } from "lucide-react";
@@ -155,13 +156,8 @@ export function Ledger({ mint, summary, meta }: { mint: string; summary: TokenOp
       <SecHead letter="H" id="ob-h" title="Fee ledger" sub={<>Every transaction, every lamport{num(summary?.total) != null && <>, {fmtNum(num(summary?.total)!)} txs</>}</>}
         right={summary?.csv ? <a data-testid="ledger-csv" href={ledgerCsvUrl(mint, filter)} download={`${mint.slice(0, 6)}-ledger.csv`} className={`${chip} text-ink`}><Download size={13} strokeWidth={1.6} />CSV</a> : undefined} />
       <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="ledger-filters">
-        <div role="group" aria-label="Transaction type" className="flex flex-wrap gap-1.5">
-          {KINDS.map((k) => (
-            <button key={k.id} type="button" aria-pressed={kind === k.id} onClick={() => setKind(k.id)} className={`${chip} ${kind === k.id ? `${CTRL_ON} text-ink` : ""}`}>
-              {k.label}{num(k.n) != null && <span className="num text-[10.5px] text-ink-3">{fmtNum(num(k.n)!)}</span>}
-            </button>
-          ))}
-        </div>
+        <Segmented label="Transaction type" value={kind} onChange={setKind} outerClassName="max-w-full"
+          options={KINDS.map((k) => ({ id: k.id, label: <>{k.label}{num(k.n) != null && <span className="num ml-1.5 text-[10.5px] font-normal text-ink-3">{fmtNum(num(k.n)!)}</span>}</> }))} />
         <button type="button" aria-pressed={sniper} onClick={() => setSniper((s) => !s)} className={`${chip} ${sniper ? `${CTRL_ON} text-ink` : ""}`} title="Bought within the early window">
           Snipers only{num(c.snipers) != null && <span className="num text-[10.5px] text-ink-3">{fmtNum(num(c.snipers)!)}{c.sniperCountCapped ? " or more" : ""}</span>}
         </button>
