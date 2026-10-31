@@ -1,7 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import { TopBlock } from "@/components/TopBar";
-import { Card } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { Tabs } from "@/components/PageStates";
 import { DEFAULT_SETTINGS, NETWORK, useSettings, type Explorer, type PriorityFee, type Theme } from "@/lib/settings";
 
@@ -27,7 +27,7 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2">
             {[0.5, 1, 2, 5].map((v) => (
               <button key={v} onClick={() => update({ slippagePct: v })}
-                className={`num h-8 rounded-full border px-3 text-sm ${s.slippagePct === v ? "hb-ctrl-on" : "hb-ctrl"}`}>{v}%</button>
+                className={`num h-8 rounded-full border px-3 text-sm transition-colors ${s.slippagePct === v ? "hb-ctrl-on" : "hb-ctrl"}`}>{v}%</button>
             ))}
             <label className="flex h-8 items-center rounded-full border border-border px-3 focus-within:border-ink">
               <input className="num w-12 bg-transparent text-sm outline-none" inputMode="decimal" value={s.slippagePct}
@@ -45,7 +45,7 @@ export default function SettingsPage() {
           <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm"><span className="h-2 w-2 rounded-full bg-buy" />{NETWORK === "mainnet" ? "Solana Mainnet" : "Solana Devnet"}</span>
         </Row>
         <Row title="Reset">
-          <button onClick={() => update(DEFAULT_SETTINGS)} className="h-8 rounded-full border border-border px-3 text-sm hover:bg-muted">Reset to defaults</button>
+          <Button variant="secondary" size="sm" onClick={() => update(DEFAULT_SETTINGS)}>Reset to defaults</Button>
         </Row>
       </Card>
     </div>

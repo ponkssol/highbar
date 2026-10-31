@@ -24,7 +24,7 @@ export function BottomNav() {
   }, [open]);
   const moreActive = open || MORE.some((m) => isNavActive(path, m));
   const item = (active: boolean) =>
-    `relative flex h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium ${active ? "text-ink" : "text-ink-3"}`;
+    `relative flex h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 text-[11px] font-medium leading-none tracking-[-0.01em] transition-colors ${active ? "text-ink" : "text-ink-3"}`;
   const pill = (active: boolean) => active && <span aria-hidden className="absolute top-0 h-[3px] w-6 rounded-full bg-gold" />;
   return (
     <>
@@ -40,12 +40,12 @@ export function BottomNav() {
                 {href === "/launch"
                   ? <span className="flex h-8 w-8 items-center justify-center rounded-sm bg-gold text-gold-ink"><Icon size={18} strokeWidth={1.5} /></span>
                   : <Icon size={22} strokeWidth={1.5} />}
-                {label}
+                <span className="max-w-full truncate">{label}</span>
               </Link>
             );
           })}
           <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} className={item(moreActive)}>
-            {pill(moreActive)}<MoreHorizontal size={22} strokeWidth={1.5} />More
+            {pill(moreActive)}<MoreHorizontal size={22} strokeWidth={1.5} /><span className="max-w-full truncate">More</span>
           </button>
         </div>
       </nav>

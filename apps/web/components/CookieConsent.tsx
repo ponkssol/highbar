@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { CONSENT_OPEN_EVENT } from "@/lib/consent";
 import { useConsent } from "./consent";
+import { buttonClass } from "./ui";
 
 function Switch({ on, disabled, onChange, labelledBy, describedBy, testId }: { on: boolean; disabled?: boolean; onChange?: (v: boolean) => void; labelledBy: string; describedBy: string; testId: string }) {
   return (
@@ -14,8 +15,9 @@ function Switch({ on, disabled, onChange, labelledBy, describedBy, testId }: { o
   );
 }
 
-const btnGold = "inline-flex h-9 items-center justify-center rounded-sm bg-gold px-3.5 text-[13px] font-semibold text-gold-ink outline-none hover:brightness-105 focus-visible:ring-2 focus-visible:ring-gold-line";
-const btnSoft = "hb-ctrl inline-flex h-9 items-center justify-center rounded-sm px-3.5 text-[13px] font-medium text-ink-2 outline-none hover:text-ink focus-visible:ring-1 focus-visible:ring-gold-line";
+// Shared Button variants (ui.tsx), small size.
+const btnGold = buttonClass("gold", "sm");
+const btnSoft = buttonClass("secondary", "sm");
 const btnText = "text-xs font-medium text-ink-3 underline-offset-4 outline-none hover:text-ink hover:underline focus-visible:text-ink focus-visible:underline";
 
 /** Small cookie card in the bottom corner (above the bottom nav on mobile). autoPrompt shows it once the welcome was accepted and no choice exists yet.

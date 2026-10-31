@@ -16,7 +16,7 @@ export function TopBar({ listControls = false }: { listControls?: boolean }) {
     <div data-testid="topbar" className="hidden items-center gap-3 md:flex md:h-header">
       <button type="button" data-hb-search aria-haspopup="dialog" aria-label="Search for coins and users" onClick={() => window.dispatchEvent(new Event("hb-search"))}
         onPointerEnter={prefetchSearch} onFocus={prefetchSearch}
-        className="flex h-10 w-full max-w-sm items-center gap-2 rounded-full px-4 text-left text-sm text-ink-3 hb-ctrl hover:text-ink-2 focus-visible:border-gold-line focus-visible:outline-none">
+        className="flex h-9 w-full max-w-sm items-center gap-2 rounded-full px-4 text-left text-sm text-ink-3 hb-ctrl hover:text-ink-2 focus-visible:border-gold-line focus-visible:outline-none">
         <Search size={16} strokeWidth={1.5} aria-hidden />
         <span className="min-w-0 flex-1 truncate">Search for coins and users…</span>
         {keys && <kbd className="num shrink-0 rounded bg-control px-1.5 py-0.5 text-[11px] text-ink-3" aria-hidden>{keys}</kbd>}
@@ -24,7 +24,7 @@ export function TopBar({ listControls = false }: { listControls?: boolean }) {
       <div className="ml-auto hidden items-center gap-2 md:flex">
         {listControls && <div className="max-lg:hidden"><Suspense fallback={null}><ListControls /></Suspense></div>}
         <WalletButton size="lg" />
-        <Link href="/launch" className="inline-flex h-10 items-center gap-2 rounded bg-gold px-4 text-sm font-semibold text-gold-ink hover:brightness-105">
+        <Link href="/launch" className="inline-flex h-9 items-center gap-2 rounded bg-gold px-4 text-sm font-semibold text-gold-ink transition-[filter] hover:brightness-105">
           <Plus size={16} /><span>Launch<span className="max-lg:hidden"> token</span></span>
         </Link>
       </div>

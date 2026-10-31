@@ -12,7 +12,7 @@ export function MobileHeader() {
         <Logo height={34} />
       </Link>
       <button type="button" aria-label="Search" onClick={() => window.dispatchEvent(new Event("hb-search"))}
-        className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 hover:bg-muted">
+        className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors text-ink-2 hover:bg-muted">
         <Search size={18} strokeWidth={1.75} />
       </button>
       <WalletButton compact />

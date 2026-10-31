@@ -8,7 +8,6 @@ import { TierDot } from "./ui";
 import { ThemeToggle } from "./ThemeToggle";
 import { NAV, isNavActive } from "./nav";
 import { Logo } from "./Logo";
-import { LegalLinks } from "./LegalLinks";
 
 export function Sidebar() {
   const path = usePathname();
@@ -28,7 +27,7 @@ export function Sidebar() {
               className={`flex h-10 items-center gap-3 rounded-sm px-3 text-sm transition-colors ${on ? "bg-gold-soft font-medium text-ink" : "text-ink-2 hover:bg-control-hover hover:text-ink"}`}>
               <Icon size={18} strokeWidth={on ? 2 : 1.5} className={on ? "text-gold-text" : undefined} />
               {label}
-              {badge && <span className="ml-auto rounded-full border border-gold-line px-1.5 py-px text-[9.5px] font-medium uppercase tracking-[.12em] text-gold-text">{badge}</span>}
+              {badge && <span className="ml-auto text-[11px] font-normal text-ink-3">{badge}</span>}
             </Link>
           );
         })}
@@ -45,7 +44,6 @@ export function Sidebar() {
       <div className="mt-auto" />
       <ThemeToggle />
       <SocialLinks variant="icons" className="mt-2 px-1" />
-      <LegalLinks className="mt-2 -ml-1 px-1" />
     </aside>
   );
 }
