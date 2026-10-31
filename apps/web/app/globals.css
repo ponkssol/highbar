@@ -17,6 +17,8 @@ body{font-family:var(--font-inter),Inter,system-ui,sans-serif;-webkit-font-smoot
 /* Arena display type: Cinzel for headings, rank numerals and display text only. Numbers/prices/tables stay sans/mono (.num). */
 h1,h2,h3,.font-display{font-family:var(--font-display),Cinzel,"Trajan Pro",Georgia,serif;letter-spacing:.03em;}
 h1 .num,h2 .num,h3 .num{letter-spacing:normal}
+/* InfoTip panels read in the body face even when the icon sits in a display heading, a mono figure or an eyebrow. */
+[data-hb-tip]{font-family:var(--font-inter),Inter,system-ui,sans-serif;letter-spacing:normal;font-variant-numeric:normal}
 
 /* Panels: a faint warm wash at the top of each card and the sidebar. Borders stay 1px and low alpha. */
 .rounded-lg.bg-surface,.hb-rail{background-image:linear-gradient(180deg,var(--hb-wash),transparent 160px);}
