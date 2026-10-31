@@ -1,6 +1,8 @@
 "use client";
 /** Fee ledger: every transaction of one token with its fee parts, from GET /tokens/:mint/openbook/ledger. Filters reset the cursor,
  *  pagination is cursor-based Prev and Next, rows expand into the full cost breakdown. */
+import { TableScroll } from "../ui/Scroll";
+import { InfoTip } from "../InfoTip";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Download, Search, X } from "lucide-react";
 import { fmtDateTimeUS, fmtDateUS, fmtTimeUS } from "@/lib/date";
@@ -171,7 +173,7 @@ export function Ledger({ mint, summary, meta }: { mint: string; summary: TokenOp
         </label>
       </div>
       <Panel className="overflow-hidden">
-        <div className="relative overflow-x-auto">
+        <TableScroll sticky label="Fee ledger">
           <table data-testid="ledger-table" className={`w-full min-w-[720px] text-[12.5px] [&_td]:px-2.5 [&_th]:px-2.5 transition-opacity ${loading ? "opacity-60" : ""}`}>
             <thead><tr className="border-b border-border">
               <th className={`${TH} w-6 pr-0`}><span className="sr-only">Expand</span></th><th className={TH}>Time</th><th className={TH}>Type</th><th className={TH}>Wallet</th><th className={`${TH} text-right`}>SOL</th><th className={`${TH} text-right`} title="Base fee plus priority fee">Network fee</th><th className={`${TH} text-right`}>Tip and provider</th><th className={`${TH} text-right`}>DBC fee</th><th className={TH}>Status</th><th className={`${TH} hidden 2xl:table-cell`}>Signature</th>
@@ -205,11 +207,11 @@ export function Ledger({ mint, summary, meta }: { mint: string; summary: TokenOp
               })}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3.5 py-2.5">
           <span data-testid="ledger-showing" className="text-[12px] text-ink-3">
             {total != null && rows.length > 0 ? <>Showing <span className="num text-ink-2">{fmtNum(start + 1)}–{fmtNum(start + rows.length)}</span> of <span className="num text-ink-2">{page?.totalExact === false ? "at least " : ""}{fmtNum(total)}</span></> : total === 0 ? "Showing 0 of 0" : ""}
-            <span className="ml-1.5 hidden md:inline">Failed and duplicate txs paid the network fee but no DBC fee.</span>
+            <InfoTip label="About failed transactions" className="ml-1.5">Failed and duplicate txs paid the network fee but no DBC fee.</InfoTip>
           </span>
           <div className="flex gap-1.5">
             <button type="button" data-testid="ledger-prev" disabled={!page?.prevCursor || loading} onClick={() => go(-1)} className="hb-ctrl inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-[12px] text-ink disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft size={13} />Prev</button>

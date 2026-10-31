@@ -10,6 +10,9 @@ import { buildSwapTx } from "@/lib/tx";
 import { currentPoint, quote as curveQuote, readCurve, type CurveState } from "@/lib/curve";
 import { PublicKey } from "@solana/web3.js";
 import { Segmented } from "./TabBar";
+import { InfoTip } from "./InfoTip";
+import { SolAmt, SolHead } from "./Sol";
+import { NA } from "./ui";
 
 /** SOL kept back for network fees and the token account rent when checking a buy against the wallet balance. */
 const SOL_RESERVE = 0.01;
@@ -115,21 +118,21 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
         </div>
       )}
       <div>
-        <label className={`flex h-12 items-center rounded-md border px-3 focus-within:border-ink ${overSell || overSol ? "border-sell" : "border-border"}`}>
+        <label className={`flex h-12 items-center gap-2 rounded border bg-surface px-3 transition-colors focus-within:border-ink ${overSell || overSol ? "border-sell" : "border-border"}`}>
           <input data-testid="trade-amount" aria-label={side === "buy" ? "Amount to spend in SOL" : `Amount of $${ticker} to sell`} aria-invalid={overSell || overSol || undefined}
             value={amount} placeholder="0.0" onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} inputMode="decimal" className="num w-full bg-transparent text-lg outline-none" />
-          <span className="num text-sm text-ink-3">{unit}</span>
+          <span className="num whitespace-nowrap text-sm text-ink-3">{side === "buy" ? <SolHead>SOL</SolHead> : unit}</span>
         </label>
         {publicKey && (
           <div className="num mt-1.5 text-right text-xs text-ink-3" data-testid="trade-balance">
-            Balance {side === "buy" ? (solBalance == null ? "–" : `${fmtSolAmt(solBalance)} SOL`) : balance == null ? "–" : `${fmtTok(balance)} $${ticker}`}
+            <span className="inline-flex items-center gap-1">Balance {side === "buy" ? (solBalance == null ? NA : <SolAmt>{fmtSolAmt(solBalance)}</SolAmt>) : balance == null ? NA : `${fmtTok(balance)} $${ticker}`}</span>
           </div>
         )}
       </div>
       <div className="flex gap-2">
         {side === "buy"
           ? ["0.1", "0.5", "1"].map((p) => (
-              <button key={p} type="button" onClick={() => setAmount(p)} className={`num h-8 flex-1 rounded-full border text-sm ${amount === p ? "border-ink" : "border-border hover:bg-muted"}`}>{p} SOL</button>
+              <button key={p} type="button" onClick={() => setAmount(p)} className={`num inline-flex h-8 flex-1 items-center justify-center rounded-full border text-sm transition-colors ${amount === p ? "border-ink" : "border-border hover:bg-muted"}`}><SolAmt>{p}</SolAmt></button>
             ))
           : <>
               {publicKey && !!balance && [25, 50].map((p) => (
@@ -147,22 +150,23 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
           </label>
         </span>
       </div>
-      <dl className="space-y-1.5 rounded-md border border-border p-3 text-sm" data-testid="trade-quote">
-        <div className="flex justify-between"><dt className="text-ink-3">{overCap || overSell ? "Received at max" : "Est. received"}</dt><dd className="num">{amt ? `${q ? "" : "≈ "}${side === "buy" ? `${fmtTok(Math.max(0, received))} $${ticker}` : `${Math.max(0, received).toFixed(6)} SOL`}` : "–"}</dd></div>
-        <div className="flex justify-between"><dt className="text-ink-3">Price impact</dt><dd data-testid="trade-impact" className={`num ${impact != null && impact > 5 ? "text-sell" : ""}`}>{!amt ? "0.00%" : impact == null ? "–" : `${impact.toFixed(2)}%`}</dd></div>
-        <div className="flex justify-between"><dt className="text-ink-3">Fee ({(feeBps / 100).toFixed(2)}%)</dt><dd className="num">{feeSol.toFixed(6)} SOL</dd></div>
+      <dl className="space-y-1.5 rounded border border-border p-3 text-sm" data-testid="trade-quote">
+        <div className="flex justify-between"><dt className="text-ink-3">{overCap || overSell ? "Received at max" : "Est. received"}</dt><dd className="num inline-flex items-center gap-1">{amt ? <>{q ? "" : "≈ "}{side === "buy" ? `${fmtTok(Math.max(0, received))} $${ticker}` : <SolAmt>{Math.max(0, received).toFixed(6)}</SolAmt>}</> : NA}</dd></div>
+        <div className="flex justify-between"><dt className="text-ink-3">Price impact</dt><dd data-testid="trade-impact" className={`num ${impact != null && impact > 5 ? "text-sell" : ""}`}>{!amt ? "0.00%" : impact == null ? NA : `${impact.toFixed(2)}%`}</dd></div>
+        <div className="flex justify-between"><dt className="text-ink-3">Fee ({(feeBps / 100).toFixed(2)}%)</dt><dd className="num"><SolAmt>{feeSol.toFixed(6)}</SolAmt></dd></div>
       </dl>
       {overCap && maxBuy != null && (
-        <p role="status" data-testid="trade-cap" className="-mt-1 text-xs text-ink-2">
-          Max buy before graduation is <span className="num font-medium">{fmtSolAmt(floorTo(maxBuy, 4))} SOL</span>{q?.tokensToGraduation ? <> ({fmtTok(q.tokensToGraduation)} ${ticker} left on the curve)</> : null}. Quote shown at the max.{" "}
-          <button type="button" onClick={() => setAmount(String(floorTo(maxBuy, 4)))} className="font-medium text-ink underline underline-offset-2">Use max</button>
+        <p role="status" data-testid="trade-cap" className="-mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink-2">
+          Max buy <span className="num font-medium"><SolAmt>{fmtSolAmt(floorTo(maxBuy, 4))}</SolAmt></span>
+          <InfoTip label="About the max buy">Max buy before graduation is {fmtSolAmt(floorTo(maxBuy, 4))} SOL{q?.tokensToGraduation ? <> ({fmtTok(q.tokensToGraduation)} ${ticker} left on the curve)</> : null}. Quote shown at the max.</InfoTip>
+          <button type="button" onClick={() => setAmount(String(floorTo(maxBuy, 4)))} className="ml-auto font-medium text-ink underline underline-offset-2">Use max</button>
         </p>
       )}
       {overSol && solSpendable != null && <p role="alert" data-testid="trade-sol-limit" className="-mt-1 text-xs text-sell">Not enough SOL: you can spend up to {fmtSolAmt(floorTo(solSpendable, 4))} SOL (about {SOL_RESERVE} SOL stays for network fees).</p>}
       {overSell && sellMax != null && <p role="alert" data-testid="trade-sell-limit" className="-mt-1 text-xs text-sell">{publicKey ? `You can sell up to ${fmtTok(sellMax)} $${ticker}.` : `Only ${fmtTok(sellMax)} $${ticker} have been bought on the curve, so that is the most anyone can sell.`}</p>}
       {noTokens && <p role="status" className="-mt-1 text-xs text-ink-3">This wallet holds no ${ticker}.</p>}
       <button type="button" disabled={!amt || busy || blocked} onClick={submit}
-        className={`h-12 w-full rounded-md text-sm font-semibold text-on-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${side === "buy" ? "bg-buy" : "bg-sell"}`}>
+        className={`h-12 w-full rounded text-sm font-semibold text-on-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${side === "buy" ? "bg-buy" : "bg-sell"}`}>
         {busy ? "Preparing…" : side === "buy" ? `Buy $${ticker}` : `Sell $${ticker}`}
       </button>
       {msg && <div className="text-xs text-ink-3" role="status">{msg}</div>}

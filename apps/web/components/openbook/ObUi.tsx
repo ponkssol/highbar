@@ -5,6 +5,8 @@ import { ExternalLink } from "lucide-react";
 import { shortAddr } from "@/lib/format";
 import { solscanUrl, type SolscanKind } from "@/lib/solscan";
 import { num } from "@/lib/openbook";
+import { SolanaMark } from "../SolanaMark";
+import { InfoTip } from "../InfoTip";
 
 /** Muted placeholder for a value the API does not have. Never a 0. */
 export function Nil({ title = "Not available" }: { title?: string }) {
@@ -57,7 +59,7 @@ export function Addr({ a, kind = "account", net, n = 4, label, className = "" }:
 export function Sol({ v, dp = 4, unit = true, className = "", link, net }: { v: unknown; dp?: number; unit?: boolean; className?: string; link?: { kind: SolscanKind; id: string | null | undefined } | null; net?: string | null }) {
   const n = num(v);
   if (n == null) return <Nil />;
-  const body = <span className={`num whitespace-nowrap ${className}`}>{fmtSolOb(n, dp)}{unit && <span className="ml-1 text-[0.82em] text-ink-3">SOL</span>}</span>;
+  const body = <span className={`num inline-flex items-center gap-[0.25em] whitespace-nowrap ${className}`}>{unit && <SolanaMark />}{fmtSolOb(n, dp)}{unit && <span className="sr-only"> SOL</span>}</span>;
   return link?.id ? <Scan kind={link.kind} id={link.id} net={net}>{body}</Scan> : body;
 }
 export function Pct({ v, dp = 2, className = "" }: { v: unknown; dp?: number; className?: string }) {
@@ -92,11 +94,11 @@ export function NewBadge({ className = "" }: { className?: string }) {
 }
 
 /** Section head: small gold-outlined letter, serif title, muted subtitle, optional right slot. */
-export function SecHead({ letter, title, sub, right, id, as: H = "h2" }: { letter?: string; title: string; sub?: ReactNode; right?: ReactNode; id?: string; as?: "h2" | "h3" }) {
+export function SecHead({ letter, title, sub, right, id, as: H = "h2", info, infoLabel }: { letter?: string; title: string; sub?: ReactNode; right?: ReactNode; id?: string; as?: "h2" | "h3"; /** helper text behind an InfoTip next to the title */ info?: ReactNode; infoLabel?: string }) {
   return (
     <div className="mb-3 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
       {letter && <span aria-hidden className="num inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] border border-gold-line px-1 text-[10.5px] text-gold-text">{letter}</span>}
-      <H id={id} className="font-serif text-[21px] font-medium leading-tight tracking-normal text-ink md:text-[22px]">{title}</H>
+      <H id={id} className="flex items-center gap-2 font-serif text-[21px] font-medium leading-tight tracking-normal text-ink md:text-[22px]">{title}{info && <InfoTip label={infoLabel ?? `About ${title.toLowerCase()}`} width={300} className="font-sans">{info}</InfoTip>}</H>
       {sub && <p className="min-w-0 text-[12.5px] text-ink-3">{sub}</p>}
       {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
     </div>
@@ -114,6 +116,8 @@ export function Big({ children }: { children: ReactNode }) {
   return <div className="num mt-1.5 text-[26px] font-medium leading-none tracking-[-0.02em] text-ink md:text-[28px]">{children}</div>;
 }
 export const Unit = ({ children = "SOL" }: { children?: ReactNode }) => <small className="ml-1.5 text-[12px] font-normal tracking-normal text-ink-3">{children}</small>;
+/** Big SOL figure: the Solana mark in front of the number (replaces a trailing <Unit />), with an sr-only " SOL". */
+export const SolFig = ({ children }: { children: ReactNode }) => <span className="inline-flex items-center gap-[0.22em] whitespace-nowrap"><SolanaMark className="h-[0.7em]" />{children}<span className="sr-only"> SOL</span></span>;
 export function KV({ k, v, sub, className = "" }: { k: ReactNode; v: ReactNode; sub?: ReactNode; className?: string }) {
   return (
     <div className={`flex items-start justify-between gap-3 text-[12.5px] ${className}`}>

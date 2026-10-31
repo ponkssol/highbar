@@ -10,7 +10,11 @@ import { ChartSkeleton } from "./ui/Skeleton";
 const PriceChart = dynamic(() => import("./PriceChart").then((m) => m.PriceChart), { ssr: false, loading: () => <ChartSkeleton /> });
 import { TradePanel } from "./TradePanel";
 import { TokenLogo } from "./TokenLogo";
-import { Price, TierBadge } from "./ui";
+import { NA, Price, TierBadge } from "./ui";
+import { InfoTip } from "./InfoTip";
+import { SolAmt, SolHead } from "./Sol";
+import { ScrollRow, TableScroll } from "./ui/Scroll";
+import { Stacked, StackedItem } from "./ui/Stacked";
 import { DeltaPill } from "./StatsPanel";
 import { DevLock, DevLockButton, LockedBadge } from "./DevLock";
 import { DevLockedBadge } from "./DevLockedBadge";
@@ -66,7 +70,7 @@ function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
           </div>
         </div>
         <div className="flex flex-col items-start gap-1 sm:items-end">
-          <div data-testid="token-price" className="flex items-baseline gap-1.5"><span title="Last trade price" className="num text-2xl font-semibold leading-none tracking-tight md:text-3xl"><Price v={t.priceSol} /></span><span className="text-sm text-ink-3">SOL</span></div>
+          <div data-testid="token-price" className="flex items-baseline gap-1.5"><span title="Last trade price" className="num text-2xl font-semibold leading-none tracking-tight md:text-3xl"><SolAmt><Price v={t.priceSol} /></SolAmt></span></div>
           <div className="flex items-center gap-2">
             {t.priceUsd != null && <span data-testid="token-price-usd" className="num text-xs text-ink-3"><Price v={t.priceUsd} prefix="$" /></span>}
             <DeltaPill v={t.change24h} />
@@ -91,18 +95,18 @@ function Addr({ t, copied, copy }: { t: TokenViewData; copied: boolean; copy: ()
 
 const targetSol = (t: TokenViewData) => t.thresholdSol || thresholdSolFor(t.tier, NETWORK);
 const bondingOf = (t: TokenViewData) => { const target = targetSol(t); return { target, p: t.isMigrated ? 1 : target > 0 ? Math.min(1, t.raisedSol / target) : 0 }; };
-const dash = (v: number | null | undefined, f: (n: number) => string) => (v == null || !Number.isFinite(v) ? "–" : f(v));
+const dash = (v: number | null | undefined, f: (n: number) => ReactNode) => (v == null || !Number.isFinite(v) ? NA : f(v));
 
 /** One compact six-stat row (3 columns on mobile). Missing values show a dash. */
 function StatRow({ t, holders }: { t: TokenViewData; holders: number }) {
   const { p } = bondingOf(t);
   const cells: [string, ReactNode][] = [
     ["Market cap", dash(t.mcapUsd, fmtUsd)],
-    ["Volume 24h", dash(t.volume24hSol, (v) => `${fmtSol(v, 1)} SOL`)],
+    ["Volume 24h", dash(t.volume24hSol, (v) => <SolAmt>{fmtSol(v, 1)}</SolAmt>)],
     ["Holders", holders.toLocaleString("en-US")],
-    ["Age", t.createdAt ? fmtAge(t.createdAt, t.now) : "–"],
-    ["Creator", t.creator ? shortAddr(t.creator) : "–"],
-    ["Bonding", <><span key="v">{t.isMigrated ? "100%, migrated" : `${(p * 100).toFixed(1)}%`}</span><span key="b" className="mt-1.5 block h-1 rounded-full bg-border"><span className="block h-1 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></span></>],
+    ["Age", t.createdAt ? fmtAge(t.createdAt, t.now) : NA],
+    ["Creator", t.creator ? shortAddr(t.creator) : NA],
+    ["Bonding", <><span key="v">{t.isMigrated ? "Migrated" : `${(p * 100).toFixed(1)}%`}</span><span key="b" className="mt-1.5 block h-1 rounded-full bg-border"><span className="block h-1 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></span></>],
   ];
   return (
     <dl data-testid="token-stats" className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-6">
@@ -121,13 +125,21 @@ function BondingCard({ t }: { t: TokenViewData }) {
   return (
     <div data-testid="bonding-card" className="rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">Bonding progress</span>
-        <span className="num text-ink-3">{t.isMigrated ? "100%, migrated" : `${t.raisedSol.toFixed(1)} of ${target} SOL`}</span>
+        <span className="flex items-center gap-1.5 font-medium">Bonding progress
+          <InfoTip label="About bonding">{t.isMigrated ? "Migrated to Meteora DAMM v2." : p >= 1 ? "Target reached: migrates to Meteora DAMM v2." : `Migrates to Meteora DAMM v2 at ${target} SOL.`}</InfoTip>
+        </span>
+        <span className="num text-ink-3">{t.isMigrated ? "100%, migrated" : <span className="inline-flex items-center gap-1">{t.raisedSol.toFixed(1)} of <SolAmt>{target}</SolAmt></span>}</span>
       </div>
       <div className="mt-3 h-1.5 rounded-full bg-border"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></div>
-      <p className="mt-2 text-xs text-ink-3">{t.isMigrated ? "Migrated to Meteora DAMM v2." : p >= 1 ? "Target reached: migrates to Meteora DAMM v2." : `Migrates to Meteora DAMM v2 at ${target} SOL.`}</p>
     </div>
   );
+}
+
+function SideChip({ side }: { side: "buy" | "sell" }) {
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize text-on-ink ${side === "buy" ? "bg-buy" : "bg-sell"}`}>{side}</span>;
+}
+function DevChip() {
+  return <span title="Creator buy in the launch transaction (Block 0)" className="ml-1.5 rounded-full border border-ink px-2 py-0.5 text-xs font-medium">Dev</span>;
 }
 
 function holderRows(trades: TokenViewData["trades"]) {
@@ -151,29 +163,39 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
   const [tab, setTab] = useUrlTab(TAB_IDS, "trades");
   const panel = (k: TabId) => {
     if (k === "trades") return t.trades.length === 0 ? <p className="py-6 text-sm text-ink-3">No trades yet.</p> : (
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] text-sm">
-          <thead><tr className="h-10 text-xs text-ink-3">
-            <th className="pl-0 pr-4 text-left font-medium">Time</th><th className="px-4 text-left font-medium">Type</th><th className="px-4 text-right font-medium">SOL</th>
-            <th className="px-4 text-right font-medium">${t.ticker}</th><th className="px-4 text-left font-medium">Wallet</th><th className="px-4" /></tr></thead>
-          <tbody>
-            {t.trades.map((tr) => (
-              <tr key={tr.sig} className="h-11 border-t border-border hover:bg-muted">
-                <td className="num pl-0 pr-4 text-ink-3">{fmtAge(tr.ts, t.now)} ago</td>
-                <td className="px-4"><span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize text-on-ink ${tr.side === "buy" ? "bg-buy" : "bg-sell"}`}>{tr.side}</span>{tr.devBuy && <span title="Creator buy in the launch transaction (Block 0)" className="ml-1.5 rounded-full border border-ink px-2 py-0.5 text-xs font-medium">Dev</span>}</td>
-                <td className="num px-4 text-right">{tr.sol}</td>
-                <td className="num px-4 text-right">{tr.tokens.toLocaleString("en-US")}</td>
-                <td className="num px-4 text-ink-2">{shortAddr(tr.wallet)}</td>
-                <td className="px-4 text-right"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label="View transaction on Solscan" className="text-ink-3 hover:text-ink"><ExternalLink size={14} aria-hidden /></a></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <>
+        <Stacked className="-mx-3.5 border-y border-border sm:hidden" label="Trades">
+          {t.trades.map((tr) => (
+            <StackedItem key={tr.sig} title={<><SideChip side={tr.side} />{tr.devBuy && <DevChip />}</>}
+              value={<SolAmt>{tr.sol}</SolAmt>}
+              rows={[[`$${t.ticker}`, tr.tokens.toLocaleString("en-US")], ["Wallet", shortAddr(tr.wallet)],
+                ["Time", <a key="t" href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label={`${fmtAge(tr.ts, t.now)} ago, view transaction on Solscan`} className="inline-flex items-center gap-1 hover:text-ink">{fmtAge(tr.ts, t.now)} ago<ExternalLink size={12} aria-hidden /></a>]]} />
+          ))}
+        </Stacked>
+        <TableScroll className="hidden sm:block" label="Trades">
+          <table className="w-full text-sm">
+            <thead><tr className="h-10 whitespace-nowrap text-xs text-ink-3">
+              <th className="pl-0 pr-4 text-left font-medium">Time</th><th className="px-4 text-left font-medium">Type</th><th className="px-4 text-right font-medium"><SolHead>SOL</SolHead></th>
+              <th className="px-4 text-right font-medium">${t.ticker}</th><th className="px-4 text-left font-medium">Wallet</th><th className="px-4"><span className="sr-only">Transaction</span></th></tr></thead>
+            <tbody>
+              {t.trades.map((tr) => (
+                <tr key={tr.sig} className="h-11 border-t border-border hover:bg-muted">
+                  <td className="num whitespace-nowrap pl-0 pr-4 text-ink-3">{fmtAge(tr.ts, t.now)} ago</td>
+                  <td className="whitespace-nowrap px-4"><SideChip side={tr.side} />{tr.devBuy && <DevChip />}</td>
+                  <td className="num px-4 text-right">{tr.sol}</td>
+                  <td className="num whitespace-nowrap px-4 text-right">{tr.tokens.toLocaleString("en-US")}</td>
+                  <td className="num px-4 text-ink-2">{shortAddr(tr.wallet)}</td>
+                  <td className="px-4 text-right"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label="View transaction on Solscan" className="text-ink-3 hover:text-ink"><ExternalLink size={14} aria-hidden /></a></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
+      </>
     );
     if (k === "holders") return (
       <div>
-        <div data-testid="holders-head" className="flex items-baseline justify-between pb-2 text-xs text-ink-3"><span>{partial ? "Top holders from recent trades" : "Holders"}</span><span className="num">{t.holders.toLocaleString("en-US")} holder{t.holders === 1 ? "" : "s"}</span></div>
+        <div data-testid="holders-head" className="flex items-baseline justify-between pb-2 text-xs text-ink-3"><span className="flex items-center gap-1.5">Holders{partial && <InfoTip label="About this list">Top holders from recent trades.</InfoTip>}</span><span className="num">{t.holders.toLocaleString("en-US")} holder{t.holders === 1 ? "" : "s"}</span></div>
         {holders.length === 0 ? <p className="px-4 py-6 text-sm text-ink-3">No holders yet.</p> : (
           <table className="w-full text-sm"><tbody>
             {holders.map((h, i) => (
@@ -189,17 +211,17 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
     return (
       <dl className="py-2 text-sm">
         {[["Mint", t.mint], ["Creator", t.creator], ["Tier", TIERS[t.tier].label], ["Anti-sniper", t.antiSniper ? "On (25% to 1% in 60s, exponential decay)" : "Off"], ["Migration", t.isMigrated ? `Migrated to Meteora DAMM v2 (target ${targetSol(t)} SOL)` : `${targetSol(t)} SOL, then Meteora DAMM v2`]].map(([k, v]) => (
-          <div key={k} className="flex justify-between gap-4 border-b border-border py-2 last:border-0"><dt className="text-ink-3">{k}</dt><dd className="num truncate">{v}</dd></div>
+          <div key={k} className="flex flex-col gap-0.5 border-b border-border py-2 last:border-0 sm:flex-row sm:justify-between sm:gap-4"><dt className="shrink-0 text-ink-3">{k}</dt><dd className={`num min-w-0 sm:text-right ${k === "Mint" || k === "Creator" ? "break-all" : ""}`}>{v}</dd></div>
         ))}
       </dl>
     );
   };
   return (
     <section data-testid="token-tabs">
-      <div className="no-scrollbar overflow-x-auto border-b border-border">
-        <TabBar label="Token details" value={tab} onSelect={setTab}
+      <ScrollRow active={tab} className="border-b border-border">
+        <TabBar label="Token details" value={tab} onSelect={setTab} className="w-max"
           items={TAB_IDS.map((k) => ({ id: k, label: k === "holders" ? <>{TAB_LABEL[k]}<span data-testid="holders-tab-count" className="num ml-1.5 text-xs text-ink-3">{t.holders.toLocaleString("en-US")}</span></> : k === "openbook" ? <>{TAB_LABEL[k]}<NewBadge className="ml-1.5" /></> : TAB_LABEL[k] }))} />
-      </div>
+      </ScrollRow>
       <TabPanels k={tab} className="pt-3">{panel(tab)}</TabPanels>
     </section>
   );
@@ -222,17 +244,18 @@ export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered 
         <aside className="hidden md:block lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <div className="grid gap-4 md:grid-cols-2 lg:sticky lg:top-20 lg:grid-cols-1">
             {/* above Buy/Sell: creator gets the Dev Lock button + modal; everyone else a passive dev-lock badge (only if locked) */}
-            <div className="flex min-w-0 flex-col gap-3"><DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} />{panel()}</div>
+            <div className="flex min-w-0 flex-col gap-3"><DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} badge={false} />{panel()}</div>
             <BondingCard t={t} />
           </div>
         </aside>
         <div className="flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-2"><DetailTabs t={t} locks={locks.data} reloadLocks={locks.reload} />{about}</div>
       </div>
       {/* mobile sticky actions + bottom sheet */}
-      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 grid grid-cols-2 gap-2 border-t border-border bg-surface p-3 md:hidden">
-        <DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} className="col-span-2" />
-        <button onClick={() => setSheet("buy")} className="h-12 rounded-md bg-buy font-semibold text-on-ink">Buy</button>
-        <button onClick={() => setSheet("sell")} className="h-12 rounded-md bg-sell font-semibold text-on-ink">Sell</button>
+      {/* docked to the bottom nav as one surface: one row, one hairline, the creator's Dev Lock as an icon instead of a second row */}
+      <div data-testid="trade-dock" className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex gap-2 border-t border-border bg-surface px-3 pb-1 pt-2 md:hidden">
+        <DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} badge={false} compact />
+        <button type="button" onClick={() => setSheet("buy")} className="h-10 flex-1 rounded bg-buy text-sm font-semibold text-on-ink transition-opacity hover:opacity-90">Buy</button>
+        <button type="button" onClick={() => setSheet("sell")} className="h-10 flex-1 rounded bg-sell text-sm font-semibold text-on-ink transition-opacity hover:opacity-90">Sell</button>
       </div>
       {sheet && (
         <div className="fixed inset-0 z-50 md:hidden">

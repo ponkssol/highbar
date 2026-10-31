@@ -2,6 +2,7 @@
 import { useApiData } from "@/lib/pagesData";
 import { ScoreBadge } from "./ScoreBadge";
 import { Skeleton } from "./ui/Skeleton";
+import { InfoTip } from "./InfoTip";
 
 type Breakdown = { tier: number; antiSniper: number; devLock: number; spread: number; holders: number; top10Pct: number; lockedPct: number; lockDaysLeft: number; label: string };
 type Resp = { score: number | null; label: string | null; breakdown: Breakdown | null; max: { tier: number; antiSniper: number; devLock: number; spread: number }; updatedAt: number | null };
@@ -21,7 +22,7 @@ export function ScoreCard({ mint }: { mint: string }) {
   return (
     <div data-testid="score-card" className="rounded-lg border border-border bg-surface p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="font-semibold">highbar score</h3>
+        <h3 className="flex items-center gap-1.5 font-semibold">highbar score<InfoTip label="How the score is counted">Holders are counted from bonding-curve trades. Updated every few minutes.</InfoTip></h3>
         <ScoreBadge score={data.score} size="md" />
       </div>
       <div className="num mb-3 flex items-baseline gap-2"><span className="text-kpi">{data.score}</span><span className="text-sm text-ink-3">of 100, {data.label}</span></div>
@@ -33,7 +34,6 @@ export function ScoreCard({ mint }: { mint: string }) {
           </div>
         ))}
       </dl>
-      <p className="mt-3 text-xs text-ink-3">Holders are counted from bonding-curve trades. Updated every few minutes.</p>
     </div>
   );
 }

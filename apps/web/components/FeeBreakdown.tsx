@@ -2,6 +2,7 @@ import type { TierId } from "@hb/shared";
 import { CASHBACK_PCT, PLATFORM_SPLIT, REFERRAL_OF_PROTOCOL_PCT, feeSplitPct, lpFeeSplitPct, migrationFeePct, postMigrationPct } from "@/lib/fees";
 import { StackedBar } from "./charts";
 import { Card } from "./ui";
+import { InfoTip } from "./InfoTip";
 
 export function FeeBreakdown({ tier }: { tier: TierId }) {
   const f = feeSplitPct(tier);
@@ -53,7 +54,7 @@ export function FeeBreakdown({ tier }: { tier: TierId }) {
       </table>
       <div className="mt-4 text-xs font-medium text-ink-3">Migration fee</div>
       <p className="mt-1 text-sm text-ink-2">{mig.fee}% of the migrated SOL.{mig.fee ? ` The creator gets ${mig.creatorShare}% of it.` : ""}</p>
-      <div className="mt-4 text-xs font-medium text-ink-3">Platform fee split (after the creator LP rebate and trader cashback)</div>
+      <div className="mt-4 flex items-center gap-1.5 text-xs font-medium text-ink-3">Platform fee split<InfoTip label="About the platform fee split">After the creator LP rebate and trader cashback.</InfoTip></div>
       <table className="mt-1 w-full text-sm">
         <tbody>
           {[["Buyback and burn of $HIGHER", PLATFORM_SPLIT.buyback], ["Operations", PLATFORM_SPLIT.ops], ["Treasury", PLATFORM_SPLIT.treasury]].map(([l, v]) => (
@@ -64,11 +65,14 @@ export function FeeBreakdown({ tier }: { tier: TierId }) {
           ))}
         </tbody>
       </table>
-      <ul className="mt-3 flex flex-col gap-1 text-xs text-ink-3">
-        <li>Traders pay no extra app fee. Trades made on highbar earn {CASHBACK_PCT}% cashback, to be paid in $HIGHER (in SOL until it launches).</li>
-        <li>The swap referral reward is {REFERRAL_OF_PROTOCOL_PCT}% of Meteora&apos;s protocol fee, paid from Meteora&apos;s share.</li>
-        <li>$HIGHER has not launched yet. The buyback share accrues until it does.</li>
-      </ul>
+      <div className="mt-3 flex items-center gap-1.5 text-xs text-ink-3">
+        Traders pay no extra app fee.
+        <InfoTip label="Cashback, referrals and buyback" width={300}>
+          Trades made on highbar earn {CASHBACK_PCT}% cashback, to be paid in $HIGHER (in SOL until it launches).
+          The swap referral reward is {REFERRAL_OF_PROTOCOL_PCT}% of Meteora&apos;s protocol fee, paid from Meteora&apos;s share.
+          $HIGHER has not launched yet. The buyback share accrues until it does.
+        </InfoTip>
+      </div>
     </Card>
   );
 }

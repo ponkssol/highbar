@@ -5,10 +5,10 @@ import { bondingPct, devLockStatus, fmtDateUtc, migrationStatus, pct1, targetSol
 /** Server-rendered token facts (in the initial HTML for search engines and AI crawlers), kept quiet in the UI: a short summary and a fact list. */
 export function TokenAbout({ t, holders, summary }: { t: ApiToken; holders: number | null; summary: string }) {
   const facts: [string, string][] = [
-    ["Mint", t.mint], ["Creator", t.creator || "–"], ["Tier", `${tierLabel(t.tier)} (graduates at ${targetSolOf(t)} SOL)`],
-    ["Market cap", t.mcapUsd > 0 ? fmtUsd(t.mcapUsd) : "–"], ["Holders", holders != null ? holders.toLocaleString("en-US") : "–"],
+    ["Mint", t.mint], ["Creator", t.creator || "\u2014"], ["Tier", `${tierLabel(t.tier)} (graduates at ${targetSolOf(t)} SOL)`],
+    ["Market cap", t.mcapUsd > 0 ? fmtUsd(t.mcapUsd) : "\u2014"], ["Holders", holders != null ? holders.toLocaleString("en-US") : "\u2014"],
     ["Bonding", t.isMigrated ? "100%, graduated" : `${pct1(bondingPct(t))}%`], ["Status", migrationStatus(t)], ["Dev Lock", devLockStatus(t)],
-    ["Created", t.createdAt > 0 ? `${fmtDateUtc(t.createdAt)} (UTC)` : "–"],
+    ["Created", t.createdAt > 0 ? `${fmtDateUtc(t.createdAt)} (UTC)` : "\u2014"],
   ];
   return (
     <section data-testid="token-about" aria-labelledby="token-about-title" className="rounded-lg border border-border bg-surface px-4 py-3 text-[13px] leading-relaxed text-ink-3">

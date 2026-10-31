@@ -2,6 +2,8 @@
 /** /open-book: platform-wide bookkeeping. The server page passes the first payloads (SSR, cached 60 s), this view adds the
  *  interactive parts: window chips, token search, status filter, sorting and cursor paging. Aggregates link to the Methodology
  *  section, single accounts and transactions link to Solscan. */
+import { TableScroll } from "../ui/Scroll";
+import { InfoTip } from "../InfoTip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -13,7 +15,7 @@ import { TokenLogo } from "../TokenLogo";
 import { CTRL_ON, TierBadge } from "../ui";
 import { FeeFlow, Spark, type FlowLink, type FlowNode } from "./charts";
 import { IndexChip } from "./OpenBookTab";
-import { Addr, BUCKET_COLOR, Chip, COLORS, fmtNum, fmtPct, fmtSolOb, fmtTokens, KV, Lbl, Nil, Panel, Prov, RECIPIENT_COLOR, Scan, SecHead, Sol, TD, TH, Unit, mix } from "./ObUi";
+import { Addr, BUCKET_COLOR, Chip, COLORS, fmtNum, fmtPct, fmtSolOb, fmtTokens, KV, Lbl, Nil, Panel, Prov, RECIPIENT_COLOR, Scan, SecHead, Sol, SolFig, TD, TH, mix } from "./ObUi";
 
 const PAGE = 25;
 const ROLE_LABEL: Record<string, string> = { feeReceiver: "Fee receiver", treasury: "Treasury", lockTip: "Lock tips" };
@@ -33,7 +35,7 @@ function Card({ label, children, sub, gold }: { label: string; children: ReactNo
     </Panel>
   );
 }
-const solOr = (v: unknown, dp = 2) => { const n = num(v); return n == null ? <Nil /> : <>{fmtSolOb(n, dp)}<Unit /></>; };
+const solOr = (v: unknown, dp = 2) => { const n = num(v); return n == null ? <Nil /> : <SolFig>{fmtSolOb(n, dp)}</SolFig>; };
 
 function Totals({ t }: { t: PlatformOpenBook["totals"] }) {
   const n = (v: unknown) => num(v);
@@ -59,16 +61,15 @@ function WalletCard({ w, net }: { w: TreasuryWallet; net?: string | null }) {
       <div className="flex items-start gap-3">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border" style={{ borderColor: mix(color, 35), background: mix(color, 10) }}><i className="h-2.5 w-2.5 rotate-45 rounded-[2px]" style={{ background: color }} /></span>
         <div className="min-w-0 flex-1">
-          <h3 className="font-sans text-[13.5px] font-medium tracking-normal text-ink">{title}</h3>
+          <h3 className="flex items-center gap-1.5 font-sans text-[13.5px] font-medium tracking-normal text-ink">{title}{roles.some((r) => ROLE_NOTE[r]) && <InfoTip label={`About the ${title.toLowerCase()}`}>{roles.map((r) => ROLE_NOTE[r]).filter(Boolean).join(" ")}</InfoTip>}</h3>
           <Addr a={w.address} net={net} className="text-[11.5px] text-ink-3" />
         </div>
         <div className="flex flex-wrap justify-end gap-1">{roles.map((r) => <Chip key={r} className="h-[20px] px-2 text-[10.5px]">{ROLE_LABEL[r] ?? r}</Chip>)}</div>
       </div>
-      <div className="mt-3 flex items-baseline font-mono text-[26px] leading-none tracking-tight">{num(w.balanceSol) != null ? <Scan kind="account" id={w.address} net={net} className="text-ink">{fmtSolOb(num(w.balanceSol)!, 4)}</Scan> : <Nil />}<Unit /><Prov p={w.provenance} className="ml-2" /></div>
-      <p className="mt-1.5 min-h-[30px] text-[11.5px] leading-snug text-ink-3">{roles.map((r) => ROLE_NOTE[r]).filter(Boolean).join(" ")}</p>
+      <div className="mt-3 flex items-baseline font-mono text-[26px] leading-none tracking-tight">{num(w.balanceSol) != null ? <SolFig><Scan kind="account" id={w.address} net={net} className="text-ink">{fmtSolOb(num(w.balanceSol)!, 4)}</Scan></SolFig> : <Nil />}<Prov p={w.provenance} className="ml-2" /></div>
       <Spark values={spark} color={color} className="mt-2" />
       <div className="mt-3 flex flex-col gap-1.5 border-t border-border pt-3 text-[12px]">
-        <KV k="Net change 24h" v={ch == null ? <Nil /> : <span className={`num ${ch < 0 ? "text-sell" : ch > 0 ? "text-buy" : "text-ink-2"}`}>{ch > 0 ? "+" : ""}{fmtSolOb(ch, 4)} SOL</span>} />
+        <KV k="Net change 24h" v={ch == null ? <Nil /> : <span className={`num ${ch < 0 ? "text-sell" : ch > 0 ? "text-buy" : "text-ink-2"}`}><SolFig>{ch > 0 ? "+" : ""}{fmtSolOb(ch, 4)}</SolFig></span>} />
         {num(w.wsolSol) != null && <KV k="Wrapped SOL" v={<Sol v={w.wsolSol} />} />}
         {num(w.higherHeldTokens) != null && <KV k="$HIGHER held" v={<span className="num">{fmtTokens(num(w.higherHeldTokens)!)}</span>} />}
         {str(w.ownerLabel) && <KV k="Owner" v={<Addr a={w.owner} net={net} label={w.ownerLabel} />} />}
@@ -115,7 +116,7 @@ function Flow({ ob }: { ob: PlatformOpenBook }) {
       <SecHead id="ob-flow" title="Fee flow" sub={<>Where every lamport traders paid ended up{f?.tipsWindow && f.tipsWindow !== f.window ? ", tips over all time" : ""}</>}
         right={<div className="flex flex-wrap items-center gap-3 text-[11.5px] text-ink-3"><Leg c={COLORS.gold}>On-platform (DBC)</Leg><Leg c={COLORS.blue}>Off-platform (block engines)</Leg><Leg c={COLORS.muted}>Network</Leg><Prov p={f?.provenance} /></div>} />
       <Panel className="p-4">
-        {num(f?.tradersSol) ? <div className="relative overflow-x-auto"><FeeFlow nodes={nodes} links={links} heads={["Paid by", "Fee type", "Recipient", "Platform use"]} fmt={fmt} /></div>
+        {num(f?.tradersSol) ? <TableScroll label="Fee flow"><FeeFlow nodes={nodes} links={links} heads={["Paid by", "Fee type", "Recipient", "Platform use"]} fmt={fmt} /></TableScroll>
           : <div className="py-10 text-center text-[12.5px] text-ink-3">No fees in this window yet</div>}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-[12px] text-ink-3">
           <span>
@@ -207,7 +208,7 @@ function Tokens({ initial, initialQ }: { initial: ObTokensPage | null; initialQ:
           {(["all", "bonding", "migrated"] as const).map((s) => <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)} className={`${chip} ${status === s ? `${CTRL_ON} text-ink` : ""}`}>{s === "all" ? "All" : s === "bonding" ? "Bonding" : "Migrated"}</button>)}
         </div>} />
       <Panel className="overflow-hidden">
-        <div className="relative overflow-x-auto">
+        <TableScroll sticky label="All tokens">
           <table data-testid="ob-tokens-table" className={`w-full min-w-[900px] text-[12.5px] transition-opacity ${loading ? "opacity-60" : ""}`}>
             <thead><tr className="border-b border-border">
               <th className={`${TH} w-8`}>#</th><th className={TH}>Token</th><th className={TH}>Tier</th>
@@ -226,7 +227,7 @@ function Tokens({ initial, initialQ }: { initial: ObTokensPage | null; initialQ:
               {rows.map((t, i) => <TokenRow key={t.mint ?? i} t={t} i={start + i} net={net} sniperColor={sniperColor} />)}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3.5 py-2.5">
           <span data-testid="ob-tokens-showing" className="text-[12px] text-ink-3">{total != null && rows.length > 0 ? <>Showing <span className="num text-ink-2">{fmtNum(start + 1)}–{fmtNum(start + rows.length)}</span> of <span className="num text-ink-2">{fmtNum(total)}</span>, amounts in SOL</> : total === 0 ? "Showing 0 of 0" : ""}</span>
           <div className="flex gap-1.5">
@@ -242,7 +243,7 @@ function Tokens({ initial, initialQ }: { initial: ObTokensPage | null; initialQ:
 function TokenRow({ t, i, net, sniperColor }: { t: ObTokenRow; i: number; net?: string | null; sniperColor: (p: number) => string }) {
   const href = t.mint ? `/token/${t.mint}?tab=openbook` : undefined, tier = tierOf(t.tier), sp = num(t.sniperTipPct), pr = num(t.progressPct);
   const name = str(t.name) ?? "Unnamed", sym = str(t.symbol), router = useRouter();
-  const cell = (v: unknown) => <span className="num">{num(v) != null ? fmtSolOb(num(v)!, 2) : <Nil />}</span>;
+  const cell = (v: unknown) => <Sol v={v} dp={2} />;
   return (
     <tr data-testid="ob-token-row" onClick={(e) => { if (href && !(e.target as HTMLElement).closest("a,button")) router.push(href); }} className={`group border-t border-border hover:bg-control ${href ? "cursor-pointer" : ""}`}>
       <td className={`${TD} num text-ink-3`}>{i + 1}</td>

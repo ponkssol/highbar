@@ -9,7 +9,9 @@ import { fmtDateTimeUS, fmtDateUS } from "@/lib/date";
 import { arr, BUCKET_LABEL, FEE_KIND_LABEL, fetchTokenOpenBook, num, ObError, providerLabel, RECIPIENT_LABEL, str, type ObMeta, type TokenOpenBook } from "@/lib/openbook";
 import { SoonChip } from "../SoonChip";
 import { DecayChart, Donut, StackBar, TipBars } from "./charts";
-import { Addr, Big, BUCKET_COLOR, Chip, COLORS, FEE_COLOR, fmtNum, fmtOffsetMs, fmtPct, fmtSolOb, fmtTokens, KV, Lbl, Nil, Panel, Pct, Prov, providerColor, RECIPIENT_COLOR, Scan, SecHead, Sol, Sq, TD, TH, Unit, tint } from "./ObUi";
+import { TableScroll } from "../ui/Scroll";
+import { InfoTip } from "../InfoTip";
+import { Addr, Big, BUCKET_COLOR, Chip, COLORS, FEE_COLOR, fmtNum, fmtOffsetMs, fmtPct, fmtSolOb, fmtTokens, KV, Lbl, Nil, Panel, Pct, Prov, providerColor, RECIPIENT_COLOR, Scan, SecHead, Sol, SolFig, Sq, TD, TH, tint } from "./ObUi";
 import { Ledger } from "./Ledger";
 
 export function IndexChip({ meta, className = "" }: { meta: ObMeta | null | undefined; className?: string }) {
@@ -40,11 +42,12 @@ function Summary({ d, net }: { d: TokenOpenBook; net?: string | null }) {
   const launchSlot = num(d.launch?.launchSlot);
   return (
     <section aria-labelledby="ob-a">
-      <SecHead letter="A" id="ob-a" title="Summary" sub={<>All time{launchSlot != null && <>, since launch at slot <Scan kind="block" id={launchSlot} net={net} className="num">{fmtNum(launchSlot)}</Scan></>}</>} />
+      <SecHead letter="A" id="ob-a" title="Summary" infoLabel="Where the figures come from"
+        info={<>Every figure links to its on-chain source on Solscan. Fees marked <span className="text-gold-text">exact</span> are read from transaction meta, <span className="text-burn">derived</span> ones are computed from pool config.</>} sub={<>All time{launchSlot != null && <>, since launch at slot <Scan kind="block" id={launchSlot} net={net} className="num">{fmtNum(launchSlot)}</Scan></>}</>} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-[1fr_1.3fr_1fr_1.2fr]">
         <Panel className="p-4">
           <Lbl>Total volume <Prov p={v?.provenance} /></Lbl>
-          <Big>{num(v?.totalSol) != null ? <>{fmtSolOb(num(v?.totalSol)!, 2)}<Unit /></> : <Nil />}</Big>
+          <Big>{num(v?.totalSol) != null ? <SolFig>{fmtSolOb(num(v?.totalSol)!, 2)}</SolFig> : <Nil />}</Big>
           <div className="num mt-1.5 flex flex-wrap gap-x-3 text-[11.5px] text-ink-3">
             {num(v?.totalUsd) != null && <span>≈ ${fmtNum(num(v?.totalUsd)!)}</span>}
             {num(v?.txCount) != null && <span>{fmtNum(num(v?.txCount)!)} txs</span>}
@@ -55,7 +58,7 @@ function Summary({ d, net }: { d: TokenOpenBook; net?: string | null }) {
         </Panel>
         <Panel className="p-4">
           <Lbl>Total fees paid by traders {f?.complete === false && <Chip tone="warn" className="h-[18px]">partial</Chip>}</Lbl>
-          <Big>{num(f?.totalSol) != null ? <>{fmtSolOb(num(f?.totalSol)!)}<Unit /></> : <Nil />}</Big>
+          <Big>{num(f?.totalSol) != null ? <SolFig>{fmtSolOb(num(f?.totalSol)!)}</SolFig> : <Nil />}</Big>
           {num(f?.pctOfVolume) != null && <div className="mt-1.5 text-[11.5px] text-ink-3">{fmtPct(num(f?.pctOfVolume)!)} of volume, all-in</div>}
           <StackBar className="mb-3 mt-3.5" segs={parts.map((p) => ({ key: String(p.kind), v: num(p.sol) ?? 0, color: FEE_COLOR[String(p.kind)] ?? COLORS.muted, label: FEE_KIND_LABEL[String(p.kind)] }))} />
           <div className="flex flex-col gap-1.5">
@@ -73,7 +76,7 @@ function Summary({ d, net }: { d: TokenOpenBook; net?: string | null }) {
           <Lbl>Anti-sniper fee portion {as && <Prov p={as.provenance ?? "derived"} />}</Lbl>
           {as ? (
             <>
-              <Big>{num(as.portionSol) != null ? <>{fmtSolOb(num(as.portionSol)!)}<Unit /></> : <Nil />}</Big>
+              <Big>{num(as.portionSol) != null ? <SolFig>{fmtSolOb(num(as.portionSol)!)}</SolFig> : <Nil />}</Big>
               {num(as.pctOfDbcFees) != null && <div className="mt-1.5 text-[11.5px] text-ink-3">{fmtPct(num(as.pctOfDbcFees)!, 1)} of all DBC fees</div>}
               <div className="my-3 h-px bg-border" />
               {pts.length > 1 && dur ? (
@@ -86,12 +89,12 @@ function Summary({ d, net }: { d: TokenOpenBook; net?: string | null }) {
               ) : <div className="text-[12px] text-ink-3">No schedule points</div>}
             </>
           ) : (
-            <div className="mt-3 text-[12.5px] leading-relaxed text-ink-3">{d.launch?.antiSniper ? "Not indexed yet." : "Off. This token launched without the anti-sniper fee, so every trade paid the flat base fee."}</div>
+            <div className="mt-3 flex items-center gap-1.5 text-[12.5px] leading-relaxed text-ink-3">{d.launch?.antiSniper ? "Not indexed yet." : <>Off<InfoTip label="Anti-sniper off">This token launched without the anti-sniper fee, so every trade paid the flat base fee.</InfoTip></>}</div>
           )}
         </Panel>
         <Panel gold className="p-4">
           <Lbl>Total tips paid by traders <Prov p={tp?.provenance} /></Lbl>
-          <Big>{num(tp?.totalSol) != null ? <>{fmtSolOb(num(tp?.totalSol)!)}<Unit /></> : <Nil />}</Big>
+          <Big>{num(tp?.totalSol) != null ? <SolFig>{fmtSolOb(num(tp?.totalSol)!)}</SolFig> : <Nil />}</Big>
           <div className="mt-1.5 text-[11.5px] text-ink-3">
             {num(tp?.providerCount) != null && <>to {fmtNum(num(tp?.providerCount)!)} block-engine {num(tp?.providerCount) === 1 ? "provider" : "providers"}</>}
             {num(tp?.txCount) != null && <>, {fmtNum(num(tp?.txCount)!)} {num(tp?.txCount) === 1 ? "tx" : "txs"}</>}
@@ -121,7 +124,7 @@ function FeeSplit({ d, net }: { d: TokenOpenBook; net?: string | null }) {
   return (
     <Panel className="p-4 md:p-5">
       <div className="flex items-start justify-between gap-3">
-        <div><h3 className="font-serif text-[18px] font-medium tracking-normal text-ink">DBC fee split</h3><div className="mt-0.5 text-[12px] text-ink-3">Meteora Dynamic Bonding Curve fee, split per pool config and tier</div></div>
+        <div><h3 className="flex items-center gap-1.5 font-serif text-[18px] font-medium tracking-normal text-ink">DBC fee split<InfoTip label="About the DBC fee split" className="font-sans">Meteora Dynamic Bonding Curve fee, split per pool config and tier.</InfoTip></h3></div>
         <Prov p={fs?.provenance} />
       </div>
       <div className="mt-4 flex flex-col items-center gap-5 sm:flex-row sm:items-center">
@@ -175,7 +178,7 @@ function PlatformShare({ d, net }: { d: TokenOpenBook; net?: string | null }) {
         <div key={id} className="flex items-start justify-between gap-3 border-t border-border py-2.5">
           <div className="flex min-w-0 items-start gap-2.5">
             <Sq c={BUCKET_COLOR[id] ?? COLORS.muted} className="mt-1.5" />
-            <div className="min-w-0"><div className="text-[12.5px] font-medium text-ink">{BUCKET_LABEL[id] ?? cap(id)} <span className="num ml-1 text-[11px] font-normal text-ink-3">{fmtPct(num(b.pct) ?? 0, 0)}</span></div><div className="text-[11.5px] text-ink-3">{BUCKET_NOTE[id] ?? ""}</div></div>
+            <div className="min-w-0"><div className="text-[12.5px] font-medium text-ink">{BUCKET_LABEL[id] ?? cap(id)} <span className="num ml-1 text-[11px] font-normal text-ink-3">{fmtPct(num(b.pct) ?? 0, 0)}</span>{BUCKET_NOTE[id] && <InfoTip label={`About ${BUCKET_LABEL[id] ?? id}`} className="ml-1.5">{BUCKET_NOTE[id]}.</InfoTip>}</div></div>
           </div>
           <div className="shrink-0 text-right">
             <div className="flex items-center justify-end gap-1.5">{b.state === "soon" ? <SoonChip /> : <Sol v={b.sol} link={str(b.lastSig) ? { kind: "tx", id: b.lastSig } : str(b.account) ? { kind: "account", id: b.account } : null} net={net} />}</div>
@@ -212,7 +215,7 @@ function DevActivity({ d, net, onLockTab }: { d: TokenOpenBook; net?: string | n
           {stat("Locked in Dev Lock", lockPct != null ? fmtPct(lockPct) : <Nil />, lockPct != null ? (unlock != null ? `unlocks ${fmtDateUS(unlock * 1000)}` : "of supply") : "No active lock")}
           {stat("Dev holds now", <Pct v={da?.holdsPctSupply} />, num(da?.holdsInclLockedPct) != null ? `incl. locked ${fmtPct(num(da?.holdsInclLockedPct)!)}` : num(da?.holdsAsOf) != null ? `as of ${fmtDateTimeUS(num(da?.holdsAsOf)!)}` : undefined)}
         </div>
-        <div className="relative overflow-x-auto">
+        <TableScroll sticky label="Dev activity">
           <table className="w-full min-w-[560px] text-[12.5px]">
             <thead><tr className="border-b border-border"><th className={TH}>Action</th><th className={TH}>Offset</th><th className={`${TH} text-right`}>SOL</th><th className={`${TH} text-right`}>% supply</th><th className={TH}>Note</th><th className={TH}>Signature</th></tr></thead>
             <tbody>
@@ -233,7 +236,7 @@ function DevActivity({ d, net, onLockTab }: { d: TokenOpenBook; net?: string | n
               })}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3.5 py-2.5 text-[12px] text-ink-3">
           <span>{dl || locks.length ? <>Dev Lock {str(dl?.escrow as string) ? <>escrow <Addr a={dl?.escrow as string} net={net} /></> : `${locks.length} ${locks.length === 1 ? "lock" : "locks"}`}{unlock != null && <>, unlocks {fmtDateTimeUS(unlock * 1000)}</>}</> : "No Dev Lock on this token"}</span>
           {onLockTab && <button type="button" onClick={onLockTab} className="text-gold-text hover:underline">Open Dev lock</button>}
@@ -295,9 +298,10 @@ function EarlyBuyers({ d, net }: { d: TokenOpenBook; net?: string | null }) {
   const range = arr(sn?.slotRange);
   return (
     <section aria-labelledby="ob-e" className="min-w-0">
-      <SecHead letter="E" id="ob-e" title="Early buyers and snipers" sub={winLabel ? `First ${winLabel} after pool creation` : "After pool creation"} />
+      <SecHead letter="E" id="ob-e" title="Early buyers and snipers" sub={winLabel ? `First ${winLabel} after pool creation` : "After pool creation"}
+        info={str(rules.sniper) ? <>Sniper means {rules.sniper}. Early means {str(rules.early) ?? "any other buy in the window"}.</> : undefined} infoLabel="How buyers are tagged" />
       <Panel>
-        <div className="relative overflow-x-auto">
+        <TableScroll sticky label="Early buyers and snipers">
           <table className="w-full min-w-[720px] text-[12.5px]">
             <thead><tr className="border-b border-border">
               <th className={TH}>#</th><th className={TH}>Wallet</th><th className={TH}>Offset</th><th className={`${TH} text-right`}>SOL in</th><th className={`${TH} text-right`}>% supply</th><th className={`${TH} text-right`}>Tip paid</th><th className={TH}>Via</th><th className={TH}>Tag</th><th className={`${TH} text-right`}>Holds now</th>
@@ -323,7 +327,7 @@ function EarlyBuyers({ d, net }: { d: TokenOpenBook; net?: string | null }) {
               })}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3.5 py-2.5 text-[12px] text-ink-2">
           <span>
             {sn && num(sn.pctSupplyTaken) != null ? <>Snipers took <b className="num font-medium text-burn">{fmtPct(num(sn.pctSupplyTaken)!)}</b> of supply{range.length === 2 && <> in slots +{range[0]} to +{range[1]}</>}{num(sn.heldNowPct) != null && <>, <b className="num font-medium text-ink">{fmtPct(num(sn.heldNowPct)!)}</b> still held</>}</> : "No sniper buys"}
@@ -331,7 +335,6 @@ function EarlyBuyers({ d, net }: { d: TokenOpenBook; net?: string | null }) {
           {num(eb?.total) != null && <span className="text-ink-3">Showing {fmtNum(num(eb?.shown) ?? rows.length)} of {fmtNum(num(eb?.total)!)}</span>}
         </div>
       </Panel>
-      {str(rules.sniper) && <p className="mt-2 text-[11px] text-ink-3">Sniper means {rules.sniper}. Early means {str(rules.early) ?? "any other buy in the window"}.</p>}
     </section>
   );
 }
@@ -378,7 +381,8 @@ function Holders({ d, net }: { d: TokenOpenBook; net?: string | null }) {
   const cell = (k: string, v: ReactNode) => <div className="min-w-0 rounded-[10px] border border-border bg-control px-3 py-2.5"><div className="text-[11px] text-ink-3">{k}</div><div className="num mt-0.5 text-[16px] text-ink">{v}</div></div>;
   return (
     <section aria-labelledby="ob-g" className="min-w-0">
-      <SecHead letter="G" id="ob-g" title="Holder concentration" sub={num(h?.asOf) != null ? `As of ${fmtDateTimeUS(num(h?.asOf)!)}` : undefined} right={<Prov p={h?.provenance} />} />
+      <SecHead letter="G" id="ob-g" title="Holder concentration" sub={num(h?.asOf) != null ? `As of ${fmtDateTimeUS(num(h?.asOf)!)}` : undefined} right={<Prov p={h?.provenance} />}
+        info={str(h?.rule) ? "Holders are wallets with a positive net indexed balance. The creator counts net of active locks." : undefined} infoLabel="How holders are counted" />
       <Panel className="p-4">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {cell("Holders", num(h?.count) != null ? fmtNum(num(h?.count)!) : <Nil />)}
@@ -395,7 +399,6 @@ function Holders({ d, net }: { d: TokenOpenBook; net?: string | null }) {
               <span className="text-right"><Pct v={p} /></span>
             </li>); })}
         </ol>
-        {str(h?.rule) && <p className="mt-2 text-[11px] text-ink-3">Holders are wallets with a positive net indexed balance. The creator counts net of active locks.</p>}
       </Panel>
     </section>
   );
@@ -440,7 +443,7 @@ export function OpenBookTab({ mint, onLockTab }: { mint: string; ticker?: string
   return (
     <div data-testid="openbook-tab" className="flex flex-col gap-7">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-[640px] font-serif text-[15.5px] italic leading-snug text-ink-2">An open ledger of every lamport this token has moved. Who paid what, to whom, and where the platform’s share goes, with every figure linked to its source.</p>
+        <p className="flex max-w-[640px] items-center gap-2 font-serif text-[15.5px] italic leading-snug text-ink-2">An open ledger of every lamport this token has moved.<InfoTip label="About Open Book" className="font-sans not-italic">Who paid what, to whom, and where the platform’s share goes, with every figure linked to its source.</InfoTip></p>
         <IndexChip meta={data.meta} />
       </div>
       {data.meta?.indexState === "pending" && <Panel className="p-3 text-[12.5px] text-ink-2">This token is still being indexed. Figures fill in as transactions are read, and empty fields mean not indexed yet, not zero.</Panel>}
@@ -453,7 +456,6 @@ export function OpenBookTab({ mint, onLockTab }: { mint: string; ticker?: string
       <div className="grid grid-cols-1 gap-7 2xl:grid-cols-[1.7fr_1fr] 2xl:gap-3"><EarlyBuyers d={data} net={net} /><Tips d={data} net={net} /></div>
       <Holders d={data} net={net} />
       <Ledger mint={mint} summary={data.ledger} meta={data.meta} />
-      <p className="border-t border-border pt-4 text-center text-[11.5px] text-ink-3">Every figure links to its on-chain source on Solscan. Fees marked <span className="text-gold-text">exact</span> are read from transaction meta, <span className="text-burn">derived</span> ones are computed from pool config.</p>
     </div>
   );
 }

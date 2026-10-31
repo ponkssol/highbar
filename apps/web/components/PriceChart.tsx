@@ -1,4 +1,5 @@
 "use client";
+import { SolAmt } from "./Sol";
 import { useEffect, useRef, useState } from "react";
 import { fmtPricePlain } from "@/lib/format";
 import { CHART_LOCALIZATION } from "@/lib/date";
@@ -142,8 +143,8 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div data-testid="chart-readout" className="num flex min-w-0 items-baseline gap-2.5">
           {shown != null ? (<>
-            <span title={hover != null ? "Candle close" : "Last candle close"} className="text-lg font-semibold leading-none tracking-tight text-ink md:text-xl">{fmtP(shown)}</span>
-            <span className="text-xs text-ink-3">SOL{hover == null && <span className="sr-only"> last candle close</span>}</span>
+            <span title={hover != null ? "Candle close" : "Last candle close"} className="text-lg font-semibold leading-none tracking-tight text-ink md:text-xl"><SolAmt>{fmtP(shown)}</SolAmt></span>
+            {hover == null && <span className="sr-only">last candle close</span>}
             {hover == null && readout?.change != null && (
               <span title={`Change over the visible ${tf} range`}><DeltaPill v={readout.change} /></span>
             )}

@@ -12,8 +12,10 @@ import { DevLockedBadge } from "./DevLockedBadge";
 import { buildClaimLockTx, buildLockTx, toUi, TOKEN_DECIMALS, type LocksResp } from "@/lib/lock";
 import { NETWORK } from "@/lib/settings";
 import { shortAddr } from "@/lib/format";
+import { buttonClass, inputClass } from "./ui";
+import { SolAmt } from "./Sol";
 
-const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
+const input = inputClass();
 const fmtDate = (s: number) => fmtDateTimeUS(s * 1000);
 const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const fmtLeft = (s: number) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m ${Math.max(0, s % 60)}s`; };
@@ -176,13 +178,13 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
       {isCreator && (claimable > 0 || locks.length > 0) && (
         <button onClick={claim} disabled={busy || !(claimable > 0)} data-testid="claim-unlocked"
           title={claimable > 0 ? undefined : "Nothing unlocked yet"}
-          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
+          className={`mt-3 w-full ${buttonClass("primary")}`}>
           <Unlock size={14} />{claimable > 0 ? `Claim unlocked (${fmtTok(claimable)} $${ticker})`
             : nextCliff ? `Claim unlocked (unlocks in ${fmtLeft(nextCliff - nowS)})` : "Claim unlocked (nothing to claim yet)"}
         </button>
       )}
       {isCreator && (bal ?? 0) > 0 && !open && (
-        <button onClick={() => setOpen(true)} className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded border border-border text-sm font-medium hover:bg-muted">
+        <button onClick={() => setOpen(true)} className={`mt-3 w-full ${buttonClass("secondary")}`}>
           <Lock size={14} />Lock dev tokens
         </button>
       )}
@@ -228,11 +230,11 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
             <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-gold-text underline-offset-4 hover:underline">Terms and Conditions</a></span>
           </label>
           <div className="flex gap-2">
-            <button type="button" onClick={() => (mode === "form" ? onDone?.() : setOpen(false))} className="h-10 flex-1 rounded border border-border text-sm hover:bg-muted">Cancel</button>
-            <button type="button" onClick={lock} disabled={busy || !!err} title={err || undefined} data-testid="lock-submit" className="h-10 flex-1 rounded bg-ink text-sm font-medium text-on-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Locking…" : "Lock tokens"}</button>
+            <button type="button" onClick={() => (mode === "form" ? onDone?.() : setOpen(false))} className={`flex-1 ${buttonClass("secondary")}`}>Cancel</button>
+            <button type="button" onClick={lock} disabled={busy || !!err} title={err || undefined} data-testid="lock-submit" className={`flex-1 ${buttonClass("primary")}`}>{busy ? "Locking…" : "Lock tokens"}</button>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-ink-3" data-testid="lock-tip">Protocol tip: {data?.tipSol ?? 0.005} SOL</p>
+            <p className="flex items-center gap-1 text-xs text-ink-3" data-testid="lock-tip">Protocol tip: <SolAmt>{data?.tipSol ?? 0.005}</SolAmt></p>
             <a href="https://lock.jup.ag" target="_blank" rel="noopener noreferrer" data-testid="jup-lock-badge"
               className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] text-ink-3 transition-colors hover:border-ink-3 hover:text-ink">
               <img src="/brand/jupiter.svg" alt="" width={14} height={14} className="h-3.5 w-3.5" />Secured by Jupiter Lock
@@ -247,7 +249,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
   );
 }
 /** "Dev Lock" button for the token creator only (same check as DevLock); opens the lock form in a modal / mobile sheet. */
-export function DevLockButton({ className = "", devLocked, unlockAt, ...p }: LockProps & { className?: string; devLocked?: boolean; unlockAt?: number | null }) {
+export function DevLockButton({ className = "", devLocked, unlockAt, badge = true, compact = false, ...p }: LockProps & { className?: string; devLocked?: boolean; unlockAt?: number | null; /** passive badge for non-creators (off where the header already shows it) */ badge?: boolean; /** icon-only button for the mobile action bar */ compact?: boolean }) {
   const isCreator = useIsCreator(p.creator);
   const [open, setOpen] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
@@ -264,6 +266,7 @@ export function DevLockButton({ className = "", devLocked, unlockAt, ...p }: Loc
   // Losing creator status (disconnect / account switch) closes the modal; it is never rendered for anyone else.
   useEffect(() => { if (!isCreator) setOpen(false); }, [isCreator]);
   if (!isCreator) {
+    if (!badge) return null;
     // Everyone else: a passive badge, and only when the token really has a dev lock.
     const fromLocks = p.data && p.data.lockedTokens > 0 ? Math.max(...p.data.locks.filter((l) => Number(l.locked) > 0).map((l) => l.cliffTime)) : NaN;
     const at = Number.isFinite(fromLocks) ? fromLocks : devLocked && unlockAt ? unlockAt : null;
@@ -277,8 +280,9 @@ export function DevLockButton({ className = "", devLocked, unlockAt, ...p }: Loc
   return (
     <>
       <button ref={opener} type="button" onClick={() => setOpen(true)} data-testid="dev-lock-button" aria-haspopup="dialog"
-        className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded border border-border bg-surface text-sm font-medium hover:bg-muted ${className}`}>
-        <Lock size={15} strokeWidth={1.75} />Dev Lock
+        aria-label={compact ? "Dev Lock" : undefined}
+        className={`inline-flex h-10 items-center justify-center gap-2 rounded border border-border bg-surface text-sm font-medium transition-colors hover:bg-muted ${compact ? "w-10 shrink-0" : "w-full"} ${className}`}>
+        <Lock size={15} strokeWidth={1.75} />{!compact && "Dev Lock"}
       </button>
       {/* Portal to <body>: inside the page the modal sat in the sticky trade column's stacking context, below the chart canvases (z-index 1 and 2). */}
       {open && typeof document !== "undefined" && createPortal(
