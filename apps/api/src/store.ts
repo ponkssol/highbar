@@ -1,6 +1,7 @@
 ﻿import { indexableConfigSet, network } from "@hb/onchain";
 import { db, tx, type Q } from "./db/pool.js";
 import { MAX_TS_IN_SECOND_SQL, MINT_TRADES_ORDER, tradesOrder } from "./indexer/tradeOrder.js";
+import { hiddenMints } from "./services/hiddenTokens.js";
 
 /** Postgres-backed store (tables in db/migrations). Shapes match the former JSON store / API responses. */
 export interface Token {
@@ -29,7 +30,8 @@ const actOut = (r: Record<string, unknown>): Activity => Object.fromEntries(Obje
 const SORT: Record<string, string> = { createdAt: "created_at", mcapSol: "mcap_sol", mcapUsd: "mcap_sol", priceSol: "price_sol", progress: "progress", volumeSol: "volume_sol",
   volume24hSol: "volume_24h_sol", trades: "trades", quoteReserveSol: "quote_reserve_sol", feesSol: "fees_sol", name: "name", symbol: "symbol", updatedAt: "updated_at" };
 
-export interface TokenQuery { tier?: string; status?: string; q?: string; sort?: string; order?: string; limit: number; offset: number }
+export interface TokenQuery { tier?: string; status?: string; q?: string; sort?: string; order?: string; limit: number; offset: number;
+  /** mints left out of the list (default: hidden test tokens, services/hiddenTokens.ts) */ hidden?: readonly string[] }
 
 /** Insert guard: a token row may only belong to a config in the active cluster's allowlist (mainnet: configs.mainnet.json). */
 export function tokenConfigAllowed(config: string, allow: Set<string> = indexableConfigSet()): boolean {
@@ -38,8 +40,10 @@ export function tokenConfigAllowed(config: string, allow: Set<string> = indexabl
 
 export const store = {
   // ---- tokens ----
-  async listTokens(f: TokenQuery): Promise<{ total: number; items: Token[] }> {
+  async listTokens(f: TokenQuery, q: Q = db): Promise<{ total: number; items: Token[] }> {
     const where: string[] = [], args: unknown[] = [];
+    const hidden = f.hidden ?? hiddenMints();
+    if (hidden.length) { args.push([...hidden]); where.push(`NOT (mint = ANY($${args.length}::text[]))`); }
     if (f.tier) { args.push(f.tier); where.push(`tier = $${args.length}`); }
     if (f.status === "graduated") where.push("is_migrated");
     if (f.status === "bonding") where.push("NOT is_migrated");
@@ -47,8 +51,8 @@ export const store = {
     const w = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const col = SORT[f.sort ?? "createdAt"] ?? "created_at", dir = f.order === "asc" ? "ASC" : "DESC";
     args.push(f.limit, f.offset);
-    const r = await db.query(`SELECT ${TOKEN_COLS}, count(*) OVER() AS total FROM tokens ${w} ORDER BY ${col} ${dir}, mint ${dir} LIMIT $${args.length - 1} OFFSET $${args.length}`, args);
-    const total = r.rows.length ? Number(r.rows[0].total) : f.offset > 0 ? Number((await db.query(`SELECT count(*)::int n FROM tokens ${w}`, args.slice(0, -2))).rows[0].n) : 0;
+    const r = await q.query(`SELECT ${TOKEN_COLS}, count(*) OVER() AS total FROM tokens ${w} ORDER BY ${col} ${dir}, mint ${dir} LIMIT $${args.length - 1} OFFSET $${args.length}`, args);
+    const total = r.rows.length ? Number(r.rows[0].total) : f.offset > 0 ? Number((await q.query(`SELECT count(*)::int n FROM tokens ${w}`, args.slice(0, -2))).rows[0].n) : 0;
     return { total, items: r.rows.map(({ total: _t, ...t }) => t as Token) };
   },
   async getToken(mintOrPool: string): Promise<Token | null> {
@@ -119,9 +123,10 @@ export const store = {
     await q.query("INSERT INTO activity (id,kind,type,mint,symbol,ts,amount,side,wallet,sig) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING",
       [a.id, kind, a.type, a.mint, a.symbol ?? "", Math.round(a.ts), a.amount ?? null, a.side ?? null, a.wallet ?? null, a.sig ?? null]);
   },
-  async listActivity(since: number, limit: number): Promise<Activity[]> {
-    return (await db.query(`SELECT a.id, a.type, a.mint, CASE WHEN a.symbol <> '' THEN a.symbol ELSE coalesce(k.symbol,'') END AS symbol, a.ts, a.amount, a.side, a.wallet, a.sig
-      FROM activity a LEFT JOIN tokens k ON k.mint = a.mint WHERE a.ts > $1 ORDER BY a.ts DESC, a.id DESC LIMIT $2`, [since, limit])).rows.map(actOut);
+  /** Public feed: hidden test tokens are left out (their rows stay in the table). */
+  async listActivity(since: number, limit: number, q: Q = db, hidden: readonly string[] = hiddenMints()): Promise<Activity[]> {
+    return (await q.query(`SELECT a.id, a.type, a.mint, CASE WHEN a.symbol <> '' THEN a.symbol ELSE coalesce(k.symbol,'') END AS symbol, a.ts, a.amount, a.side, a.wallet, a.sig
+      FROM activity a LEFT JOIN tokens k ON k.mint = a.mint WHERE a.ts > $1 AND NOT (coalesce(a.mint, '') = ANY($3::text[])) ORDER BY a.ts DESC, a.id DESC LIMIT $2`, [since, limit, [...hidden]])).rows.map(actOut);
   },
   async burns(): Promise<Activity[]> { return (await db.query("SELECT id, type, mint, symbol, ts, amount, side, wallet, sig FROM activity WHERE kind = 'burn' ORDER BY ts DESC")).rows.map(actOut); },
   /** Keep the newest `keep` feed rows (burn runs are kept forever). */

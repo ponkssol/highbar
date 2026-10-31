@@ -3,6 +3,7 @@ import { ANTI_SNIPER_SCHEDULE, CURVE_FEE_BPS, SPLIT_BPS, TIERS, periodSeconds, s
 import type { Q } from "../db/pool.js";
 import { claimedOnOrAfter, notMock, periodOnOrAfter, type GoPublic } from "../jobs/goPublic.js";
 import { escapeLike, MINT_PREFIX_MIN, type SearchQuery } from "../services/search.js";
+import { hiddenMints } from "../services/hiddenTokens.js";
 import { openbookTables } from "./write.js";
 import { cashbackOn, creatorPct, minOutHeadroomPct, OPENBOOK_SNIPER_SLOTS, platformFlow, splitSwapFee, TOTAL_SUPPLY_TOKENS, type FeeSplit } from "./math.js";
 
@@ -17,6 +18,8 @@ export interface Meta { network: Network; indexState: "pending" | "backfilling" 
   generatedAt: number; maxAgeMs: number; costsAvailable: boolean }
 export interface ReadCtx {
   network: Network; goPublic: GoPublic | null; barMint: string | null; now?: number;
+  /** mints left out of the per-token table (default: hidden test tokens, services/hiddenTokens.ts); platform totals keep them */
+  hiddenMints?: readonly string[];
   /** fee receiver (TREASURY_PUBKEY, else the platform key), the DBC partner fee claimer (configs feeClaimer), the referral wallet */
   wallets: { feeReceiver: string | null; feeClaimer: string | null; referral: string | null; platform: string | null };
 }
@@ -629,6 +632,9 @@ export async function platformTokens(q: Q, ctx: ReadCtx, p: TokensParams) {
   const w: string[] = [], ps: unknown[] = [];
   const push = (v: unknown) => { ps.push(v); return `$${ps.length}`; };
   let rankExpr = "0", whereParams = 0;
+  // hidden test tokens: left out of this table (and its total), still counted in the platform totals (real volume and fee claims)
+  const hidden = ctx.hiddenMints ?? hiddenMints();
+  if (hidden.length) { w.push(`NOT (t.mint = ANY(${push([...hidden])}::text[]))`); whereParams = ps.length; }
   if (p.q) {
     // services/search.ts searchTokens: symbol / name ILIKE (wildcards escaped), mint exact or case-sensitive prefix (>= MINT_PREFIX_MIN chars)
     const like = `${push(escapeLike(p.q.lower))}::text`, prefix = `${push(p.q.base58 && p.q.q.length >= MINT_PREFIX_MIN ? `${escapeLike(p.q.q)}%` : null)}::text`, exact = `${push(p.q.q)}::text`;

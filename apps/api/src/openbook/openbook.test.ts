@@ -360,7 +360,9 @@ test("before 0012 is applied: endpoints degrade (pending, nulls), indexer path f
     assert.equal(r.meta.costsAvailable, false);
     assert.equal(r.summary.tips, null);
     assert.equal((await tokenLedger(q, MINT, ctx(), P()))!.rows.length, 0);
-    const t = await platformTokens(q, ctx(), { q: null, status: "all", sort: "volume", order: "desc", limit: 5, cursor: null });
+    // the fixture mint is one of the hidden test tokens (left out of the per-token table by default), so list it explicitly here
+    assert.equal((await platformTokens(q, ctx(), { q: null, status: "all", sort: "volume", order: "desc", limit: 5, cursor: null })).rows.length, 0);
+    const t = await platformTokens(q, ctx({ hiddenMints: [] }), { q: null, status: "all", sort: "volume", order: "desc", limit: 5, cursor: null });
     assert.equal(t.rows.length, 1);
     assert.equal(t.rows[0]!.tipsSol, null);
     const p = await platformOpenBook(q, ctx(), "7d");

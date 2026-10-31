@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 import { apiBase, apiHeaders, type ApiStats, type ApiToken, type ApiTrade } from "./api";
 import type { LockView } from "./lockData";
 import type { ObTokensPage, ObWindow, PlatformOpenBook } from "./openbook";
+import { visibleOnly } from "./hiddenTokens";
 
 export const REVALIDATE_S = 60;
 
@@ -31,7 +32,7 @@ export const getLock = orNull(cached("lock", (id: string) => getJson<LockView>(`
 export const getOpenBook = orNull(cached("openbook", (w: ObWindow) => getJson<PlatformOpenBook>(`/openbook?window=${w}`)));
 export const getOpenBookTokens = orNull(cached("openbook-tokens", (q: string) => getJson<ObTokensPage>(`/openbook/tokens?limit=25${q ? `&q=${encodeURIComponent(q)}` : ""}`)));
 
-/** Every token (paged through /tokens), newest first. Null when the API is down. */
+/** Every listed token (paged through /tokens), newest first, hidden test tokens left out. Null when the API is down. */
 export const getAllTokens = orNull(cached("tokens-all", async () => {
   const out: ApiToken[] = [];
   for (let page = 0; page < 100; page++) {
@@ -39,9 +40,9 @@ export const getAllTokens = orNull(cached("tokens-all", async () => {
     out.push(...r.items);
     if (r.items.length < 200 || out.length >= r.total) break;
   }
-  return out;
+  return visibleOnly(out);
 }));
-/** Every lock (paged through /locks). */
+/** Every listed lock (paged through /locks), locks of hidden test tokens left out. */
 export const getAllLocks = orNull(cached("locks-all", async () => {
   const out: LockView[] = [];
   for (let page = 1; page <= 100; page++) {
@@ -49,5 +50,5 @@ export const getAllLocks = orNull(cached("locks-all", async () => {
     out.push(...r.items);
     if (r.items.length < 100 || out.length >= r.total) break;
   }
-  return out;
+  return visibleOnly(out);
 }));

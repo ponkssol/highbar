@@ -10,6 +10,7 @@ import { absUrl, breadcrumbJsonLd, pageMeta } from "@/lib/seo";
 import { tokenDescription, tokenName, tokenSummary, tokenTicker, tokenTitle } from "@/lib/tokenSeo";
 import { fetchPending, visitorIp } from "@/lib/pendingToken";
 import { TokenPending } from "./TokenPending";
+import { isHiddenToken } from "@/lib/hiddenTokens";
 
 // API reads are cached for REVALIDATE_S (lib/seoData); the root layout renders per request (runtime env), so this is ISR at the data layer.
 export const revalidate = 60;
@@ -49,6 +50,7 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
   return pageMeta({
     absoluteTitle: tokenTitle(t), description: tokenDescription(t, d.holders), path: `/token/${t.mint}`, images: false,
     keywords: [`${tokenName(t)} token`, `$${tokenTicker(t)}`, `${tokenTicker(t)} Solana`, t.mint],
+    noindex: isHiddenToken(t), // hidden test token: the page works by direct link but stays out of search engines
   });
 }
 

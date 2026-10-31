@@ -7,6 +7,8 @@ import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { deriveDbcPoolAddress, SwapMode } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { buildClaimTx, buildLockTx, configPubkey, fetchEscrow, fetchEscrows, fetchLocks, lockTip, getClient, getConnection, JUP_LOCK_PROGRAM_ID, quote, usableReferralAta, type LockInfo } from "@hb/onchain";
 import { store, type Token } from "./store.js";
+import { hiddenSet, isHiddenMint } from "./services/hiddenTokens.js";
+import { withoutHidden } from "@hb/shared";
 import { detectOfficialLaunch, indexOnce, startIndexer } from "./indexer/poller.js";
 import { splitEpoch } from "./services/split.js";
 import { registerPages } from "./routes/pages.js";
@@ -106,7 +108,8 @@ app.get("/tokens/:mint", async (req, reply) => {
   if (!t) return reply.code(404).send({ error: "not found" });
   // A slow metadata host must not hold up the token page: wait at most 2.5 s (the fetch keeps going and fills the cache).
   const links = await Promise.race([resolveLinks(t.uri).catch((): TokenLinks => ({})), new Promise<TokenLinks>((r) => setTimeout(() => r({}), 2500))]);
-  return { ...(await views([t]))[0], links };
+  // hidden test tokens stay reachable by direct link (left out of every list); hidden lets the web page set noindex
+  return { ...(await views([t]))[0], links, ...(isHiddenMint(t.mint) ? { hidden: true } : {}) };
 });
 
 app.get("/tokens/:mint/trades", async (req) => {
@@ -315,7 +318,7 @@ app.get("/locks", async (req, reply) => {
   const q = req.query as { page?: string; limit?: string };
   const limit = Math.min(100, Math.max(1, Number(q.limit) || 15)), page = Math.max(1, Number(q.page) || 1);
   try {
-    const all = await allLocks();
+    const all = withoutHidden(await allLocks(), hiddenSet()); // locks of hidden test tokens: not listed (GET /locks/:id still works)
     return { total: all.length, page, limit, tipSol: lockTip().tipSol, items: all.slice((page - 1) * limit, page * limit) };
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });

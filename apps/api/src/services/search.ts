@@ -7,6 +7,7 @@ export const SEARCH_MIN_LEN = 2, SEARCH_MAX_LEN = 64;
 /** Mint prefix matching starts at this many base58 chars (shorter prefixes match too many random mints). */
 export const MINT_PREFIX_MIN = 4;
 const BASE58_RUN = /^[1-9A-HJ-NP-Za-km-z]+$/;
+import { hiddenMints } from "./hiddenTokens.js";
 
 /** Escape LIKE wildcards (and the escape char itself) in user input; used with LIKE ... ESCAPE '\'. */
 export const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
@@ -38,8 +39,8 @@ export function matchRank(t: { mint: string; name: string; symbol: string }, s: 
 }
 
 export interface TokenHit { mint: string; uri: string; name: string; symbol: string; tier: string; mcapSol: number; progress: number; isMigrated: boolean; createdAt: number }
-/** Tokens by symbol / name (case-insensitive, wildcards escaped) and mint (exact or prefix, case-sensitive). Same rows as GET /tokens (no extra filter). */
-export async function searchTokens(sql: Sql, s: SearchQuery, limit: number): Promise<TokenHit[]> {
+/** Tokens by symbol / name (case-insensitive, wildcards escaped) and mint (exact or prefix, case-sensitive). Same rows as GET /tokens (hidden test tokens left out). */
+export async function searchTokens(sql: Sql, s: SearchQuery, limit: number, hidden: readonly string[] = hiddenMints()): Promise<TokenHit[]> {
   const like = escapeLike(s.lower), mintPrefix = s.base58 && s.q.length >= MINT_PREFIX_MIN ? `${escapeLike(s.q)}%` : null;
   const r = await sql.query(
     `SELECT mint, uri, name, symbol, tier, mcap_sol AS "mcapSol", progress, is_migrated AS "isMigrated", created_at AS "createdAt",
@@ -48,10 +49,11 @@ export async function searchTokens(sql: Sql, s: SearchQuery, limit: number): Pro
             WHEN lower(name) LIKE $2 || '%' ESCAPE '\\' OR ($3::text IS NOT NULL AND mint LIKE $3 ESCAPE '\\') THEN 2
             ELSE 3 END AS rank
      FROM tokens
-     WHERE lower(symbol) LIKE '%' || $2 || '%' ESCAPE '\\' OR lower(name) LIKE '%' || $2 || '%' ESCAPE '\\'
-        OR mint = $4 OR ($3::text IS NOT NULL AND mint LIKE $3 ESCAPE '\\')
+     WHERE (lower(symbol) LIKE '%' || $2 || '%' ESCAPE '\\' OR lower(name) LIKE '%' || $2 || '%' ESCAPE '\\'
+        OR mint = $4 OR ($3::text IS NOT NULL AND mint LIKE $3 ESCAPE '\\'))
+       AND NOT (mint = ANY($6::text[]))
      ORDER BY rank, mcap_sol DESC, created_at DESC, mint LIMIT $5`,
-    [s.lower, like, mintPrefix, s.q, limit]);
+    [s.lower, like, mintPrefix, s.q, limit, [...hidden]]);
   return r.rows.map(({ rank: _r, ...t }) => ({ ...t, mcapSol: Number(t.mcapSol), progress: Number(t.progress), createdAt: Number(t.createdAt) }));
 }
 
@@ -86,15 +88,16 @@ export async function searchWallets(sql: Sql, s: SearchQuery, limit: number): Pr
 }
 
 export interface HotRow { mint: string; uri: string; name: string; symbol: string; mcapSol: number; priceSol: number; vol24: number; lastTs: number | null }
-/** Hot coins: most SOL traded in the last 24h (from trades, not the per-token cache), then the most recently traded, then the newest. */
-export async function hotTokens(sql: Sql, limit: number, now = Date.now()): Promise<HotRow[]> {
+/** Hot coins: most SOL traded in the last 24h (from trades, not the per-token cache), then the most recently traded, then the newest. Hidden test tokens left out. */
+export async function hotTokens(sql: Sql, limit: number, now = Date.now(), hidden: readonly string[] = hiddenMints()): Promise<HotRow[]> {
   const r = await sql.query(
     `WITH v AS (SELECT mint, sum(sol) AS vol, max(ts) AS last FROM trades WHERE ts >= $1 GROUP BY mint),
           recent AS (SELECT mint, max(ts) AS last FROM (SELECT mint, ts FROM trades ORDER BY ts DESC LIMIT 5000) x GROUP BY mint)
      SELECT k.mint, k.uri, k.name, k.symbol, k.mcap_sol AS "mcapSol", k.price_sol AS "priceSol",
             coalesce(v.vol, 0)::float8 AS vol24, coalesce(v.last, recent.last) AS "lastTs"
      FROM tokens k LEFT JOIN v ON v.mint = k.mint LEFT JOIN recent ON recent.mint = k.mint
-     ORDER BY coalesce(v.vol, 0) DESC, coalesce(v.last, recent.last) DESC NULLS LAST, k.created_at DESC, k.mint LIMIT $2`, [now - DAY_MS, limit]);
+     WHERE NOT (k.mint = ANY($3::text[]))
+     ORDER BY coalesce(v.vol, 0) DESC, coalesce(v.last, recent.last) DESC NULLS LAST, k.created_at DESC, k.mint LIMIT $2`, [now - DAY_MS, limit, [...hidden]]);
   return r.rows.map((x) => ({ ...x, mcapSol: Number(x.mcapSol), priceSol: Number(x.priceSol), vol24: Number(x.vol24), lastTs: x.lastTs == null ? null : Number(x.lastTs) }));
 }
 

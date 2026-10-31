@@ -1,11 +1,12 @@
 import type { FastifyInstance } from "fastify";
-import { networkOf, solscanTx, REFERRAL_PARAM } from "@hb/shared";
+import { networkOf, solscanTx, REFERRAL_PARAM, withoutHidden } from "@hb/shared";
 import { referralWallet } from "@hb/onchain";
 import { verifyToken } from "../auth.js";
 import { ADDR, bindReferral, referralStore } from "../services/referral.js";
 import { dayOf, milestoneStore, progressFor, snapshots, tracked } from "../services/milestone.js";
 import { rewards2 } from "../jobs/rewardsConfig.js";
 import { jobs } from "../jobs/config.js";
+import { hiddenSet } from "../services/hiddenTokens.js";
 
 const network = () => networkOf(process.env.NETWORK);
 const bearer = (h?: string) => (h?.startsWith("Bearer ") ? h.slice(7) : undefined);
@@ -42,7 +43,7 @@ export function registerReferralMilestone(app: FastifyInstance) {
     const creator = q.creator && ADDR.test(q.creator) ? q.creator : undefined;
     const limit = Math.max(1, Math.min(200, Number(q.limit ?? 50) || 50));
     const net = network(), now = Date.now();
-    const all = (await tracked({ creator })).slice(0, limit);
+    const all = withoutHidden(await tracked({ creator }), hiddenSet()).slice(0, limit); // hidden test tokens: not listed (bonus records kept)
     const [snaps, bonuses] = await Promise.all([snapshots(all.map((t) => t.mint)), milestoneStore.bonuses({ creator, limit: 200 })]);
     return {
       network: net, dryRun: jobs.dryRun, milestones: rewards2.milestones, minSamplesPerDay: rewards2.milestoneMinSamples, today: dayOf(now),

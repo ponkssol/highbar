@@ -224,3 +224,4 @@ export const MAX_TIER_MIN_BAR = BAR_TIERS.find((t) => t.maxTierAccess)?.minBar ?
 export * from "./referralMilestone.js";
 export * from "./leaderboard.js";
 export * from "./antiSniper.js";
+export * from "./hiddenTokens.js";

@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { store } from "../store.js";
 import { officialMint } from "../services/officialToken.js";
 import { scoresStore } from "../services/scoresStore.js";
+import { hiddenSet } from "../services/hiddenTokens.js";
+import { withoutHidden } from "@hb/shared";
 import { survival, windowRange, SURVIVAL_MIN_RATIO } from "../services/leaderboard.js";
 
 const SOL_USD = Number(process.env.SOL_USD ?? 150);
@@ -16,7 +18,8 @@ export function registerPages(app: FastifyInstance) {
     const limit = Math.min(200, Math.max(1, Number(q.limit ?? 50) || 50));
     const { from, to } = windowRange(q);
     const inWin = (ts: number | null | undefined) => ts != null && ts >= from && ts < to;
-    const tokens = await store.tokens();
+    // hidden test tokens are left out of the token / score / migration / survivor / creator boards (traders: real wallet volume, kept)
+    const tokens = withoutHidden(await store.tokens(), hiddenSet());
     const scores = await scoresStore.scores();
     const sc = (mint: string) => scores.get(mint)?.score ?? null;
     const devLocks = await store.devLocks(tokens.map((t) => t.mint));
