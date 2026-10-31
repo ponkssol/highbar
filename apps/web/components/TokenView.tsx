@@ -166,10 +166,9 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
       <>
         <Stacked className="-mx-3.5 border-y border-border sm:hidden" label="Trades">
           {t.trades.map((tr) => (
-            <StackedItem key={tr.sig} title={<><SideChip side={tr.side} />{tr.devBuy && <DevChip />}</>}
+            <StackedItem key={tr.sig} title={<><SideChip side={tr.side} />{tr.devBuy && <DevChip />}<span className="num truncate font-normal text-ink-2">{tr.tokens.toLocaleString("en-US")} ${t.ticker}</span></>}
               value={<SolAmt>{tr.sol}</SolAmt>}
-              rows={[[`$${t.ticker}`, tr.tokens.toLocaleString("en-US")], ["Wallet", shortAddr(tr.wallet)],
-                ["Time", <a key="t" href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label={`${fmtAge(tr.ts, t.now)} ago, view transaction on Solscan`} className="inline-flex items-center gap-1 hover:text-ink">{fmtAge(tr.ts, t.now)} ago<ExternalLink size={12} aria-hidden /></a>]]} />
+              meta={[shortAddr(tr.wallet), <a key="t" href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label={`${fmtAge(tr.ts, t.now)} ago, view transaction on Solscan`} className="inline-flex items-center gap-1 hover:text-ink">{fmtAge(tr.ts, t.now)} ago<ExternalLink size={12} aria-hidden /></a>]} />
           ))}
         </Stacked>
         <TableScroll className="hidden sm:block" label="Trades">

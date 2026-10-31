@@ -89,7 +89,7 @@ export default function CashbackPage() {
                     <StackedItem key={r.sig}
                       title={<><Link href={`/token/${r.mint}`} className="hover:underline">{r.symbol ? `$${r.symbol}` : shortAddr(r.mint)}</Link><Side side={r.side} /></>}
                       value={<CashCell r={r} since={!!since} ok={rowEligible(r, accrual)} />}
-                      rows={[["Volume", <SolAmt key="v">{tiny(r.sol)}</SolAmt>], ["Time", `${fmtAge(r.ts)} ago`]]} />
+                      meta={[<span key="v" className="inline-flex items-center gap-1">Volume <SolAmt>{tiny(r.sol)}</SolAmt></span>, `${fmtAge(r.ts)} ago`]} />
                   ))}
                 </Stacked>
                 <TableScroll className="hidden sm:block" label="Trades">

@@ -148,7 +148,7 @@ export default function PortfolioPage() {
                 <StackedItem key={t.sig}
                   title={<><span className={`capitalize ${t.side === "buy" ? "text-buy" : "text-sell"}`}>{t.side}</span><Link href={`/token/${t.mint}`} className="num font-normal hover:underline">${t.symbol || shortAddr(t.mint)}</Link></>}
                   value={<SolAmt>{t.sol.toFixed(4)}</SolAmt>}
-                  rows={[["Tokens", t.tokens.toLocaleString("en-US", { maximumFractionDigits: 0 })], ["Time", <a key="t" href={explorerTx(t.sig.split(":")[0])} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-ink">{fmtAge(t.ts)} ago<ExternalLink size={12} /></a>]]} />
+                  meta={[`${t.tokens.toLocaleString("en-US", { maximumFractionDigits: 0 })} tokens`, <a key="t" href={explorerTx(t.sig.split(":")[0])} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-ink">{fmtAge(t.ts)} ago<ExternalLink size={12} /></a>]} />
               ))}
             </Stacked>
             <TableScroll className="hidden sm:block" label="Recent trades">
