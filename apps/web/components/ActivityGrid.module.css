@@ -1,0 +1,12 @@
+/* Protocol activity "arena wall": one 10 s square per seat, one minute per column. Motion is opt-out via prefers-reduced-motion. */
+.wall{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 22px);mask-image:linear-gradient(90deg,transparent 0,#000 22px)}
+.track{will-change:transform}
+.cell{border-radius:2px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(0,0,0,.035)),var(--hb-act-empty);transition:background-color .6s ease,opacity .6s ease,box-shadow .6s ease}
+.lit{box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.future{background:transparent;box-shadow:inset 0 0 0 1px var(--hb-border)}
+.now{box-shadow:0 0 0 1px var(--hb-gold-line);animation:torch 2.6s ease-in-out infinite}
+.hover{box-shadow:0 0 0 1px var(--hb-gold-line),0 0 0 3px var(--hb-gold-soft)}
+.tick{height:3px;width:1px;justify-self:center;background:var(--hb-border-strong)}
+.tickHour{height:5px;background:var(--hb-gold-line)}
+@keyframes torch{0%,100%{box-shadow:0 0 0 1px var(--hb-gold-line)}50%{box-shadow:0 0 0 1px var(--hb-gold-line),0 0 7px 1px var(--hb-gold-soft)}}
+@media (prefers-reduced-motion:reduce){.cell{transition:none}.now{animation:none}}
