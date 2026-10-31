@@ -24,8 +24,11 @@ export interface ReadCtx {
   wallets: { feeReceiver: string | null; feeClaimer: string | null; referral: string | null; platform: string | null };
 }
 export const TOKEN_MAX_AGE_MS = 30_000, PLATFORM_MAX_AGE_MS = 60_000;
-/** An indexer that has not advanced a token for this long while the token row moved on is 'lagging'. */
-const LAG_MS = 10 * 60_000;
+/** Grace before real unindexed work makes a token 'lagging': a stored trade newer than the token's Open Book cursor
+ *  (token_openbook_agg.last_ts, the newest trade ts the agg counted) that is older than this. The poller writes a trade and its agg bump
+ *  in ONE db tx, so such a trade only exists when the Open Book path skipped it (fallback insert, crash between passes). The token row's
+ *  updated_at is NOT a signal: the indexer touches it on every pass (price, progress, holders) even with no new trades. */
+export const LAG_MS = 5 * 60_000;
 
 // ---------- small helpers ----------
 const L = (v: unknown): bigint => { if (v == null) return 0n; if (typeof v === "bigint") return v; const s = String(v); return BigInt(s.includes(".") ? s.split(".")[0] : s); };
@@ -40,11 +43,28 @@ const jsonRow = (r: any) => { if (r == null) return null; if (typeof r !== "stri
 
 async function aggRow(q: Q, mint: string) { return jsonRow((await q.query("SELECT to_jsonb(a) AS j FROM token_openbook_agg a WHERE mint = $1", [mint])).rows[0]?.j); }
 
-function indexState(tables: boolean, agg: any, tok: { trades: number; updated_at: number } | null, now: number): Meta["indexState"] {
+/** SQL predicate shared by the per-token and platform states: a trade of mint <m> newer than cursor <cur> and older than the grace cutoff <cut>.
+ *  One index probe on trades (mint, ts) per token. */
+const unindexedTrade = (m: string, cur: string, cut: string) => `EXISTS (SELECT 1 FROM trades r WHERE r.mint = ${m} AND r.ts > coalesce(${cur}, -1) AND r.ts < ${cut})`;
+
+/** pending = 0012 not applied or the token has no Open Book row yet (never indexed / backfill not run); backfilling = the agg counted fewer
+ *  trades than the token row; lagging = a stored trade past the Open Book cursor has waited longer than LAG_MS; else synced. */
+export function indexState(tables: boolean, agg: any, tok: { trades: number } | null, unindexed: boolean): Meta["indexState"] {
   if (!tables || !agg) return "pending";
   if (tok && Number(agg.trades) < Number(tok.trades)) return "backfilling";
-  if (tok && Number(tok.updated_at) - Number(agg.updated_at) > LAG_MS && now - Number(agg.updated_at) > LAG_MS) return "lagging";
+  if (unindexed) return "lagging";
   return "synced";
+}
+async function tokenIndexState(q: Q, mint: string, tables: boolean, agg: any, tok: { trades: number } | null, now: number): Promise<Meta["indexState"]> {
+  if (!tables || !agg || (tok && Number(agg.trades) < Number(tok.trades))) return indexState(tables, agg, tok, false);
+  const r = (await q.query(`SELECT ${unindexedTrade("$1", "$2::bigint", "$3::bigint")} AS lag`, [mint, agg.last_ts == null ? null : String(agg.last_ts), now - LAG_MS])).rows[0];
+  return indexState(tables, agg, tok, !!r?.lag);
+}
+/** Platform state: pending before 0012, lagging when ANY indexed token has a trade past its cursor beyond the grace, else synced. */
+async function platformIndexState(q: Q, tables: boolean, now: number): Promise<Meta["indexState"]> {
+  if (!tables) return "pending";
+  const r = (await q.query(`SELECT EXISTS (SELECT 1 FROM token_openbook_agg a WHERE ${unindexedTrade("a.mint", "a.last_ts", "$1::bigint")}) AS lag`, [now - LAG_MS])).rows[0];
+  return r?.lag ? "lagging" : "synced";
 }
 
 /** DBC anti-sniper schedule as step points (timestamp schedule: one point per period). */
@@ -235,7 +255,7 @@ export async function tokenOpenBook(q: Q, mint: string, ctx: ReadCtx, o: TokenOp
   const ledger = agg ? { total: Number(a.trades) + failed, counts: { all: Number(a.trades) + failed, buys: Number(a.buys), sells: Number(a.sells),
     snipers: early ? early.sniperTradeCount : null, sniperCountCapped: early ? early.sniperTradeCount >= SNIPER_COUNT_CAP : false, failed: failed - dup, duplicate: dup }, csv: true } : null;
 
-  const meta: Meta = { network: ctx.network, indexState: indexState(tables, agg, tok, now), indexedSlot: num(a.last_slot), indexedAt: num(a.updated_at),
+  const meta: Meta = { network: ctx.network, indexState: await tokenIndexState(q, mint, tables, agg, tok, now), indexedSlot: num(a.last_slot), indexedAt: num(a.updated_at),
     generatedAt: now, maxAgeMs: TOKEN_MAX_AGE_MS, costsAvailable: !!costs };
   return {
     meta, mint, symbol: tok.symbol as string, name: tok.name as string, tier, phase: status,
@@ -434,7 +454,7 @@ export async function tokenLedger(q: Q, mint: string, ctx: ReadCtx, p: LedgerPar
   const first = items[0]?.key, last = items[items.length - 1]?.key;
   const nextCursor = back ? (last && cur ? encodeCursor(last, "after", h) : null) : more && last ? encodeCursor(last, "after", h) : null;
   const prevCursor = back ? (more && first ? encodeCursor(first, "before", h) : null) : cur && first ? encodeCursor(first, "before", h) : null;
-  const meta: Meta = { network: ctx.network, indexState: indexState(tables, agg, tok, now), indexedSlot: num(a.last_slot), indexedAt: num(a.updated_at),
+  const meta: Meta = { network: ctx.network, indexState: await tokenIndexState(q, mint, tables, agg, tok, now), indexedSlot: num(a.last_slot), indexedAt: num(a.updated_at),
     generatedAt: now, maxAgeMs: cur ? TOKEN_MAX_AGE_MS : 10_000, costsAvailable: tables && Number(a.cost_txs ?? 0) > 0 };
   return { meta, mint, symbol: tok.symbol as string, filter: { wallet: p.wallet, side: p.side, status: p.status, sniper: p.sniper, window: p.windowSec, order: p.order },
     total, totalExact, totalCap: totalExact ? null : 10_000, nextCursor, prevCursor, rows };
@@ -578,7 +598,7 @@ export async function platformOpenBook(q: Q, ctx: ReadCtx, window: Window) {
     pct: { buyback: SPLIT_BPS.buyback / 100, ops: SPLIT_BPS.ops / 100, treasury: SPLIT_BPS.treasury / 100 }, provenance: "exact" as Provenance };
   const claimMap = Object.fromEntries(claims.map((r) => [r.source, { sol: S(L(r.l)), count: Number(r.n) }]));
 
-  const meta: Meta = { network: ctx.network, indexState: !tables ? "pending" : "synced", indexedSlot: num(agg?.slot), indexedAt: num(agg?.at), generatedAt: now, maxAgeMs: PLATFORM_MAX_AGE_MS,
+  const meta: Meta = { network: ctx.network, indexState: await platformIndexState(q, tables, now), indexedSlot: num(agg?.slot), indexedAt: num(agg?.at), generatedAt: now, maxAgeMs: PLATFORM_MAX_AGE_MS,
     costsAvailable: tables && Number(agg?.ctx ?? 0) > 0 };
   return {
     meta, window, windowStartMs: startMs, windowGranularity: startDay ? "utc-day" : null, higherMint: ctx.barMint,
@@ -673,7 +693,7 @@ export async function platformTokens(q: Q, ctx: ReadCtx, p: TokensParams) {
   const total = Number((await q.query(`SELECT count(*)::int AS n FROM tokens t ${baseWhere.length ? "WHERE " + baseWhere.join(" AND ") : ""}`, baseParams)).rows[0].n);
   const more = rows.length > p.limit, page = rows.slice(0, p.limit), last = page[page.length - 1];
   const nextCursor = more && last ? Buffer.from(JSON.stringify({ v: 1, h: fh, k: keys.map((_, i) => last[`k${i}`]) })).toString("base64url") : null;
-  const meta: Meta = { network: ctx.network, indexState: tables ? "synced" : "pending", indexedSlot: null, indexedAt: null, generatedAt: now, maxAgeMs: PLATFORM_MAX_AGE_MS, costsAvailable: tables };
+  const meta: Meta = { network: ctx.network, indexState: await platformIndexState(q, tables, now), indexedSlot: null, indexedAt: null, generatedAt: now, maxAgeMs: PLATFORM_MAX_AGE_MS, costsAvailable: tables };
   return { meta, total, sort, order: sort === "relevance" ? null : p.order, nextCursor, rows: page.map((r) => {
     const tips = r.tips == null ? null : L(r.tips);
     return { mint: r.mint as string, name: r.name as string, symbol: r.symbol as string, uri: r.uri as string, tier: tierOf(r.tier),
