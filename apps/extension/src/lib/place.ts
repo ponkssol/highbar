@@ -25,6 +25,21 @@ export function placeNear(anchor: Box | null, size: Size, vp: Size, m = MARGIN):
   return clampPos({ left: side, top: mid }, size, vp, m);
 }
 
+/** CA popup: beside the timeline, so the tweet stays readable. Right of the column (X's primaryColumn, else the tweet) with a
+ *  small gap, top-aligned with the pill; left of it when the right side is too narrow; else below the pill; else over it.
+ *  Always clamped to the viewport. No anchor (hotkey): top right. */
+export function placeBeside(anchor: Box | null, col: Box | null, size: Size, vp: Size, m = MARGIN, gap = 12): Pos {
+  if (!anchor) return clampPos({ left: vp.w - size.w - 20, top: 60 }, size, vp, m);
+  const c = col ?? anchor, top = anchor.top;
+  if (c.right + gap + size.w <= vp.w - m) return clampPos({ left: c.right + gap, top }, size, vp, m);
+  if (c.left - gap - size.w >= m) return clampPos({ left: c.left - gap - size.w, top }, size, vp, m);
+  if (anchor.bottom + GAP + size.h <= vp.h - m) return clampPos({ left: anchor.left, top: anchor.bottom + GAP }, size, vp, m);
+  return clampPos({ left: anchor.left, top }, size, vp, m);
+}
+
+/** A saved spot is only reused while the whole box is still on screen (the window may have shrunk since): else the default. */
+export const onScreen = (p: Pos, size: Size, vp: Size): boolean => p.left >= 0 && p.top >= 0 && p.left + size.w <= vp.w && p.top + size.h <= vp.h;
+
 /** A saved drag position from storage, or null when it is not a usable one. */
 export function readPos(v: unknown): Pos | null {
   const o = v as Partial<Pos> | null;

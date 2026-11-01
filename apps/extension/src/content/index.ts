@@ -15,6 +15,9 @@ import { BUTTON_CSS, DRAWER_CSS } from "./styles";
 import { isShort, launchNeedSol, MULTI_MAX, toggleChecked, type MultiRow } from "../lib/multi";
 import { notice, pickNotice, walletNotice, type Notice } from "../lib/notice";
 import { playSfx, primeSfx } from "../lib/sfx";
+import { PRIORITY_DEFAULT_SOL } from "../lib/priomath";
+import { extraCosts } from "../lib/costs";
+import { toasts } from "./toast";
 
 const MARK = "data-hb-launch";
 let status: WalletStatus | null = null;
@@ -430,8 +433,15 @@ type Switcher = ReturnType<typeof walletSwitcher>;
 function renderForm(body: HTMLElement, foot: HTMLElement, s: DrawerState, _st: WalletStatus, t: TweetInfo, picker: Switcher, picked: Promise<unknown>, onWallet: (f: () => void) => void) {
   let imgErr: Notice | null = null, current: Notice | null = null;
   const cta = h("button", { class: "cta", type: "button", "data-testid": "hb-confirm" }, "Launch");
-  let feeSol = 0;
-  const need = () => launchNeedSol(s.devBuySol, feeSol);
+  // pool fee + the highbar fee (when the API allows it on this dev buy) + the priority fee from Settings
+  let feeSol = 0, hbFee: bigint | null = null, prioSol = PRIORITY_DEFAULT_SOL;
+  const need = () => launchNeedSol(s.devBuySol, feeSol + Number(hbFee ?? 0n) / 1e9 + prioSol);
+  const costs = h("div", { class: "costs", "data-testid": "hb-launch-costs", title: "Added on top of the dev buy and the pool fee. The highbar fee (0.02% of the dev buy) is shown only when it is on." });
+  const drawCosts = () => {
+    const c = extraCosts(prioSol, hbFee !== null ? { enabled: true, bps: 2 } : null, BigInt(Math.round(Math.max(0, s.devBuySol) * 1e9)));
+    costs.replaceChildren(...c.parts.flatMap((p, i) => [...(i ? [h("span", { class: "csep" }, "·")] : []), h("span", { class: i === c.parts.length - 1 ? "tot" : "" }, `${p.k} `, h("b", {}, p.v))]));
+  };
+  void ask({ type: "fee:info" }).then((f) => { prioSol = f.prioritySol; drawCosts(); validate(); }).catch(() => {});
   onWallet(() => { validate(); });
   void picked.then(() => { validate(); }, () => {});
 
@@ -533,11 +543,11 @@ function renderForm(body: HTMLElement, foot: HTMLElement, s: DrawerState, _st: W
   let qt: ReturnType<typeof setTimeout> | undefined;
   const loadQuote = () => {
     clearTimeout(qt);
-    if (!(s.devBuySol > 0)) { feeSol = 0; quote.textContent = "No dev buy, you only pay network fees and rent"; validate(); return; }
+    if (!(s.devBuySol > 0)) { feeSol = 0; hbFee = null; drawCosts(); quote.textContent = "No dev buy, you only pay network fees and rent"; validate(); return; }
     quote.textContent = "Getting a quote…";
     qt = setTimeout(() => {
       ask({ type: "quote", tier: s.tier, antiSniper: s.antiSniper, devBuySol: s.devBuySol, slippageBps: s.slippageBps })
-        .then((q) => { feeSol = q.feeSol || 0; validate(); quote.textContent = `About ${q.supplyPct.toLocaleString("en-US", { maximumFractionDigits: 2 })}% of supply, ${Math.round(q.estTokens).toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 2 })} tokens, max ${fmtSol(q.maxDevBuySol)} SOL`; quote.title = `About ${q.supplyPct.toLocaleString("en-US", { maximumFractionDigits: 2 })}% of supply, ${Math.round(q.estTokens).toLocaleString("en-US")} tokens, max ${fmtSol(q.maxDevBuySol)} SOL on this tier`; })
+        .then((q) => { feeSol = q.feeSol || 0; hbFee = q.hbFeeLamports ? BigInt(q.hbFeeLamports) : null; drawCosts(); validate(); quote.textContent = `About ${q.supplyPct.toLocaleString("en-US", { maximumFractionDigits: 2 })}% of supply, ${Math.round(q.estTokens).toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 2 })} tokens, max ${fmtSol(q.maxDevBuySol)} SOL`; quote.title = `About ${q.supplyPct.toLocaleString("en-US", { maximumFractionDigits: 2 })}% of supply, ${Math.round(q.estTokens).toLocaleString("en-US")} tokens, max ${fmtSol(q.maxDevBuySol)} SOL on this tier`; })
         .catch((e) => { quote.textContent = (e as Error).message; quote.title = (e as Error).message; });
     }, 350);
   };
@@ -549,7 +559,7 @@ function renderForm(body: HTMLElement, foot: HTMLElement, s: DrawerState, _st: W
     h("div", { class: "r2" }, tierSeg, tip("Higher and Max raise the migration target and the creator share. Max targets 250 SOL on mainnet, and the highbar API may ask for $HIGHER in the wallet for it."), h("span", { style: "flex:1" }),
       h("span", { class: "as" }, "Anti-sniper", tip("Starts the trading fee at 25% and decays it to 1% over the first minute, so bots that snipe block 0 pay for it.")), sw),
     h("div", {}, h("div", { class: "r3" }, h("div", { class: "solin" }, svg(SOL_MARK), dev), chipRow, h("span", { style: "flex:1" }), gear), pe,
-      h("div", { class: "qrow" }, quote, moreBtn), more),
+      h("div", { class: "qrow" }, quote, moreBtn), costs, more),
   );
   foot.replaceChildren(summary, cta, poweredBy());
   function validate() {
@@ -609,9 +619,11 @@ function runLaunch(body: HTMLElement, foot: HTMLElement, s: DrawerState, instant
         caLine(m.result.mint), terminalRow(m.result.mint, m.result.tokenUrl)));
       foot.replaceChildren(h("button", { class: "ghost", title: "Back to the form for a new launch", "data-testid": "hb-done-close", onclick: backToForm }, "Close"));
       playSfx("ok");
+      toasts().show("ok", `Launch success · $${s.ticker.trim()}`, m.result.solscanUrl);
       port.disconnect();
     } else if (m.type === "error") {
       playSfx("err");
+      toasts().show("err", `Launch stopped: ${m.error}`);
       body.append(h("div", { class: "result" }, h("strong", { class: "warn" }, "Launch stopped"), h("span", { class: "muted" }, m.error)));
       foot.replaceChildren(h("button", { class: "ghost", onclick: closeDrawer }, "Close"));
       port.disconnect();
@@ -652,10 +664,12 @@ function runLaunchMulti(body: HTMLElement, foot: HTMLElement, s: DrawerState, in
     else if (m.type === "multi:done") {
       draw(m.rows);
       playSfx(m.rows.some((r) => r.status === "done") ? "ok" : "err");
+      toasts().show(m.rows.some((r) => r.status === "done") ? "ok" : "err", `Launch: ${count(m.rows)}`);
       foot.replaceChildren(h("div", { class: "mtally done", "data-testid": "hb-multi-done" }, count(m.rows)), h("button", { class: "ghost", title: "Back to the form for a new launch", "data-testid": "hb-done-close", onclick: backToForm }, "Close"));
       port.disconnect();
     } else if (m.type === "error") {
       playSfx("err");
+      toasts().show("err", `Launch stopped: ${m.error}`);
       body.append(h("div", { class: "result" }, h("strong", { class: "warn" }, "Launch stopped"), h("span", { class: "muted" }, m.error)));
       foot.replaceChildren(h("button", { class: "ghost", onclick: closeDrawer }, "Close"));
       port.disconnect();

@@ -82,7 +82,8 @@ test("import: base58 key, JSON key file and seed phrase", () => {
 
 function tx(feePayer: PublicKey, signers: PublicKey[]) {
   const t = new Transaction({ feePayer, recentBlockhash: bs58.encode(new Uint8Array(32).fill(9)) });
-  for (const s of signers) t.add(SystemProgram.transfer({ fromPubkey: s, toPubkey: Keypair.generate().publicKey, lamports: 1 }));
+  // signer-only placeholder instructions (System assign: no SOL moves)
+  for (const s of signers) t.add(SystemProgram.assign({ accountPubkey: s, programId: SystemProgram.programId }));
   return t;
 }
 
@@ -98,6 +99,10 @@ test("pre-sign checks: fee payer must be the wallet, the mint must end in high a
   const highMint = vanityLike();
   checkLaunchTx(tx(w.publicKey, [w.publicKey, highMint]), w.publicKey, highMint.toBase58());
   assert.throws(() => checkLaunchTx(launch, w.publicKey, highMint.toBase58()), /not part of this launch/);
+  // SOL may only move into the wallet's own WSOL account (or the highbar fee, see fee.test.ts)
+  const leak = tx(w.publicKey, [w.publicKey, highMint]);
+  leak.add(SystemProgram.transfer({ fromPubkey: w.publicKey, toPubkey: Keypair.generate().publicKey, lamports: 1 }));
+  assert.throws(() => checkLaunchTx(leak, w.publicKey, highMint.toBase58()), /moves SOL to another account/);
 });
 function vanityLike(): PublicKey {
   const A = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";

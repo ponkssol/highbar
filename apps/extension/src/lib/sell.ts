@@ -1,9 +1,11 @@
 /** Sell from the Holding panel, run in the background worker only. The content script sends { walletId, mint, pct, slippage }
  *  and gets steps back, never a key. Order: read the balance, pick the route (Meteora DBC before migration, DAMM v2 after),
  *  build, check the built tx, sign with the owning wallet only, simulate, and send only when the simulation passed. */
-import { PublicKey, SystemProgram, type Keypair, type Transaction, type TransactionInstruction } from "@solana/web3.js";
+import { PublicKey, SystemProgram, Transaction, type Keypair, type TransactionInstruction } from "@solana/web3.js";
 import { sellRaw, slippageBps as toBps } from "./holding";
 import { TOKEN_2022, TOKEN_PROGRAM } from "./rpc";
+import { addLegacyFee, asTransfer, extFeeLamports, feeLeg, type ExtFee } from "./fee";
+import { CU_LIMIT, PRIORITY_MAX_LAMPORTS, priorityLamports, readBudget, setLegacyBudget, tightLimit } from "./priority";
 
 export const DBC_PROGRAM = "dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN";
 export const DAMM_V2_PROGRAM = "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG";
@@ -17,7 +19,7 @@ const SWAP2 = [65, 75, 63, 76, 235, 91, 91, 136], DAMM_SWAP = [248, 198, 158, 14
 
 export type SellRoute = "dbc" | "damm";
 export type SellStep = "build" | "sign" | "simulate" | "send" | "confirm";
-export interface SellReq { walletId: string; mint: string; pct: number; slippagePct: number }
+export interface SellReq { walletId: string; mint: string; pct: number; slippagePct: number; /** total priority fee in SOL (default 0.0001) */ prioritySol?: number }
 export interface SellTarget { route: SellRoute; pool: string }
 /** amountRaw is the token amount for a sell and the lamports for a buy. */
 export interface BuildArgs { owner: PublicKey; pool: string; mint: string; amountRaw: bigint; decimals: number; slippageBps: number; side?: "buy" | "sell" }
@@ -30,12 +32,14 @@ export interface SellDeps {
   target(mint: string): Promise<SellTarget>;
   buildDbc(a: BuildArgs): Promise<Transaction>;
   buildDamm(a: BuildArgs): Promise<Transaction>;
-  simulate(raw: Uint8Array): Promise<{ err: unknown; logs?: string[] | null }>;
+  simulate(raw: Uint8Array): Promise<{ err: unknown; logs?: string[] | null; unitsConsumed?: number | null }>;
   /** Send and confirm. Returns the signature. */
   send(raw: Uint8Array, onSent: (sig: string) => void): Promise<string>;
   step?(s: SellStep): void;
+  /** highbar fee config from the API (GET /config extFee), null = no fee. */
+  fee?(): Promise<ExtFee | null>;
 }
-export interface SellDone { signature: string; amountRaw: string; route: SellRoute; wallet: string }
+export interface SellDone { signature: string; amountRaw: string; route: SellRoute; wallet: string; feeLamports?: string; priorityLamports?: string; cuLimit?: number }
 
 export class SellAborted extends Error { constructor(message: string, readonly code = "SELL_ABORTED") { super(message); this.name = "SellAborted"; } }
 export function ata(owner: PublicKey, mint: PublicKey, tokenProgram = TOKEN_PROGRAM): PublicKey {
@@ -54,19 +58,50 @@ export function decodeSwap(ix: TransactionInstruction): SwapIx | null {
   return null;
 }
 
+/** The one allowed highbar fee transfer: the LAST instruction, a System transfer from the owner to the API's receiver of exactly
+ *  extFeeLamports(basis). Returns the index of that instruction, or -1 when the tx has none. Anything else throws via `no`. */
+function feeAt(tx: Transaction, owner: PublicKey, fee: { receiver: string; basis: bigint } | null | undefined, no: (m: string) => never): number {
+  const sys = SystemProgram.programId.toBase58();
+  let at = -1;
+  tx.instructions.forEach((ix, i) => {
+    if (ix.programId.toBase58() !== sys || !fee) return;
+    const t = asTransfer(sys, ix.data, ix.keys.map((k) => k.pubkey.toBase58()));
+    if (!t || t.to !== fee.receiver) return;
+    if (at >= 0) no("The transaction has more than one highbar fee transfer.");
+    if (i !== tx.instructions.length - 1) no("The highbar fee transfer is not the last instruction.");
+    if (t.from !== owner.toBase58() || ix.keys[0].isSigner !== true) no("The highbar fee is not paid by this wallet.");
+    if (t.lamports !== extFeeLamports(fee.basis) || t.lamports <= 0n) no("The highbar fee amount is wrong.");
+    at = i;
+  });
+  return at;
+}
+
+/** The tx's compute budget: known instructions only, one of each, priority at most `max` (and never above 0.1 SOL). */
+function budgetAt(tx: Transaction, max: bigint | undefined, no: (m: string) => never) {
+  try { return readBudget(tx.instructions.map((ix) => ({ program: ix.programId.toBase58(), data: ix.data, keys: ix.keys.length })), max ?? PRIORITY_MAX_LAMPORTS); }
+  catch (e) { return no(`The transaction has a bad priority fee (${(e as Error).message}).`); }
+}
+
 /** Checks a built sell before signing. Fee payer and the only signer is the owner, only known programs, no SOL transfer,
  *  exactly one swap on the expected pool and program, token in from the owner's account, SOL out to the owner's account,
  *  amount in at most what was asked (the api's decimal parsing may round down one unit), and a minimum out above zero. */
-export function checkSellTx(tx: Transaction, owner: PublicKey, x: { mint: string; pool: string; route: SellRoute; amountRaw: bigint }) {
-  const no = (m: string) => { throw new SellAborted(`${m} Nothing was signed.`, "SELL_CHECK"); };
+export function checkSellTx(tx: Transaction, owner: PublicKey, x: { mint: string; pool: string; route: SellRoute; amountRaw: bigint; feeReceiver?: string | null; maxPriority?: bigint }) {
+  const no = (m: string): never => { throw new SellAborted(`${m} Nothing was signed.`, "SELL_CHECK"); };
+  const budget = budgetAt(tx, x.maxPriority, no);
   if (!tx.feePayer || !tx.feePayer.equals(owner)) no("The fee payer is not this wallet.");
   const msg = tx.compileMessage();
   if (msg.header.numRequiredSignatures !== 1 || !msg.accountKeys[0].equals(owner)) no("The sell must be signed by this wallet only.");
   const swaps: SwapIx[] = [];
-  for (const ix of tx.instructions) {
+  // the highbar fee (0.02% of the minimum SOL out) is checked once the swap is decoded
+  const feeIdx = x.feeReceiver ? tx.instructions.length - 1 : -1;
+  for (const [i, ix] of tx.instructions.entries()) {
     const p = ix.programId.toBase58();
     if (!ALLOWED.has(p)) no("The sell calls a program it should not.");
-    if (p === SystemProgram.programId.toBase58()) { const k = ix.data.length >= 4 ? ix.data[0] | (ix.data[1] << 8) : -1; if (k === 2 || k === 11) no("The sell moves SOL out of the wallet."); }
+    if (p === SystemProgram.programId.toBase58()) {
+      const k = ix.data.length >= 4 ? ix.data[0] | (ix.data[1] << 8) : -1;
+      const fee = i === feeIdx && asTransfer(p, ix.data, ix.keys.map((m) => m.pubkey.toBase58()))?.to === x.feeReceiver;
+      if ((k === 2 && !fee) || k === 11) no("The sell moves SOL out of the wallet.");
+    }
     if (p === DBC_PROGRAM || p === DAMM_V2_PROGRAM) { const s = decodeSwap(ix); if (!s) no("The sell has an unknown pool instruction."); swaps.push(s!); }
   }
   if (swaps.length !== 1) no("The sell must have exactly one swap.");
@@ -78,7 +113,8 @@ export function checkSellTx(tx: Transaction, owner: PublicKey, x: { mint: string
   if (s.output !== ata(owner, new PublicKey(WSOL_MINT)).toBase58()) no("The sell does not pay SOL to this wallet.");
   if (s.amountIn > x.amountRaw || s.amountIn < x.amountRaw - 1n || s.amountIn <= 0n) no("The sell amount is not what you picked.");
   if (s.minOut <= 0n) no("The sell has no minimum SOL out.");
-  return s;
+  const f = feeAt(tx, owner, x.feeReceiver ? { receiver: x.feeReceiver, basis: s.minOut } : null, no);
+  return { ...s, feeLamports: f >= 0 ? extFeeLamports(s.minOut) : 0n, priorityLamports: budget.lamports, cuLimit: budget.limit };
 }
 
 /** Short reason from a failed simulation. */
@@ -91,6 +127,20 @@ export function simReason(err: unknown, logs?: string[] | null): string {
   const code = (err as { InstructionError?: [number, { Custom?: number }] })?.InstructionError?.[1]?.Custom;
   if (typeof code === "number") return `the pool refused it (error ${code})`;
   return typeof err === "string" ? err : (() => { try { return JSON.stringify(err).slice(0, 120); } catch { return "simulation error"; } })();
+}
+
+/** After a passing simulation: the same instructions with the compute unit limit cut to unitsConsumed x 1.2 and the price raised
+ *  to keep the same total priority fee (a higher price per CU lands sooner), checked again and signed. Only compute budget
+ *  values change; null keeps the simulated tx (no units reported, nothing to gain, or it would not fit). */
+function tightened(tx: Transaction, kp: Keypair, limit: number, prio: bigint, units: number | null | undefined, check: (t: Transaction) => void): { tx: Transaction; raw: Uint8Array; limit: number } | null {
+  const lim = tightLimit(units, limit);
+  if (lim >= limit) return null;
+  const t = new Transaction({ feePayer: tx.feePayer!, recentBlockhash: tx.recentBlockhash! });
+  t.add(...tx.instructions);
+  if (!setLegacyBudget(t, lim, prio)) return null;
+  check(t);
+  t.partialSign(kp);
+  return { tx: t, raw: t.serialize({ requireAllSignatures: true, verifySignatures: true }), limit: lim };
 }
 
 export async function runSell(req: SellReq, d: SellDeps): Promise<SellDone> {
@@ -108,29 +158,39 @@ export async function runSell(req: SellReq, d: SellDeps): Promise<SellDone> {
   const t = await d.target(req.mint);
   const args: BuildArgs = { owner: kp.publicKey, pool: t.pool, mint: req.mint, amountRaw, decimals: bal.decimals, slippageBps: bps };
   const tx = t.route === "damm" ? await d.buildDamm(args) : await d.buildDbc(args);
-  checkSellTx(tx, kp.publicKey, { mint: req.mint, pool: t.pool, route: t.route, amountRaw });
+  // the built tx alone first (no fee transfer allowed from the builder), then the highbar fee: 0.02% of the minimum SOL out
+  const s0 = checkSellTx(tx, kp.publicKey, { mint: req.mint, pool: t.pool, route: t.route, amountRaw });
+  // priority fee first (it replaces any builder compute budget), then the highbar fee if it still fits
+  const prio = priorityLamports(req.prioritySol ?? NaN), limit = CU_LIMIT[t.route];
+  setLegacyBudget(tx, limit, prio);
+  const ext = d.fee ? await d.fee().catch(() => null) : null;
+  addLegacyFee(tx, kp.publicKey, feeLeg(ext, s0.minOut));
+  const opts = { mint: req.mint, pool: t.pool, route: t.route, amountRaw, feeReceiver: ext?.receiver ?? null, maxPriority: prio };
+  let sx = checkSellTx(tx, kp.publicKey, opts);
   step("sign");
   tx.partialSign(kp);
-  const raw = tx.serialize({ requireAllSignatures: true, verifySignatures: true });
+  let raw: Uint8Array = tx.serialize({ requireAllSignatures: true, verifySignatures: true });
   step("simulate");
-  let sim: { err: unknown; logs?: string[] | null };
+  let sim: { err: unknown; logs?: string[] | null; unitsConsumed?: number | null };
   try { sim = await d.simulate(raw); }
   catch (e) { throw new SellAborted(`Could not run the safety simulation (${(e as Error)?.message || "RPC error"}). Nothing was sent.`, "SELL_SIM"); }
   if (sim.err) throw new SellAborted(`The sell would fail: ${simReason(sim.err, sim.logs)}. Nothing was sent.`, "SELL_SIM_FAILED");
+  const tt = sx.cuLimit === limit ? tightened(tx, kp, limit, prio, sim.unitsConsumed, (x) => { sx = checkSellTx(x, kp.publicKey, opts); }) : null;
+  if (tt) raw = tt.raw;
   step("send");
   const signature = await d.send(raw, () => step("confirm"));
-  return { signature, amountRaw: amountRaw.toString(), route: t.route, wallet: w.address };
+  return { signature, amountRaw: amountRaw.toString(), route: t.route, wallet: w.address, feeLamports: sx.feeLamports.toString(), priorityLamports: sx.priorityLamports.toString(), cuLimit: sx.cuLimit ?? undefined };
 }
 
 // ---- buy (Holding panel): SOL in, the token out, same order as a sell: build, check, sign with the owning wallet, simulate, send ----
-export interface BuyReq { walletId: string; mint: string; sol: number; slippagePct: number }
+export interface BuyReq { walletId: string; mint: string; sol: number; slippagePct: number; prioritySol?: number }
 export interface BuyDeps extends Omit<SellDeps, "balance"> {
   /** SOL balance of the owner, in SOL. */
   solBalance(owner: string): Promise<number>;
   /** Token decimals (6 for highbar tokens). */
   decimals?(mint: string): Promise<number>;
 }
-export interface BuyDone { signature: string; lamports: string; route: SellRoute; wallet: string }
+export interface BuyDone { signature: string; lamports: string; route: SellRoute; wallet: string; feeLamports?: string; priorityLamports?: string; cuLimit?: number }
 /** SOL a buy keeps back for the token account rent and fees. */
 export const BUY_RESERVE_SOL = 0.003;
 import { BUY_MAX_SOL } from "./limits";
@@ -139,21 +199,23 @@ export { BUY_MAX_SOL };
 /** Checks a built buy before signing: owner pays and signs alone, known programs only, the only SOL that moves goes into the
  *  owner's own wrapped SOL account (at most the amount), one swap on the expected pool, SOL in from the owner, the token out
  *  to the owner, the amount in is what was asked, and a minimum out above zero. */
-export function checkBuyTx(tx: Transaction, owner: PublicKey, x: { mint: string; pool: string; route: SellRoute; lamports: bigint }) {
-  const no = (m: string) => { throw new SellAborted(`${m} Nothing was signed.`, "BUY_CHECK"); };
+export function checkBuyTx(tx: Transaction, owner: PublicKey, x: { mint: string; pool: string; route: SellRoute; lamports: bigint; feeReceiver?: string | null; maxPriority?: bigint }) {
+  const no = (m: string): never => { throw new SellAborted(`${m} Nothing was signed.`, "BUY_CHECK"); };
+  const budget = budgetAt(tx, x.maxPriority, no);
   if (!tx.feePayer || !tx.feePayer.equals(owner)) no("The fee payer is not this wallet.");
   const msg = tx.compileMessage();
   if (msg.header.numRequiredSignatures !== 1 || !msg.accountKeys[0].equals(owner)) no("The buy must be signed by this wallet only.");
   const wsolAta = ata(owner, new PublicKey(WSOL_MINT));
   const swaps: SwapIx[] = [];
   let moved = 0n;
-  for (const ix of tx.instructions) {
+  const feeIdx = feeAt(tx, owner, x.feeReceiver ? { receiver: x.feeReceiver, basis: x.lamports } : null, no);
+  for (const [i, ix] of tx.instructions.entries()) {
     const p = ix.programId.toBase58();
     if (!ALLOWED.has(p)) no("The buy calls a program it should not.");
     if (p === SystemProgram.programId.toBase58()) {
       const k = ix.data.length >= 4 ? ix.data[0] | (ix.data[1] << 8) : -1;
       if (k === 11) no("The buy moves SOL out of the wallet.");
-      if (k === 2) {
+      if (k === 2 && i !== feeIdx) {
         if (ix.keys[1]?.pubkey.equals(wsolAta) !== true || ix.data.length < 12) no("The buy moves SOL to another account.");
         moved += u64(ix.data, 4);
       }
@@ -170,7 +232,7 @@ export function checkBuyTx(tx: Transaction, owner: PublicKey, x: { mint: string;
   if (s.output !== ata(owner, new PublicKey(x.mint)).toBase58()) no("The buy does not send the token to this wallet.");
   if (s.amountIn > x.lamports || s.amountIn < x.lamports - 1n || s.amountIn <= 0n) no("The buy amount is not what you picked.");
   if (s.minOut <= 0n) no("The buy has no minimum out.");
-  return s;
+  return { ...s, feeLamports: feeIdx >= 0 ? extFeeLamports(x.lamports) : 0n, priorityLamports: budget.lamports, cuLimit: budget.limit };
 }
 
 export async function runBuy(req: BuyReq, d: BuyDeps): Promise<BuyDone> {
@@ -185,22 +247,31 @@ export async function runBuy(req: BuyReq, d: BuyDeps): Promise<BuyDone> {
   const w = await d.owner(req.walletId);
   const kp = await d.keypair(req.walletId);
   if (kp.publicKey.toBase58() !== w.address) throw new SellAborted("The key does not match this wallet. Nothing was signed.");
+  const ext = d.fee ? await d.fee().catch(() => null) : null;
+  const leg = feeLeg(ext, lamports), prio = priorityLamports(req.prioritySol ?? NaN), feeSolN = (leg ? Number(leg.lamports) / 1e9 : 0) + Number(prio) / 1e9;
   const have = await d.solBalance(w.address);
-  if (!(have >= sol + BUY_RESERVE_SOL)) throw new SellAborted(`Not enough SOL in ${w.label} (has ${Math.floor(have * 1e4) / 1e4}, needs about ${Math.ceil((sol + BUY_RESERVE_SOL) * 1e4) / 1e4})`, "BUY_FUNDS");
+  if (!(have >= sol + feeSolN + BUY_RESERVE_SOL)) throw new SellAborted(`Not enough SOL in ${w.label} (has ${Math.floor(have * 1e4) / 1e4}, needs about ${Math.ceil((sol + feeSolN + BUY_RESERVE_SOL) * 1e4) / 1e4})`, "BUY_FUNDS");
   const t = await d.target(req.mint);
   const decimals = d.decimals ? await d.decimals(req.mint) : 6;
   const args: BuildArgs = { owner: kp.publicKey, pool: t.pool, mint: req.mint, amountRaw: lamports, decimals, slippageBps: bps, side: "buy" };
   const tx = t.route === "damm" ? await d.buildDamm(args) : await d.buildDbc(args);
   checkBuyTx(tx, kp.publicKey, { mint: req.mint, pool: t.pool, route: t.route, lamports });
+  const limit = CU_LIMIT[t.route];
+  setLegacyBudget(tx, limit, prio);
+  addLegacyFee(tx, kp.publicKey, leg);
+  const opts = { mint: req.mint, pool: t.pool, route: t.route, lamports, feeReceiver: ext?.receiver ?? null, maxPriority: prio };
+  let bx = checkBuyTx(tx, kp.publicKey, opts);
   step("sign");
   tx.partialSign(kp);
-  const raw = tx.serialize({ requireAllSignatures: true, verifySignatures: true });
+  let raw: Uint8Array = tx.serialize({ requireAllSignatures: true, verifySignatures: true });
   step("simulate");
-  let sim: { err: unknown; logs?: string[] | null };
+  let sim: { err: unknown; logs?: string[] | null; unitsConsumed?: number | null };
   try { sim = await d.simulate(raw); }
   catch (e) { throw new SellAborted(`Could not run the safety simulation (${(e as Error)?.message || "RPC error"}). Nothing was sent.`, "SELL_SIM"); }
   if (sim.err) throw new SellAborted(`The buy would fail: ${simReason(sim.err, sim.logs)}. Nothing was sent.`, "SELL_SIM_FAILED");
+  const tt = bx.cuLimit === limit ? tightened(tx, kp, limit, prio, sim.unitsConsumed, (x) => { bx = checkBuyTx(x, kp.publicKey, opts); }) : null;
+  if (tt) raw = tt.raw;
   step("send");
   const signature = await d.send(raw, () => step("confirm"));
-  return { signature, lamports: lamports.toString(), route: t.route, wallet: w.address };
+  return { signature, lamports: lamports.toString(), route: t.route, wallet: w.address, feeLamports: bx.feeLamports.toString(), priorityLamports: bx.priorityLamports.toString(), cuLimit: bx.cuLimit ?? undefined };
 }

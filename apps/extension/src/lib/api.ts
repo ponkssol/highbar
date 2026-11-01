@@ -13,10 +13,14 @@ async function call<T>(base: string, path: string, init?: RequestInit, timeoutMs
   return j as T;
 }
 
-export interface ApiConfig { network: "mainnet" | "devnet"; siteUrl: string }
+export interface ApiConfig { network: "mainnet" | "devnet"; siteUrl: string; /** GET /config extFee { bps, receiver, enabled } (missing on older APIs = no fee) */ extFee?: unknown }
+/** /tx/launch/quote and /tx/launch extFee: the highbar fee on the dev buy. */
+export interface ExtFeeRes { bps: number; lamports: string; sol: number; receiver: string | null; allowed: boolean }
 export interface MetadataRes { uri: string; image?: string }
-export interface LaunchRes { tx: string; size: number; mint: string; pool: string; vanity?: boolean; mintSource?: "pool" | "random" | "random-fallback"; devBuy: unknown }
-export interface QuoteRes { devBuySol: number; estTokens: number; minTokens: number; supplyPct: number; feeSol: number; feePct: number; minFeeApplied: boolean; thresholdSol: number; maxDevBuySol: number }
+export interface LaunchRes { tx: string; size: number; mint: string; pool: string; vanity?: boolean; mintSource?: "pool" | "random" | "random-fallback"; devBuy: unknown; extFee?: ExtFeeRes }
+export interface QuoteRes { devBuySol: number; estTokens: number; minTokens: number; supplyPct: number; feeSol: number; feePct: number; minFeeApplied: boolean; thresholdSol: number; maxDevBuySol: number; extFee?: ExtFeeRes;
+  /** Set by the worker, never by the API: the highbar fee the launch will add (lamports, decimal string), null = none. */
+  hbFeeLamports?: string | null }
 export interface CreatedToken { mint: string; pool: string; tier: string; name: string; symbol: string; createdAt: number; mcapSol: number; mcapUsd: number; isMigrated: boolean; progress: number; uri: string; priceSol?: number }
 export interface TokenView { mint: string; name: string; symbol: string; mcapSol: number; mcapUsd: number; priceSol: number; image?: string | null; tier: string; pool?: string; isMigrated?: boolean }
 /** GET /wallet/:a/trades (the fields the Holding panel reads). */

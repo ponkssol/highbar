@@ -1,3 +1,4 @@
+import { PRIORITY_DEFAULT_SOL, readPrioritySol } from "./priomath";
 import type { TierId } from "@hb/shared";
 
 /** Production API. A dev build can point elsewhere with the build-time define __HB_API_BASE__ (HB_API_BASE when running the build), never from the UI. */
@@ -39,10 +40,12 @@ export interface Settings {
   sound: boolean;
   /** Their volume, 0 to 1. */
   soundVol: number;
+  /** Total priority fee per transaction in SOL (buys, sells, launches): 0 to 0.1, default 0.0001. */
+  prioritySol: number;
 }
 
 export const DEFAULT_PRESETS: Presets = { tier: "standard", antiSniper: false, antiSniperChosen: false, devBuySol: 0, slippageBps: 100, description: "", useTweetText: true, referrer: "", instant: false };
-export const DEFAULT_SETTINGS: Settings = { rpcUrl: "", presets: DEFAULT_PRESETS, dedicatedAck: false, caDetect: true, sound: true, soundVol: 0.5 };
+export const DEFAULT_SETTINGS: Settings = { rpcUrl: "", presets: DEFAULT_PRESETS, dedicatedAck: false, caDetect: true, sound: true, soundVol: 0.5, prioritySol: PRIORITY_DEFAULT_SOL };
 
 const httpsUrl = (s: string) => { try { const u = new URL(s); return u.protocol === "https:" || (u.protocol === "http:" && /^(localhost|127\.0\.0\.1)$/.test(u.hostname)); } catch { return false; } };
 
@@ -56,6 +59,7 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
     dedicatedAck: !!s?.dedicatedAck,
     caDetect: s?.caDetect !== false,
     sound: s?.sound !== false,
+    prioritySol: readPrioritySol(s?.prioritySol),
     soundVol: Number.isFinite(Number(s?.soundVol)) && Number(s?.soundVol) >= 0 && Number(s?.soundVol) <= 1 ? Math.round(Number(s?.soundVol) * 100) / 100 : 0.5,
     presets: {
       tier: LAUNCH_TIERS.includes(p.tier as LaunchTier) ? (p.tier as LaunchTier) : "standard",

@@ -94,10 +94,3 @@ test("ca: popup slippage is 0.1 to 50 with one decimal, else 1", () => {
   assert.equal(cleanCaSlippage("x"), 1);
 });
 
-test("GMGN chart embed url: base58 mints only, 1S for pump.fun coins", async () => {
-  const { gmgnUrl } = await import("./ca");
-  assert.equal(gmgnUrl("CEMEy7jkeytkxq3qYjaKyQnKiUdHAMJDM1B1tv2Upump", true), "https://www.gmgn.cc/kline/sol/CEMEy7jkeytkxq3qYjaKyQnKiUdHAMJDM1B1tv2Upump?theme=dark&interval=1S");
-  assert.equal(gmgnUrl("JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", false), "https://www.gmgn.cc/kline/sol/JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN?theme=dark&interval=1");
-  assert.equal(gmgnUrl("../evil", true), null);
-  assert.equal(gmgnUrl("javascript:alert(1)", false), null);
-});

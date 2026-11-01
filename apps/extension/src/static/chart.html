@@ -4,22 +4,23 @@
 <meta charset="utf-8">
 <title>highbar chart</title>
 <style>
-html,body{margin:0;height:100%;overflow:hidden;background:#0F0E0B;color:#958C79;font:500 10px/1 Inter,system-ui,sans-serif}
+html,body{margin:0;height:100%;overflow:hidden;background:#0F0E0B;color:#958C79;font:500 11px/1 Inter,system-ui,sans-serif}
 body{display:flex;flex-direction:column}
-#bar{display:flex;align-items:center;gap:6px;height:22px;padding:0 6px;border-bottom:1px solid rgba(255,236,200,.06);flex:none}
+#bar{display:flex;align-items:center;gap:4px;height:22px;padding:0 4px;border-bottom:1px solid rgba(255,236,200,.05);flex:none}
 #bar[hidden]{display:none}
-#tf{display:flex;gap:2px}
-#tf button{all:unset;cursor:pointer;padding:3px 6px;border-radius:5px;color:#958C79;font:600 10px/1 Inter,system-ui,sans-serif}
+#tf{display:flex;gap:1px;flex:1}
+#tf button{all:unset;cursor:pointer;padding:3px 5px;border-radius:4px;color:#7E7664;font:600 11px/1 Inter,system-ui,sans-serif}
 #tf button:hover{color:#F3EEDF;background:rgba(255,255,255,.05)}
 #tf button.on{color:#FFC72C;background:rgba(255,199,44,.12)}
-#tf button:disabled{opacity:.35;cursor:default;background:none;color:#958C79}
+#tf button:disabled{opacity:.3;cursor:default;background:none;color:#7E7664}
+#tf button:focus-visible{outline:1px solid #FFC72C}
+#attr{color:#5E584B;text-decoration:none;font:600 9px/1 Inter,system-ui,sans-serif;padding:2px 3px;border-radius:3px}
+#attr:hover{color:#958C79}
 #c{position:relative;flex:1;min-height:0}
 #c iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 #msg{position:absolute;inset:22px 0 0;display:flex;align-items:center;justify-content:center;font-size:11px;pointer-events:none}
 #msg[hidden]{display:none}
-body.gm #msg{inset:0}
-#tv-attr-logo{transform:scale(.72);transform-origin:left bottom;opacity:.7}
 </style>
 </head>
-<body><div id="bar" hidden><div id="tf" role="group" aria-label="Candle width"></div></div><div id="c"></div><div id="msg">Loading chart…</div><script src="chart.js"></script></body>
+<body><div id="bar"><div id="tf" role="group" aria-label="Candle width"></div><a id="attr" href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer" title="Charts by TradingView Lightweight Charts™ (Apache-2.0)">TV</a></div><div id="c"></div><div id="msg">Loading chart…</div><script src="chart.js"></script></body>
 </html>

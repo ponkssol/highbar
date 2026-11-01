@@ -3,6 +3,7 @@ import { playSfx, primeSfx } from "../lib/sfx";
 import { createRoot } from "react-dom/client";
 import { send, type DiagResult, type HistoryItem, type RpcStatus, type WalletRow, type WalletStatus } from "../lib/messages";
 import { cleanRpcUrl, type Presets, type Settings } from "../lib/settings";
+import { PRIORITY_PRESETS_SOL, priorityError } from "../lib/priomath";
 import { fmtDate, fmtDateTime, fmtNum, fmtSol, fmtUsd, short, solscan } from "../lib/format";
 import type { ClaimRow } from "../lib/api";
 import { useAsync, useStatus } from "./hooks";
@@ -196,6 +197,37 @@ function WalletItem({ w, last, open, onToggle, onSelect, onChanged }: { w: Walle
 }
 
 let volT: ReturnType<typeof setTimeout> | null = null;
+
+/** Settings > Transactions: the priority fee for every buy, sell and launch (the same value as the token popup's gear). */
+function PriorityCard({ sol, onSave }: { sol: number; onSave: (v: number) => Promise<void> }) {
+  const preset = (PRIORITY_PRESETS_SOL as readonly number[]).includes(sol);
+  const [txt, setTxt] = useState(preset ? "" : String(sol));
+  const [err, setErr] = useState<string | null>(null);
+  const commit = () => { if (!txt.trim()) return; const e = priorityError(txt); setErr(e); if (!e) void onSave(Number(txt.replace(",", "."))); };
+  return (
+    <Card>
+      <Eyebrow>Transactions</Eyebrow>
+      <div className="rounded-[10px] border border-border bg-control px-3 py-2.5" data-testid="hb-priority">
+        <span className="text-[13px] text-ink-2">Priority fee <InfoTip text="Paid to Solana validators so buys, sells and launches land faster. The total per transaction in SOL: highbar sets the compute unit limit from a simulation and the price to match. Max 0.1 SOL." /></span>
+        <div className="mt-2 flex items-center gap-1.5">
+          {PRIORITY_PRESETS_SOL.map((v) => (
+            <button key={v} type="button" data-testid="hb-priority-chip" aria-pressed={sol === v}
+              className={`h-7 flex-1 rounded-[8px] border text-[12px] tabular-nums ${sol === v ? "border-[#FFC72C] bg-[rgba(255,199,44,.12)] text-[#FFC72C]" : "border-border text-ink-2 hover:bg-control-hover"}`}
+              onClick={() => { setTxt(""); setErr(null); void onSave(v); }}>{v}</button>
+          ))}
+          <label className="relative w-[104px] flex-none">
+            <input value={txt} inputMode="decimal" placeholder="custom" aria-label="Custom priority fee in SOL" data-testid="hb-priority-custom"
+              className={`${INPUT} h-7 pl-2.5 pr-9 text-[12px] tabular-nums`}
+              onChange={(e) => setTxt(e.currentTarget.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-ink-3">SOL</span>
+          </label>
+        </div>
+        {err ? <p className="mt-1.5 text-[11.5px] text-[#E06A5C]" role="alert">{err}</p>
+          : <p className="mt-1.5 text-[11.5px] text-ink-3">Now {sol} SOL per transaction{preset ? "" : " (custom)"}. Shown with the highbar fee before you sign.</p>}
+      </div>
+    </Card>
+  );
+}
 function SettingsTab({ st }: { st: WalletStatus }) {
   const { s, save } = useSettings(st);
   if (!s) return null;
@@ -224,6 +256,7 @@ function SettingsTab({ st }: { st: WalletStatus }) {
           )}
         </div>
       </Card>
+      <PriorityCard sol={s.prioritySol} onSave={(prioritySol) => save({ prioritySol })} />
       <ReferralCard p={s.presets} onSave={(presets) => save({ presets })} ready={st.ready} label={st.walletCount > 1 ? st.label : null} />
       <RpcCard />
       <DiagCard />

@@ -26,11 +26,12 @@ test("manifest: no lock leftovers (no popup page, no idle or alarms permission)"
   assert.deepEqual(manifest.permissions.sort(), ["sidePanel", "storage"]);
 });
 
-test("manifest: the CA chart page and lazy popup module are web accessible on x.com; frames only GMGN's chart embed and GeckoTerminal", () => {
+test("manifest: the CA chart page and lazy popup module are web accessible on x.com; frames only the GeckoTerminal fallback (no GMGN embed)", () => {
   const war = manifest.web_accessible_resources[0];
   assert.ok(war.resources.includes("chart.html") && war.resources.includes("chart.js") && war.resources.includes("ca-popup.js"));
   assert.deepEqual(war.matches, ["https://x.com/*", "https://twitter.com/*"]);
-  assert.match(manifest.content_security_policy.extension_pages, /frame-src https:\/\/www\.gmgn\.cc https:\/\/www\.geckoterminal\.com(;|$)/);
+  assert.match(manifest.content_security_policy.extension_pages, /frame-src https:\/\/www\.geckoterminal\.com(;|$)/);
+  assert.doesNotMatch(JSON.stringify(manifest), /gmgn\.cc/); // the GMGN chart embed is gone (0.3.2): highbar's own chart only
   assert.match(manifest.content_security_policy.extension_pages, /script-src 'self'/);
   readFileSync(new URL("chart.html", dir));
 });

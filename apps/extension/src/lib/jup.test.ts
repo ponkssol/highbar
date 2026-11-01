@@ -47,7 +47,11 @@ test("jup: token accounts close and get created only for the owner, priority fee
   assert.throws(() => checkJupTx(v0([ataIx(me, other), jupIx()]), me, { side: "sell" }), /creates a token account for someone else/);
   const xfer = new TransactionInstruction({ programId: new PublicKey(TOKEN_PROGRAM), keys: [{ pubkey: wsol, isSigner: false, isWritable: true }], data: Buffer.from([3, 1, 0, 0, 0, 0, 0, 0, 0]) });
   assert.throws(() => checkJupTx(v0([xfer, jupIx()]), me, { side: "sell" }), /token instruction it should not/);
-  assert.throws(() => checkJupTx(v0([...cu(1_400_000, 2_000_000), jupIx()]), me, { side: "sell" }), /priority fee is too high/);
+  // the user's priority fee is respected (0.0028 SOL passes when 0.005 was picked), above it or above 0.1 SOL is refused
+  assert.equal(checkJupTx(v0([...cu(1_400_000, 2_000_000), jupIx()]), me, { side: "sell", maxPriority: 5_000_000n }).priority, 2_800_000n);
+  assert.throws(() => checkJupTx(v0([...cu(1_400_000, 2_000_000), jupIx()]), me, { side: "sell", maxPriority: 1_000_000n }), /priority fee is too high/);
+  assert.throws(() => checkJupTx(v0([...cu(1_400_000, 80_000_000), jupIx()]), me, { side: "sell" }), /priority fee is too high \(priority fee above the 0.1 SOL max\)/);
+  assert.throws(() => checkJupTx(v0([...cu(), ...cu(), jupIx()]), me, { side: "sell" }), /bad compute budget \(two compute unit limits\)/);
 });
 
 const q = (o: Partial<JupQuote> = {}): JupQuote => ({ inputMint: WSOL_MINT, outputMint: MINT, inAmount: "10000000", outAmount: "5000", otherAmountThreshold: "4950", swapMode: "ExactIn", slippageBps: 100,
@@ -69,7 +73,9 @@ test("jup: request shapes", () => {
   assert.equal(quotePath(WSOL_MINT, MINT, 5n, 100), `/quote?inputMint=${WSOL_MINT}&outputMint=${MINT}&amount=5&slippageBps=100&swapMode=ExactIn&restrictIntermediateTokens=true`);
   const b = swapBody(q(), me.toBase58());
   assert.equal(b.userPublicKey, me.toBase58()); assert.equal(b.wrapAndUnwrapSol, true);
-  assert.equal(b.prioritizationFeeLamports.priorityLevelWithMaxLamports.maxLamports, 1_000_000);
+  assert.equal(b.prioritizationFeeLamports, 100_000); // default 0.0001 SOL, exact lamports (Jupiter fits the CU price to it)
+  assert.equal(swapBody(q(), me.toBase58(), 5_000_000n).prioritizationFeeLamports, 5_000_000);
+  assert.equal(swapBody(q(), me.toBase58(), 999_000_000n).prioritizationFeeLamports, 100_000_000);
 });
 
 function deps(o: Partial<JupDeps> & { tx?: VersionedTransaction; lamportsAfter?: number | null; simErr?: unknown } = {}) {

@@ -42,7 +42,7 @@ const nodeStubs = { name: "node-stubs", setup(b: import("esbuild").PluginBuild) 
 } };
 await build({ ...common, define: { ...common.define, "process.env.ANCHOR_BROWSER": '"true"' }, plugins: [nodeStubs], inject: ["hb-buffer-shim"], entryPoints: { background: join(root, "src/background/index.ts") }, format: "esm", outdir: dist });
 await build({ ...common, entryPoints: { content: join(root, "src/content/index.ts") }, format: "iife", outdir: dist });
-await build({ ...common, entryPoints: { chart: join(root, "src/chart/chart.ts"), "chart-native": join(root, "src/chart/native.ts") }, format: "iife", outdir: dist });
+await build({ ...common, entryPoints: { chart: join(root, "src/chart/chart.ts") }, format: "iife", outdir: dist });
 // the CA popup: an ES module the content script imports on first use (web accessible, packaged, never remote)
 await build({ ...common, entryPoints: { "ca-popup": join(root, "src/content/ca-popup.ts") }, format: "esm", outdir: dist });
 await build({ ...common, entryPoints: { sidepanel: join(root, "src/ui/sidepanel.tsx") }, format: "esm", outdir: dist, jsx: "automatic" });
@@ -71,7 +71,7 @@ if (apiOverride) mf.host_permissions.push(`${new URL(apiOverride).origin}/*`);
 writeFileSync(join(dist, "manifest.json"), JSON.stringify(mf, null, 2));
 
 // guard: no secrets or env-provided URLs in the output
-for (const f of ["background.js", "content.js", "sidepanel.js", "chart.js", "chart-native.js", "ca-popup.js"]) {
+for (const f of ["background.js", "content.js", "sidepanel.js", "chart.js", "ca-popup.js"]) {
   const s = readFileSync(join(dist, f), "utf8");
   if (/NEXT_PUBLIC|helius|api-key=|RPC_URL/i.test(s)) throw new Error(`${f} contains a forbidden string`);
 }

@@ -1,5 +1,5 @@
 /** Background service worker: holds the wallet, signs, talks to the API and the RPC. Content scripts and pages only send requests. */
-import { Connection, PublicKey, Transaction, type Keypair } from "@solana/web3.js";
+import { AddressLookupTableAccount, Connection, PublicKey, Transaction, type Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import nacl from "tweetnacl";
 import { api, type ApiConfig } from "../lib/api";
@@ -12,7 +12,8 @@ import { checkDevPresets, readDevPresets } from "../lib/devpresets";
 import { API_BASE, cleanRpcUrl, DEFAULT_SITE, LAUNCH_TIERS, normalizeSettings, rpcEndpoint, type Settings } from "../lib/settings";
 import { readPos } from "../lib/place";
 import { cleanLabel, normalizeXLink, NAME_MAX_BYTES, TICKER_MAX_BYTES } from "../lib/tweet";
-import { checkClaimTx, checkCosigned, checkLaunchTx, TxCheckFailed } from "../lib/txcheck";
+import { addLaunchFee, checkClaimTx, checkCosigned, checkLaunchTx, launchDevBuyLamports, TxCheckFailed } from "../lib/txcheck";
+import { feeInfo, launchFee, readExtFee, type ExtFee, cacheExtFee } from "../lib/fee";
 import { checkDataUrl, imageUrlToDataUrl, resolveImage, tokenThumb } from "./image";
 import * as W from "./wallet";
 import { readReferrals } from "../lib/wallets";
@@ -24,6 +25,7 @@ import { buildDammBuy, buildDammSell } from "../lib/damm";
 import { caService, gate } from "./ca";
 import { candleService } from "./candles";
 import { diagSources } from "./diag";
+import { CU_LIMIT, PRIORITY_MAX_SOL, priorityLamports, setLegacyBudget } from "../lib/priority";
 import { JUP_BASES, quotePath, runJupBuy, runJupSell, swapBody, type JupDeps, type JupQuote } from "../lib/jup";
 import { cleanCaSlippage, CA_SLIPPAGE_DEFAULT } from "../lib/caprefs";
 import { addEntry, LEDGER_KEY, readLedger } from "../lib/ledger";
@@ -54,11 +56,15 @@ async function config(s: Settings): Promise<ApiConfig | null> {
   if (c && c.base === API_BASE && Date.now() - c.at < 10 * 60_000) return c.v;
   try {
     const v = await A0().config();
-    const clean: ApiConfig = { network: v.network === "mainnet" ? "mainnet" : "devnet", siteUrl: /^https:\/\//.test(v.siteUrl) ? v.siteUrl.replace(/\/$/, "") : DEFAULT_SITE };
+    // extFee: the highbar fee receiver comes from the API only; missing / disabled / malformed = no fee
+    const clean: ApiConfig = { network: v.network === "mainnet" ? "mainnet" : "devnet", siteUrl: /^https:\/\//.test(v.siteUrl) ? v.siteUrl.replace(/\/$/, "") : DEFAULT_SITE, extFee: cacheExtFee(v.extFee) };
     await chrome.storage.local.set({ [CONFIG]: { base: API_BASE, at: Date.now(), v: clean } });
     return clean;
   } catch { return c?.base === API_BASE ? c.v : null; }
 }
+
+/** The highbar fee config (GET /config extFee, cached with the config). null = no fee, as with an API that has no extFee. */
+async function extFee(s: Settings): Promise<ExtFee | null> { return readExtFee((await config(s))?.extFee); }
 
 async function status(): Promise<WalletStatus> {
   const [all, s] = await Promise.all([W.list(), settings()]);
@@ -300,6 +306,7 @@ async function holding(walletIds: unknown, fresh: boolean): Promise<HoldingRes> 
 function sellDeps(s: Settings): SellDeps {
   const R = rpcFor(s), A = A0();
   return {
+    fee: () => extFee(s),
     owner: async (id) => {
       const w = (await W.list()).find((x) => x.id === id);
       if (!w) throw new SellAborted("That wallet is not in the extension");
@@ -331,8 +338,8 @@ function sellDeps(s: Settings): SellDeps {
     // After migration: Meteora DAMM v2 swap from @meteora-ag/cp-amm-sdk, built here with the configured RPC. No referral account.
     buildDamm: (a: BuildArgs) => (a.side === "buy" ? buildDammBuy : buildDammSell)(new Connection(rpcEndpoint(s), { commitment: "confirmed", disableRetryOnRateLimit: true }), a, async () => (await R.latestBlockhash()).blockhash),
     simulate: async (raw) => {
-      const r = await R.call<{ value: { err: unknown; logs?: string[] | null } }>("simulateTransaction", [b64(raw), { encoding: "base64", sigVerify: true, commitment: "confirmed" }]);
-      return { err: r?.value?.err ?? null, logs: r?.value?.logs ?? null };
+      const r = await R.call<{ value: { err: unknown; logs?: string[] | null; unitsConsumed?: number } }>("simulateTransaction", [b64(raw), { encoding: "base64", sigVerify: true, commitment: "confirmed" }]);
+      return { err: r?.value?.err ?? null, logs: r?.value?.logs ?? null, unitsConsumed: typeof r?.value?.unitsConsumed === "number" ? r.value.unitsConsumed : null };
     },
     send: (raw, onSent) => sendAndConfirm(R, raw, { onSent, what: "sell transaction" }),
   };
@@ -422,20 +429,20 @@ async function trade(m: SellPortIn, s: Settings, network: "mainnet" | "devnet", 
     if (network !== "mainnet") throw new SellAborted("Jupiter swaps run on mainnet only");
     const d: JupDeps = { ...jupDeps(s), step: (x) => step({ type: "step", step: x }) };
     const r = m.side === "buy"
-      ? await runJupBuy({ walletId: m.walletId, mint: m.mint, sol: Number(m.sol), slippagePct: cleanCaSlippage(m.slippagePct) }, d)
-      : await runJupSell({ walletId: m.walletId, mint: m.mint, pct: Number(m.pct), slippagePct: cleanCaSlippage(m.slippagePct) }, d);
+      ? await runJupBuy({ walletId: m.walletId, mint: m.mint, sol: Number(m.sol), slippagePct: cleanCaSlippage(m.slippagePct), prioritySol: s.prioritySol }, d)
+      : await runJupSell({ walletId: m.walletId, mint: m.mint, pct: Number(m.pct), slippagePct: cleanCaSlippage(m.slippagePct), prioritySol: s.prioritySol }, d);
     forgetWallet(r.wallet);
     return { type: "done" as const, signature: r.signature, solscanUrl: solscan("tx", r.signature, network), amountRaw: r.amountRaw, route: r.route };
   }
   if (m.side === "buy") {
     const R = rpcFor(s);
-    const r = await runBuy({ walletId: m.walletId, mint: m.mint, sol: Number(m.sol), slippagePct: cleanSlippage(m.slippagePct) },
+    const r = await runBuy({ walletId: m.walletId, mint: m.mint, sol: Number(m.sol), slippagePct: cleanSlippage(m.slippagePct), prioritySol: s.prioritySol },
       { ...sellDeps(s), solBalance: async (owner) => (await R.balance(owner)) / 1e9, step: (x) => step({ type: "step", step: x }) });
     forgetWallet(r.wallet);
     return { type: "done" as const, signature: r.signature, solscanUrl: solscan("tx", r.signature, network), amountRaw: r.lamports };
   }
   const cfg = { network };
-  const r = await runSell({ walletId: m.walletId, mint: m.mint, pct: Number(m.pct), slippagePct: cleanSlippage(m.slippagePct) }, { ...sellDeps(s), step: (x) => step({ type: "step", step: x }) });
+  const r = await runSell({ walletId: m.walletId, mint: m.mint, pct: Number(m.pct), slippagePct: cleanSlippage(m.slippagePct), prioritySol: s.prioritySol }, { ...sellDeps(s), step: (x) => step({ type: "step", step: x }) });
   forgetWallet(r.wallet);
   return { type: "done" as const, signature: r.signature, solscanUrl: solscan("tx", r.signature, cfg.network), amountRaw: r.amountRaw };
 }
@@ -466,6 +473,16 @@ function jupDeps(s: Settings): JupDeps {
   const R = rpcFor(s), base = sellDeps(s);
   return {
     owner: base.owner, keypair: base.keypair,
+    fee: () => extFee(s),
+    // The swap tx's lookup tables, read through the same RPC (getMultipleAccounts, base64), to append the highbar fee.
+    lookupTables: async (keys) => {
+      const r = await R.call<{ value: ({ data: [string, string] } | null)[] }>("getMultipleAccounts", [keys.map((k) => k.toBase58()), { encoding: "base64", commitment: "confirmed" }]);
+      return keys.map((key, i) => {
+        const a = r?.value?.[i];
+        if (!a || !Array.isArray(a.data)) throw new Error("lookup table not found");
+        return new AddressLookupTableAccount({ key, state: AddressLookupTableAccount.deserialize(unb64(a.data[0])) });
+      });
+    },
     solLamports: (owner) => R.balance(owner),
     tokenBalance: async (owner, mint) => {
       for (const prog of [TOKEN_PROGRAM, TOKEN_2022]) {
@@ -476,8 +493,8 @@ function jupDeps(s: Settings): JupDeps {
       throw new SellAborted("This wallet holds none of this token");
     },
     quote: (input, output, amount, bps) => jupFetch<JupQuote>(quotePath(input, output, amount, bps)),
-    swapTx: async (quote, owner) => {
-      const r = await jupFetch<{ swapTransaction?: string; simulationError?: unknown }>("/swap", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(swapBody(quote, owner)) });
+    swapTx: async (quote, owner, priority) => {
+      const r = await jupFetch<{ swapTransaction?: string; simulationError?: unknown }>("/swap", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(swapBody(quote, owner, priority)) });
       if (typeof r.swapTransaction !== "string") throw new SellAborted("Jupiter sent no transaction", "JUP_HTTP");
       return r.swapTransaction;
     },
@@ -546,6 +563,14 @@ async function createOne(kp: Keypair, p: Prepared, s: Settings, step: (s: Launch
     if (r.vanity === false || (r.mintSource ?? "pool") !== "pool") throw new TxCheckFailed('highbar returned a mint without the "high" suffix. Nothing was signed. Try again in a minute.');
     const tx = Transaction.from(unb64(r.tx));
     checkLaunchTx(tx, kp.publicKey, r.mint);
+    // priority fee first (replaces any compute budget from the builder; the API accepts one limit and one price anywhere),
+    // then the highbar fee on the dev buy: one transfer, last, only when the API allows it (dev buy, receiver, editable tx),
+    // the receiver matches GET /config and the amount is the local copy of the API's math. Near 1232 bytes the fee goes
+    // first, then the priority fee (no tip is ever added).
+    const devBuy = launchDevBuyLamports(tx), prio = priorityLamports(s.prioritySol);
+    setLegacyBudget(tx, devBuy ? CU_LIMIT.launch : CU_LIMIT.launchNoBuy, prio);
+    const leg = launchFee(r.extFee, await extFee(s), devBuy);
+    checkLaunchTx(tx, kp.publicKey, r.mint, addLaunchFee(tx, kp.publicKey, leg) ? leg : null, prio);
     step("sign");
     tx.partialSign(kp);
     step("cosign");
@@ -596,8 +621,10 @@ async function launchMulti(msg: LaunchPortIn, update: (rows: MultiRow[]) => void
   if (!targets.length) throw new Error("Check at least one wallet");
   const s = await settings(), A = patient(A0());
   const d = checkDraft(msg);
-  const fee = d.devBuySol > 0 ? await A.quote(d.o.tier, d.o.antiSniper, d.devBuySol, d.o.slippageBps).then((q) => q.feeSol).catch(() => 0) : 0;
-  const need = launchNeedSol(d.devBuySol, fee);
+  const ext = await extFee(s);
+  // pool fee + the highbar fee (0.02% of the dev buy) when the API enables it
+  const fee = d.devBuySol > 0 ? await A.quote(d.o.tier, d.o.antiSniper, d.devBuySol, d.o.slippageBps).then((q) => q.feeSol + (ext && q.extFee?.allowed && q.extFee.receiver === ext.receiver ? Number(q.extFee.lamports) / 1e9 : 0)).catch(() => 0) : 0;
+  const need = launchNeedSol(d.devBuySol, fee + s.prioritySol);
   const R = rpc(rpcEndpoint(s), s.rpcUrl ? CUSTOM_RPC_DOWN : SERVER_RPC_DOWN, 8000);
   let prep: Promise<Prepared> | null = null;
   const rows = await runMulti(targets.map(({ id, label, address }) => ({ id, label, address })), need, {
@@ -677,7 +704,20 @@ async function handle(req: Req, sender: chrome.runtime.MessageSender): Promise<u
       return { ...r, tokens: r.tokens.map((t) => ({ ...t, image: resolveImage(t.image, site) })) };
     }
     case "fees:claim": return claim(req.pool, req.kind, req.position);
-    case "quote": return A0().quote(req.tier, req.antiSniper, req.devBuySol, req.slippageBps);
+    case "quote": {
+      const q = await A0().quote(req.tier, req.antiSniper, req.devBuySol, req.slippageBps), ext = await extFee(s);
+      const f = q.extFee, ok = !!ext && !!f && f.allowed === true && f.bps === ext.bps && f.receiver === ext.receiver && /^[0-9]{1,20}$/.test(String(f.lamports)) && f.lamports !== "0";
+      return { ...q, hbFeeLamports: ok ? String(f!.lamports) : null };
+    }
+    case "fee:info": return { ...feeInfo(await extFee(s)), prioritySol: s.prioritySol };
+    case "priority:set": {
+      const n = Number(req.sol);
+      if (!Number.isFinite(n) || n < 0 || n > PRIORITY_MAX_SOL) throw new Error(`Pick a priority fee from 0 to ${PRIORITY_MAX_SOL} SOL`);
+      const next = normalizeSettings({ ...s, prioritySol: n });
+      await chrome.storage.local.set({ [SETTINGS]: next });
+      void broadcast();
+      return { prioritySol: next.prioritySol };
+    }
     case "drawer:pos:get": return readPos((await chrome.storage.session.get(DRAWER_POS))[DRAWER_POS]);
     case "holding": return holding(req.walletIds, req.fresh === true);
     case "holding:prefs:get": return holdPrefs();

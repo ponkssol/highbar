@@ -4,6 +4,7 @@ import type { CandleReply, ChartSource, Res as ChartRes } from "./candles";
 import type { LaunchTier, Presets, Settings } from "./settings";
 import type { LaunchDraft } from "./tweet";
 import type { ClaimRes, QuoteRes } from "./api";
+import type { FeeInfo } from "./feemath";
 import type { MultiRow } from "./multi";
 import type { HoldRow } from "./holding";
 import type { SellStep } from "./sell";
@@ -92,6 +93,9 @@ export type Req =
   | { type: "ca:stats"; mints: string[] }
   | { type: "ca:audit"; mint: string }
   | { type: "ca:position"; walletId: string; mint: string }
+  | { type: "fee:info" }
+  /** CA popup gear: the priority fee for every trade and launch (same value as Settings). */
+  | { type: "priority:set"; sol: number }
   | { type: "diag:sources" };
 
 export type Res<T extends Req["type"]> =
@@ -132,6 +136,8 @@ export type Res<T extends Req["type"]> =
   T extends "ca:stats" ? PillStats[] :
   T extends "ca:audit" ? TokenAudit :
   T extends "ca:position" ? CaPosition :
+  T extends "fee:info" ? FeeInfo & { prioritySol: number } :
+  T extends "priority:set" ? { prioritySol: number } :
   T extends "diag:sources" ? DiagResult[] :
   { ok: true };
 

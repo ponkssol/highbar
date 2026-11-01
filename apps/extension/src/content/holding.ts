@@ -11,6 +11,9 @@ import { ask, h, scrollFade, svg } from "./dom";
 import { attachLayout } from "../lib/place";
 import { menu } from "./menu";
 import { playSfx, primeSfx } from "../lib/sfx";
+import type { FeeInfo } from "../lib/feemath";
+import { PRIORITY_DEFAULT_SOL } from "../lib/priomath";
+import { costsText, extraCosts } from "../lib/costs";
 
 export const HOLD_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true" focusable="false"><rect x="2.25" y="2.75" width="11.5" height="10.5" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 10.5V8.5M8 10.5V5.5M11 10.5V7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 const REFRESH = `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.46-3.54" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M13 2.75V5.5h-2.75" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -48,6 +51,7 @@ export interface HoldingPanel {
 }
 
 export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () => WalletRow[]): HoldingPanel {
+  let feeI: (FeeInfo & { prioritySol: number }) | null = null;
   let open = false, prefs: HoldPrefs = { open: false, filter: null, slippagePct: SLIPPAGE_DEFAULT };
   let data: HoldingRes | null = null, loading = false, loadErr = "", timer: ReturnType<typeof setTimeout> | null = null, gen = 0;
   const st = new Map<string, RowState>();
@@ -187,9 +191,12 @@ export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () 
     const held = BigInt(r.raw || "0") > 0n;
     if (s.kind === "confirm") {
       const est = r.valueSol == null ? null : r.valueSol * s.amt / 100;
+      // before signing: the extra cost (priority fee + the highbar fee on the SOL in, or on the minimum SOL out, estimated)
+      const basis = s.side === "buy" ? BigInt(Math.round(s.amt * 1e9)) : est == null ? null : BigInt(Math.floor(est * (1 - prefs.slippagePct / 100) * 1e9));
+      const extra = costsText(extraCosts(feeI?.prioritySol ?? PRIORITY_DEFAULT_SOL, feeI, basis));
       const what = s.side === "buy" ? `Buy ${r.symbol} for ${fmtSol(s.amt)} SOL` : `Sell ${s.amt}% of ${r.symbol}${est != null ? ` for about ${fmtSol(est)} SOL` : ""}`;
       return h("div", { class: `hsell confirm ${s.side}`, "data-testid": "hb-sell-confirm" },
-        h("span", { class: "hmsg", title: what }, h("span", { class: "hl1" }, what), h("span", { class: "hsm" }, `Max slippage ${prefs.slippagePct}%${multi ? `, ${s.side === "buy" ? "with" : "from"} ${r.walletLabel}` : ""}`)),
+        h("span", { class: "hmsg", title: what }, h("span", { class: "hl1" }, what), h("span", { class: "hsm", title: extra, "data-testid": "hb-sell-costs" }, `Max slippage ${prefs.slippagePct}%${multi ? `, ${s.side === "buy" ? "with" : "from"} ${r.walletLabel}` : ""} · ${extra}`)),
         h("button", { class: "hb ghost", type: "button", onclick: () => setRow(r.key, { kind: "idle", custom: s.custom }) }, "Cancel"),
         h("button", { class: `hb ${s.side}`, type: "button", "data-testid": "hb-sell-go", onclick: () => runTrade(r, s.side, s.amt) }, "Confirm"));
     }
@@ -212,7 +219,7 @@ export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () 
         onclick: () => { if (x === side) return; sides.set(r.key, x); setRow(r.key, { kind: "idle", custom: "" }); } }, x === "buy" ? "Buy" : "Sell")));
     const can = side === "buy" || held;
     const parse = (v: string) => (side === "buy" ? parseBuySol(v) : parsePct(v));
-    const pick = (amt: number) => { if (can) setRow(r.key, { kind: "confirm", side, amt, custom: s.custom }); };
+    const pick = (amt: number) => { if (can) { setRow(r.key, { kind: "confirm", side, amt, custom: s.custom }); void ask({ type: "fee:info" }).then((f) => { feeI = f; draw(); }).catch(() => {}); } };
     const custom = h("input", { type: "text", inputmode: "decimal", class: "hpct", placeholder: side === "buy" ? "SOL" : "%", value: s.custom,
       "aria-label": side === "buy" ? "Custom SOL amount" : "Custom percent", disabled: !can, "data-testid": "hb-sell-custom" }) as HTMLInputElement;
     const go = h("button", { class: `hb ${can ? side : "off"}`, type: "button", disabled: true, "data-testid": "hb-sell-custom-go" }, side === "buy" ? "Buy" : "Sell") as HTMLButtonElement;
@@ -257,6 +264,7 @@ export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () 
     drawer.dispatchEvent(new Event("hb:layout")); // the drawer placement re-fits the window (shifts left to make room)
   }
   btn.addEventListener("click", () => setOpen(!open));
+  void ask({ type: "fee:info" }).then((f) => { feeI = f; }).catch(() => {});
   void ask({ type: "holding:prefs:get" }).then((p) => { prefs = p; if (p.open && drawer.isConnected) setOpen(true, false); }).catch(() => {});
 
   let lastIds = "";

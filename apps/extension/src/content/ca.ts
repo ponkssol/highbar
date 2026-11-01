@@ -97,7 +97,7 @@ export function initCa(k: CaKit) {
       const b = h("button", { type: "button", title: `Trade ${f.label} · ${f.mint}`, "aria-label": `Open the token popup for ${f.label}`, "data-testid": "hb-ca-btn", "data-mint": f.mint },
         svg(HB_MARK), f.label.startsWith("$") ? f.label : h("span", { class: "mono" }, f.label), mk, svg(ARROW));
       (b.firstChild as HTMLElement).classList.add("hbm");
-      b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openPopup(f.mint, f.label, b.getBoundingClientRect(), a.getBoundingClientRect()); });
+      b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openPopup(f.mint, f.label, b.getBoundingClientRect(), a.getBoundingClientRect(), a.closest('[data-testid="primaryColumn"]')?.getBoundingClientRect() ?? null); });
       // pointer resting on the button: load the token fully now, so the popup opens on cached data
       let hov: ReturnType<typeof setTimeout> | null = null;
       b.addEventListener("pointerenter", () => { hov = setTimeout(() => { void loadPopup().catch(() => { popMod = null; }); void ask({ type: "ca:prefetch", mints: [f.mint], full: true }).catch(() => {}); }, 120); });
@@ -194,13 +194,13 @@ export function initCa(k: CaKit) {
   let popMod: Promise<typeof import("./ca-popup")> | null = null;
   const loadPopup = () => (popMod ??= import(chrome.runtime.getURL("ca-popup.js")) as Promise<typeof import("./ca-popup")>);
 
-  function openPopup(mint: string, label: string, anchor: DOMRect | null, tweet: DOMRect | null = null) {
+  function openPopup(mint: string, label: string, anchor: DOMRect | null, tweet: DOMRect | null = null, column: DOMRect | null = null) {
     close();
     const my = openSeq;
     void loadPopup().then((m) => {
       if (my !== openSeq) return; // closed, or another button was clicked meanwhile
       k.injectFonts();
-      const r = m.mountPopup({ k, mint, label, anchor, tweet, savedPos: () => savedPos, setSavedPos: (p) => { savedPos = p; }, close });
+      const r = m.mountPopup({ k, mint, label, anchor, tweet, column, savedPos: () => savedPos, setSavedPos: (p) => { savedPos = p; }, close });
       popHost = r.host; popCleanup = r.cleanup;
     }).catch((e) => console.warn("highbar: popup failed to load", e));
   }

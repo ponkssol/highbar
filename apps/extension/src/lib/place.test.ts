@@ -43,3 +43,22 @@ test("saved positions are validated", () => {
   assert.equal(readPos({ left: "x", top: 1 }), null);
   assert.equal(readPos(null), null);
 });
+
+test("CA popup: right of the timeline column, top-aligned with the pill, clamped", async () => {
+  const { placeBeside, onScreen } = await import("./place");
+  const pill = { left: 300, top: 200, right: 520, bottom: 222 }, col = { left: 250, top: 0, right: 850, bottom: 900 };
+  const s = { w: 306, h: 600 };
+  assert.deepEqual(placeBeside(pill, col, s, { w: 1400, h: 900 }), { left: 862, top: 200 });
+  // low pill: same side, pulled up to stay on screen
+  assert.deepEqual(placeBeside({ ...pill, top: 700, bottom: 722 }, col, s, { w: 1400, h: 900 }), { left: 862, top: 900 - 600 - 12 });
+  // narrow window: no room right, room left of the column
+  assert.deepEqual(placeBeside({ ...pill, left: 700, right: 900 }, { left: 640, top: 0, right: 1240, bottom: 900 }, s, { w: 1260, h: 900 }), { left: 640 - 12 - 306, top: 200 });
+  // phone-ish: neither side, below the pill, then over it (clamped)
+  assert.deepEqual(placeBeside(pill, { left: 0, top: 0, right: 700, bottom: 900 }, s, { w: 700, h: 900 }), { left: 300, top: 230 });
+  const p = placeBeside({ ...pill, top: 500, bottom: 522 }, { left: 0, top: 0, right: 700, bottom: 900 }, s, { w: 700, h: 700 });
+  assert.ok(p.left + s.w <= 700 - 12 && p.top >= 12 && p.top + s.h <= 700 - 12);
+  // no column found: the tweet box stands in; no anchor: top right
+  assert.deepEqual(placeBeside(pill, null, s, { w: 1400, h: 900 }), { left: 532, top: 200 });
+  assert.deepEqual(placeBeside(null, null, s, { w: 1400, h: 900 }), { left: 1400 - 306 - 20, top: 60 });
+  assert.ok(onScreen({ left: 900, top: 100 }, s, { w: 1400, h: 900 }) && !onScreen({ left: 1200, top: 100 }, s, { w: 1400, h: 900 }));
+});

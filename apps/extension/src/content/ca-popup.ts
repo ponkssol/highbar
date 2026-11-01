@@ -2,7 +2,11 @@
  *  token button is opened (dynamic import of a packaged, web accessible module), so x.com pages that never open a popup do not
  *  parse this code or its CSS. Like the drawer, nothing here sees a key: the worker resolves, fetches, builds, checks, signs,
  *  simulates and sends. */
-import type { CaPrefs, LiveStats, SellPortIn, SellPortOut } from "../lib/messages";
+import type { CaPosition, CaPrefs, LiveStats, SellPortIn, SellPortOut } from "../lib/messages";
+import type { FeeInfo } from "../lib/feemath";
+import { PRIORITY_DEFAULT_SOL, PRIORITY_PRESETS_SOL, priorityError, readPrioritySol } from "../lib/priomath";
+import { extraCosts } from "../lib/costs";
+import { toasts } from "./toast";
 import { fmtChange, fmtUsdPrice, type CaInfo } from "../lib/ca";
 import { CA_SLIPPAGE_PRESETS, cleanCaSlippage } from "../lib/caprefs";
 import { DEV_PRESETS_DEFAULT } from "../lib/devpresets";
@@ -11,7 +15,7 @@ import type { SellStep } from "../lib/sell";
 import { BUY_MAX_SOL } from "../lib/limits";
 import { fmtSol } from "../lib/format";
 import { CLOSE, GEAR, HB_MARK, SOL_MARK } from "../lib/icons";
-import { clampPos, type Pos } from "../lib/place";
+import { clampPos, onScreen, placeBeside, type Pos } from "../lib/place";
 import { ask, h, scrollFade, svg } from "./dom";
 import { stopTweens, tweenText } from "./tween";
 import { auditCard } from "./audit-card";
@@ -26,11 +30,11 @@ const VERIFIED = `<svg class="vbadge" viewBox="0 0 16 16" aria-label="Verified o
 const STEP: Record<SellStep, string> = { build: "Building", sign: "Signing in the extension", simulate: "Simulating", send: "Sending", confirm: "Confirming on Solana" };
 const SELL_PCTS = [25, 50, 100] as const;
 
-export interface PopupOpts { k: CaKit; mint: string; label: string; anchor: DOMRect | null; tweet: DOMRect | null;
+export interface PopupOpts { k: CaKit; mint: string; label: string; anchor: DOMRect | null; tweet: DOMRect | null; column?: DOMRect | null;
   savedPos(): Pos | null; setSavedPos(p: Pos | null): void; close(): void }
 
 export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void } {
-    const { k, mint, label, anchor, tweet } = o;
+    const { k, mint, label, anchor, tweet, column = null } = o;
     k.injectFonts();
     const st = k.status();
     const popHost = h("div", { "data-hb-ca-pop": "" });
@@ -41,7 +45,7 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
     let buySol: number | null = null, sellPct: number | null = null, busy = false;
 
     const wslot = h("span", { class: "wslot" });
-    const gearB = h("button", { class: "gearb", type: "button", "aria-haspopup": "dialog", "aria-expanded": "false", title: "Slippage", "data-testid": "hb-ca-slip-btn" });
+    const gearB = h("button", { class: "gearb", type: "button", "aria-haspopup": "dialog", "aria-expanded": "false", title: "Slippage and priority fee", "data-testid": "hb-ca-slip-btn" });
     const header = h("header", { title: "Drag to move, double click to reset", "data-testid": "hb-ca-head" }, svg(HB_MARK), h("h2", {}, "Trade"), h("span", { style: "flex:1" }), wslot, gearB,
       h("button", { class: "x", type: "button", "aria-label": "Close", onclick: () => o.close(), html: CLOSE }));
     const body = scrollFade(h("div", { class: "body" }, h("div", { class: "loading" }, `Loading ${label}…`)));
@@ -59,9 +63,14 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
     // slippage popover: 0.5 / 1 / 5 % or a custom value, kept for the next popup
     const slipIn = h("input", { type: "text", inputmode: "decimal", "aria-label": "Custom slippage percent", "data-testid": "hb-ca-slip-custom" }) as HTMLInputElement;
     const slipChips = h("div", { class: "row" });
-    const slipPop = h("div", { class: "slip", hidden: true, role: "dialog", "aria-label": "Slippage", "data-testid": "hb-ca-slip" },
+    const prioIn = h("input", { type: "text", inputmode: "decimal", placeholder: "custom", "aria-label": "Custom priority fee in SOL", "data-testid": "hb-ca-prio-custom" }) as HTMLInputElement;
+    const prioChips = h("div", { class: "row" }), prioErr = h("div", { class: "perr", role: "alert", "data-testid": "hb-ca-prio-err" });
+    const slipPop = h("div", { class: "slip", hidden: true, role: "dialog", "aria-label": "Slippage and priority fee", "data-testid": "hb-ca-slip" },
       h("div", { class: "t" }, "Max slippage"), h("div", { class: "row" }, slipChips, h("span", { class: "cus" }, slipIn, h("span", {}, "%"))),
-      h("div", { class: "note" }, "The swap fails instead of filling worse than this. Kept for every token."));
+      h("div", { class: "note" }, "The swap fails instead of filling worse than this. Kept for every token."),
+      // priority fee: the same setting as the side panel's Settings, for every buy, sell and launch
+      h("div", { class: "t pt" }, "Priority fee"), h("div", { class: "row" }, prioChips, h("span", { class: "cus" }, prioIn, h("span", {}, "SOL"))),
+      prioErr, h("div", { class: "note" }, "Paid to validators to land the transaction faster. Total per transaction, max 0.1 SOL."));
     root.append(slipPop);
     const drawSlip = () => {
       gearB.replaceChildren(svg(GEAR), h("span", {}, `${prefs.slippagePct}%`));
@@ -69,6 +78,20 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
       if (document.activeElement !== popHost) slipIn.value = (CA_SLIPPAGE_PRESETS as readonly number[]).includes(prefs.slippagePct) ? "" : String(prefs.slippagePct);
       drawSum();
     };
+    const drawPrio = () => {
+      const v = fee?.prioritySol ?? PRIORITY_DEFAULT_SOL;
+      prioChips.replaceChildren(...PRIORITY_PRESETS_SOL.map((x) => h("button", { class: `chip${v === x ? " on" : ""}`, type: "button", "aria-pressed": String(v === x), "data-testid": "hb-ca-prio-chip", onclick: () => setPrio(x) }, String(x))));
+      if (document.activeElement !== popHost) prioIn.value = (PRIORITY_PRESETS_SOL as readonly number[]).includes(v) ? "" : String(v);
+      drawSum();
+    };
+    const setPrio = (v: number) => {
+      prioErr.textContent = "";
+      fee = { ...(fee ?? { enabled: false, bps: 2 }), prioritySol: readPrioritySol(v) }; drawPrio();
+      void ask({ type: "priority:set", sol: v }).then((r) => { if (fee) fee.prioritySol = r.prioritySol; drawPrio(); }).catch((e) => { prioErr.textContent = String((e as Error)?.message ?? e); });
+    };
+    const commitPrio = () => { const e = priorityError(prioIn.value); if (!prioIn.value.trim()) return; prioErr.textContent = e ?? ""; if (!e) setPrio(Number(prioIn.value.replace(",", "."))); };
+    prioIn.addEventListener("change", commitPrio);
+    prioIn.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") commitPrio(); });
     const setSlip = (v: number) => { prefs.slippagePct = cleanCaSlippage(v); drawSlip(); void ask({ type: "ca:prefs:set", slippagePct: prefs.slippagePct }).then((p) => { prefs = p; drawSlip(); }).catch(() => {}); };
     const commitCustom = () => { const n = Number(slipIn.value.replace(",", ".")); if (slipIn.value.trim() && Number.isFinite(n)) setSlip(n); };
     slipIn.addEventListener("change", commitCustom);
@@ -77,7 +100,7 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
       e.stopPropagation();
       if (!slipPop.hidden) { slipPop.hidden = true; gearB.setAttribute("aria-expanded", "false"); return; }
       const r = gearB.getBoundingClientRect();
-      slipPop.style.top = `${Math.round(r.bottom + 6)}px`; slipPop.style.left = `${Math.round(Math.max(8, Math.min(r.right - 236, innerWidth - 244)))}px`;
+      slipPop.style.top = `${Math.round(r.bottom + 6)}px`; slipPop.style.left = `${Math.round(Math.max(8, Math.min(r.right - 250, innerWidth - 258)))}px`;
       slipPop.hidden = false; gearB.setAttribute("aria-expanded", "true");
     });
     root.addEventListener("pointerdown", (e) => { const t = e.target as Node; if (!slipPop.contains(t) && !gearB.contains(t)) { slipPop.hidden = true; gearB.setAttribute("aria-expanded", "false"); } }, true);
@@ -87,18 +110,33 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
     const amts = h("div", { class: "amts", role: "group" });
     const custom = h("input", { type: "text", inputmode: "decimal", autocomplete: "off", spellcheck: "false", "data-testid": "hb-ca-amount" }) as HTMLInputElement;
     const sum = h("div", { class: "sumline", "data-testid": "hb-ca-sum" });
+    const costsEl = h("div", { class: "costs", "data-testid": "hb-ca-costs" });
     const cta = h("button", { class: "cta", type: "button", "data-testid": "hb-ca-go" });
-    const runs = h("div", { class: "runs", "data-testid": "hb-ca-runs" });
+    // progress shows in the button; results and errors go to the page's top center toasts (no bottom bar)
+    let stepNow = "";
     const amount = () => (prefs.tab === "buy" ? buySol : sellPct);
     const sym = () => (info?.symbol ? `$${info.symbol}` : label.startsWith("$") ? label : "token");
+    // the sell's fee basis is the quoted minimum SOL out: estimated here from the position, the price and the slippage
+    let fee: (FeeInfo & { prioritySol: number }) | null = null, held: CaPosition | null = null;
+    const sellBasis = (pct: number | null): bigint | null => {
+      if (!pct || !held || !info?.priceUsd || !held.solUsd) return null;
+      const sol = (Number(held.balanceRaw) / 10 ** held.decimals) * (pct / 100) * info.priceUsd / held.solUsd * (1 - prefs.slippagePct / 100);
+      return Number.isFinite(sol) && sol > 0 ? BigInt(Math.floor(sol * 1e9)) : null;
+    };
+    void ask({ type: "fee:info" }).then((f) => { fee = f; drawPrio(); }).catch(() => {});
     function drawSum() {
       const ws = sw?.get() ?? [], a = amount();
       const route = !info ? "" : info.highbar ? (info.migrated ? "Meteora DAMM v2" : "Meteora DBC") : "Jupiter";
       sum.replaceChildren(h("span", {}, `${ws.length > 1 ? `${ws.length} wallets` : ws[0]?.label ?? "No wallet"}`), h("span", {}, "·"), h("span", {}, `${prefs.slippagePct}% slippage`), ...(route ? [h("span", {}, "·"), h("span", {}, `via ${route}`)] : []));
+      // extra cost before signing: priority fee + the highbar fee (buy: on the SOL in; sell: on the minimum SOL out, estimated)
+      const buyL = prefs.tab === "buy" && a ? BigInt(Math.round(a * 1e9)) : null;
+      const c = extraCosts(fee?.prioritySol ?? PRIORITY_DEFAULT_SOL, fee, prefs.tab === "buy" ? buyL : sellBasis(a), prefs.tab === "buy" ? "of SOL in" : "of SOL out");
+      costsEl.replaceChildren(...c.parts.flatMap((p, i) => [...(i ? [h("span", { class: "csep" }, "·")] : []), h("span", { class: i === c.parts.length - 1 ? "tot" : "" }, `${p.k} `, h("b", {}, p.v))]));
+      costsEl.title = "Added on top of the amount. The highbar fee (0.02%) is shown only when it is on.";
       const ok = !!a && !!ws.length && !busy && !!info;
       cta.className = `cta${prefs.tab === "sell" ? " sell" : ""}`;
       cta.setAttribute("aria-disabled", String(!ok));
-      cta.textContent = busy ? "Working…" : prefs.tab === "buy" ? `Buy ${sym()}${a ? ` · ${fmtSol(a)} SOL` : ""}` : `Sell ${a ? `${a}% ` : ""}${sym()}`;
+      cta.textContent = busy ? stepNow || "Working…" : prefs.tab === "buy" ? `Buy ${sym()}${a ? ` · ${fmtSol(a)} SOL` : ""}` : `Sell ${a ? `${a}% ` : ""}${sym()}`;
     }
     function drawTrade() {
       sideSeg.replaceChildren(...(["buy", "sell"] as const).map((s) => h("button", { class: `${prefs.tab === s ? "on " : ""}${s}`, type: "button", role: "tab", "aria-selected": String(prefs.tab === s), "data-testid": `hb-ca-tab-${s}`,
@@ -125,25 +163,24 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
       primeSfx();
       busy = true; sw?.lock(); drawSum();
       const side = prefs.tab, slip = prefs.slippagePct;
-      runs.replaceChildren();
       for (const w of ws) {
-        const line = h("div", { class: "run", "data-testid": "hb-ca-run" }, h("span", { class: "w" }, w.label), h("span", { class: "s" }, "Waiting"));
-        runs.append(line);
-        const s = line.querySelector(".s") as HTMLElement;
+        const who = ws.length > 1 ? `${w.label} · ` : "";
+        stepNow = ""; drawSum();
         await new Promise<void>((res) => {
           const port = chrome.runtime.connect({ name: "sell" });
           const fin = () => { try { port.disconnect(); } catch { /* gone */ } res(); };
           port.onMessage.addListener((m: SellPortOut) => {
-            if (m.type === "step") s.textContent = `${STEP[m.step]}…`;
-            else if (m.type === "done") { line.classList.add("ok"); s.replaceChildren(`${side === "buy" ? "Buy" : "Sell"} success · `, h("a", { class: "link", href: m.solscanUrl, target: "_blank", rel: "noopener noreferrer", "data-testid": "hb-ca-viewtx" }, "View tx")); playSfx("ok"); fin(); }
-            else { line.classList.add("err"); s.textContent = m.error; playSfx("err"); fin(); }
+            if (m.type === "step") { stepNow = `${STEP[m.step]}…${ws.length > 1 ? ` · ${w.label}` : ""}`; drawSum(); }
+            else if (m.type === "done") { toasts().show("ok", `${who}${side === "buy" ? "Buy" : "Sell"} success`, m.solscanUrl); playSfx("ok"); fin(); }
+            // "holds none of this token" is not a failure, nothing was built or signed: an info toast
+            else { toasts().show(/holds none of this token/.test(m.error) ? "info" : "err", `${who}${m.error}`); playSfx("err"); fin(); }
           });
           port.onDisconnect.addListener(() => res());
           const msg: SellPortIn = side === "buy" ? { type: "sell", side: "buy", walletId: w.id, mint, pct: 0, sol: a, slippagePct: slip } : { type: "sell", side: "sell", walletId: w.id, mint, pct: a, slippagePct: slip };
           port.postMessage(msg);
         });
       }
-      busy = false; sw?.unlock?.(); drawSum(); void sw?.load(true, true);
+      busy = false; stepNow = ""; sw?.unlock?.(); drawSum(); void sw?.load(true, true);
       // the PnL card: the new balance now, and once more when the worker has written the trade to the ledger
       loadPos(); if (posT) clearTimeout(posT); posT = setTimeout(() => { posT = null; if (popHost.isConnected) loadPos(); }, 4000);
     });
@@ -175,7 +212,7 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
       const w = sw?.get()[0];
       if (!w) { pnlc.set(null); return; }
       const id = ++posReq;
-      void ask({ type: "ca:position", walletId: w.id, mint }).then((p) => { if (id === posReq) { pnlc.price(info?.priceUsd ?? null); pnlc.set(p); } }).catch(() => {});
+      void ask({ type: "ca:position", walletId: w.id, mint }).then((p) => { if (id === posReq) { held = p; pnlc.price(info?.priceUsd ?? null); pnlc.set(p); drawSum(); } }).catch(() => {});
     }
     void ask({ type: "ca:audit", mint }).then((a) => audit.set(a)).catch(() => audit.set(null));
     const head = h("div", { class: "tok" }), stats = h("div", { class: "stats" });
@@ -220,7 +257,7 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
       if (pop.getAttribute("data-live-src") !== (l.source ?? "")) pop.setAttribute("data-live-src", l.source ?? "");
     };
     const build = () => {
-      body.replaceChildren(head, pnlc.el, chartBox, stats, audit.el, sideSeg, amts, sum, runs);
+      body.replaceChildren(head, pnlc.el, chartBox, stats, audit.el, sideSeg, amts, sum, costsEl);
       foot.replaceChildren(cta, h("div", { class: "verify", "data-testid": "hb-ca-verify" }, "Always verify the contract address"));
       drawInfo(); drawTrade();
     };
@@ -267,18 +304,12 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
     const vp = () => ({ w: document.documentElement.clientWidth || innerWidth, h: innerHeight });
     let pos: Pos = { left: 0, top: 0 };
     const apply = (p: Pos) => { const r = pop.getBoundingClientRect(); pos = clampPos(p, { w: r.width, h: r.height }, vp()); pop.style.left = `${pos.left}px`; pop.style.top = `${pos.top}px`; };
-    // below the button when it fits, else beside the tweet column (right, then left) at the button's height, else clamped
-    const near = (): Pos => {
-      const r = pop.getBoundingClientRect(), v = vp(), m = 12;
-      if (!anchor) return { left: v.w - r.width - 20, top: 60 };
-      if (anchor.bottom + 8 + r.height <= v.h - m) return { left: anchor.left, top: anchor.bottom + 8 };
-      if (anchor.top - 8 - r.height >= m) return { left: anchor.left, top: anchor.top - 8 - r.height };
-      const top = Math.max(m, Math.min(anchor.top - 40, v.h - r.height - m));
-      if (tweet && tweet.right + 12 + r.width <= v.w - m) return { left: tweet.right + 12, top };
-      if (tweet && tweet.left - 12 - r.width >= m) return { left: tweet.left - 12 - r.width, top };
-      return { left: anchor.left, top: anchor.bottom + 8 };
-    };
-    apply(o.savedPos() ?? near());
+    // beside the timeline column (right, then left) at the pill's height, else below or over the pill; all from the two
+    // rects measured once at click time (no observers on X's layout)
+    const near = (): Pos => { const r = pop.getBoundingClientRect(); return placeBeside(anchor, column ?? tweet, { w: r.width, h: r.height }, vp()); };
+    // the last dragged spot while it is still fully on screen (the window may have shrunk), else the default; dblclick resets
+    const saved = o.savedPos(), r0 = pop.getBoundingClientRect();
+    apply(saved && onScreen(saved, { w: r0.width, h: r0.height }, vp()) ? saved : near());
     const ro = new ResizeObserver(() => apply(pos)); ro.observe(pop);
     const onResize = () => apply(pos); addEventListener("resize", onResize);
     let drag: { id: number; dx: number; dy: number } | null = null;

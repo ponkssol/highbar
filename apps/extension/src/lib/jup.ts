@@ -2,7 +2,9 @@
  *  lite-api.jup.ag host as a fallback). Runs in the background worker only. Jupiter only builds the transaction: it is checked
  *  here, signed by the owning wallet, simulated through the configured RPC (the highbar /rpc proxy by default) and sent through
  *  the same RPC, never through Jupiter. Order: quote, check the quote, build, check the tx, sign, simulate, send. */
-import { PublicKey, VersionedTransaction, type Keypair } from "@solana/web3.js";
+import { PublicKey, VersionedTransaction, type AddressLookupTableAccount, type Keypair } from "@solana/web3.js";
+import { addV0Fee, asTransfer, extFeeLamports, feeLeg, type ExtFee } from "./fee";
+import { PRIORITY_MAX_LAMPORTS, priorityLamports, readBudget } from "./priority";
 import { sellRaw, slippageBps as toBps } from "./holding";
 import { TOKEN_2022, TOKEN_PROGRAM } from "./rpc";
 import { ATA_PROGRAM, BUY_MAX_SOL, BUY_RESERVE_SOL, SellAborted, simReason, WSOL_MINT, ata, type SellStep } from "./sell";
@@ -13,9 +15,8 @@ const SYSTEM = "11111111111111111111111111111111";
 const COMPUTE_BUDGET = "ComputeBudget111111111111111111111111111111";
 /** Programs a Jupiter swap tx may call at the top level. The route's DEX programs run inside Jupiter's instruction. */
 const ALLOWED = new Set([JUP_PROGRAM, COMPUTE_BUDGET, SYSTEM, TOKEN_PROGRAM, TOKEN_2022, ATA_PROGRAM]);
-/** Priority fee ceiling asked from Jupiter and enforced on the built tx (lamports). */
-export const JUP_MAX_PRIORITY_LAMPORTS = 1_000_000;
-const PRIORITY_CAP_LAMPORTS = 2_000_000n;
+/** Jupiter may round the compute unit price up: the built tx may cost this much more than the picked priority fee. */
+const JUP_PRIORITY_ROUNDING = 1_000n;
 /** SOL a swap may cost beyond the amount itself in the simulation: fees, priority fee, token account rent. */
 export const JUP_SIM_SLACK_LAMPORTS = 20_000_000;
 
@@ -25,9 +26,11 @@ export interface JupQuote {
 }
 export const quotePath = (input: string, output: string, amount: bigint, bps: number) =>
   `/quote?inputMint=${input}&outputMint=${output}&amount=${amount}&slippageBps=${bps}&swapMode=ExactIn&restrictIntermediateTokens=true`;
-export const swapBody = (quote: JupQuote, owner: string) => ({
+/** The priority fee the user picked, as an exact amount: Jupiter simulates the swap for its compute unit limit
+ *  (dynamicComputeUnitLimit) and sets the price to fit that amount. */
+export const swapBody = (quote: JupQuote, owner: string, priority: bigint = priorityLamports(NaN)) => ({
   quoteResponse: quote, userPublicKey: owner, wrapAndUnwrapSol: true, dynamicComputeUnitLimit: true,
-  prioritizationFeeLamports: { priorityLevelWithMaxLamports: { maxLamports: JUP_MAX_PRIORITY_LAMPORTS, priorityLevel: "high" } },
+  prioritizationFeeLamports: Number(priority > PRIORITY_MAX_LAMPORTS ? PRIORITY_MAX_LAMPORTS : priority),
 });
 /** Route labels for the UI ("Meteora DAMM v2", "Raydium", ...). */
 export const routeLabel = (q: JupQuote) => [...new Set((q.routePlan ?? []).map((r) => r.swapInfo?.label).filter((x): x is string => !!x))].join(" > ") || "Jupiter";
@@ -52,29 +55,37 @@ const u64 = (d: Uint8Array, at: number) => { let v = 0n; for (let i = 7; i >= 0;
 /** Checks a Jupiter swap tx before signing. The owner is the fee payer and the only signer, only Jupiter, compute budget,
  *  System, SPL Token, Token-2022 and the ATA program are called, at least one Jupiter instruction, a buy moves SOL only into
  *  the owner's own wrapped SOL account (at most the amount) and a sell moves none, token accounts close only back to the
- *  owner, token accounts are created only for the owner, and the priority fee stays under the cap. Accounts behind address
+ *  owner, token accounts are created only for the owner, and the priority fee is at most the picked one (never above 0.1 SOL). Accounts behind address
  *  lookup tables can not be read here, so any check that needs one refuses when it is not a static key. */
-export function checkJupTx(tx: VersionedTransaction, owner: PublicKey, x: { side: "buy" | "sell"; lamports?: bigint }) {
-  const no = (m: string) => { throw new SellAborted(`${m} Nothing was signed.`, "JUP_CHECK"); };
+export function checkJupTx(tx: VersionedTransaction, owner: PublicKey, x: { side: "buy" | "sell"; lamports?: bigint; minOut?: bigint; feeReceiver?: string | null; maxPriority?: bigint }) {
+  const no = (m: string): never => { throw new SellAborted(`${m} Nothing was signed.`, "JUP_CHECK"); };
   const msg = tx.message;
   const keys = msg.staticAccountKeys;
   if (msg.header.numRequiredSignatures !== 1 || !keys[0]?.equals(owner)) no("The swap must be paid and signed by this wallet only.");
   const me = owner.toBase58(), wsolAta = ata(owner, new PublicKey(WSOL_MINT)).toBase58();
   const key = (i: number | undefined) => (i !== undefined && i < keys.length ? keys[i].toBase58() : null);
-  let jup = 0, moved = 0n, cuLimit: bigint | null = null, cuPrice = 0n;
-  for (const ix of msg.compiledInstructions) {
+  let jup = 0, moved = 0n, fee = 0n;
+  const ixs = msg.compiledInstructions;
+  // highbar fee basis: the SOL in for a buy, the quoted minimum SOL out for a sell
+  const basis = x.side === "buy" ? x.lamports : x.minOut;
+  for (const [n, ix] of ixs.entries()) {
     const p = key(ix.programIdIndex);
     if (!p || !ALLOWED.has(p)) no("The swap calls a program it should not.");
     const d = ix.data, a = ix.accountKeyIndexes;
     if (p === JUP_PROGRAM) { jup++; continue; }
-    if (p === COMPUTE_BUDGET) {
-      if (d[0] === 2 && d.length >= 5) cuLimit = BigInt(u32(d, 1));
-      else if (d[0] === 3 && d.length >= 9) cuPrice = u64(d, 1);
-      else if (d[0] !== 1) no("The swap has an unknown compute budget instruction.");
-      continue;
-    }
+    if (p === COMPUTE_BUDGET) continue; // read as a whole below
     if (p === SYSTEM) {
       const kind = d.length >= 4 ? u32(d, 0) : -1;
+      const t = asTransfer(p, d, [...a].map((i) => key(i)));
+      if (x.feeReceiver && t && t.to === x.feeReceiver) {
+        // the one highbar fee transfer: last, from this wallet, exactly 0.02% of the basis
+        if (fee > 0n) no("The swap has more than one highbar fee transfer.");
+        if (n !== ixs.length - 1) no("The highbar fee transfer is not the last instruction.");
+        if (t.from !== me) no("The highbar fee is not paid by this wallet.");
+        if (basis === undefined || t.lamports <= 0n || t.lamports !== extFeeLamports(basis)) no("The highbar fee amount is wrong.");
+        fee = t.lamports;
+        continue;
+      }
       if (kind !== 2 || d.length < 12) no("The swap has a System instruction it should not.");
       if (x.side !== "buy") no("The sell moves SOL out of the wallet.");
       if (key(a[0]) !== me || key(a[1]) !== wsolAta) no("The swap moves SOL to another account.");
@@ -93,9 +104,11 @@ export function checkJupTx(tx: VersionedTransaction, owner: PublicKey, x: { side
   }
   if (jup < 1) no("The swap has no Jupiter instruction.");
   if (x.side === "buy" && x.lamports !== undefined && moved > x.lamports) no("The swap wraps more SOL than you picked.");
-  const priority = cuLimit === null ? 0n : (cuPrice * cuLimit) / 1_000_000n;
-  if (priority > PRIORITY_CAP_LAMPORTS) no("The swap priority fee is too high.");
-  return { jup, moved, priority };
+  let priority = 0n, cuLimit: number | null = null;
+  const max = x.maxPriority === undefined ? PRIORITY_MAX_LAMPORTS : x.maxPriority + JUP_PRIORITY_ROUNDING;
+  try { const b = readBudget(ixs.map((ix) => ({ program: key(ix.programIdIndex), data: ix.data, keys: ix.accountKeyIndexes.length })), max > PRIORITY_MAX_LAMPORTS ? PRIORITY_MAX_LAMPORTS : max); priority = b.lamports; cuLimit = b.limit; }
+  catch (e) { no(/above/.test((e as Error).message) ? `The swap priority fee is too high (${(e as Error).message}).` : `The swap has a bad compute budget (${(e as Error).message}).`); }
+  return { jup, moved, priority, fee, cuLimit };
 }
 
 export interface JupSim { err: unknown; logs?: string[] | null; lamportsAfter?: number | null }
@@ -107,18 +120,38 @@ export interface JupDeps {
   tokenBalance(owner: string, mint: string): Promise<{ raw: bigint; decimals: number }>;
   quote(input: string, output: string, amount: bigint, bps: number): Promise<JupQuote>;
   /** Unsigned base64 v0 transaction from Jupiter's /swap. */
-  swapTx(quote: JupQuote, owner: string): Promise<string>;
+  swapTx(quote: JupQuote, owner: string, priorityLamports: bigint): Promise<string>;
   /** Simulates the signed bytes; lamportsAfter is the owner's SOL after the simulated swap when the RPC returns it. */
   simulate(raw: Uint8Array, owner: string): Promise<JupSim>;
   send(raw: Uint8Array, onSent: (sig: string) => void): Promise<string>;
   step?(s: SellStep): void;
+  /** highbar fee config from the API (GET /config extFee), null = no fee. */
+  fee?(): Promise<ExtFee | null>;
+  /** The swap tx's address lookup tables (needed to append the fee transfer to a v0 tx). */
+  lookupTables?(keys: PublicKey[]): Promise<AddressLookupTableAccount[]>;
 }
-export interface JupDone { signature: string; amountRaw: string; wallet: string; route: string }
+export interface JupDone { signature: string; amountRaw: string; wallet: string; route: string; feeLamports?: string; priorityLamports?: string; cuLimit?: number }
 
-async function signSimSend(d: JupDeps, kp: Keypair, b64tx: string, side: "buy" | "sell", lamports: bigint | undefined, before: number, step: (s: SellStep) => void) {
+/** Appends the highbar fee (a System transfer, last) to Jupiter's v0 tx. Done locally rather than with Jupiter's platformFeeBps,
+ *  which needs a fee token account owned by the receiver. Skipped (no fee) when the lookup tables can not be read or the tx
+ *  would pass 1232 bytes. */
+async function withFee(d: JupDeps, tx: VersionedTransaction, owner: PublicKey, ext: ExtFee | null, basis: bigint): Promise<VersionedTransaction> {
+  const leg = feeLeg(ext, basis);
+  if (!leg) return tx;
+  const keys = tx.message.addressTableLookups.map((l) => l.accountKey);
+  let tables: AddressLookupTableAccount[] = [];
+  if (keys.length) { if (!d.lookupTables) return tx; try { tables = await d.lookupTables(keys); } catch { return tx; } }
+  return addV0Fee(tx, owner, leg, tables) ?? tx;
+}
+
+async function signSimSend(d: JupDeps, kp: Keypair, b64tx: string, side: "buy" | "sell", lamports: bigint | undefined, before: number, step: (s: SellStep) => void, ext: ExtFee | null = null, minOut?: bigint, prio: bigint = priorityLamports(NaN)) {
   let tx: VersionedTransaction;
   try { tx = VersionedTransaction.deserialize(Uint8Array.from(atob(b64tx), (c) => c.charCodeAt(0))); } catch { throw new SellAborted("Jupiter sent a transaction that does not decode. Nothing was signed.", "JUP_CHECK"); }
-  checkJupTx(tx, kp.publicKey, { side, lamports });
+  // Jupiter's tx alone first (no transfer to the fee receiver allowed from Jupiter), then with the highbar fee appended
+  checkJupTx(tx, kp.publicKey, { side, lamports, minOut, maxPriority: prio });
+  const basis = side === "buy" ? lamports ?? 0n : minOut ?? 0n;
+  tx = await withFee(d, tx, kp.publicKey, ext, basis);
+  const { fee, priority, cuLimit } = checkJupTx(tx, kp.publicKey, { side, lamports, minOut, feeReceiver: ext?.receiver ?? null, maxPriority: prio });
   step("sign");
   tx.sign([kp]);
   const raw = tx.serialize();
@@ -129,14 +162,14 @@ async function signSimSend(d: JupDeps, kp: Keypair, b64tx: string, side: "buy" |
   if (sim.err) throw new SellAborted(`The ${side} would fail: ${simReason(sim.err, sim.logs)}. Nothing was sent.`, "SELL_SIM_FAILED");
   if (typeof sim.lamportsAfter === "number") {
     const spent = before - sim.lamportsAfter;
-    const max = (side === "buy" ? Number(lamports ?? 0n) : 0) + JUP_SIM_SLACK_LAMPORTS;
+    const max = (side === "buy" ? Number(lamports ?? 0n) : 0) + Number(fee) + Number(priority) + JUP_SIM_SLACK_LAMPORTS;
     if (spent > max) throw new SellAborted(`The ${side} would take more SOL than expected. Nothing was sent.`, "JUP_SIM_SOL");
   }
   step("send");
-  return d.send(raw, () => step("confirm"));
+  return { signature: await d.send(raw, () => step("confirm")), fee, priority, cuLimit };
 }
 
-export async function runJupBuy(req: { walletId: string; mint: string; sol: number; slippagePct: number }, d: JupDeps): Promise<JupDone> {
+export async function runJupBuy(req: { walletId: string; mint: string; sol: number; slippagePct: number; prioritySol?: number }, d: JupDeps): Promise<JupDone> {
   const step = d.step ?? (() => {});
   if (typeof req.walletId !== "string" || !req.walletId) throw new SellAborted("Pick a wallet");
   try { new PublicKey(req.mint); } catch { throw new SellAborted("That is not a token address"); }
@@ -148,15 +181,18 @@ export async function runJupBuy(req: { walletId: string; mint: string; sol: numb
   const w = await d.owner(req.walletId);
   const kp = await d.keypair(req.walletId);
   if (kp.publicKey.toBase58() !== w.address) throw new SellAborted("The key does not match this wallet. Nothing was signed.");
+  const ext = d.fee ? await d.fee().catch(() => null) : null;
+  const prio = priorityLamports(req.prioritySol ?? NaN);
+  const feeN = Number((feeLeg(ext, lamports)?.lamports ?? 0n) + prio) / 1e9;
   const have = await d.solLamports(w.address);
-  if (!(have / 1e9 >= sol + BUY_RESERVE_SOL)) throw new SellAborted(`Not enough SOL in ${w.label} (has ${Math.floor((have / 1e9) * 1e4) / 1e4}, needs about ${Math.ceil((sol + BUY_RESERVE_SOL) * 1e4) / 1e4})`, "BUY_FUNDS");
+  if (!(have / 1e9 >= sol + feeN + BUY_RESERVE_SOL)) throw new SellAborted(`Not enough SOL in ${w.label} (has ${Math.floor((have / 1e9) * 1e4) / 1e4}, needs about ${Math.ceil((sol + feeN + BUY_RESERVE_SOL) * 1e4) / 1e4})`, "BUY_FUNDS");
   const q = await d.quote(WSOL_MINT, req.mint, lamports, bps);
   checkQuote(q, { input: WSOL_MINT, output: req.mint, amount: lamports, bps });
-  const signature = await signSimSend(d, kp, await d.swapTx(q, w.address), "buy", lamports, have, step);
-  return { signature, amountRaw: lamports.toString(), wallet: w.address, route: routeLabel(q) };
+  const r = await signSimSend(d, kp, await d.swapTx(q, w.address, prio), "buy", lamports, have, step, ext, undefined, prio);
+  return { signature: r.signature, amountRaw: lamports.toString(), wallet: w.address, route: routeLabel(q), feeLamports: r.fee.toString(), priorityLamports: r.priority.toString(), cuLimit: r.cuLimit ?? undefined };
 }
 
-export async function runJupSell(req: { walletId: string; mint: string; pct: number; slippagePct: number }, d: JupDeps): Promise<JupDone> {
+export async function runJupSell(req: { walletId: string; mint: string; pct: number; slippagePct: number; prioritySol?: number }, d: JupDeps): Promise<JupDone> {
   const step = d.step ?? (() => {});
   if (typeof req.walletId !== "string" || !req.walletId) throw new SellAborted("Pick a wallet");
   try { new PublicKey(req.mint); } catch { throw new SellAborted("That is not a token address"); }
@@ -171,7 +207,9 @@ export async function runJupSell(req: { walletId: string; mint: string; pct: num
   try { amountRaw = sellRaw(bal.raw, req.pct); } catch (e) { throw new SellAborted((e as Error).message); }
   const have = await d.solLamports(w.address);
   const q = await d.quote(req.mint, WSOL_MINT, amountRaw, bps);
-  checkQuote(q, { input: req.mint, output: WSOL_MINT, amount: amountRaw, bps });
-  const signature = await signSimSend(d, kp, await d.swapTx(q, w.address), "sell", undefined, have, step);
-  return { signature, amountRaw: amountRaw.toString(), wallet: w.address, route: routeLabel(q) };
+  const { minOut } = checkQuote(q, { input: req.mint, output: WSOL_MINT, amount: amountRaw, bps });
+  const ext = d.fee ? await d.fee().catch(() => null) : null;
+  const prio = priorityLamports(req.prioritySol ?? NaN);
+  const r = await signSimSend(d, kp, await d.swapTx(q, w.address, prio), "sell", undefined, have, step, ext, minOut, prio);
+  return { signature: r.signature, amountRaw: amountRaw.toString(), wallet: w.address, route: routeLabel(q), feeLamports: r.fee.toString(), priorityLamports: r.priority.toString(), cuLimit: r.cuLimit ?? undefined };
 }
