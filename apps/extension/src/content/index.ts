@@ -17,6 +17,7 @@ import { notice, pickNotice, walletNotice, type Notice } from "../lib/notice";
 import { playSfx, primeSfx } from "../lib/sfx";
 import { PRIORITY_DEFAULT_SOL } from "../lib/priomath";
 import { extraCosts } from "../lib/costs";
+import { costsNodes } from "./costs-el";
 import { toasts } from "./toast";
 
 const MARK = "data-hb-launch";
@@ -439,7 +440,7 @@ function renderForm(body: HTMLElement, foot: HTMLElement, s: DrawerState, _st: W
   const costs = h("div", { class: "costs", "data-testid": "hb-launch-costs", title: "Added on top of the dev buy and the pool fee. The highbar fee (0.02% of the dev buy) is shown only when it is on." });
   const drawCosts = () => {
     const c = extraCosts(prioSol, hbFee !== null ? { enabled: true, bps: 2 } : null, BigInt(Math.round(Math.max(0, s.devBuySol) * 1e9)));
-    costs.replaceChildren(...c.parts.flatMap((p, i) => [...(i ? [h("span", { class: "csep" }, "·")] : []), h("span", { class: i === c.parts.length - 1 ? "tot" : "" }, `${p.k} `, h("b", {}, p.v))]));
+    costs.replaceChildren(...costsNodes(c));
   };
   void ask({ type: "fee:info" }).then((f) => { prioSol = f.prioritySol; drawCosts(); validate(); }).catch(() => {});
   onWallet(() => { validate(); });

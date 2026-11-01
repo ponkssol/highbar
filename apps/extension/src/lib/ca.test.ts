@@ -83,6 +83,7 @@ test("ca: formatters", () => {
   assert.equal(fmtChange(12.345), "+12.35%");
   assert.equal(fmtChange(-3), "-3%");
   assert.equal(fmtChange(null), "–");
+  assert.equal(fmtChange(-535_266_667.53), "-535.3M%"); assert.equal(fmtChange(1234.5), "+1,235%"); assert.equal(fmtChange(25_000), "+25K%");
 });
 
 test("ca: popup slippage is 0.1 to 50 with one decimal, else 1", () => {

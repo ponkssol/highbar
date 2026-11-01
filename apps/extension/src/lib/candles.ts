@@ -151,8 +151,9 @@ export function fmtPrice(p: number): string {
 /** Fills the seconds (or minutes) without trades with flat candles at the previous close, and carries the last close up to
  *  `now`, so a chart moves with the clock and shows real time instead of squeezing hours of sparse trades together.
  *  Keeps the newest `max` slots; a bar older than the window only seeds the first close. */
-export function fillGaps(bars: Bar[], sec: number, nowSec: number, max = MAX_BARS): Bar[] {
-  if (!bars.length || !(sec > 0)) return bars;
+export function fillGaps(raw: Bar[], sec: number, nowSec: number, max = MAX_BARS): Bar[] {
+  if (!raw.length || !(sec > 0)) return raw;
+  const bars = alignBars(raw, sec);
   const last = bars[bars.length - 1].time;
   const end = Math.max(last, Math.floor(nowSec / sec) * sec);
   const start = end - (max - 1) * sec;
@@ -170,3 +171,44 @@ export function fillGaps(bars: Bar[], sec: number, nowSec: number, max = MAX_BAR
 }
 /** Bars that really traded inside the last `windowSec` (not counting fill). */
 export const tradedIn = (bars: Bar[], nowSec: number, windowSec: number) => bars.reduce((n, b) => n + (b.time >= nowSec - windowSec && (b.volume ?? 0) > 0 ? 1 : 0), 0);
+
+/** Every bar moved onto its interval boundary (floor(time / sec) * sec, so 1 m bars start on :00, 15 m on :00/:15/:30/:45);
+ *  bars that land in the same slot merge (first open, last close, high/low and volume over both). Sorted, no duplicates. */
+export function alignBars(bars: Bar[], sec: number): Bar[] {
+  if (!(sec > 0)) return bars;
+  const out: Bar[] = [];
+  for (const b of [...bars].sort((a, b) => a.time - b.time)) {
+    const time = Math.floor(b.time / sec) * sec, last = out[out.length - 1];
+    if (last && last.time === time) { last.high = Math.max(last.high, b.high); last.low = Math.min(last.low, b.low); last.close = b.close; last.volume += b.volume; }
+    else out.push({ ...b, time });
+  }
+  return out;
+}
+
+/** The smallest visible price range: a flat stretch is drawn around its price (±0.1%) instead of a degenerate scale. */
+export const MIN_RANGE = 0.002;
+/** Price of one pixel for the bars in view (`visible` newest bars, plot `heightPx` tall), used for the minimum body. */
+export function pricePerPx(view: Bar[], visible: number, heightPx: number): number {
+  let hi = -Infinity, lo = Infinity;
+  for (let i = Math.max(0, view.length - Math.max(1, Math.ceil(visible))); i < view.length; i++) { hi = Math.max(hi, view[i].high); lo = Math.min(lo, view[i].low); }
+  if (!(hi > 0) || !Number.isFinite(lo)) return 0;
+  return Math.max(hi - lo, hi * MIN_RANGE) / Math.max(20, heightPx);
+}
+export interface DrawBar { time: number; open: number; high: number; low: number; close: number; color?: string; borderColor?: string; wickColor?: string }
+/** Bars as drawn: every candle gets a body at least `minBody` tall (no wick-only or invisible candles). The close never
+ *  moves (the price line and last value stay exact); a thin body grows away from the close in its own direction, a flat
+ *  filled interval (no trades) becomes a small body just under its price in `flatColor`. Drawing only: data is untouched. */
+export function bodyBars(view: Bar[], minBody: number, flatColor?: string): DrawBar[] {
+  return view.map((b) => {
+    const d: DrawBar = { time: b.time, open: b.open, high: b.high, low: b.low, close: b.close };
+    if (!(minBody > 0) || Math.abs(b.close - b.open) >= minBody) return d;
+    const flat = b.open === b.close && b.high === b.close && b.low === b.close;
+    const up = flat || b.close >= b.open;
+    d.open = up ? b.close - minBody : b.close + minBody;
+    d.high = Math.max(b.high, d.open); d.low = Math.min(b.low, d.open);
+    if (flat && flatColor) { d.color = flatColor; d.borderColor = flatColor; d.wickColor = flatColor; }
+    return d;
+  });
+}
+/** True when the bars do not fill the plot at the normal spacing: then the time scale fits them instead of leaving a gap. */
+export const shouldFit = (count: number, widthPx: number, barSpacing: number) => count > 0 && count * barSpacing < widthPx;

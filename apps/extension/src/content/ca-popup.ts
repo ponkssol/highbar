@@ -6,6 +6,7 @@ import type { CaPosition, CaPrefs, LiveStats, SellPortIn, SellPortOut } from "..
 import type { FeeInfo } from "../lib/feemath";
 import { PRIORITY_DEFAULT_SOL, PRIORITY_PRESETS_SOL, priorityError, readPrioritySol } from "../lib/priomath";
 import { extraCosts } from "../lib/costs";
+import { costsNodes } from "./costs-el";
 import { toasts } from "./toast";
 import { fmtChange, fmtUsdPrice, type CaInfo } from "../lib/ca";
 import { CA_SLIPPAGE_PRESETS, cleanCaSlippage } from "../lib/caprefs";
@@ -131,7 +132,7 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
       // extra cost before signing: priority fee + the highbar fee (buy: on the SOL in; sell: on the minimum SOL out, estimated)
       const buyL = prefs.tab === "buy" && a ? BigInt(Math.round(a * 1e9)) : null;
       const c = extraCosts(fee?.prioritySol ?? PRIORITY_DEFAULT_SOL, fee, prefs.tab === "buy" ? buyL : sellBasis(a), prefs.tab === "buy" ? "of SOL in" : "of SOL out");
-      costsEl.replaceChildren(...c.parts.flatMap((p, i) => [...(i ? [h("span", { class: "csep" }, "·")] : []), h("span", { class: i === c.parts.length - 1 ? "tot" : "" }, `${p.k} `, h("b", {}, p.v))]));
+      costsEl.replaceChildren(...costsNodes(c));
       costsEl.title = "Added on top of the amount. The highbar fee (0.02%) is shown only when it is on.";
       const ok = !!a && !!ws.length && !busy && !!info;
       cta.className = `cta${prefs.tab === "sell" ? " sell" : ""}`;

@@ -1,7 +1,7 @@
 /** The extra cost a trade or launch carries on top of its amount, shown before signing: the priority fee the user picked and the
  *  highbar fee (0.02%) when the API enables it. No tip is ever added (see STORE_COMPLIANCE.md). Pure, the content scripts use it. */
 import { extFeeLamports, type FeeInfo } from "./feemath";
-import { priorityLamports, solText } from "./priomath";
+import { priorityLamports } from "./priomath";
 
 export interface ExtraCosts {
   priority: bigint;
@@ -12,15 +12,22 @@ export interface ExtraCosts {
   /** "Priority 0.0001 · highbar fee 0.02% 0.0002 · extra ≈ 0.0003 SOL" split into parts for the UI. */
   parts: { k: string; v: string }[];
 }
+/** A cost in SOL that stays short: 3 significant digits under 1 SOL (0.000247), 3 decimals above (7.22). */
+export function short(l: bigint): string {
+  const n = Number(l) / 1e9;
+  if (!(n > 0)) return "0";
+  const r = n >= 1 ? n.toFixed(3) : Number(n.toPrecision(3)).toFixed(9);
+  return r.replace(/0+$/, "").replace(/\.$/, "");
+}
 export function extraCosts(prioritySol: number, fee: FeeInfo | null, basisLamports: bigint | null, unknown = "of SOL out"): ExtraCosts {
   const priority = priorityLamports(prioritySol);
   const on = !!fee?.enabled;
   const f = !on ? null : basisLamports === null ? undefined : extFeeLamports(basisLamports);
   const total = priority + (f ?? 0n);
-  const num = (l: bigint) => solText(l).replace(/ SOL$/, "");
+  const num = (l: bigint) => short(l);
   const parts = [{ k: "Priority", v: num(priority) }];
   if (on) parts.push({ k: "highbar fee 0.02%", v: f === undefined ? unknown : num(f!) });
-  parts.push({ k: f === undefined ? "Extra ≥" : "Extra", v: solText(total) });
+  parts.push({ k: f === undefined ? "Extra ≥" : "Extra", v: `${short(total)} SOL` });
   return { priority, fee: f, total, parts };
 }
 /** The same as one line of text. */

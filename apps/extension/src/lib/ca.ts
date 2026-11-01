@@ -127,7 +127,14 @@ export const fmtUsdCompact = (n: number | null): string => {
   const f = (v: number, u: string) => `$${v.toLocaleString("en-US", { maximumFractionDigits: v >= 100 ? 0 : v >= 10 ? 1 : 2 })}${u}`;
   return a >= 1e9 ? f(n / 1e9, "B") : a >= 1e6 ? f(n / 1e6, "M") : a >= 1e3 ? f(n / 1e3, "K") : `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 };
-export const fmtChange = (n: number | null): string => (n === null || !Number.isFinite(n) ? "–" : `${n > 0 ? "+" : ""}${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}%`);
+/** 24h change: +12.35%, -3%; from 10 000% compact (+535.3M%) so a moonshot never widens the header. */
+export const fmtChange = (n: number | null): string => {
+  if (n === null || !Number.isFinite(n)) return "–";
+  const a = Math.abs(n), sg = n > 0 ? "+" : n < 0 ? "-" : "";
+  if (a < 10_000) return `${n > 0 ? "+" : ""}${n.toLocaleString("en-US", { maximumFractionDigits: a >= 1000 ? 0 : 2 })}%`;
+  const [v, u] = a >= 1e12 ? [a / 1e12, "T"] : a >= 1e9 ? [a / 1e9, "B"] : a >= 1e6 ? [a / 1e6, "M"] : [a / 1e3, "K"];
+  return `${sg}${v.toLocaleString("en-US", { maximumFractionDigits: 1 })}${u}%`;
+};
 
 /** A token pill's compact market numbers (ca:stats). */
 export interface PillStats { mint: string; mcapUsd: number | null; volume24hUsd: number | null; liquidityUsd: number | null }

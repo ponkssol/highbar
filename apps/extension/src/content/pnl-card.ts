@@ -5,16 +5,12 @@
 import { h } from "./dom";
 import { tweenText } from "./tween";
 import { pnl } from "../lib/ledger";
+import { compactNum, compactPct, compactSol } from "../lib/compact";
 import type { CaPosition } from "../lib/messages";
 
-const sol = (d: number) => (n: number | null) => (n === null || !Number.isFinite(n) ? "—" : `${n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })} SOL`);
-const signedSol = (n: number | null) => (n === null || !Number.isFinite(n) ? "—" : `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} SOL`);
-const pct = (n: number | null) => (n === null || !Number.isFinite(n) ? "" : `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)}%`);
-const qty = (n: number | null) => {
-  if (n === null || !Number.isFinite(n)) return "—";
-  const a = Math.abs(n), f = (v: number, u: string) => `${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${u}`;
-  return a >= 1e9 ? f(n / 1e9, "B") : a >= 1e6 ? f(n / 1e6, "M") : a >= 1e3 ? f(n / 1e3, "K") : f(n, "");
-};
+const unit = (f: (n: number | null, signed?: boolean) => string, signed = false) => (n: number | null) => (n === null || !Number.isFinite(n) ? "—" : `${f(n, signed)} SOL`);
+const sol = unit(compactSol), signedSol = unit(compactSol, true);
+const pct = compactPct, qty = (n: number | null) => compactNum(n);
 /** SOL per token, small numbers as 0.0₆234 */
 const tiny = (n: number | null) => {
   if (n === null || !Number.isFinite(n) || n <= 0) return "—";
@@ -28,7 +24,7 @@ export function pnlCard(sym: () => string): { el: HTMLElement; set(p: CaPosition
   const valEl = h("span", { class: "pv big", "data-k": "value" });
   const avgEl = h("span", { class: "pv", "data-k": "avg" }), invEl = h("span", { class: "pv", "data-k": "invested" });
   const pnlEl = h("span", { class: "pv", "data-k": "pnl" }), pctEl = h("span", { class: "ppct", "data-k": "pnlpct" });
-  const pnlBox = h("div", { class: "pcell pnlc" }, h("span", { class: "pk" }, "Unrealized PnL"), h("span", { class: "pline" }, pnlEl, pctEl));
+  const pnlBox = h("div", { class: "pcell pnlc" }, h("span", { class: "pk" }, "Unrealized PnL"), h("span", { class: "pstack" }, pnlEl, pctEl));
   const el = h("div", { class: "pnl", hidden: true, "data-testid": "hb-ca-pnl" },
     h("div", { class: "ptop" }, h("div", { class: "pcell" }, h("span", { class: "pk" }, "Holding"), h("span", { class: "pline" }, amtEl, symEl)),
       h("div", { class: "pcell r" }, h("span", { class: "pk" }, "Value"), valEl)),
@@ -40,11 +36,11 @@ export function pnlCard(sym: () => string): { el: HTMLElement; set(p: CaPosition
     if (!pos || raw <= 0n) { if (!el.hidden) el.hidden = true; return; }
     const priceSol = usd !== null && pos.solUsd ? usd / pos.solUsd : null;
     const r = pnl(raw, pos.decimals, priceSol, pos.entries);
-    const s = `$${sym()}`; if (symEl.textContent !== s) symEl.textContent = s;
+    const s = `$${sym()}`; if (symEl.textContent !== s) { symEl.textContent = s; symEl.title = s; }
     tweenText(amtEl, Number(raw) / 10 ** pos.decimals, qty);
-    tweenText(valEl, r.valueSol, sol(3));
+    tweenText(valEl, r.valueSol, sol);
     tweenText(avgEl, r.avgSol, tiny);
-    tweenText(invEl, r.investedSol, sol(3));
+    tweenText(invEl, r.investedSol, sol);
     tweenText(pnlEl, r.pnlSol, signedSol);
     tweenText(pctEl, r.pnlPct, pct);
     const cls = `pcell pnlc ${r.pnlSol === null ? "na" : r.pnlSol > 0 ? "up" : r.pnlSol < 0 ? "dn" : ""}`;

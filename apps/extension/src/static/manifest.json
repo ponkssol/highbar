@@ -3,7 +3,7 @@
   "name": "highbar",
   "short_name": "highbar",
   "description": "Launch a coin on highbar from any tweet on x.com, with a local launch wallet.",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "minimum_chrome_version": "116",
   "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
   "action": { "default_title": "highbar", "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" } },

@@ -253,7 +253,7 @@ border:1px solid var(--hb-border-strong);border-radius:12px;box-shadow:0 20px 50
 .hempty strong{color:var(--hb-ink-2);font-weight:600;font-size:12px}
 .hfoot{flex:none;padding:5px 10px;border-top:1px solid var(--hb-border);gap:0}
 .hupd{font-size:10px;color:var(--hb-ink-3)}.costs{display:flex;align-items:center;gap:4px;flex-wrap:wrap;color:var(--hb-ink-3);font-size:11px;line-height:14px;font-variant-numeric:tabular-nums}
-.costs b{font-weight:500;color:var(--hb-ink-2)}.costs .tot b{color:var(--hb-gold-text)}.costs .csep{opacity:.7}.costs .tot{margin-left:auto}
+.costs{column-gap:8px;row-gap:2px;min-width:0}.costs b{font-weight:500;color:var(--hb-ink-2)}.costs .tot b{color:var(--hb-gold-text)}.costs .csep{opacity:.7;margin-right:4px}.costs .tot{margin-left:auto;white-space:nowrap}.costs .cparts{display:flex;flex-wrap:wrap;column-gap:4px;min-width:0}.costs .cpart{white-space:nowrap}
 `;
 
 /** CA pill under a tweet's name row: 22px tall, in the flow (the row reserves it as soon as a token is known, before paint
@@ -283,7 +283,7 @@ export const CA_CSS = `.drawer.capop{width:300px}
 .capop header{height:34px;padding:0 4px 0 9px;gap:5px}.capop h2{font-size:12px}
 .capop .body{padding:7px 7px 6px;gap:5px}
 .capop footer{padding:6px 7px;gap:4px}
-.capop .cta{height:30px;font-size:12.5px}
+.capop .cta{height:30px;font-size:12.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .capop .seg button{height:26px;font-size:11.5px}
 .capop .amts{gap:4px}.capop .amts .chip{height:28px;padding:0 6px}.capop .amts .solin{width:70px}.capop .amts .solin input{height:28px}
 .tok{display:flex;align-items:center;gap:7px;min-width:0}
@@ -292,29 +292,33 @@ export const CA_CSS = `.drawer.capop{width:300px}
 .tn1{display:flex;align-items:center;gap:4px;min-width:0;font:600 12.5px/1.1 ${SANS};color:var(--hb-ink)}
 .tn1 .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vbadge{width:13px;height:13px;flex:none;color:var(--hb-gold)}
-.tsym{color:var(--hb-ink-3);font-weight:500;font-size:11px}
-.tprice{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none;font-variant-numeric:tabular-nums}
+.tsym{color:var(--hb-ink-3);font-weight:500;font-size:11px;flex:0 1 auto;min-width:0;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tn1 .nm{flex:0 1 auto;min-width:24px}
+.tprice{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto;max-width:42%;min-width:0;font-variant-numeric:tabular-nums}.tprice .p,.tprice .chg{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tprice .p{font:600 13px/1 ${SANS};color:var(--hb-ink)}
 .chg{font:600 11px/1 ${SANS}}.chg.up{color:var(--hb-buy)}.chg.dn{color:var(--hb-sell)}.chg.flat{color:var(--hb-ink-3)}
 .chart{position:relative;height:184px;border-radius:9px;overflow:hidden;border:1px solid var(--hb-border);background:#0F0E0B}
 .chart iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#0F0E0B}
 .chart .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--hb-ink-3);font-size:11px}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
-.stat{border:1px solid var(--hb-border);border-radius:8px;padding:4px 6px;display:flex;flex-direction:column;gap:2px;background:var(--hb-surface-muted)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.stat{min-width:0;border:1px solid var(--hb-border);border-radius:8px;padding:4px 6px;display:flex;flex-direction:column;gap:2px;background:var(--hb-surface-muted)}
 .stat .k{font:500 10px/1.1 ${SANS};letter-spacing:.04em;text-transform:uppercase;color:var(--hb-ink-3)}
+.stat .k,.stat .v{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stat .v{font:600 11px/1.1 ${SANS};color:var(--hb-ink);font-variant-numeric:tabular-nums}
 .tprice .p{font-variant-numeric:tabular-nums}
-.pnl{border:1px solid var(--hb-gold-line);border-radius:9px;padding:8px 9px 7px;display:flex;flex-direction:column;gap:7px;background:linear-gradient(180deg,rgba(255,199,44,.06),rgba(255,199,44,.015));font:500 11px/1.2 ${SANS}}
+.pnl{border:1px solid var(--hb-gold-line);border-radius:9px;padding:6px 8px;display:flex;flex-direction:column;gap:5px;min-width:0;overflow:hidden;background:linear-gradient(180deg,rgba(255,199,44,.06),rgba(255,199,44,.015));font:500 11px/1.2 ${SANS}}
 .pnl[hidden]{display:none}
-.ptop{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
-.pgrid{display:grid;grid-template-columns:1fr 1fr 1.35fr;gap:6px;padding-top:6px;border-top:1px solid var(--hb-border)}
-.pcell{display:flex;flex-direction:column;gap:3px;min-width:0}.pcell.r{align-items:flex-end}
-.pk{font:500 10px/1 ${SANS};letter-spacing:.06em;text-transform:uppercase;color:var(--hb-ink-3)}
-.pline{display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
-.pv{font:600 12px/1 ${SANS};color:var(--hb-ink);font-variant-numeric:tabular-nums;white-space:nowrap;transition:color .45s}
-.pv.big{font-size:14px;color:var(--hb-gold-text)}
-.psym{font:500 11px/1 ${SANS};color:var(--hb-ink-3)}
-.ppct{font:600 11px/1 ${SANS};font-variant-numeric:tabular-nums}
+.ptop{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;min-width:0}
+.pgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding-top:5px;border-top:1px solid var(--hb-border);min-width:0}
+.pcell{display:flex;flex-direction:column;gap:2px;min-width:0}.pcell.r{align-items:flex-end;max-width:130px}
+.pk{font:500 9px/1 ${SANS};letter-spacing:.06em;text-transform:uppercase;color:var(--hb-ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pline{display:flex;align-items:baseline;gap:4px;white-space:nowrap;min-width:0}
+.pstack{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pv{font:600 11.5px/1.1 ${SANS};color:var(--hb-ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;transition:color .45s}
+.pline .pv{flex:none}
+.pv.big{font-size:12px;color:var(--hb-gold-text)}
+.psym{font:500 10.5px/1.1 ${SANS};color:var(--hb-ink-3);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ppct{font:600 10.5px/1.1 ${SANS};font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pnlc.up .pv,.pnlc.up .ppct{color:var(--hb-buy)}.pnlc.dn .pv,.pnlc.dn .ppct{color:var(--hb-sell)}.pnlc.na .pv{color:var(--hb-ink-3)}
 .pv[data-dir],.ppct[data-dir]{transition:color .45s}
 @media (prefers-reduced-motion:reduce){.pv{transition:none}}
