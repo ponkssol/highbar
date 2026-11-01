@@ -5,6 +5,7 @@ import { SolanaAdapter } from "@reown/appkit-adapter-solana/react";
 import { solana, solanaDevnet } from "@reown/appkit/networks";
 import { AuthProvider } from "@/lib/auth";
 import { NETWORK, setNetwork } from "@/lib/settings";
+import { ICON_V, LOGO_URL } from "@/lib/seo";
 
 // Node 25 exposes localStorage without a file path. Reading it during SSR warns.
 if (typeof window === "undefined") {
@@ -50,7 +51,10 @@ function initAppKit(projectId: string) {
     networks: [NETWORK === "mainnet" ? solana : solanaDevnet],
     defaultNetwork: NETWORK === "mainnet" ? solana : solanaDevnet,
     projectId,
-    metadata: { name: "highbar", description: "Launch tokens on Solana with highbar", url: window.location.origin, icons: [] },
+    // Absolute, versioned icon URLs for WalletConnect wallets (session proposal metadata). An empty list leaves the wallet to look the
+    // icon up itself, often from a third-party favicon cache that still holds the old logo. Injected wallets (Phantom) read the page's
+    // apple-touch-icon / favicon links from layout.tsx, which point at the same files.
+    metadata: { name: "highbar", description: "Launch tokens on Solana with highbar", url: window.location.origin, icons: [`${window.location.origin}/apple-touch-icon.png?v=${ICON_V}`, `${window.location.origin}${LOGO_URL}?v=${ICON_V}`] },
     themeMode: isDark() ? "dark" : "light",
     themeVariables: themeVars(),
     // Installed wallets, then Phantom and Solflare, ahead of the WalletConnect QR entry (Reown puts walletConnect first by default).
