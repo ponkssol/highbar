@@ -82,6 +82,7 @@ const goodMainnet = () => {
     RPC_URL: "https://example-name.solana-mainnet.quiknode.pro/0123abcd/", AUTH_SECRET: "x".repeat(40), SITE_URL: "https://highbar.example",
     CORS_ORIGIN: "https://highbar.example", PROXY_SHARED_SECRET: "y".repeat(40), LOCK_TIP_WALLET: pk(), LOCK_TIP_SOL: "0.005",
     MINT_POOL_ENC_KEY: "ab".repeat(32), // test-only key
+    LAUNCHPAD_SIGNER_KEYPAIR_JSON: JSON.stringify([...Keypair.generate().secretKey]), // test-only throwaway key
     GO_PUBLIC_DATE: "2026-11-01",
   };
   for (const k of ["STANDARD_OFF", "STANDARD_ON", "HIGHER_OFF", "HIGHER_ON", "MAX_OFF", "MAX_ON"]) env[`CONFIG_${k}`] = pk();
@@ -242,4 +243,25 @@ test("checkEnv: GO_PUBLIC_DATE unset warns on mainnet, malformed is an error, de
   assert.deepEqual(r.errors, []); assert.ok(r.warnings.some((w) => /GO_PUBLIC_DATE unset/.test(w)));
   for (const bad of ["2026-13-01", "2026-02-30", "01-11-2026", "2026-11-1"]) assert.ok(checkEnv({ ...goodMainnet(), GO_PUBLIC_DATE: bad }, { platformPubkey: pk(), configs: {} }).errors.some((e) => /GO_PUBLIC_DATE/.test(e)), bad);
   assert.ok(!checkEnv({ NETWORK: "devnet" }).warnings.some((w) => /GO_PUBLIC_DATE/.test(w)));
+});
+
+test("checkEnv launchpad signer: required on mainnet (unset = error), explicit opt-out warns, bad / mismatched / shared key refused, devnet unset is quiet", () => {
+  const base = goodMainnet();
+  const unset: Record<string, string | undefined> = { ...base }; delete unset.LAUNCHPAD_SIGNER_KEYPAIR_JSON;
+  assert.ok(checkEnv(unset).errors.some((e) => /LAUNCHPAD_SIGNER_KEYPAIR_JSON .*required on mainnet/.test(e)));
+  const off = checkEnv({ ...unset, LAUNCHPAD_SIGNER_DISABLED: "true" });
+  assert.deepEqual(off.errors, []); assert.ok(off.warnings.some((w) => /LAUNCHPAD_SIGNER_DISABLED/.test(w)));
+  for (const bad of ["[1,2,3]", "not json", "<FILL_ME>"]) {
+    const r = checkEnv({ ...base, LAUNCHPAD_SIGNER_KEYPAIR_JSON: bad });
+    assert.ok(r.errors.some((e) => /launchpad signer|LAUNCHPAD_SIGNER/i.test(e)), bad);
+    if (bad !== "<FILL_ME>") assert.ok(!r.errors.join(" ").includes(bad), "never echoes the value");
+  }
+  const kp = Keypair.generate();
+  const json = JSON.stringify([...kp.secretKey]);
+  assert.deepEqual(checkEnv({ ...base, LAUNCHPAD_SIGNER_KEYPAIR_JSON: json, LAUNCHPAD_SIGNER_PUBKEY: kp.publicKey.toBase58() }).errors, []);
+  assert.ok(checkEnv({ ...base, LAUNCHPAD_SIGNER_KEYPAIR_JSON: json, LAUNCHPAD_SIGNER_PUBKEY: pk() }).errors.some((e) => /does not match LAUNCHPAD_SIGNER_PUBKEY/.test(e)));
+  assert.ok(checkEnv({ ...base, LAUNCHPAD_SIGNER_KEYPAIR_JSON: json, TREASURY_PUBKEY: kp.publicKey.toBase58() }).errors.some((e) => /dedicated key .*TREASURY_PUBKEY/.test(e)));
+  assert.ok(checkEnv({ ...base, LAUNCHPAD_SIGNER_KEYPAIR_JSON: json }, { platformPubkey: kp.publicKey.toBase58() }).errors.some((e) => /dedicated key .*platform key/.test(e)));
+  const dev = checkEnv({ NETWORK: "devnet", OFFICIAL_TOKEN_CREATOR: pk(), MINT_POOL_ENC_KEY: "ab".repeat(32) });
+  assert.ok(![...dev.errors, ...dev.warnings].some((m) => /launchpad/i.test(m)), "devnet without the key stays quiet");
 });

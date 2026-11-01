@@ -3,6 +3,7 @@ import BN from "bn.js";
 import { NATIVE_MINT_ADDR, } from "./constants.js";
 import { arg, configPubkey, getClient, isMain, loadPlatformKeypair, usableReferralAta, sendTx } from "./client.js";
 import { deriveDbcPoolAddress } from "@meteora-ag/dynamic-bonding-curve-sdk";
+import { addLaunchpadSigner, launchpadSigner } from "./launchpadSigner.js";
 
 export interface LaunchParams {
   name: string;
@@ -57,7 +58,10 @@ export async function launchToken(p: LaunchParams): Promise<LaunchResult> {
         },
       })
     : await client.creator.createPool(createPoolParam);
-  const signature = await sendTx(tx, [p.creator, baseMint]);
+  // launchpad identity signer (launchpadSigner.ts): same as the API launches, skipped when LAUNCHPAD_SIGNER_KEYPAIR_* is unset
+  const launchpad = launchpadSigner();
+  if (launchpad) addLaunchpadSigner(tx, launchpad.publicKey);
+  const signature = await sendTx(tx, launchpad ? [p.creator, baseMint, launchpad] : [p.creator, baseMint]);
   const pool = deriveDbcPoolAddress(new PublicKey(NATIVE_MINT_ADDR), baseMint.publicKey, config);
   return { mint: baseMint.publicKey.toBase58(), pool: pool.toBase58(), config: config.toBase58(), signature };
 }

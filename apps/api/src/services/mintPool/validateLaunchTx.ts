@@ -17,7 +17,9 @@
  *   SPL Token close_account(creator's WSOL ATA -> creator, owner creator)   (unwrap)
  *
  * Anything else (SetAuthority, transfers or mint-to's using the mint, a durable-nonce advance, lookup tables, a second
- * pool, a different program) is rejected. Signers must be exactly [creator (fee payer), mint].
+ * pool, a different program) is rejected. Signers must be exactly [creator (fee payer), mint], or with the launchpad identity
+ * signer configured (@hb/onchain launchpadSigner.ts) [creator, mint, launchpad]: the launchpad is a read-only signer that may
+ * only appear as the last account of the initialize pool instruction, and its slot must be empty (the API signs it).
  */
 import { PublicKey, SystemProgram, Transaction, VersionedTransaction, type TransactionInstruction } from "@solana/web3.js";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
@@ -56,6 +58,8 @@ export interface LaunchTxExpect {
   referrals?: readonly string[];
   /** default true: the creator's signature must be present and valid (wallet signs first, then the API) */
   requireCreatorSignature?: boolean;
+  /** launchpad identity signer pubkey when configured: then it must be the 3rd (read-only) signer, see the header comment */
+  launchpad?: string | null;
 }
 export interface LaunchTxInfo { tx: Transaction; config: string; pool: string; devBuy: boolean; tokenProgram: "spl" | "token2022" }
 
@@ -74,14 +78,18 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
   try { tx = Transaction.from(bytes); } catch { return reject("not a legacy transaction"); }
 
   const mint = new PublicKey(exp.mint), creator = new PublicKey(exp.creator);
+  const launchpad = exp.launchpad ? new PublicKey(exp.launchpad) : null;
   const configs = new Set(exp.configs);
   const msg = vt.message;
-  // signers: exactly [creator (fee payer), mint]
+  // signers: exactly [creator (fee payer), mint] (+ the launchpad signer, read-only, when configured)
   const h = msg.header;
-  if (h.numRequiredSignatures !== 2) reject("expected exactly 2 signers (creator, mint)");
+  if (launchpad) {
+    if (h.numRequiredSignatures !== 3 || h.numReadonlySignedAccounts !== 1) reject("expected exactly 3 signers (creator, mint, launchpad)");
+  } else if (h.numRequiredSignatures !== 2) reject("expected exactly 2 signers (creator, mint)");
   const keys = msg.staticAccountKeys;
   if (!same(keys[0], creator)) reject("fee payer must be the creator");
   if (!same(keys[1], mint)) reject("second signer must be the reserved mint");
+  if (launchpad && !same(keys[2], launchpad)) reject("third signer must be the launchpad signer");
   if (!tx.feePayer || !same(tx.feePayer, creator)) reject("fee payer must be the creator");
   if (!tx.recentBlockhash) reject("missing blockhash");
 
@@ -106,6 +114,7 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
       // the only other signer anyway (signer set = exactly [creator, mint], checked above), so no new signer can appear.
       for (const m of ix.keys) {
         if (same(m.pubkey, mint)) reject("wallet guard (Lighthouse) instruction may not reference the mint");
+        if (launchpad && same(m.pubkey, launchpad)) reject("wallet guard (Lighthouse) instruction may not reference the launchpad signer");
         if (m.isSigner && !same(m.pubkey, creator)) reject("wallet guard (Lighthouse) instruction with an extra signer");
       }
     }
@@ -119,7 +128,12 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
   if (!same(init.programId, DBC)) reject("first instruction must be the DBC initialize pool (wrong program)");
   const def = startsWith(init.data, INIT_SPL.disc) ? INIT_SPL : startsWith(init.data, INIT_T22.disc) ? INIT_T22 : reject("first DBC instruction must be initialize_virtual_pool_with_spl_token / _token2022");
   const tokenProgram = def === INIT_SPL ? TOKEN_PROGRAM_ID : TOKEN_2022_PROGRAM_ID;
-  checkFixed(init, def);
+  if (launchpad) {
+    // the launchpad signer is the init's last (remaining) account: read-only signer, after the IDL accounts
+    const last = init.keys[init.keys.length - 1];
+    if (init.keys.length <= def.n || !last || !same(last.pubkey, launchpad) || !last.isSigner || last.isWritable) reject("launchpad signer must be the last, read-only signer account of the initialize pool instruction");
+    checkFixed({ ...init, keys: init.keys.slice(0, -1) } as TransactionInstruction, def);
+  } else checkFixed(init, def);
   const a = (n: string) => init.keys[def.idx[n]].pubkey;
   const config = a("config");
   if (!configs.has(config.toBase58())) reject("config is not one of the highbar tier configs");
@@ -170,6 +184,14 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
 
   // the mint may only appear where the SDK puts it (init base_mint, base ATA mint, swap base_mint) and never as a program
   // (wallet instructions were checked above: Lighthouse never references the mint)
+  // the launchpad signer only at that one place (wallet instructions included) and never as a program
+  if (launchpad) {
+    const initAt = all.indexOf(init);
+    all.forEach((ix, k) => {
+      if (same(ix.programId, launchpad)) reject("launchpad signer used as a program");
+      ix.keys.forEach((m, j) => { if (same(m.pubkey, launchpad) && !(k === initAt && j === ix.keys.length - 1)) reject("launchpad signer referenced outside the initialize pool instruction"); });
+    });
+  }
   ixs.forEach((ix, k) => {
     if (same(ix.programId, mint)) reject("mint used as a program");
     ix.keys.forEach((m, j) => { if (same(m.pubkey, mint) && !allowedMintRefs.has(`${k}:${j}`)) reject("mint referenced outside the pool creation"); });
@@ -179,6 +201,8 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
   const sigOf = (pk: PublicKey) => tx.signatures.find((s) => same(s.publicKey, pk))?.signature ?? null;
   const mintSig = sigOf(mint);
   if (mintSig && mintSig.some((x) => x !== 0)) reject("mint signature already present");
+  const lpSig = launchpad ? sigOf(launchpad) : null;
+  if (lpSig && lpSig.some((x) => x !== 0)) reject("launchpad signature already present");
   if (exp.requireCreatorSignature !== false) {
     const cs = sigOf(creator);
     if (!cs || cs.every((x) => x === 0)) reject("creator signature missing (sign with the wallet first)");

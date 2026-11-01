@@ -5,7 +5,8 @@
  *  POST /tx/launch         -> reserveMint (atomic, SKIP LOCKED; a creator's unsigned live reservation is reused) and the
  *                             unsigned DBC create tx with that mint. Only the pubkey leaves the API.
  *  wallet signTransaction  -> the creator signs FIRST (fee payer / pool creator).
- *  POST /tx/launch/sign    -> signLaunchTx: strict validation (validateLaunchTx.ts), then the API adds the mint signature.
+ *  POST /tx/launch/sign    -> signLaunchTx: strict validation (validateLaunchTx.ts), then the API adds the mint signature
+ *                             and right after it the launchpad identity signature (@hb/onchain launchpadSigner.ts, when set).
  *  POST /mint/confirm      -> marks the mint used once its account exists on-chain.
  *  sweep (API + refill)    -> expired reservations go back to 'available' ONLY if the mint account does not exist on-chain;
  *                             if it exists the row becomes 'used'. A mint is never handed out twice nor reused once on-chain.
@@ -14,7 +15,8 @@
  */
 import bs58 from "bs58";
 import { PublicKey, Transaction } from "@solana/web3.js";
-import { getConnection, indexableConfigSet, keypairFromSeed, loadConfigs, network, VANITY_SUFFIX, hasVanitySuffix, referralAta, wipeKeypair } from "@hb/onchain";
+import { Keypair } from "@solana/web3.js";
+import { getConnection, indexableConfigSet, keypairFromSeed, launchpadSigner, loadConfigs, network, VANITY_SUFFIX, hasVanitySuffix, referralAta, wipeKeypair } from "@hb/onchain";
 import { encKeyFromEnv, openSeed, sealSeed } from "./secretBox.js";
 import * as store from "./store.js";
 import type { Sql } from "./store.js";
@@ -64,14 +66,17 @@ export async function requireReservation(q: Sql, mint: string, creator: string) 
   return r;
 }
 
-export interface SignOpts { configs?: string[]; referrals?: string[]; key?: Buffer }
+/** launchpad: the launchpad identity signer (default: launchpadSigner() from env, null = none). It must be the same key
+ *  POST /tx/launch built the tx with (same process env), else validation rejects the tx. */
+export interface SignOpts { configs?: string[]; referrals?: string[]; key?: Buffer; launchpad?: Keypair | null }
 
-/** Validate the wallet-signed launch tx and add the mint signature. Returns the fully signed tx (base64). */
+/** Validate the wallet-signed launch tx and add the mint signature, then the launchpad signature. Returns the fully signed tx (base64). */
 export async function signLaunchTx(q: Sql, mint: string, txB64: string, opts: SignOpts = {}): Promise<{ tx: string; mint: string; pool: string; signature: string }> {
   const key = opts.key ?? encKeyFromEnv();
+  const launchpad = opts.launchpad === undefined ? launchpadSigner() : opts.launchpad;
   const res = await store.getReservation(q, mint);
   if (!res || res.status !== "reserved" || !res.live || !res.creator) throw new MintPoolError("RESERVATION_INVALID", "Mint reservation missing or expired. Start the launch again.", 409);
-  const info = validateLaunchTx(txB64, { mint, creator: res.creator, configs: opts.configs ?? launchConfigs(), referrals: opts.referrals ?? platformReferrals() });
+  const info = validateLaunchTx(txB64, { mint, creator: res.creator, configs: opts.configs ?? launchConfigs(), referrals: opts.referrals ?? platformReferrals(), launchpad: launchpad?.publicKey.toBase58() ?? null });
   const sealed = await store.claimForSigning(q, mint, res.creator, mintPoolConfig().signedHoldMin);
   if (!sealed) throw new MintPoolError("RESERVATION_INVALID", "Mint reservation missing or expired. Start the launch again.", 409);
   const seed = openSeed(sealed, mint, key);
@@ -79,6 +84,7 @@ export async function signLaunchTx(q: Sql, mint: string, txB64: string, opts: Si
   const tx: Transaction = info.tx;
   try { tx.partialSign(kp); }
   finally { wipeKeypair(kp); }
+  if (launchpad) tx.partialSign(launchpad); // after the mint co-sign: the message is unchanged, only its slot is filled
   if (!tx.verifySignatures(true)) throw new LaunchTxRejected("signatures do not verify after co-signing");
   const bytes = tx.serialize({ requireAllSignatures: true, verifySignatures: true });
   const sig = tx.signatures[0].signature!;

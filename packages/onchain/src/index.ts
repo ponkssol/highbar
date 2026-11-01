@@ -7,3 +7,4 @@ export { buildTierConfig } from "./createConfigs.js";export * from "./client/txB
 
 export * from "./lock.js";
 export * from "./vanity.js";
+export * from "./launchpadSigner.js";

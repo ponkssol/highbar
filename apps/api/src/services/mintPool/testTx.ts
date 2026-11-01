@@ -3,6 +3,7 @@ import BN from "bn.js";
 import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { MINT_SIZE, MintLayout, NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { DynamicBondingCurveClient } from "@meteora-ag/dynamic-bonding-curve-sdk";
+import { addLaunchpadSigner } from "@hb/onchain";
 
 export const BLOCKHASH = "GHtXQBsoZHVnNFa9YevAzFr17DJjgHXk3ycTKD5xD3Zi";
 const conn = new Connection("http://127.0.0.1:9", "confirmed");
@@ -26,15 +27,16 @@ export function client(opts: { tokenType?: 0 | 1; minFee?: boolean } = {}) {
 }
 
 export interface Built { tx: Transaction; mint: PublicKey; creator: Keypair; config: PublicKey }
-export async function buildLaunch(o: { mint: PublicKey; creator: Keypair; config: PublicKey; devBuyLamports?: number; referral?: PublicKey | null; tokenType?: 0 | 1; minFee?: boolean }): Promise<Transaction> {
+export async function buildLaunch(o: { mint: PublicKey; creator: Keypair; config: PublicKey; devBuyLamports?: number; referral?: PublicKey | null; tokenType?: 0 | 1; minFee?: boolean; launchpad?: PublicKey | null; uri?: string; name?: string; symbol?: string }): Promise<Transaction> {
   const cl = client({ tokenType: o.tokenType, minFee: o.minFee });
   const creator = o.creator.publicKey;
   const tx: Transaction = await cl.creator.createPoolWithFirstBuy({
-    createPoolParam: { name: "Test Coin", symbol: "TEST", uri: "https://example.com/meta/test.json", payer: creator, poolCreator: creator, config: o.config, baseMint: o.mint },
+    createPoolParam: { name: o.name ?? "Test Coin", symbol: o.symbol ?? "TEST", uri: o.uri ?? "https://example.com/meta/test.json", payer: creator, poolCreator: creator, config: o.config, baseMint: o.mint },
     firstBuyParam: o.devBuyLamports ? { buyer: creator, receiver: creator, buyAmount: new BN(o.devBuyLamports), minimumAmountOut: new BN(1), referralTokenAccount: o.referral ?? null } : undefined,
   } as never);
   tx.feePayer = creator;
   tx.recentBlockhash = BLOCKHASH;
+  if (o.launchpad) addLaunchpadSigner(tx, o.launchpad); // what buildLaunchTx does with the launchpad identity signer set
   return tx;
 }
 

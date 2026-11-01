@@ -149,7 +149,7 @@ For each service:
    ```
    Replace every `<FILL_ME>`. **Delete** optional lines you don't use (e.g. `JUPITER_API_KEY`, `ADMIN_TOKEN`) rather than leaving `<FILL_ME>`. The API, keeper and jobs refuse to start while any value still contains `<FILL_ME>`.
 2. In Railway, open the service → **Variables** → **Raw Editor**. Paste the whole file → **Update Variables**.
-3. For secrets (`PLATFORM_KEYPAIR_JSON`, `AUTH_SECRET`, `PROXY_SHARED_SECRET`, `ADMIN_TOKEN`, `MINT_POOL_ENC_KEY`), open the variable's ⋮ menu → **Seal**.
+3. For secrets (`PLATFORM_KEYPAIR_JSON`, `AUTH_SECRET`, `PROXY_SHARED_SECRET`, `ADMIN_TOKEN`, `MINT_POOL_ENC_KEY`, `LAUNCHPAD_SIGNER_KEYPAIR_JSON`), open the variable's ⋮ menu → **Seal**.
    - `PLATFORM_KEYPAIR_JSON` is the whole content of `platform.json` (the `[12,34,…]` array). Paste it yourself; it never goes in git.
 
 | Template | Service(s) | Must match across services |
@@ -180,6 +180,20 @@ Also:
 - Empty pool: with `VANITY_MINTS=fallback` (default) the launch uses a normal random mint (the pre-vanity path: the API pre-signs with a throwaway key, the wallet signs and sends). It is flagged, never silent: API log `[mint-pool] pool empty -> fallback random mint for creator <wallet> (<reason>)` and response `vanity:false, mintSource:"random-fallback"` (`"pool"` / `vanity:true` otherwise); the launch page says it used a standard address. With `VANITY_MINTS=on` launches answer `503 MINT_POOL_EMPTY` instead. Watch for that log line after go-live: it means the pool needs more CPU.
 - Wallet guards: the wallet signs first, so Phantom may add Lighthouse assertions (`L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95`) and ComputeBudget instructions. The co-sign validator allows those anywhere as long as they never reference the mint (in a legacy tx signer/writable flags are per account, so even a "read-only" mention would carry the mint's signer + writable privileges) and add no signer besides the creator; everything else extra (transfers, memos, SetAuthority, unknown programs, extra signers) is still refused.
 - Expired reservations go back to the pool only if the mint account does not exist on-chain (checked over RPC); otherwise the mint is marked used. A mint is never handed out twice.
+
+### 6b. Launchpad signer (terminal attribution) [BLOCKER]
+
+Terminals (GMGN, Jupiter, Axiom) group launchpads by a common signer on the pool-creation tx. highbar adds a dedicated key as a read-only signer on every launch: it is the last account of the DBC initialize pool instruction (the program ignores it), so it costs 97 bytes and no fees. The API signs it right after the mint (vanity path: in `/tx/launch/sign`, random path: when building), the wallet still signs last.
+
+| Variable | Services | Value |
+|---|---|---|
+| `LAUNCHPAD_SIGNER_KEYPAIR_JSON` | api only, sealed | the whole key file (`[12,34,…]`). A fresh key that holds no SOL, never the platform, treasury, referral or dev wallet. Mainnet: missing, malformed or shared with another role = the API refuses to start. Never on web, never `NEXT_PUBLIC_*`, never through chat. |
+| `LAUNCHPAD_SIGNER_PUBKEY` | api | `866BuedbbZjbb1nEUGuqr8CB6g1Aj8J4xPJ47U5qhigh` (highbar's launchpad signer, public). Pins the key: a mismatch refuses to start. |
+| `LAUNCHPAD_SIGNER_DISABLED` | api (emergency only) | `true` = launches go out without the signer (warning only, those launches are not attributed). |
+
+- The API logs `[launchpad-signer] on, 866BuedbbZjbb1nEUGuqr8CB6g1Aj8J4xPJ47U5qhigh` at start (public key only).
+- After go-live, register that public key with the terminals (and Meteora) as highbar's launchpad signer.
+- Changing the key later splits attribution between the old and new key, so keep it stable and back it up offline.
 
 ## 7. Deploy and go-live order [BLOCKER]
 

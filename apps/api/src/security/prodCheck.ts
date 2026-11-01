@@ -5,7 +5,7 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import { encKeyProblem } from "../services/mintPool/secretBox.js";
 import { vanityModeProblem } from "../services/mintPool/mode.js";
 import { parseGoPublic } from "../jobs/goPublic.js";
-import { CONFIG_ENV, DEVNET_LOCK_TIP_WALLET, getClient, getConnection, LOCK_TIP_SOL_MAX, loadConfigs, loadPlatformKeypair, network, parseLockTipSol, rpcUrl } from "@hb/onchain";
+import { CONFIG_ENV, DEVNET_LOCK_TIP_WALLET, getClient, getConnection, launchpadSignerStatus, LOCK_TIP_SOL_MAX, loadConfigs, loadPlatformKeypair, network, parseLockTipSol, rpcUrl } from "@hb/onchain";
 
 type Env = Record<string, string | undefined>;
 export interface CheckResult { network: "devnet" | "mainnet"; errors: string[]; warnings: string[] }
@@ -95,6 +95,19 @@ export function checkEnv(env: Env, ctx: { platformPubkey?: string | null; config
       const clash = [...new Set(roles.filter(([, v]) => eq(tip, v)).map(([n]) => n))];
       if (clash.length) errors.push(`LOCK_TIP_WALLET must be a dedicated wallet; it equals ${clash.join(", ")}`);
     }
+  }
+  // launchpad identity signer (@hb/onchain launchpadSigner.ts): GMGN, Jupiter and Axiom attribute a launch to highbar by it.
+  // Mainnet: required (a launch without it can never be attributed later), LAUNCHPAD_SIGNER_DISABLED=true is the explicit
+  // opt-out (warning). A malformed or mismatched key is an error. Devnet / dev: unset = skipped, nothing reported.
+  const lp = launchpadSignerStatus(env);
+  if (lp.state === "bad") errors.push(lp.problem);
+  else if (net === "mainnet" && lp.state === "unset") errors.push("LAUNCHPAD_SIGNER_KEYPAIR_JSON (or LAUNCHPAD_SIGNER_KEYPAIR_PATH) is required on mainnet: the launchpad identity signer on every launch, so terminals attribute launches to highbar (sealed variable on the api service, or LAUNCHPAD_SIGNER_DISABLED=true to launch without it)");
+  else if (net === "mainnet" && lp.state === "disabled") warnings.push("LAUNCHPAD_SIGNER_DISABLED=true: new launches carry no launchpad signer and terminals (GMGN, Jupiter, Axiom) do not attribute them to highbar");
+  if (lp.state === "ok") {
+    const roles: Array<[string, string | null | undefined]> = [["the platform key", ctx.platformPubkey], ["PLATFORM_PUBKEY", env.PLATFORM_PUBKEY], ["TREASURY_PUBKEY", env.TREASURY_PUBKEY],
+      ["REFERRAL_WALLET", referral], ["LOCK_TIP_WALLET", env.LOCK_TIP_WALLET], ["OFFICIAL_TOKEN_CREATOR", env.OFFICIAL_TOKEN_CREATOR], ["the devnet keypair", ctx.devnetPubkey]];
+    const clash = [...new Set(roles.filter(([, v]) => eq(lp.pubkey, v)).map(([n]) => n))];
+    if (clash.length) (net === "mainnet" ? errors : warnings).push(`the launchpad signer must be a dedicated key that holds no funds, it equals ${clash.join(", ")}`);
   }
   if (net === "devnet" && vmode !== "off" && encKeyProblem(env.MINT_POOL_ENC_KEY)) warnings.push(`vanity mint pool disabled: ${encKeyProblem(env.MINT_POOL_ENC_KEY)} (launches answer 500/503 until it is set)`);
   // official $HIGHER token (optional): auto-detected from OFFICIAL_TOKEN_CREATOR; BAR_MINT is a manual override

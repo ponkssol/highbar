@@ -156,3 +156,63 @@ test("rejects a Lighthouse instruction referencing the mint (read-only, writable
   const tx = edited(base, (ixs) => [...ixs, lighthouse([ro(creator.publicKey)]), SystemProgram.transfer({ fromPubkey: creator.publicKey, toPubkey: thief.publicKey, lamports: 1 })]);
   rejects(() => validateLaunchTx(walletSign(tx, creator), expect(creator, mint)), /extra instructions/);
 });
+
+// ---- launchpad identity signer (@hb/onchain launchpadSigner.ts): read-only 3rd signer, last account of the pool init ----
+const LP = Keypair.generate();
+const lpExpect = (creator: Keypair, mint: PublicKey, extra: Partial<LaunchTxExpect> = {}) => expect(creator, mint, { launchpad: LP.publicKey.toBase58(), ...extra });
+
+test("launchpad signer: accepted in every launch shape (no dev buy, dev buy, Token-2022, min-fee, referral, wallet ComputeBudget + Lighthouse)", async () => {
+  for (const o of [{}, { devBuyLamports: 1e8 }, { devBuyLamports: 5e7, tokenType: 1 as const }, { devBuyLamports: 1e8, minFee: true }]) {
+    const { creator, mint } = fresh();
+    const tx = await buildLaunch({ mint, creator, config: CFG, launchpad: LP.publicKey, ...o });
+    const m = tx.compileMessage();
+    assert.equal(m.header.numRequiredSignatures, 3); assert.equal(m.header.numReadonlySignedAccounts, 1);
+    assert.ok(m.accountKeys[2].equals(LP.publicKey));
+    // the API pre-check (unsigned), then the wallet-signed tx
+    validateLaunchTx(tx.serialize({ requireAllSignatures: false, verifySignatures: false }), lpExpect(creator, mint, { requireCreatorSignature: false }));
+    const info = validateLaunchTx(walletSign(tx, creator), lpExpect(creator, mint));
+    assert.equal(info.config, CFG.toBase58()); assert.equal(info.devBuy, !!o.devBuyLamports);
+  }
+  const { creator, mint } = fresh(), referral = getAssociatedTokenAddressSync(NATIVE_MINT, Keypair.generate().publicKey);
+  const tx = await buildLaunch({ mint, creator, config: CFG, devBuyLamports: 1e8, referral, launchpad: LP.publicKey });
+  validateLaunchTx(walletSign(tx, creator), lpExpect(creator, mint, { referrals: [referral.toBase58()] }));
+  const { creator: c2, mint: m2 } = fresh();
+  const w = edited(await buildLaunch({ mint: m2, creator: c2, config: CFG, devBuyLamports: 1e8, launchpad: LP.publicKey }),
+    (ixs) => [ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 5000 }), ...ixs, lighthouse([ro(c2.publicKey)])]);
+  validateLaunchTx(walletSign(w, c2), lpExpect(c2, m2));
+});
+
+test("launchpad signer: missing when configured, present when not, another key, or a pre-filled launchpad signature is refused", async () => {
+  const { creator, mint } = fresh();
+  const plain = await buildLaunch({ mint, creator, config: CFG, devBuyLamports: 1e8 });
+  rejects(() => validateLaunchTx(walletSign(plain, creator), lpExpect(creator, mint)), /3 signers/);
+  const withLp = await buildLaunch({ mint, creator, config: CFG, devBuyLamports: 1e8, launchpad: LP.publicKey });
+  rejects(() => validateLaunchTx(walletSign(withLp, creator), expect(creator, mint)), /2 signers/);
+  const other = await buildLaunch({ mint, creator, config: CFG, launchpad: Keypair.generate().publicKey });
+  rejects(() => validateLaunchTx(walletSign(other, creator), lpExpect(creator, mint)), /launchpad/);
+  const pre = await buildLaunch({ mint, creator, config: CFG, launchpad: LP.publicKey });
+  pre.partialSign(LP);
+  rejects(() => validateLaunchTx(walletSign(pre, creator), lpExpect(creator, mint)), /launchpad signature already present/);
+});
+
+test("launchpad signer: only as the init's last read-only account, never writable, never in another instruction or as a program", async () => {
+  const { creator, mint } = fresh();
+  const base = await buildLaunch({ mint, creator, config: CFG, devBuyLamports: 1e8, launchpad: LP.publicKey });
+  const lpMeta = (isWritable: boolean) => ({ pubkey: LP.publicKey, isSigner: true, isWritable });
+  // writable launchpad on the init: header changes, refused
+  const wr = edited(base, (ixs) => ixs.map((ix, i) => i === 0 ? new TransactionInstruction({ programId: ix.programId, data: ix.data, keys: [...ix.keys.slice(0, -1), lpMeta(true)] }) : ix));
+  rejects(() => validateLaunchTx(walletSign(wr, creator), lpExpect(creator, mint)), /signers|launchpad/);
+  // moved off the last position (in front of the IDL accounts' tail)
+  const moved = edited(base, (ixs) => ixs.map((ix, i) => { if (i !== 0) return ix; const k = ix.keys.slice(0, -1); return new TransactionInstruction({ programId: ix.programId, data: ix.data, keys: [...k.slice(0, 3), lpMeta(false), ...k.slice(3)] }); }));
+  rejects(() => validateLaunchTx(walletSign(moved, creator), lpExpect(creator, mint)), /launchpad|account/);
+  // also referenced by a wallet Lighthouse guard or by the swap
+  for (const at of ["start", "end"] as const) {
+    const tx = edited(base, (ixs) => at === "end" ? [...ixs, lighthouse([ro(LP.publicKey)])] : [lighthouse([ro(LP.publicKey)]), ...ixs]);
+    rejects(() => validateLaunchTx(walletSign(tx, creator), lpExpect(creator, mint)), /launchpad/);
+  }
+  const swapAt = base.instructions.findIndex((ix, i) => i > 0 && ix.programId.equals(base.instructions[0].programId));
+  const sw = edited(base, (ixs) => ixs.map((ix, i) => i === swapAt ? new TransactionInstruction({ programId: ix.programId, data: ix.data, keys: [...ix.keys, ro(LP.publicKey)] }) : ix));
+  rejects(() => validateLaunchTx(walletSign(sw, creator), lpExpect(creator, mint)), /launchpad|account/);
+  const asProgram = edited(base, (ixs) => [...ixs, new TransactionInstruction({ programId: LP.publicKey, keys: [], data: Buffer.alloc(0) })]);
+  rejects(() => validateLaunchTx(walletSign(asProgram, creator), lpExpect(creator, mint)), /./);
+});

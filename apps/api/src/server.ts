@@ -5,7 +5,7 @@ import BN from "bn.js";
 import { Keypair, PublicKey, type Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { deriveDbcPoolAddress, SwapMode } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { buildClaimTx, buildLockTx, configPubkey, fetchEscrow, fetchEscrows, fetchLocks, lockTip, getClient, getConnection, JUP_LOCK_PROGRAM_ID, quote, usableReferralAta, type LockInfo } from "@hb/onchain";
+import { buildClaimTx, buildLockTx, configPubkey, fetchEscrow, fetchEscrows, fetchLocks, lockTip, getClient, getConnection, JUP_LOCK_PROGRAM_ID, launchpadSignerStatus, launchpadSigner, quote, usableReferralAta, type LockInfo } from "@hb/onchain";
 import { store, type Token } from "./store.js";
 import { hiddenSet, isHiddenMint } from "./services/hiddenTokens.js";
 import { withoutHidden } from "@hb/shared";
@@ -47,6 +47,10 @@ const SOL_USD = Number(process.env.SOL_USD ?? 150);
 const DRY_RUN = process.env.DRY_RUN !== "false";
 requireDb();
 await assertProductionConfig(); // mainnet: refuses to start on missing / unsafe env (see docs/MAINNET_CHECKLIST.md)
+{ // launchpad identity signer (terminal indexing): public key only, never the secret
+  const lp = launchpadSignerStatus();
+  console.log(lp.state === "ok" ? `[launchpad-signer] on, ${lp.pubkey}` : lp.state === "bad" ? `[launchpad-signer] invalid: ${lp.problem}` : `[launchpad-signer] ${lp.state}, launches carry no launchpad signer`);
+}
 await migrate(() => {});
 await initAuth();
 await initMedia();
@@ -214,7 +218,7 @@ app.post("/tx/launch", async (req, reply) => {
   try { built = await buildLaunchTx(b, new PublicKey(mint)); }
   catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
   // self-check: what we hand out must pass the same validator /tx/launch/sign applies (SDK drift shows up here, not at signing)
-  try { validateLaunchTx(built.tx, { mint, creator: b.creator, configs: launchConfigs(), referrals: platformReferrals(), requireCreatorSignature: false }); }
+  try { validateLaunchTx(built.tx, { mint, creator: b.creator, configs: launchConfigs(), referrals: platformReferrals(), requireCreatorSignature: false, launchpad: launchpadSigner()?.publicKey.toBase58() ?? null }); }
   catch (e) { req.log.error({ reason: (e as Error).message }, "launch tx failed self-validation"); return reply.code(500).send({ error: "launch tx failed validation", code: "LAUNCH_TX_SELF_CHECK" }); }
   return { ...built, vanity: true, mintSource: "pool" as const };
 });

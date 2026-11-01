@@ -134,6 +134,30 @@ test("end to end: stored encrypted mint -> reserve -> wallet signs -> API co-sig
   await assert.rejects(signLaunchTx(q, pub, walletSign(await buildLaunch({ mint: mintKp.publicKey, creator, config }), creator), { ...opts, key: crypto.randomBytes(32) }), /decryption failed/);
 });
 
+test("end to end with the launchpad identity signer: wallet signs first, API adds mint then launchpad, message unchanged, fully signed", async () => {
+  const q = await freshDb(0), key = crypto.randomBytes(32);
+  const creator = Keypair.generate(), config = Keypair.generate().publicKey, launchpad = Keypair.generate();
+  await q.query("ALTER TABLE mint_pool DROP CONSTRAINT mint_pool_pubkey_check"); // see the test above
+  const mintKp = Keypair.generate(), pub = mintKp.publicKey.toBase58();
+  const { sealSeed } = await import("./secretBox.js");
+  await store.insertMint(q, pub, sealSeed(mintKp.secretKey.slice(0, 32), pub, key));
+  await store.reserveFresh(q, creator.publicKey.toBase58(), 10);
+  const opts = { configs: [config.toBase58()], referrals: [], key, launchpad };
+  // built without the launchpad while the API expects it: refused before the secret is opened
+  const plain = await buildLaunch({ mint: mintKp.publicKey, creator, config, devBuyLamports: 1e8 });
+  await assert.rejects(signLaunchTx(q, pub, walletSign(plain, creator), opts), LaunchTxRejected);
+  assert.equal((await store.getReservation(q, pub))!.signed, false);
+  const tx = await buildLaunch({ mint: mintKp.publicKey, creator, config, devBuyLamports: 1e8, launchpad: launchpad.publicKey });
+  const walletB64 = walletSign(tx, creator);
+  const out = await signLaunchTx(q, pub, walletB64, opts);
+  const full = Transaction.from(Buffer.from(out.tx, "base64"));
+  assert.ok(full.verifySignatures(true));
+  assert.deepEqual(full.signatures.map((s) => s.publicKey.toBase58()), [creator.publicKey, mintKp.publicKey, launchpad.publicKey].map(String));
+  assert.ok(full.serializeMessage().equals(Transaction.from(Buffer.from(walletB64, "base64")).serializeMessage()), "co-sign keeps the wallet-signed message (extension checkCosigned)");
+  assert.ok(full.signatures[0].signature!.equals(Transaction.from(Buffer.from(walletB64, "base64")).signatures[0].signature!), "wallet signature untouched");
+  assert.ok(Buffer.from(out.tx, "base64").length <= 1232);
+});
+
 // ---- VANITY_MINTS modes (services/mintPool/mode.ts) ----
 test("VANITY_MINTS: fallback + empty pool -> random-fallback (logged); on -> 503; off never touches the pool", async () => {
   const empty = await freshDb(0);

@@ -1,7 +1,7 @@
 import BN from "bn.js";
 import { Keypair, PublicKey, type Transaction } from "@solana/web3.js";
 import { deriveDbcPoolAddress, getCurrentPoint, SwapMode, type PoolConfig } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { configPubkey, devBuyReferral, getClient, getConnection, usableReferralAta } from "@hb/onchain";
+import { addLaunchpadSigner, configPubkey, devBuyReferral, getClient, getConnection, launchpadSigner, usableReferralAta } from "@hb/onchain";
 
 const WSOL = new PublicKey("So11111111111111111111111111111111111111112");
 export const DEV_BUY_MAX_SOL = 20;
@@ -63,8 +63,12 @@ export interface LaunchReq { creator: string; name: string; symbol: string; uri?
  *    then POST /tx/launch/sign validates the wallet-signed bytes and adds the mint signature.
  *  - mint = Keypair: the random-mint path (VANITY_MINTS=off, or fallback with an empty/unavailable pool), as before the
  *    vanity pool: a fresh throwaway keypair pre-signs here and is dropped; the wallet signs and sends.
+ *  - launchpad identity signer (@hb/onchain launchpadSigner.ts, LAUNCHPAD_SIGNER_KEYPAIR_JSON / _PATH): when set, a read-only
+ *    signer of the DBC initialize pool instruction on every launch, so terminals (GMGN, Jupiter, Axiom) attribute it to highbar.
+ *    Vanity path: its slot stays empty here and /tx/launch/sign adds it right after the mint signature. Random path: it signs
+ *    here right after the throwaway mint. Either way the message is final before the wallet sees it. Unset = skipped.
  */
-export async function buildLaunchTx(b: LaunchReq, mintIn: PublicKey | Keypair) {
+export async function buildLaunchTx(b: LaunchReq, mintIn: PublicKey | Keypair, launchpad: Keypair | null = launchpadSigner()) {
   const signer = mintIn instanceof Keypair ? mintIn : null;
   const mint = signer ? signer.publicKey : (mintIn as PublicKey);
   const creator = new PublicKey(b.creator);
@@ -77,14 +81,26 @@ export async function buildLaunchTx(b: LaunchReq, mintIn: PublicKey | Keypair) {
     createPoolParam: { name: b.name, symbol: b.symbol, uri: b.uri ?? "", payer: creator, poolCreator: creator, config: q.config, baseMint: mint },
     firstBuyParam: devBuySol > 0 ? { buyer: creator, receiver: creator, buyAmount: q.amountIn, minimumAmountOut: q.minOut, referralTokenAccount: q.hasReferral ? await usableReferralAta() : null } : undefined,
   });
-  tx.feePayer = creator;
-  tx.recentBlockhash = (await getConnection().getLatestBlockhash("confirmed")).blockhash;
-  if (signer) tx.partialSign(signer);
-  const bytes = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
-  if (bytes.length > 1232) throw new Error(`launch tx too large (${bytes.length} bytes)`);
+  const bytes = finishLaunchTx(tx, { creator, blockhash: (await getConnection().getLatestBlockhash("confirmed")).blockhash, mintSigner: signer, launchpad });
   const pool = deriveDbcPoolAddress(WSOL, mint, q.config);
   return {
     tx: bytes.toString("base64"), size: bytes.length, mint: mint.toBase58(), pool: pool.toBase58(),
     devBuy: devBuySol > 0 ? { sol: devBuySol, estTokens: q.outTokens, minTokens: Number(q.minOut.toString()) / BASE_DEC, supplyPct: q.supplyPct, feeSol: q.feeSol, feePct: q.feePct, minFeeApplied: q.minFeeEligible } : null,
   };
+}
+
+/** Last step of buildLaunchTx (no RPC): fee payer + blockhash, the launchpad signer account, then the API-side signatures in
+ *  order (random mint first, then the launchpad). The vanity path passes mintSigner null: nothing is signed here, the wallet
+ *  signs next and /tx/launch/sign adds mint + launchpad. Returns the wire bytes (empty slots included, so the size is final). */
+export function finishLaunchTx(tx: Transaction, o: { creator: PublicKey; blockhash: string; mintSigner: Keypair | null; launchpad: Keypair | null }): Buffer {
+  tx.feePayer = o.creator;
+  tx.recentBlockhash = o.blockhash;
+  if (o.launchpad) addLaunchpadSigner(tx, o.launchpad.publicKey);
+  if (o.mintSigner) {
+    tx.partialSign(o.mintSigner);
+    if (o.launchpad) tx.partialSign(o.launchpad);
+  }
+  const bytes = tx.serialize({ requireAllSignatures: false, verifySignatures: false }); // web3.js itself refuses > 1232 bytes
+  if (bytes.length > 1232) throw new Error(`launch tx too large (${bytes.length} bytes)`);
+  return bytes;
 }
