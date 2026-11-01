@@ -10,7 +10,7 @@ import { useAsync, useStatus } from "./hooks";
 import { Button, Card, Copy, Dropdown, TabBar, Empty, Eyebrow, Field, INPUT, InfoTip, Note, SolAmt, SolanaMark, Switch, TierDot, Toasts, errText, useToasts } from "./components/ui";
 import { Label, RefreshIcon, TradeTab } from "./trade";
 import { parseCaInput, sortPositions, toastMs } from "../lib/panel";
-import { HB_MARK_PATH, HB_MARK_VIEWBOX } from "../lib/icons";
+import { HB_MARK_PATH, HB_MARK_VIEWBOX, METEORA_MARK } from "../lib/icons";
 import { DedicatedWarning, ExportBox, MigrateForm, Onboard, RemoveWallet } from "./wallet-forms";
 import { nextWalletLabel, WALLET_LABEL_MAX } from "../lib/wallets";
 
@@ -322,7 +322,13 @@ function SettingsTab({ st }: { st: WalletStatus }) {
       </Card>
       <ReferralCard p={s.presets} onSave={(presets) => save({ presets })} ready={st.ready} label={st.walletCount > 1 ? st.label : null} />
       <RpcCard />
-      <p className="pb-1 pt-0.5 text-center text-[11px] text-ink-3" data-testid="hb-version">highbar extension v{chrome.runtime.getManifest().version}</p>
+      <p className="flex items-center justify-center gap-1.5 pb-1 pt-0.5 text-center text-[11px] text-ink-3">
+        <span data-testid="hb-version">highbar extension v{chrome.runtime.getManifest().version}</span>
+        <span aria-hidden="true" className="opacity-60">·</span>
+        <a className="inline-flex items-center gap-1 opacity-90 hover:text-ink-2 hover:opacity-100" href="https://meteora.ag" target="_blank" rel="noopener noreferrer" data-testid="hb-built-on">
+          Built on <span className="inline-flex [&>svg]:h-3 [&>svg]:w-3" dangerouslySetInnerHTML={{ __html: METEORA_MARK }} /> Meteora
+        </a>
+      </p>
     </>
   );
 }

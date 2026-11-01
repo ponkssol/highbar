@@ -16,7 +16,7 @@ import { BUY_MAX_SOL } from "../lib/limits";
 import { fmtSol } from "../lib/format";
 import { compactSol } from "../lib/compact";
 import { heldTotal } from "../lib/heldsum";
-import { CLOSE, GEAR, HB_MARK, SOL_MARK } from "../lib/icons";
+import { CLOSE, GEAR, HB_MARK, METEORA_MARK, SOL_MARK } from "../lib/icons";
 import { clampPos, onScreen, placeBeside, type Pos } from "../lib/place";
 import { ask, h, scrollFade, svg } from "./dom";
 import { stopTweens, tweenText } from "./tween";
@@ -32,6 +32,8 @@ import type { CaKit } from "./ca";
 const VERIFIED = `<svg class="vbadge" viewBox="0 0 16 16" aria-label="Verified on Jupiter" role="img"><path fill="currentColor" d="M8 1l1.7 1.3 2.1-.2.7 2 1.8 1.1-.5 2.1.9 1.9-1.6 1.4-.1 2.1-2.1.4L9.6 15 8 13.7 6.4 15l-1.3-1.7-2.1-.4-.1-2.1L1.3 9.4l.9-1.9-.5-2.1 1.8-1.1.7-2 2.1.2z"/><path d="M5.3 8.2l1.8 1.8 3.6-3.7" stroke="#111" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const STEP: Record<SellStep, string> = { build: "Building", sign: "Signing in the extension", simulate: "Simulating", send: "Sending", confirm: "Confirming on Solana" };
 const SELL_PCTS = [25, 50, 100] as const;
+/** Under the buy/sell button: the same small muted link as the launch drawer's (a.powered), highbar runs on Meteora's pools. */
+const builtOn = () => h("a", { class: "powered", href: "https://meteora.ag", target: "_blank", rel: "noopener noreferrer", "data-testid": "hb-ca-built-on" }, "Built on", svg(METEORA_MARK), "Meteora");
 
 export interface PopupOpts { k: CaKit; mint: string; label: string; anchor: DOMRect | null; tweet: DOMRect | null; column?: DOMRect | null;
   savedPos(): Pos | null; setSavedPos(p: Pos | null): void; close(): void }
@@ -385,7 +387,7 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
       warmUp(prefs.tab === "buy" ? buySol : null);
       hslot.replaceChildren(head);
       body.replaceChildren(meta, chartBox, pnlc.el, trow, amts);
-      foot.replaceChildren(cta);
+      foot.replaceChildren(cta, builtOn());
       drawInfo(); drawTrade();
     };
     let logoTries = 0, partTries = 0, logoT: ReturnType<typeof setTimeout> | null = null;
@@ -424,7 +426,7 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
     document.addEventListener("visibilitychange", onVis);
     if (document.visibilityState === "visible") startPolls();
 
-    if (!st?.exists) foot.replaceChildren(h("button", { class: "cta", type: "button", onclick: () => { void ask({ type: "open:sidepanel" }).catch(() => {}); } }, "Create a wallet in the side panel"));
+    if (!st?.exists) foot.replaceChildren(h("button", { class: "cta", type: "button", onclick: () => { void ask({ type: "open:sidepanel" }).catch(() => {}); } }, "Create a wallet in the side panel"), builtOn());
 
     document.documentElement.append(popHost);
     // placement: next to the button (or the dragged spot), kept on screen, header drags it, double click resets
