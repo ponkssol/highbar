@@ -60,7 +60,7 @@ test("POST /rpc: allowlisted read calls are forwarded with rebuilt params, resul
 
 test("POST /rpc: other methods, batches and bad params are refused before any upstream call", async () => {
   const { f, calls } = app();
-  for (const method of ["getAccountInfo", "requestAirdrop", "getProgramAccounts", "simulateTransaction", "getSignaturesForAddress", ""]) {
+  for (const method of ["requestAirdrop", "getProgramAccounts", "getSignaturesForAddress", "getTransaction", ""]) {
     const r = await rpc(f, { jsonrpc: "2.0", id: 1, method, params: [] });
     assert.equal(r.statusCode, 403, method);
     assert.equal(r.json().error.code, -32601);
@@ -113,4 +113,37 @@ test("POST /rpc: upstream failures never leak the RPC URL", async () => {
   assert.deepEqual(e.json(), { jsonrpc: "2.0", id: 9, error: { code: -32002, message: "Transaction simulation failed: Blockhash not found", data: { logs: [] } } });
   const junk = app({ reply: () => ({ nope: true }) });
   assert.equal((await rpc(junk.f, { jsonrpc: "2.0", id: 1, method: "getLatestBlockhash" })).statusCode, 502);
+});
+
+test("sanitizeRpc: simulateTransaction keeps base64, sigVerify and commitment, drops accounts", () => {
+  assert.deepEqual(sanitizeRpc("simulateTransaction", [TX, { encoding: "base64", sigVerify: true, commitment: "confirmed", accounts: { addresses: [pk()], encoding: "base64" }, innerInstructions: true }]),
+    [TX, { encoding: "base64", sigVerify: true, commitment: "confirmed" }]);
+  assert.throws(() => sanitizeRpc("simulateTransaction", ["short"]), RpcReject);
+  assert.throws(() => sanitizeRpc("simulateTransaction", ["A".repeat(1700)]), RpcReject);
+  assert.throws(() => sanitizeRpc("simulateTransaction", [TX, { sigVerify: true, replaceRecentBlockhash: true }]), RpcReject);
+  assert.throws(() => sanitizeRpc("simulateTransaction", [TX, { sigVerify: "yes" }]), RpcReject);
+});
+
+test("sanitizeRpc: account reads, slot and block time", () => {
+  const a = pk(), b = pk();
+  assert.deepEqual(sanitizeRpc("getAccountInfo", [a, { encoding: "base64", commitment: "confirmed", extra: 1 }]), [a, { encoding: "base64", commitment: "confirmed" }]);
+  assert.deepEqual(sanitizeRpc("getAccountInfo", [a, { dataSlice: { offset: 0, length: 8 } }]), [a, { encoding: "base64", dataSlice: { offset: 0, length: 8 } }]);
+  assert.throws(() => sanitizeRpc("getAccountInfo", [a, { encoding: "base58" }]), RpcReject);
+  assert.throws(() => sanitizeRpc("getAccountInfo", ["nope"]), RpcReject);
+  assert.deepEqual(sanitizeRpc("getMultipleAccounts", [[a, b], { commitment: "confirmed" }]), [[a, b], { encoding: "base64", commitment: "confirmed" }]);
+  assert.throws(() => sanitizeRpc("getMultipleAccounts", [Array.from({ length: 21 }, pk)]), RpcReject);
+  assert.throws(() => sanitizeRpc("getMultipleAccounts", [[]]), RpcReject);
+  assert.deepEqual(sanitizeRpc("getSlot", [{ commitment: "confirmed" }]), [{ commitment: "confirmed" }]);
+  assert.deepEqual(sanitizeRpc("getBlockTime", [1234]), [1234]);
+  assert.throws(() => sanitizeRpc("getBlockTime", ["1234"]), RpcReject);
+  assert.throws(() => sanitizeRpc("getBlockTime", [-1]), RpcReject);
+});
+
+test("POST /rpc: simulateTransaction has its own per-IP limit", async () => {
+  const { f, calls } = app({ simulateLimiter: new WindowLimiter(1, 60_000) });
+  const one = await rpc(f, { jsonrpc: "2.0", id: 1, method: "simulateTransaction", params: [TX, { encoding: "base64", sigVerify: true }] });
+  assert.equal(one.statusCode, 200);
+  const two = await rpc(f, { jsonrpc: "2.0", id: 2, method: "simulateTransaction", params: [TX, { encoding: "base64", sigVerify: true }] });
+  assert.equal(two.statusCode, 429);
+  assert.equal(calls.length, 1);
 });

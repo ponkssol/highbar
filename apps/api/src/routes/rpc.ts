@@ -2,17 +2,21 @@
  *  GET  /config -> { network, siteUrl }
  *  POST /rpc    one JSON-RPC 2.0 call, method allowlist only:
  *               getBalance, getLatestBlockhash, getTokenAccountsByOwner, getParsedTokenAccountsByOwner,
- *               getSignatureStatuses, sendTransaction (base64, fully signed bytes; the API never signs here)
+ *               getSignatureStatuses, sendTransaction (base64, fully signed bytes; the API never signs here),
+ *               simulateTransaction (base64, signed, no accounts config: the extension's sell safety check),
+ *               getAccountInfo, getMultipleAccounts (up to 20), getSlot, getBlockTime (reads for DAMM v2 sell quotes)
  *  Params are rebuilt from validated fields (unknown config keys are dropped), batches are refused, and the upstream
  *  URL (RPC_URL / DEVNET_RPC via @hb/onchain rpcUrl()) is never returned, logged or put in an error message.
- *  Rate limits: the "rpc" class per IP (security/rateLimit.ts) plus a stricter per-IP limit on sendTransaction. */
+ *  Rate limits: the "rpc" class per IP (security/rateLimit.ts) plus stricter per-IP limits on sendTransaction and
+ *  simulateTransaction. */
 import type { FastifyInstance } from "fastify";
 import { networkOf } from "@hb/shared";
 import { rpcUrl } from "@hb/onchain";
 import { clientIp, WindowLimiter } from "../security/rateLimit.js";
 import { isAddress } from "../security/validate.js";
 
-export const RPC_METHODS = ["getBalance", "getLatestBlockhash", "getTokenAccountsByOwner", "getParsedTokenAccountsByOwner", "getSignatureStatuses", "sendTransaction"] as const;
+export const RPC_METHODS = ["getBalance", "getLatestBlockhash", "getTokenAccountsByOwner", "getParsedTokenAccountsByOwner", "getSignatureStatuses", "sendTransaction",
+  "simulateTransaction", "getAccountInfo", "getMultipleAccounts", "getSlot", "getBlockTime"] as const;
 export type RpcMethod = (typeof RPC_METHODS)[number];
 
 /** SPL Token and Token-2022: the only programs a token-accounts query may name. */
@@ -39,6 +43,17 @@ const minContextSlot = (c: Record<string, unknown>, out: Record<string, unknown>
   if (c.minContextSlot === undefined) return;
   if (!Number.isSafeInteger(c.minContextSlot) || (c.minContextSlot as number) < 0) throw new RpcReject("minContextSlot must be a non-negative integer");
   out.minContextSlot = c.minContextSlot;
+};
+const MAX_MULTIPLE_ACCOUNTS = 20;
+const accountConfig = (c: Record<string, unknown>, out: Record<string, unknown>) => {
+  const enc = c.encoding ?? "base64";
+  if (enc !== "base64" && enc !== "jsonParsed") throw new RpcReject("encoding must be base64 or jsonParsed");
+  out.encoding = enc;
+  if (c.dataSlice !== undefined) {
+    const d = obj(c.dataSlice);
+    if (!Number.isSafeInteger(d.offset) || (d.offset as number) < 0 || !Number.isSafeInteger(d.length) || (d.length as number) < 0) throw new RpcReject("dataSlice must be { offset, length } non-negative integers");
+    out.dataSlice = { offset: d.offset, length: d.length };
+  }
 };
 const addr = (v: unknown, name: string) => { if (typeof v !== "string" || !isAddress(v)) throw new RpcReject(`${name} must be a valid Solana address`); return v; };
 
@@ -103,6 +118,48 @@ export function sanitizeRpc(method: string, params: unknown): unknown[] {
       minContextSlot(c, out);
       return [tx, out];
     }
+    case "simulateTransaction": {
+      // Same size and shape rules as sendTransaction. No "accounts" config (it would return arbitrary account data) and
+      // no innerInstructions: the extension only reads err and logs.
+      if (p.length < 1 || p.length > 2) throw new RpcReject("simulateTransaction takes [tx, config?]");
+      const tx = p[0];
+      if (typeof tx !== "string" || tx.length < 100 || tx.length > MAX_TX_B64 || !B64.test(tx)) throw new RpcReject("tx must be a base64 transaction of at most 1232 bytes");
+      const c = obj(p[1]), out: Record<string, unknown> = { encoding: "base64" };
+      if (c.encoding !== undefined && c.encoding !== "base64") throw new RpcReject("encoding must be base64");
+      for (const k of ["sigVerify", "replaceRecentBlockhash"] as const) {
+        if (c[k] === undefined) continue;
+        if (typeof c[k] !== "boolean") throw new RpcReject(`${k} must be a boolean`);
+        out[k] = c[k];
+      }
+      if (out.sigVerify === true && out.replaceRecentBlockhash === true) throw new RpcReject("sigVerify and replaceRecentBlockhash cannot both be true");
+      commitment(c, out); minContextSlot(c, out);
+      return [tx, out];
+    }
+    case "getAccountInfo": {
+      if (p.length < 1 || p.length > 2) throw new RpcReject("getAccountInfo takes [address, config?]");
+      const c = obj(p[1]), out: Record<string, unknown> = {};
+      accountConfig(c, out); commitment(c, out); minContextSlot(c, out);
+      return [addr(p[0], "address"), out];
+    }
+    case "getMultipleAccounts": {
+      if (p.length < 1 || p.length > 2) throw new RpcReject("getMultipleAccounts takes [addresses, config?]");
+      const list = p[0];
+      if (!Array.isArray(list) || list.length < 1 || list.length > MAX_MULTIPLE_ACCOUNTS) throw new RpcReject(`addresses must be an array of 1 to ${MAX_MULTIPLE_ACCOUNTS}`);
+      const keys = list.map((a, i) => addr(a, `addresses[${i}]`));
+      const c = obj(p[1]), out: Record<string, unknown> = {};
+      accountConfig(c, out); commitment(c, out); minContextSlot(c, out);
+      return [keys, out];
+    }
+    case "getSlot": {
+      if (p.length > 1) throw new RpcReject("getSlot takes [config?]");
+      const c = obj(p[0]), out: Record<string, unknown> = {};
+      commitment(c, out); minContextSlot(c, out);
+      return [out];
+    }
+    case "getBlockTime": {
+      if (p.length !== 1 || !Number.isSafeInteger(p[0]) || (p[0] as number) < 0) throw new RpcReject("getBlockTime takes [slot] (a non-negative integer)");
+      return [p[0]];
+    }
   }
 }
 
@@ -115,6 +172,7 @@ export interface RpcDeps {
   network?: () => string;
   siteUrl?: () => string;
   sendLimiter?: WindowLimiter;
+  simulateLimiter?: WindowLimiter;
   timeoutMs?: number;
 }
 
@@ -129,7 +187,9 @@ export function registerConfigAndRpc(app: FastifyInstance, deps: RpcDeps = {}) {
   const doFetch = deps.fetch ?? fetch;
   const sendLimiter = deps.sendLimiter ?? new WindowLimiter(num("RATE_LIMIT_RPC_SEND_PER_MIN", 10), 60_000);
   const timeoutMs = deps.timeoutMs ?? 10_000;
+  const simulateLimiter = deps.simulateLimiter ?? new WindowLimiter(num("RATE_LIMIT_RPC_SIMULATE_PER_MIN", 20), 60_000);
   if (!deps.sendLimiter) setInterval(() => sendLimiter.sweep(), 5 * 60_000).unref();
+  if (!deps.simulateLimiter) setInterval(() => simulateLimiter.sweep(), 5 * 60_000).unref();
 
   app.get("/config", async (_req, reply) => {
     reply.header("cache-control", "public, max-age=60");
@@ -150,9 +210,9 @@ export function registerConfigAndRpc(app: FastifyInstance, deps: RpcDeps = {}) {
       const notAllowed = e.message === "method not allowed";
       return reply.code(notAllowed ? 403 : 400).send(rpcError(id, notAllowed ? -32601 : -32602, e.message));
     }
-    if (method === "sendTransaction") {
-      const ip = clientIp(req);
-      const wait = ip === null || process.env.RATE_LIMIT_OFF === "1" ? 0 : sendLimiter.take(ip);
+    if (method === "sendTransaction" || method === "simulateTransaction") {
+      const ip = clientIp(req), lim = method === "sendTransaction" ? sendLimiter : simulateLimiter;
+      const wait = ip === null || process.env.RATE_LIMIT_OFF === "1" ? 0 : lim.take(ip);
       if (wait) return reply.code(429).header("retry-after", String(Math.max(1, Math.ceil(wait / 1000)))).send(rpcError(id, -32005, "rate limited, try again shortly"));
     }
     const ctl = new AbortController();
