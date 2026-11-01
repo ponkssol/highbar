@@ -41,7 +41,7 @@ export function Card({ children, className = "", highlight = false }: { children
   );
 }
 
-/** Active state for soft controls (gold tint); pair with a soft control or `border border-transparent`. */
+/** Active state for soft controls (the soft filled pill of the tabs, no outline); pair with a soft control or `border border-transparent`. */
 export const CTRL_ON = "hb-ctrl-on";
 
 export const TIER_COLOR: Record<TierId, string> = { standard: "bg-tier-standard", higher: "bg-tier-higher", max: "bg-tier-max" };

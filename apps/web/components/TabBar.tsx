@@ -132,10 +132,10 @@ export function TabBar<T extends string>({ items, value, onSelect, label, classN
 /** Segmented control in the same pill look as TabBar. `tone="trade"` keeps the buy and sell colours on the active pill, every other
  *  tone renders the shared warm pill. `fill` stretches the track and splits it evenly (the trade side switch). `tabId` and
  *  `controls` wire the tabs to an external tabpanel. */
-export function Segmented<T extends string>({ options, value, onChange, label, tone, fill = false, className = "", itemClassName = "", tabId, controls, ...frame }: {
+export function Segmented<T extends string>({ options, value, onChange, label, tone, fill = false, className = "", itemClassName = "", tabId, controls, testId, ...frame }: {
   options: { id: T; label: ReactNode }[]; value: T; onChange: (v: T) => void; label?: string;
   tone?: "pill" | "trade"; fill?: boolean; className?: string; itemClassName?: string;
-  tabId?: (id: T) => string; controls?: string;
+  tabId?: (id: T) => string; controls?: string; testId?: string;
 } & Frame) {
   const { list, ind, ready } = useSlidingIndicator(value);
   const trade = tone === "trade";
@@ -143,7 +143,7 @@ export function Segmented<T extends string>({ options, value, onChange, label, t
   const onText = trade ? "font-semibold text-on-ink" : SEG_ON;
   return (
     <SegFrame active={value} {...frame} scroll={fill ? false : frame.scroll}>
-      <div ref={list} role="tablist" aria-label={label} className={cx(SEG_TRACK, fill && "!flex !w-full", className)}>
+      <div ref={list} role="tablist" aria-label={label} data-testid={testId} className={cx(SEG_TRACK, fill && "!flex !w-full", className)}>
         <span ref={ind} aria-hidden className={cx("hb-tab-ind inset-y-1 rounded-full", pill, !ready && "opacity-0")} />
         {options.map((o) => {
           const on = o.id === value;
@@ -154,6 +154,36 @@ export function Segmented<T extends string>({ options, value, onChange, label, t
         })}
       </div>
     </SegFrame>
+  );
+}
+
+/** The same classes for controls that cannot use TabBar or Segmented as they are (pagination, the slippage field, the launch tier
+ *  cards): the track, one item, and the filled and muted item states. */
+export const PILL = { track: SEG_TRACK, item: SEG_ITEM, on: `${SEG_ON} bg-seg-on`, off: SEG_OFF } as const;
+
+/** Small muted count after a tab label, e.g. "Bonding 5". */
+export function TabCount({ n }: { n: ReactNode }) {
+  return <span className="num ml-1.5 text-[10.5px] font-normal text-ink-3">{n}</span>;
+}
+
+/** Quick picks and presets in the same pill look. Unlike Segmented, nothing has to be selected (a custom value typed next to the
+ *  row) and an option can be a one-shot action, so each item is a plain button: aria-pressed when `pressed` (the default), the
+ *  fill sits on the item itself and does not slide. `fill` splits the track evenly. `children` go at the end of the track. */
+export function PillGroup<T extends string | number>({ options, value = null, onPick, label, labelledBy, fill = false, pressed = true, className = "", itemClassName = "", testId, children }: {
+  options: { id: T; label: ReactNode; disabled?: boolean; testId?: string; title?: string }[]; value?: T | null; onPick: (id: T) => void;
+  label?: string; labelledBy?: string; fill?: boolean; pressed?: boolean; className?: string; itemClassName?: string; testId?: string; children?: ReactNode;
+}) {
+  return (
+    <div role="group" aria-label={label} aria-labelledby={labelledBy} data-testid={testId} className={cx(SEG_TRACK, fill && "!flex !w-full", className)}>
+      {options.map((o) => {
+        const on = value !== null && o.id === value;
+        return (
+          <button key={String(o.id)} type="button" aria-pressed={pressed ? on : undefined} data-on={on || undefined} disabled={o.disabled} data-testid={o.testId} title={o.title} onClick={() => onPick(o.id)}
+            className={cx(SEG_ITEM, fill && "min-w-0 flex-1", on ? PILL.on : SEG_OFF, "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-ink-3", itemClassName)}>{o.label}</button>
+        );
+      })}
+      {children}
+    </div>
   );
 }
 

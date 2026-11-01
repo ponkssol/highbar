@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { TopBlock } from "@/components/TopBar";
 import { Button, Card } from "@/components/ui";
 import { Tabs } from "@/components/PageStates";
+import { PillGroup } from "@/components/TabBar";
 import { DEFAULT_SETTINGS, NETWORK, useSettings, type Explorer, type PriorityFee, type Theme } from "@/lib/settings";
 
 function Row({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
@@ -24,16 +25,13 @@ export default function SettingsPage() {
           <Tabs<Theme> label="Theme" fade="surface" value={s.theme} onChange={(theme) => update({ theme })} options={[{ id: "light", label: "Light" }, { id: "dark", label: "Dark" }, { id: "system", label: "System" }]} />
         </Row>
         <Row title="Default slippage" hint="Used as the default in the trade panel.">
-          <div className="flex items-center gap-2">
-            {[0.5, 1, 2, 5].map((v) => (
-              <button key={v} onClick={() => update({ slippagePct: v })}
-                className={`num h-8 rounded-full border px-3 text-sm transition-colors ${s.slippagePct === v ? "hb-ctrl-on" : "hb-ctrl"}`}>{v}%</button>
-            ))}
-            <label className="flex h-8 items-center rounded-full border border-border px-3 focus-within:border-ink">
-              <input className="num w-12 bg-transparent text-sm outline-none" inputMode="decimal" value={s.slippagePct}
+          <PillGroup label="Default slippage" value={s.slippagePct} onPick={(v) => update({ slippagePct: v })} itemClassName="num"
+            options={[0.5, 1, 2, 5].map((v) => ({ id: v, label: `${v}%` }))}>
+            <label className="num ml-0.5 flex h-8 items-center rounded-full bg-control px-3 text-[13px] text-ink-2 transition-colors focus-within:bg-control-hover focus-within:text-ink">
+              <input className="num w-12 bg-transparent text-[13px] text-ink outline-none" inputMode="decimal" value={s.slippagePct} aria-label="Custom slippage in percent"
                 onChange={(e) => { const v = Number(e.target.value.replace(/[^0-9.]/g, "")); if (!Number.isNaN(v) && v <= 50) update({ slippagePct: v }); }} />%
             </label>
-          </div>
+          </PillGroup>
         </Row>
         <Row title="Priority fee" hint="Extra fee so transactions land faster.">
           <Tabs<PriorityFee> label="Priority fee" fade="surface" value={s.priorityFee} onChange={(priorityFee) => update({ priorityFee })} options={[{ id: "none", label: "None" }, { id: "low", label: "Low" }, { id: "high", label: "High" }]} />

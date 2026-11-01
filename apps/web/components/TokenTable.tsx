@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useListQuery, type SortId, type StatusId } from "@/lib/listQuery";
 import { ListControls } from "./ListControls";
+import { Segmented, TabCount } from "./TabBar";
 import { ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
 import { progressOf as progressAt, targetOf, type TokenRow } from "@/lib/mock";
 import { NETWORK } from "@/lib/settings";
@@ -83,14 +84,8 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3">
         <h2 className="text-lg font-semibold">New tokens</h2>
         <div className="lg:hidden"><ListControls small /></div>
-        <div className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1">
-          {FILTERS.map((f) => (
-            <button key={f.id} onClick={() => setFilter(f.id)}
-              className={`relative h-7 shrink-0 whitespace-nowrap rounded-full px-2.5 text-[12px] after:absolute after:inset-x-0 after:-inset-y-[6px] after:content-[''] md:h-8 md:px-3 md:text-sm ${filter === f.id ? "hb-ctrl hb-ctrl-on font-medium" : "hb-ctrl text-ink-2"}`}>
-              {f.label} <span className="num ml-1 text-xs opacity-60">{base.filter(f.test).length}</span>
-            </button>
-          ))}
-        </div>
+        <Segmented label="Token status" value={filter} onChange={setFilter} fade="surface" outerClassName="max-w-full" itemClassName="max-sm:!px-2.5" testId="status-filter"
+          options={FILTERS.map((f) => ({ id: f.id, label: <>{f.label}<TabCount n={base.filter(f.test).length} /></> }))} />
       </div>
       <ul className="flex flex-col gap-3 p-3 md:hidden" data-testid="token-cards">
         {pageRows.map((t) => {

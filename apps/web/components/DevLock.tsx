@@ -13,6 +13,7 @@ import { buildClaimLockTx, buildLockTx, toUi, TOKEN_DECIMALS, type LocksResp } f
 import { NETWORK } from "@/lib/settings";
 import { shortAddr } from "@/lib/format";
 import { buttonClass, inputClass } from "./ui";
+import { PillGroup } from "./TabBar";
 import { SolAmt } from "./Sol";
 
 const input = inputClass();
@@ -193,34 +194,20 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
           {publicKey && <div className="flex justify-between text-[13px]" data-testid="lock-recipient"><span className="text-ink-2">Recipient</span><span className="num text-ink">Your wallet {shortAddr(publicKey.toBase58())}</span></div>}
           <div>
             <span className="mb-1.5 block text-[13px] text-ink-2" id="lock-duration-label">Lock duration</span>
-            <div className="grid grid-cols-5 gap-1.5" role="group" aria-labelledby="lock-duration-label">
-              {DURATIONS.map((d) => {
-                const on = !customDays && chipDays === d;
-                return (
-                  <button key={d} type="button" aria-pressed={on} data-testid={`lock-chip-${d}`} onClick={() => { setChipDays(d); setCustomDays(""); }}
-                    className={`num h-9 rounded border text-[13px] transition-colors ${on ? "border-gold-line bg-gold-soft font-semibold text-gold-text" : "border-border text-ink-2 hover:bg-muted hover:text-ink"}`}>{d} days</button>
-                );
-              })}
-            </div>
+            <PillGroup labelledBy="lock-duration-label" fill value={customDays ? null : chipDays} onPick={(d) => { setChipDays(d); setCustomDays(""); }} itemClassName="num !px-1"
+              options={DURATIONS.map((d) => ({ id: d, label: `${d} days`, testId: `lock-chip-${d}` }))} />
             <label className="mt-2 flex items-center gap-2">
               <span className="sr-only">Custom duration in days</span>
-              <input className={`${input} num ${customDays ? "border-gold-line" : ""}`} inputMode="numeric" placeholder="Custom" value={customDays} data-testid="lock-custom-days"
+              <input className={`${input} num ${customDays ? "border-border-strong" : ""}`} inputMode="numeric" placeholder="Custom" value={customDays} data-testid="lock-custom-days"
                 onChange={(e) => setCustomDays(e.target.value.replace(/[^0-9]/g, "").replace(/^0+/, ""))} />
               <span className="shrink-0 text-sm text-ink-3">days</span>
             </label>
           </div>
           <label className="block"><span className="mb-1.5 flex justify-between text-[13px] text-ink-2">Token amount<button type="button" onClick={() => setAmount(maxAmount)} className="num text-xs text-ink-3 hover:text-ink">Max {fmtTok(bal ?? 0)}</button></span>
             <input className={`${input} num`} inputMode="decimal" placeholder="0" value={amount} data-testid="lock-amount" onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} />
-            <div className="mt-2 grid grid-cols-4 gap-1.5" role="group" aria-label="Amount quick picks" data-testid="lock-amount-picks">
-              {AMOUNT_PCTS.map((p) => {
-                const v = pctAmount(p);
-                const on = hasBal && amount !== "" && Number(amount) === Number(v);
-                return (
-                  <button key={p} type="button" aria-pressed={on} disabled={!hasBal} data-testid={`lock-pct-${p}`} onClick={() => setAmount(v)}
-                    className={`num h-9 rounded border text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${on ? "border-gold-line bg-gold-soft font-semibold text-gold-text" : "border-border text-ink-2 hover:bg-muted hover:text-ink"}`}>{p}%</button>
-                );
-              })}
-            </div>
+            <PillGroup label="Amount quick picks" testId="lock-amount-picks" fill className="mt-2" itemClassName="num"
+              value={AMOUNT_PCTS.find((p) => hasBal && amount !== "" && Number(amount) === Number(pctAmount(p))) ?? null} onPick={(p) => setAmount(pctAmount(p))}
+              options={AMOUNT_PCTS.map((p) => ({ id: p, label: `${p}%`, disabled: !hasBal, testId: `lock-pct-${p}` }))} />
             {supply != null && amt > 0 && <span className="num mt-1 block text-xs text-ink-3" data-testid="lock-supply-pct">{fmtShare((amt / supply) * 100)}% of supply</span>}
           </label>
           {amt > 0 && daysOk && <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-ink" data-testid="lock-summary">Locks <span className="num font-medium">{fmtTok(amt)} ${ticker}</span> until <span className="num font-medium">{fmtDay(unlockAtFor(days))}</span></p>}

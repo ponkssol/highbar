@@ -37,10 +37,10 @@ h1 .num,h2 .num,h3 .num{letter-spacing:normal}
 @media (max-width:767px){.hb-frame{inset:4px;border-radius:8px}}
 /* Small caps labels: mono, uppercase, wide tracking. */
 .hb-eyebrow{font-family:var(--font-mono),"JetBrains Mono",monospace;font-size:10.5px;font-weight:500;line-height:1;letter-spacing:.22em;text-transform:uppercase;color:var(--hb-gold-text);}
-/* Soft controls (arena): no harsh strokes. 1px hairline (8%), soft fill (5%, hover 8%); active = gentle gold tint. Shared by buttons, chips, segmented tabs, header controls. */
+/* Soft controls (arena): no harsh strokes. 1px hairline (8%), soft fill (5%, hover 8%); active = the same soft filled pill as the tabs, no outline. Shared by buttons, toggles and header controls. */
 .hb-ctrl{background-color:var(--hb-control);border:1px solid var(--hb-border);}
 .hb-ctrl:hover{background-color:var(--hb-control-hover);}
-.hb-ctrl-on,.hb-ctrl-on:hover{background-color:var(--hb-gold-soft);border-color:var(--hb-gold-line);color:var(--hb-ink);}
+.hb-ctrl-on,.hb-ctrl-on:hover{background-color:var(--hb-seg-on);border-color:transparent;color:var(--hb-seg-on-ink);}
 .num{font-family:var(--font-mono),"Geist Mono","JetBrains Mono",monospace;font-variant-numeric:tabular-nums;}
 
 @keyframes hb-pop{0%{transform:scale(.2);box-shadow:0 0 0 0 var(--glow)}45%{transform:scale(1.35);box-shadow:0 0 10px 3px var(--glow)}100%{transform:scale(1);box-shadow:0 0 0 0 transparent}}

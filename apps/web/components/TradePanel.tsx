@@ -9,7 +9,7 @@ import { useAntiSniper } from "@/lib/antiSniper";
 import { buildSwapTx } from "@/lib/tx";
 import { currentPoint, quote as curveQuote, readCurve, type CurveState } from "@/lib/curve";
 import { PublicKey } from "@solana/web3.js";
-import { Segmented } from "./TabBar";
+import { PILL, PillGroup, Segmented } from "./TabBar";
 import { InfoTip } from "./InfoTip";
 import { SolAmt, SolHead } from "./Sol";
 import { NA } from "./ui";
@@ -129,23 +129,17 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
           </div>
         )}
       </div>
-      <div className="flex gap-2">
-        {side === "buy"
-          ? ["0.1", "0.5", "1"].map((p) => (
-              <button key={p} type="button" onClick={() => setAmount(p)} className={`num inline-flex h-8 flex-1 items-center justify-center rounded-full border text-sm transition-colors ${amount === p ? "border-ink" : "border-border hover:bg-muted"}`}><SolAmt>{p}</SolAmt></button>
-            ))
-          : <>
-              {publicKey && !!balance && [25, 50].map((p) => (
-                <button key={p} type="button" onClick={() => setAmount(String(Math.floor((balance * p) / 100)))} className="num h-8 flex-1 rounded-full border border-border text-sm hover:bg-muted">{p}%</button>
-              ))}
-              <button type="button" onClick={setMaxSell} disabled={!sellMax} data-testid="trade-max" className="num h-8 flex-1 rounded-full border border-border text-sm hover:bg-muted disabled:opacity-40">Max</button>
-            </>}
-      </div>
+      {side === "buy"
+        ? <PillGroup label="Quick amounts" fill value={amount} onPick={setAmount} itemClassName="num"
+            options={["0.1", "0.5", "1"].map((p) => ({ id: p, label: <SolAmt>{p}</SolAmt> }))} />
+        : <PillGroup label="Quick amounts" fill pressed={false} itemClassName="num"
+            onPick={(id) => { if (id === "max") setMaxSell(); else if (balance) setAmount(String(Math.floor((balance * Number(id)) / 100))); }}
+            options={[...(publicKey && !!balance ? ["25", "50"].map((p) => ({ id: p, label: `${p}%` })) : []), { id: "max", label: "Max", disabled: !sellMax, testId: "trade-max" }]} />}
       <div className="flex items-center justify-between text-sm">
         <span className="text-ink-3">Slippage</span>
-        <span className="flex items-center gap-1">
-          <button type="button" onClick={() => setSlipAuto(true)} aria-pressed={slipAuto} className={`rounded-full px-2.5 py-1 text-xs ${slipAuto ? "bg-ink text-on-ink" : "border border-border text-ink-2"}`}>Auto 1%</button>
-          <label className={`flex h-7 w-16 items-center rounded-full border px-2 text-xs ${slipAuto ? "border-border" : "border-ink"}`}>
+        <span role="group" aria-label="Slippage" className={PILL.track}>
+          <button type="button" onClick={() => setSlipAuto(true)} aria-pressed={slipAuto} className={`${PILL.item} !h-7 !px-2.5 !text-xs ${slipAuto ? PILL.on : PILL.off}`}>Auto 1%</button>
+          <label className={`num flex h-7 w-16 items-center rounded-full px-2.5 text-xs transition-colors ${slipAuto ? "text-ink-3 hover:text-ink-2" : "bg-seg-on text-seg-on-ink"}`}>
             <input aria-label="Custom slippage in percent" value={slip} onFocus={() => setSlipAuto(false)} onChange={(e) => { setSlipAuto(false); setSlip(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0.")); }} className="num w-full bg-transparent outline-none" />%
           </label>
         </span>

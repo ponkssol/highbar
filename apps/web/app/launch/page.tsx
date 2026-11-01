@@ -3,7 +3,7 @@ import { SolAmt } from "@/components/Sol";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ImagePlus, Lock, ShieldCheck } from "lucide-react";
+import { ImagePlus, Lock, ShieldCheck } from "lucide-react";
 import { TIERS, thresholdSolFor, type TierId } from "@hb/shared";
 import { TopBlock } from "@/components/TopBar";
 import { Avatar, Button, Card, ProgressBar, TierBadge, TierDot } from "@/components/ui";
@@ -178,22 +178,21 @@ export default function LaunchPage() {
           </div>
           <div>
             <span id="launch-tier-label" className="mb-1.5 block text-[13px] text-ink-2">Tier</span>
-            <div role="radiogroup" aria-labelledby="launch-tier-label" className="grid grid-cols-3 gap-2 sm:gap-3">
+            <div role="radiogroup" aria-labelledby="launch-tier-label" className="grid grid-cols-3 gap-1 rounded-[14px] border border-seg-line bg-seg p-1">
               {(Object.keys(TIERS) as TierId[]).map((id) => {
                 const s = feeSplitPct(id); const sel = tier === id; const locked = id === "max" && maxLocked; const tipId = `launch-tier-${id}-help`;
                 return (
                   // The info icon is a sibling of the radio (not inside it), so tapping it never selects the tier. InfoTip also stops propagation.
                   <div key={id} className="relative min-w-0">
                     <button type="button" role="radio" aria-checked={sel} aria-disabled={locked} aria-describedby={tipId} title={locked ? maxNeed : undefined} onClick={() => !locked && setTier(id)}
-                      className={`flex h-full w-full flex-col items-start gap-2.5 rounded px-2.5 pb-3 pt-2.5 text-left sm:px-3.5 sm:pb-3.5 sm:pt-3 ${sel ? "border-[1.5px] border-ink" : "border border-border hover:bg-muted"} ${locked ? "cursor-not-allowed opacity-60" : ""}`}>
-                      <span className="flex min-w-0 items-center gap-1.5 text-[13px] leading-none text-ink sm:text-sm">
+                      className={`flex h-full w-full flex-col items-start gap-2.5 rounded-[10px] px-2.5 pb-3 pt-2.5 text-left transition-colors duration-200 sm:px-3.5 sm:pb-3.5 sm:pt-3 ${sel ? "bg-seg-on text-seg-on-ink" : `text-ink-2 ${locked ? "" : "hover:bg-control-hover hover:text-ink"}`} ${locked ? "cursor-not-allowed opacity-60" : ""}`}>
+                      <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium leading-none sm:text-sm">
                         <TierDot tier={id} /><span className="truncate">{TIERS[id].label}</span>{locked && <Lock size={11} className="shrink-0 text-ink-3" aria-hidden />}
                       </span>
                       <span className="num flex items-center gap-1.5 pr-5 text-lg font-semibold leading-none sm:text-xl">
                         <SolanaMark />{thresholdSolFor(id, NETWORK)}<span className="sr-only"> SOL</span>
                       </span>
                     </button>
-                    {sel && <span aria-hidden className="pointer-events-none absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-on-ink ring-2 ring-surface"><Check size={12} /></span>}
                     {locked && maxBlocked && <span data-testid="soon-chip" className="num pointer-events-none absolute -top-2 right-2 inline-flex h-5 items-center rounded-full border border-gold-line bg-gold-soft px-2 text-[10px] font-medium uppercase tracking-[0.16em] text-gold-text">Soon</span>}
                     <InfoTip id={tipId} label={`${TIERS[id].label} tier details`} className="absolute bottom-2.5 right-2 sm:bottom-3.5 sm:right-3">
                       <span className="mb-1.5 block font-medium text-ink">{TIERS[id].label} tier</span>

@@ -3,6 +3,7 @@ import { SolAmt } from "./Sol";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BurnBadge } from "./ui";
+import { Segmented } from "./TabBar";
 
 function seeded(n: number, base: number, spread: number, seed: number) {
   let s = seed;
@@ -47,11 +48,7 @@ export function LaunchChart() {
           <div className="text-[13px] text-ink-3">Tokens launched, {range === "7D" ? "this week" : "30 days"}</div>
           <div className="mt-1 flex items-center gap-2"><span className="num text-2xl font-semibold">{total}</span><DeltaPill v={range === "7D" ? 12.4 : 8.1} /></div>
         </div>
-        <div className="flex rounded-full border border-border bg-muted p-0.5 text-xs">
-          {(["7D", "30D"] as const).map((r) => (
-            <button key={r} onClick={() => setRange(r)} className={`rounded-full px-3 py-1 font-medium ${range === r ? "bg-ink text-on-ink" : "text-ink-3 hover:text-ink"}`}>{r}</button>
-          ))}
-        </div>
+        <Segmented label="Range" value={range} onChange={setRange} fade="surface" options={(["7D", "30D"] as const).map((r) => ({ id: r, label: r }))} />
       </div>
       <div className="relative" style={{ height: H + 20 }}>
         {[0, 0.5, 1].map((g) => (
