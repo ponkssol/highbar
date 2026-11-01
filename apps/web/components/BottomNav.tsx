@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { SocialLinks } from "./SocialLinks";
+import { BuiltOnRow } from "./BuiltOnRow";
 import { NAV, isNavActive, type NavItem } from "./nav";
 
 const byHref = (h: string) => NAV.find((n) => n.href === h)!;
@@ -64,6 +65,7 @@ export function BottomNav() {
               ); })}
               <div className="mt-2 border-t border-border pt-2 [&>button]:mb-0 [&>button]:h-[52px] [&>button]:w-full"><ThemeToggle /></div>
               <SocialLinks className="mt-1 border-t border-border pt-2" />
+              <BuiltOnRow className="mt-1 border-t border-border px-3 pt-3.5 pb-1" />
             </div>
           </div>
         </div>

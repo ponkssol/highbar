@@ -5,6 +5,7 @@ import { SocialLinks } from "./SocialLinks";
 import { ThemeToggle } from "./ThemeToggle";
 import { NAV, isNavActive } from "./nav";
 import { Logo } from "./Logo";
+import { BuiltOnRow } from "./BuiltOnRow";
 
 export function Sidebar() {
   const path = usePathname();
@@ -30,6 +31,7 @@ export function Sidebar() {
       <div className="mt-auto" />
       <ThemeToggle />
       <SocialLinks variant="icons" className="mt-2 px-1" />
+      <BuiltOnRow className="mt-4 border-t border-border px-3 pt-3.5" />
     </aside>
   );
 }
