@@ -5,7 +5,7 @@
  *               getSignatureStatuses, sendTransaction (base64, fully signed bytes; the API never signs here),
  *               simulateTransaction (base64, signed, no accounts config: the extension's sell safety check),
  *               getAccountInfo, getMultipleAccounts (up to 20), getSlot, getBlockTime (reads for DAMM v2 sell quotes),
- *               getTokenLargestAccounts, getTokenSupply ([mint, { commitment }?]: holder concentration / supply of a mint)
+ *               getTokenLargestAccounts, getTokenSupply ([mint, { commitment }?], commitment defaults to confirmed: holder concentration / supply of a mint)
  *  Params are rebuilt from validated fields (unknown config keys are dropped), batches are refused, and the upstream
  *  URL (RPC_URL / DEVNET_RPC via @hb/onchain rpcUrl()) is never returned, logged or put in an error message.
  *  Rate limits: the "rpc" class per IP (security/rateLimit.ts) plus stricter per-IP limits on sendTransaction and
@@ -160,10 +160,12 @@ export function sanitizeRpc(method: string, params: unknown): unknown[] {
     }
     case "getTokenLargestAccounts":
     case "getTokenSupply": {
-      // a single base58 mint and a commitment-only config (any other key is dropped)
+      // a single base58 mint and a commitment-only config (any other key is dropped). The upstream refuses these two
+      // without a commitment (-32602 "missing field `commitment`"), so a missing one defaults to "confirmed".
       if (p.length < 1 || p.length > 2) throw new RpcReject(`${method} takes [mint, config?]`);
       const c = obj(p[1]), out: Record<string, unknown> = {};
       commitment(c, out);
+      if (out.commitment === undefined) out.commitment = "confirmed";
       return [addr(p[0], "mint"), out];
     }
     case "getBlockTime": {

@@ -170,7 +170,11 @@ test("POST /rpc: simulateTransaction has its own per-IP limit", async () => {
 test("sanitizeRpc: getTokenLargestAccounts / getTokenSupply take one base58 mint and a commitment-only config", () => {
   const mint = pk();
   for (const m of ["getTokenLargestAccounts", "getTokenSupply"]) {
-    assert.deepEqual(sanitizeRpc(m, [mint]), [mint, {}], m);
+    assert.deepEqual(sanitizeRpc(m, [mint]), [mint, { commitment: "confirmed" }], `${m}: bare [mint] gets the default commitment`);
+    assert.deepEqual(sanitizeRpc(m, [mint, {}]), [mint, { commitment: "confirmed" }], `${m}: empty config gets the default commitment`);
+    assert.deepEqual(sanitizeRpc(m, [mint, null]), [mint, { commitment: "confirmed" }], `${m}: null config gets the default commitment`);
+    assert.deepEqual(sanitizeRpc(m, [mint, { evil: "x" }]), [mint, { commitment: "confirmed" }], `${m}: config without commitment gets the default`);
+    for (const keep of ["processed", "finalized"]) assert.deepEqual(sanitizeRpc(m, [mint, { commitment: keep }]), [mint, { commitment: keep }], `${m}: explicit ${keep} kept`);
     assert.deepEqual(sanitizeRpc(m, [mint, { commitment: "confirmed" }]), [mint, { commitment: "confirmed" }], m);
     assert.deepEqual(sanitizeRpc(m, [mint, { commitment: "finalized", minContextSlot: 5, encoding: "jsonParsed", evil: "x" }]), [mint, { commitment: "finalized" }], `${m}: other config keys dropped`);
     for (const bad of [[], ["not-a-mint"], [123], [[mint]], [mint, mint], [mint, { commitment: "max" }], [mint, [1]], [mint, {}, {}], "x"])
@@ -190,4 +194,23 @@ test("POST /rpc: getTokenLargestAccounts / getTokenSupply are forwarded under th
     assert.equal(bad.statusCode, 400); assert.equal(bad.json().error.code, -32602);
   }
   assert.equal(calls.length, 2);
+});
+
+test("POST /rpc: getTokenLargestAccounts / getTokenSupply with bare [mint] are forwarded with commitment confirmed; explicit kept, invalid refused", async () => {
+  const { f, calls } = app();
+  const mint = pk();
+  for (const method of ["getTokenLargestAccounts", "getTokenSupply"]) {
+    const r = await rpc(f, { jsonrpc: "2.0", id: 9, method, params: [mint] });
+    assert.equal(r.statusCode, 200, method);
+    assert.deepEqual(calls.at(-1)!.body.params, [mint, { commitment: "confirmed" }], `${method}: default injected`);
+    const kept = await rpc(f, { jsonrpc: "2.0", id: 10, method, params: [mint, { commitment: "finalized" }] });
+    assert.equal(kept.statusCode, 200, method);
+    assert.deepEqual(calls.at(-1)!.body.params, [mint, { commitment: "finalized" }], `${method}: explicit commitment kept`);
+    const before = calls.length;
+    for (const c of ["max", 1, "", null]) {
+      const bad = await rpc(f, { jsonrpc: "2.0", id: 11, method, params: [mint, { commitment: c }] });
+      assert.equal(bad.statusCode, 400, `${method} ${JSON.stringify(c)}`); assert.equal(bad.json().error.code, -32602);
+    }
+    assert.equal(calls.length, before, `${method}: invalid commitments never reach the upstream`);
+  }
 });
