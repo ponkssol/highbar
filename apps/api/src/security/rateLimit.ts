@@ -30,6 +30,8 @@ export function limitsFromEnv() {
     metadata: new WindowLimiter(num("RATE_LIMIT_METADATA_PER_MIN", 6), 60_000),
     referral: new WindowLimiter(num("RATE_LIMIT_REFERRAL_PER_MIN", 10), 60_000),
     auth: new WindowLimiter(num("RATE_LIMIT_AUTH_PER_MIN", 20), 60_000),
+    /** POST /rpc (routes/rpc.ts, allowlisted read calls + sendTransaction; sends have their own stricter limit there). */
+    rpc: new WindowLimiter(num("RATE_LIMIT_RPC_PER_MIN", 60), 60_000),
     /** Anti-spam on token creation: launch txs built per creator wallet per hour. */
     launchPerCreator: new WindowLimiter(num("LAUNCHES_PER_CREATOR_PER_HOUR", 5), 3_600_000),
     /** and per IP per hour (on top of the per-minute burst limit). */
@@ -46,6 +48,7 @@ export function routeClass(method: string, url: string): keyof Limits | null {
   if (p === "/tx/launch/quote") return "txBuild";
   if (method === "POST" && (p.startsWith("/tx/") || p === "/claim/build" || p.startsWith("/mint/"))) return "txBuild"; // incl. /tx/launch/sign, /mint/confirm
   if (method === "POST" && p === "/referrals") return "referral";
+  if (method === "POST" && p === "/rpc") return "rpc";
   if (p.startsWith("/auth/")) return "auth";
   return null;
 }

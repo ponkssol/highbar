@@ -30,6 +30,7 @@ import { db } from "./db/pool.js";
 import { registerScores } from "./routes/scores.js";
 import { registerSearch } from "./routes/search.js";
 import { registerOpenBook } from "./routes/openbook.js";
+import { registerConfigAndRpc } from "./routes/rpc.js";
 import { startSnapshotLoop } from "./openbook/snapshot.js";
 import { resolveWallets } from "./openbook/wallets.js";
 import { jobs } from "./jobs/config.js";
@@ -93,6 +94,7 @@ registerMedia(app);
 registerScores(app);
 registerSearch(app);
 registerOpenBook(app);
+registerConfigAndRpc(app); // GET /config, POST /rpc (allowlisted JSON-RPC proxy for the extension; the RPC URL stays server-side)
 app.get("/health", async () => ({ ok: true, tokens: await store.tokenCount(), dryRun: DRY_RUN, time: Date.now() }));
 
 app.get("/tokens", async (req) => {

@@ -27,6 +27,8 @@ test("routeClass: strict classes for metadata, referrals, launch and tx builders
   assert.equal(routeClass("POST", "/tx/swap?x=1"), "txBuild");
   assert.equal(routeClass("GET", "/tx/launch/quote"), "txBuild");
   assert.equal(routeClass("POST", "/auth/verify"), "auth");
+  assert.equal(routeClass("POST", "/rpc"), "rpc");
+  assert.equal(routeClass("GET", "/config"), null);
   assert.equal(routeClass("GET", "/tokens"), null);
 });
 
