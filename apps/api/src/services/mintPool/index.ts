@@ -21,6 +21,8 @@ import { encKeyFromEnv, openSeed, sealSeed } from "./secretBox.js";
 import * as store from "./store.js";
 import type { Sql } from "./store.js";
 import { LaunchTxRejected, validateLaunchTx } from "./validateLaunchTx.js";
+import { extFeeReceiver } from "../../extFee.js";
+export { extFeeReceiver };
 
 export { LaunchTxRejected, validateLaunchTx } from "./validateLaunchTx.js";
 export type { Sql } from "./store.js";
@@ -68,7 +70,7 @@ export async function requireReservation(q: Sql, mint: string, creator: string) 
 
 /** launchpad: the launchpad identity signer (default: launchpadSigner() from env, null = none). It must be the same key
  *  POST /tx/launch built the tx with (same process env), else validation rejects the tx. */
-export interface SignOpts { configs?: string[]; referrals?: string[]; key?: Buffer; launchpad?: Keypair | null }
+export interface SignOpts { configs?: string[]; referrals?: string[]; key?: Buffer; launchpad?: Keypair | null; feeReceiver?: string | null }
 
 /** Validate the wallet-signed launch tx and add the mint signature, then the launchpad signature. Returns the fully signed tx (base64). */
 export async function signLaunchTx(q: Sql, mint: string, txB64: string, opts: SignOpts = {}): Promise<{ tx: string; mint: string; pool: string; signature: string }> {
@@ -76,7 +78,8 @@ export async function signLaunchTx(q: Sql, mint: string, txB64: string, opts: Si
   const launchpad = opts.launchpad === undefined ? launchpadSigner() : opts.launchpad;
   const res = await store.getReservation(q, mint);
   if (!res || res.status !== "reserved" || !res.live || !res.creator) throw new MintPoolError("RESERVATION_INVALID", "Mint reservation missing or expired. Start the launch again.", 409);
-  const info = validateLaunchTx(txB64, { mint, creator: res.creator, configs: opts.configs ?? launchConfigs(), referrals: opts.referrals ?? platformReferrals(), launchpad: launchpad?.publicKey.toBase58() ?? null });
+  const info = validateLaunchTx(txB64, { mint, creator: res.creator, configs: opts.configs ?? launchConfigs(), referrals: opts.referrals ?? platformReferrals(), launchpad: launchpad?.publicKey.toBase58() ?? null,
+    feeReceiver: opts.feeReceiver === undefined ? extFeeReceiver() : opts.feeReceiver });
   const sealed = await store.claimForSigning(q, mint, res.creator, mintPoolConfig().signedHoldMin);
   if (!sealed) throw new MintPoolError("RESERVATION_INVALID", "Mint reservation missing or expired. Start the launch again.", 409);
   const seed = openSeed(sealed, mint, key);

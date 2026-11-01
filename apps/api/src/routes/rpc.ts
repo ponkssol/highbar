@@ -1,5 +1,5 @@
 /** Public client config + a narrow Solana JSON-RPC proxy (used by the browser extension, which ships no RPC URL).
- *  GET  /config -> { network, siteUrl }
+ *  GET  /config -> { network, siteUrl, extFee: { bps, receiver, enabled } } (extFee: the extension 0.02% fee on every trade, extFee.ts)
  *  POST /rpc    one JSON-RPC 2.0 call, method allowlist only:
  *               getBalance, getLatestBlockhash, getTokenAccountsByOwner, getParsedTokenAccountsByOwner,
  *               getSignatureStatuses, sendTransaction (base64, fully signed bytes; the API never signs here),
@@ -14,6 +14,7 @@ import { networkOf } from "@hb/shared";
 import { rpcUrl } from "@hb/onchain";
 import { clientIp, WindowLimiter } from "../security/rateLimit.js";
 import { isAddress } from "../security/validate.js";
+import { extFeeConfig, extFeeReceiver } from "../extFee.js";
 
 export const RPC_METHODS = ["getBalance", "getLatestBlockhash", "getTokenAccountsByOwner", "getParsedTokenAccountsByOwner", "getSignatureStatuses", "sendTransaction",
   "simulateTransaction", "getAccountInfo", "getMultipleAccounts", "getSlot", "getBlockTime"] as const;
@@ -171,6 +172,8 @@ export interface RpcDeps {
   fetch?: typeof fetch;
   network?: () => string;
   siteUrl?: () => string;
+  /** Extension fee receiver; defaults to extFeeReceiver() (EXT_FEE_RECEIVER). */
+  extFeeReceiver?: () => string | null;
   sendLimiter?: WindowLimiter;
   simulateLimiter?: WindowLimiter;
   timeoutMs?: number;
@@ -193,7 +196,7 @@ export function registerConfigAndRpc(app: FastifyInstance, deps: RpcDeps = {}) {
 
   app.get("/config", async (_req, reply) => {
     reply.header("cache-control", "public, max-age=60");
-    return { network: network(), siteUrl: siteUrl() };
+    return { network: network(), siteUrl: siteUrl(), extFee: extFeeConfig(deps.extFeeReceiver ? deps.extFeeReceiver() : extFeeReceiver()) };
   });
 
   app.post("/rpc", { bodyLimit: 8 * 1024 }, async (req, reply) => {

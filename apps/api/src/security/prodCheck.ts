@@ -89,7 +89,7 @@ export function checkEnv(env: Env, ctx: { platformPubkey?: string | null; config
     const tip = env.LOCK_TIP_WALLET?.trim();
     if (tip && isPk(tip)) {
       const roles: Array<[string, string | null | undefined]> = [
-        ["the platform key", ctx.platformPubkey], ["PLATFORM_PUBKEY", env.PLATFORM_PUBKEY], ["TREASURY_PUBKEY", env.TREASURY_PUBKEY],
+        ["the platform key", ctx.platformPubkey], ["PLATFORM_PUBKEY", env.PLATFORM_PUBKEY], ["TREASURY_PUBKEY", env.TREASURY_PUBKEY], ["EXT_FEE_RECEIVER", env.EXT_FEE_RECEIVER],
         ["REFERRAL_WALLET", referral], ["OFFICIAL_TOKEN_CREATOR", env.OFFICIAL_TOKEN_CREATOR], ["the devnet keypair", ctx.devnetPubkey], ...LOCK_TIP_FORBIDDEN,
       ];
       const clash = [...new Set(roles.filter(([, v]) => eq(tip, v)).map(([n]) => n))];
@@ -104,11 +104,17 @@ export function checkEnv(env: Env, ctx: { platformPubkey?: string | null; config
   else if (net === "mainnet" && lp.state === "unset") errors.push("LAUNCHPAD_SIGNER_KEYPAIR_JSON (or LAUNCHPAD_SIGNER_KEYPAIR_PATH) is required on mainnet: the launchpad identity signer on every launch, so terminals attribute launches to highbar (sealed variable on the api service, or LAUNCHPAD_SIGNER_DISABLED=true to launch without it)");
   else if (net === "mainnet" && lp.state === "disabled") warnings.push("LAUNCHPAD_SIGNER_DISABLED=true: new launches carry no launchpad signer and terminals (GMGN, Jupiter, Axiom) do not attribute them to highbar");
   if (lp.state === "ok") {
-    const roles: Array<[string, string | null | undefined]> = [["the platform key", ctx.platformPubkey], ["PLATFORM_PUBKEY", env.PLATFORM_PUBKEY], ["TREASURY_PUBKEY", env.TREASURY_PUBKEY],
+    const roles: Array<[string, string | null | undefined]> = [["the platform key", ctx.platformPubkey], ["PLATFORM_PUBKEY", env.PLATFORM_PUBKEY], ["TREASURY_PUBKEY", env.TREASURY_PUBKEY], ["EXT_FEE_RECEIVER", env.EXT_FEE_RECEIVER],
       ["REFERRAL_WALLET", referral], ["LOCK_TIP_WALLET", env.LOCK_TIP_WALLET], ["OFFICIAL_TOKEN_CREATOR", env.OFFICIAL_TOKEN_CREATOR], ["the devnet keypair", ctx.devnetPubkey]];
     const clash = [...new Set(roles.filter(([, v]) => eq(lp.pubkey, v)).map(([n]) => n))];
     if (clash.length) (net === "mainnet" ? errors : warnings).push(`the launchpad signer must be a dedicated key that holds no funds, it equals ${clash.join(", ")}`);
   }
+  // extension platform fee receiver (EXT_FEE_RECEIVER, services/mintPool extFeeReceiver, validateLaunchTx). Optional so the API
+  // always starts: unset = fee off (warning on both networks); set but invalid = error on mainnet (a typo must not silently turn
+  // the fee off), warning on devnet. Equal to the platform key / fee claimer is intended (mainnet value), so no role-clash check.
+  const extFee = env.EXT_FEE_RECEIVER?.trim();
+  if (!extFee) warnings.push("EXT_FEE_RECEIVER unset: the extension 0.02% fee is off (GET /config extFee.enabled=false, launch extFee.allowed=false) and launch txs carrying a fee transfer are refused at /tx/launch/sign");
+  else if (!isPk(extFee)) (net === "mainnet" ? errors : warnings).push("EXT_FEE_RECEIVER is not a valid public key (extension fee receiver; unset it to turn the fee off)");
   if (net === "devnet" && vmode !== "off" && encKeyProblem(env.MINT_POOL_ENC_KEY)) warnings.push(`vanity mint pool disabled: ${encKeyProblem(env.MINT_POOL_ENC_KEY)} (launches answer 500/503 until it is set)`);
   // official $HIGHER token (optional): auto-detected from OFFICIAL_TOKEN_CREATOR; BAR_MINT is a manual override
   if (env.OFFICIAL_TOKEN_CREATOR?.trim() && !isPk(env.OFFICIAL_TOKEN_CREATOR)) errors.push("OFFICIAL_TOKEN_CREATOR is not a valid public key (official $HIGHER dev wallet)");

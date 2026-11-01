@@ -26,6 +26,19 @@ export const DAMM_V2_POOL_FEE_BPS = 100; // 1%
 export const DAMM_V2_PROTOCOL_SHARE = 0.2;
 export const TRADER_CASHBACK_BPS = 5; // 0.05%, paid off-chain by platform
 
+/** Extension platform fee: 0.02% (2 bps) of the trade's SOL amount, sent by the trader to the extension fee receiver (apps/api
+ *  EXT_FEE_RECEIVER, served by the API; never hardcoded in the extension). It simply accumulates in that wallet: no automatic
+ *  buyback and no buyback-budget accounting. Applies to every extension tx, the launch dev buy included (apps/api validateLaunchTx). */
+export const EXT_FEE_BPS = 2;
+/** Extension fee in lamports for a trade of `amountLamports` SOL lamports: floor(amount * EXT_FEE_BPS / BPS), in bigint so the
+ *  extension and the API round identically for any u64 amount (0 below 5000 lamports). Throws on a negative or non-integer amount. */
+export function extFeeLamports(amountLamports: bigint | number): bigint {
+  if (typeof amountLamports === "number" && !Number.isSafeInteger(amountLamports)) throw new RangeError("amountLamports must be an integer number of lamports (use bigint above 2^53)");
+  const a = BigInt(amountLamports);
+  if (a < 0n) throw new RangeError("amountLamports must be >= 0");
+  return (a * BigInt(EXT_FEE_BPS)) / BigInt(BPS);
+}
+
 /** Inputs createConfigs.ts hands to the DBC SDK for the "*_on" configs (2500 bps -> CURVE_FEE_BPS over 60 s, 60 periods, exponential).
  *  The deployed on-chain result is ANTI_SNIPER_SCHEDULE (./antiSniper.ts); the UI derives the live fee from that, not from a straight line. */
 export const ANTI_SNIPER = {

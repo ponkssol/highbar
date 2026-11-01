@@ -25,7 +25,8 @@ import { buildLaunchTx, quoteDevBuy, DEV_BUY_MAX_SOL, type LaunchReq } from "./l
 import { registerClaim } from "./routes/claim.js";
 import { mintPoolFailure, registerMint, startMintSweeper } from "./routes/mint.js";
 import { registerPending } from "./routes/pending.js";
-import { launchConfigs, platformReferrals, resolveLaunchMint, validateLaunchTx, vanityMode } from "./services/mintPool/index.js";
+import { extFeeReceiver, launchConfigs, platformReferrals, resolveLaunchMint, validateLaunchTx, vanityMode } from "./services/mintPool/index.js";
+import { extFeeInfo } from "./extFee.js";
 import { db } from "./db/pool.js";
 import { registerScores } from "./routes/scores.js";
 import { registerSearch } from "./routes/search.js";
@@ -210,7 +211,8 @@ app.post("/tx/launch", async (req, reply) => {
     src = await resolveLaunchMint(db, b.creator, requested, { mode: VANITY_MODE, log: (m) => req.log.warn(m) });
   } catch (e) { return e instanceof BadRequest ? reply.code(400).send({ error: e.message }) : mintPoolFailure(reply, e, req.log); }
   if (src.source !== "pool") {
-    try { return { ...(await buildLaunchTx(b, Keypair.generate())), vanity: false, mintSource: src.source }; }
+    // random-mint path: the API pre-signs mint (+ launchpad) here, so the wallet / extension can not add the fee transfer (allowed: false)
+    try { const r = await buildLaunchTx(b, Keypair.generate()); return { ...r, extFee: extFeeInfo(BigInt(r.devBuyLamports), extFeeReceiver(), false), vanity: false, mintSource: src.source }; }
     catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
   }
   const mint = src.mint;
@@ -220,7 +222,7 @@ app.post("/tx/launch", async (req, reply) => {
   // self-check: what we hand out must pass the same validator /tx/launch/sign applies (SDK drift shows up here, not at signing)
   try { validateLaunchTx(built.tx, { mint, creator: b.creator, configs: launchConfigs(), referrals: platformReferrals(), requireCreatorSignature: false, launchpad: launchpadSigner()?.publicKey.toBase58() ?? null }); }
   catch (e) { req.log.error({ reason: (e as Error).message }, "launch tx failed self-validation"); return reply.code(500).send({ error: "launch tx failed validation", code: "LAUNCH_TX_SELF_CHECK" }); }
-  return { ...built, vanity: true, mintSource: "pool" as const };
+  return { ...built, extFee: extFeeInfo(BigInt(built.devBuyLamports), extFeeReceiver()), vanity: true, mintSource: "pool" as const };
 });
 
 app.get("/tx/launch/quote", async (req, reply) => {
@@ -230,7 +232,9 @@ app.get("/tx/launch/quote", async (req, reply) => {
     if (!Number.isFinite(sol) || sol < 0) return reply.code(400).send({ error: "Dev buy must be 0 or more." });
     const r = await quoteDevBuy(String(q.tier), q.antiSniper === "true" || q.antiSniper === "1", sol, Number(q.slippageBps ?? 100));
     return { devBuySol: sol, estTokens: r.outTokens, minTokens: Number(r.minOut.toString()) / 1e6, supplyPct: r.supplyPct, feeSol: r.feeSol, feePct: r.feePct,
-      minFeeApplied: r.minFeeEligible, thresholdSol: r.thresholdSol, maxDevBuySol: Math.min(r.thresholdSol, DEV_BUY_MAX_SOL) };
+      minFeeApplied: r.minFeeEligible, thresholdSol: r.thresholdSol, maxDevBuySol: Math.min(r.thresholdSol, DEV_BUY_MAX_SOL),
+      // extension platform fee on this dev buy (same lamport amount_in the launch tx's swap carries); allowed = may be appended
+      extFee: extFeeInfo(BigInt(r.amountIn.toString()), extFeeReceiver()) };
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
 

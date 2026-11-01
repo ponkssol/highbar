@@ -22,19 +22,38 @@ function app(o: Partial<RpcDeps> & { reply?: (body: any) => unknown; fail?: bool
     return new Response(JSON.stringify(out), { status: 200, headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
   const f = Fastify();
-  registerConfigAndRpc(f, { upstream: () => UPSTREAM, fetch: fakeFetch, network: () => "devnet", siteUrl: () => "https://site.example/", sendLimiter: new WindowLimiter(100, 60_000), ...o });
+  registerConfigAndRpc(f, { upstream: () => UPSTREAM, fetch: fakeFetch, network: () => "devnet", siteUrl: () => "https://site.example/", extFeeReceiver: () => null, sendLimiter: new WindowLimiter(100, 60_000), ...o });
   return { f, calls };
 }
 const rpc = (f: ReturnType<typeof Fastify>, payload: unknown) => f.inject({ method: "POST", url: "/rpc", payload: payload as any });
 
-test("GET /config: network and siteUrl only (no RPC URL, no trailing slash)", async () => {
+test("GET /config: network, siteUrl and extFee only (no RPC URL, no trailing slash)", async () => {
   const { f } = app();
   const r = await f.inject({ method: "GET", url: "/config" });
   assert.equal(r.statusCode, 200);
-  assert.deepEqual(r.json(), { network: "devnet", siteUrl: "https://site.example" });
+  assert.deepEqual(r.json(), { network: "devnet", siteUrl: "https://site.example", extFee: { bps: 2, receiver: null, enabled: false } });
   assert.ok(!r.body.includes("upstream.invalid"));
   const m = app({ network: () => "mainnet-beta" });
   assert.equal((await m.f.inject({ method: "GET", url: "/config" })).json().network, "mainnet");
+});
+
+test("GET /config extFee: the extension fee receiver for every trade comes from EXT_FEE_RECEIVER only", async () => {
+  const receiver = pk();
+  const on = app({ extFeeReceiver: () => receiver });
+  assert.deepEqual((await on.f.inject({ method: "GET", url: "/config" })).json().extFee, { bps: 2, receiver, enabled: true });
+  // default resolver reads the env: EXT_FEE_RECEIVER enables it, TREASURY_PUBKEY alone does not, an invalid key is off
+  const saved = { r: process.env.EXT_FEE_RECEIVER, t: process.env.TREASURY_PUBKEY };
+  try {
+    const viaEnv = async () => { const f = Fastify(); registerConfigAndRpc(f, { network: () => "devnet", siteUrl: () => "https://site.example", sendLimiter: new WindowLimiter(100, 60_000), simulateLimiter: new WindowLimiter(100, 60_000) }); return (await f.inject({ method: "GET", url: "/config" })).json().extFee; };
+    delete process.env.EXT_FEE_RECEIVER; process.env.TREASURY_PUBKEY = pk();
+    assert.deepEqual(await viaEnv(), { bps: 2, receiver: null, enabled: false });
+    process.env.EXT_FEE_RECEIVER = "not-a-key";
+    assert.deepEqual(await viaEnv(), { bps: 2, receiver: null, enabled: false });
+    process.env.EXT_FEE_RECEIVER = ` ${receiver} `;
+    assert.deepEqual(await viaEnv(), { bps: 2, receiver, enabled: true });
+  } finally {
+    for (const [k, v] of [["EXT_FEE_RECEIVER", saved.r], ["TREASURY_PUBKEY", saved.t]] as const) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
 });
 
 test("POST /rpc: allowlisted read calls are forwarded with rebuilt params, result passed back with the client id", async () => {

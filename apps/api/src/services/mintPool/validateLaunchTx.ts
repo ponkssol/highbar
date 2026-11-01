@@ -15,6 +15,12 @@
  *   SPL Token sync_native(creator's WSOL ATA)
  *   DBC swap (base_mint = the vanity mint, payer = creator, same config and pool)
  *   SPL Token close_account(creator's WSOL ATA -> creator, owner creator)   (unwrap)
+ *   [System transfer(creator -> fee receiver, extFeeLamports(swap amount_in))]?   (extension platform fee, see below)
+ *
+ * Extension platform fee (@hb/shared EXT_FEE_BPS, 0.02% of the dev buy): when `feeReceiver` (EXT_FEE_RECEIVER) is configured, the
+ * extension may append AT MOST ONE System transfer, right after the unwrap (last of the non-wallet instructions), from the
+ * creator (fee payer) to the fee receiver, of EXACTLY extFeeLamports(amount_in of that tx's DBC swap). Optional: without it the tx
+ * passes as before. Never allowed without a dev buy, when the fee rounds to 0 (dev buy < 5000 lamports), or with no fee receiver.
  *
  * Anything else (SetAuthority, transfers or mint-to's using the mint, a durable-nonce advance, lookup tables, a second
  * pool, a different program) is rejected. Signers must be exactly [creator (fee payer), mint], or with the launchpad identity
@@ -24,6 +30,7 @@
 import { PublicKey, SystemProgram, Transaction, VersionedTransaction, type TransactionInstruction } from "@solana/web3.js";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { deriveDbcPoolAddress, DYNAMIC_BONDING_CURVE_PROGRAM_ID, DynamicBondingCurveIdl } from "@meteora-ag/dynamic-bonding-curve-sdk";
+import { extFeeLamports } from "@hb/shared";
 
 export class LaunchTxRejected extends Error {
   constructor(msg: string) { super(`launch tx rejected: ${msg}`); this.name = "LaunchTxRejected"; }
@@ -60,8 +67,16 @@ export interface LaunchTxExpect {
   requireCreatorSignature?: boolean;
   /** launchpad identity signer pubkey when configured: then it must be the 3rd (read-only) signer, see the header comment */
   launchpad?: string | null;
+  /** extension fee receiver (EXT_FEE_RECEIVER, services/mintPool extFeeReceiver()); unset = no fee transfer is accepted */
+  feeReceiver?: string | null;
 }
-export interface LaunchTxInfo { tx: Transaction; config: string; pool: string; devBuy: boolean; tokenProgram: "spl" | "token2022" }
+export interface LaunchTxInfo {
+  tx: Transaction; config: string; pool: string; devBuy: boolean; tokenProgram: "spl" | "token2022";
+  /** dev buy amount_in of the DBC swap (lamports), 0n without a dev buy */
+  devBuyLamports: bigint;
+  /** extension fee transferred to the fee receiver in this tx (lamports), 0n when the tx carries none */
+  extFeeLamports: bigint;
+}
 
 const reject = (m: string): never => { throw new LaunchTxRejected(m); };
 const same = (a: PublicKey, b: PublicKey) => a.equals(b);
@@ -79,6 +94,7 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
 
   const mint = new PublicKey(exp.mint), creator = new PublicKey(exp.creator);
   const launchpad = exp.launchpad ? new PublicKey(exp.launchpad) : null;
+  const feeReceiver = exp.feeReceiver ? new PublicKey(exp.feeReceiver) : null;
   const configs = new Set(exp.configs);
   const msg = vt.message;
   // signers: exactly [creator (fee payer), mint] (+ the launchpad signer, read-only, when configured)
@@ -146,8 +162,10 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
   i++;
 
   // 3) optional first buy, exact SDK order
-  let devBuy = false;
-  if (i < ixs.length) {
+  let devBuy = false, devBuyLamports = 0n, extFee = 0n;
+  const isTransfer = (ix: TransactionInstruction | undefined) => !!ix && same(ix.programId, SystemProgram.programId) && ix.data.length === 12 && ix.data.readUInt32LE(0) === 2;
+  // a lone trailing transfer after the init (no dev buy) is a would-be fee: refused below with its own reason
+  if (i < ixs.length && !(feeReceiver && i === ixs.length - 1 && isTransfer(ixs[i]))) {
     devBuy = true;
     const wsolAta = getAssociatedTokenAddressSync(NATIVE_MINT, creator, true, TOKEN_PROGRAM_ID);
     const baseAta = getAssociatedTokenAddressSync(mint, creator, true, tokenProgram);
@@ -164,6 +182,8 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
     i++;
     const sw = ixs[i] ?? reject("dev buy: missing swap");
     if (!same(sw.programId, DBC) || !startsWith(sw.data, SWAP.disc)) reject("dev buy: expected the DBC swap instruction");
+    if (sw.data.length !== SWAP.disc.length + 16) reject("dev buy: unexpected swap data"); // SwapParameters { amount_in: u64, minimum_amount_out: u64 }
+    devBuyLamports = sw.data.readBigUInt64LE(SWAP.disc.length);
     checkFixed(sw, SWAP);
     const b = (n: string) => sw.keys[SWAP.idx[n]].pubkey;
     if (!same(b("config"), config) || !same(b("pool"), pool)) reject("dev buy: swap must target the new pool");
@@ -179,6 +199,21 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
     if (!same(c.programId, TOKEN_PROGRAM_ID) || c.data.length !== 1 || c.data[0] !== 9 || c.keys.length !== 3) reject("dev buy: expected close_account (unwrap) last");
     if (!same(c.keys[0].pubkey, wsolAta) || !same(c.keys[1].pubkey, creator) || !same(c.keys[2].pubkey, creator)) reject("dev buy: unwrap must close the creator's WSOL account to the creator");
     i++;
+  }
+  // 4) optional extension platform fee: one System transfer creator -> fee receiver of exactly extFeeLamports(dev buy), last
+  if (feeReceiver && isTransfer(ixs[i])) {
+    const f = ixs[i];
+    if (!devBuy || devBuyLamports === 0n) reject("unexpected extra instructions (extension fee transfer without a dev buy)");
+    const want = extFeeLamports(devBuyLamports);
+    if (want === 0n) reject("unexpected extra instructions (extension fee rounds to 0 for this dev buy, no fee transfer allowed)");
+    if (f.keys.length !== 2) reject("extension fee: malformed transfer");
+    if (!same(f.keys[0].pubkey, creator)) reject("extension fee: transfer must come from the creator (fee payer)");
+    if (!same(f.keys[1].pubkey, feeReceiver)) reject("extension fee: transfer must go to the fee receiver");
+    const got = f.data.readBigUInt64LE(4);
+    if (got !== want) reject(`extension fee: amount must be exactly ${want} lamports (0.02% of the dev buy), got ${got}`);
+    extFee = got;
+    i++;
+    if (isTransfer(ixs[i])) reject("extension fee: at most one fee transfer");
   }
   if (i !== ixs.length) reject("unexpected extra instructions");
 
@@ -208,7 +243,7 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
     if (!cs || cs.every((x) => x === 0)) reject("creator signature missing (sign with the wallet first)");
     if (!tx.verifySignatures(false)) reject("creator signature invalid");
   }
-  return { tx, config: config.toBase58(), pool: pool.toBase58(), devBuy, tokenProgram: def === INIT_SPL ? "spl" : "token2022" };
+  return { tx, config: config.toBase58(), pool: pool.toBase58(), devBuy, tokenProgram: def === INIT_SPL ? "spl" : "token2022", devBuyLamports, extFeeLamports: extFee };
 }
 
 function checkFixed(ix: TransactionInstruction, def: ReturnType<typeof ixDef>) {

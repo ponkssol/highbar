@@ -83,7 +83,7 @@ const goodMainnet = () => {
     CORS_ORIGIN: "https://highbar.example", PROXY_SHARED_SECRET: "y".repeat(40), LOCK_TIP_WALLET: pk(), LOCK_TIP_SOL: "0.005",
     MINT_POOL_ENC_KEY: "ab".repeat(32), // test-only key
     LAUNCHPAD_SIGNER_KEYPAIR_JSON: JSON.stringify([...Keypair.generate().secretKey]), // test-only throwaway key
-    GO_PUBLIC_DATE: "2026-11-01",
+    GO_PUBLIC_DATE: "2026-11-01", EXT_FEE_RECEIVER: pk(),
   };
   for (const k of ["STANDARD_OFF", "STANDARD_ON", "HIGHER_OFF", "HIGHER_ON", "MAX_OFF", "MAX_ON"]) env[`CONFIG_${k}`] = pk();
   return env;
@@ -264,4 +264,23 @@ test("checkEnv launchpad signer: required on mainnet (unset = error), explicit o
   assert.ok(checkEnv({ ...base, LAUNCHPAD_SIGNER_KEYPAIR_JSON: json }, { platformPubkey: kp.publicKey.toBase58() }).errors.some((e) => /dedicated key .*platform key/.test(e)));
   const dev = checkEnv({ NETWORK: "devnet", OFFICIAL_TOKEN_CREATOR: pk(), MINT_POOL_ENC_KEY: "ab".repeat(32) });
   assert.ok(![...dev.errors, ...dev.warnings].some((m) => /launchpad/i.test(m)), "devnet without the key stays quiet");
+});
+
+test("checkEnv EXT_FEE_RECEIVER (extension fee): optional; unset = fee off with a warning, invalid = mainnet error, platform key / fee claimer allowed", () => {
+  const ctx = { platformPubkey: MAINNET_KEYS.platform, configs: {} };
+  // the intended mainnet value: the platform key (= PLATFORM_PUBKEY, = configs.mainnet.json feeClaimer), no clash error or warning
+  const real = checkEnv({ ...realMainnet(), EXT_FEE_RECEIVER: MAINNET_KEYS.platform }, ctx);
+  assert.deepEqual(real.errors, []); assert.ok(!real.warnings.some((w) => /EXT_FEE_RECEIVER/.test(w)), real.warnings.join(" | "));
+  // unset: the API still starts, the fee is off; TREASURY_PUBKEY alone does not stand in for it
+  const unset: Record<string, string | undefined> = { ...goodMainnet() }; delete unset.EXT_FEE_RECEIVER;
+  const u = checkEnv(unset, { platformPubkey: pk(), configs: {} });
+  assert.deepEqual(u.errors, []); assert.ok(u.warnings.some((w) => /EXT_FEE_RECEIVER unset: .*fee is off/.test(w)));
+  assert.ok(checkEnv({ ...goodMainnet(), EXT_FEE_RECEIVER: "nope" }, { platformPubkey: pk(), configs: {} }).errors.some((e) => /EXT_FEE_RECEIVER is not a valid public key/.test(e)));
+  assert.ok(checkEnv({ NETWORK: "devnet" }).warnings.some((w) => /EXT_FEE_RECEIVER unset/.test(w)));
+  assert.ok(checkEnv({ NETWORK: "devnet", TREASURY_PUBKEY: pk() }).warnings.some((w) => /EXT_FEE_RECEIVER unset/.test(w)), "TREASURY_PUBKEY does not enable the fee");
+  const badDev = checkEnv({ NETWORK: "devnet", EXT_FEE_RECEIVER: "nope" });
+  assert.ok(badDev.warnings.some((w) => /EXT_FEE_RECEIVER is not a valid/.test(w))); assert.ok(!badDev.errors.some((e) => /EXT_FEE_RECEIVER/.test(e)));
+  assert.ok(!checkEnv({ NETWORK: "devnet", EXT_FEE_RECEIVER: pk() }).warnings.some((w) => /EXT_FEE_RECEIVER/.test(w)));
+  // the dedicated lock-tip wallet may not be the fee receiver
+  assert.ok(checkEnv({ ...realMainnet(), EXT_FEE_RECEIVER: MAINNET_KEYS.lockTip }, ctx).errors.some((e) => /LOCK_TIP_WALLET must be a dedicated wallet; it equals .*EXT_FEE_RECEIVER/.test(e)));
 });

@@ -85,6 +85,8 @@ export async function buildLaunchTx(b: LaunchReq, mintIn: PublicKey | Keypair, l
   const pool = deriveDbcPoolAddress(WSOL, mint, q.config);
   return {
     tx: bytes.toString("base64"), size: bytes.length, mint: mint.toBase58(), pool: pool.toBase58(),
+    /** swap amount_in (lamports, decimal string), "0" without a dev buy: the base of the extension fee (extFee.ts) */
+    devBuyLamports: q.amountIn.toString(),
     devBuy: devBuySol > 0 ? { sol: devBuySol, estTokens: q.outTokens, minTokens: Number(q.minOut.toString()) / BASE_DEC, supplyPct: q.supplyPct, feeSol: q.feeSol, feePct: q.feePct, minFeeApplied: q.minFeeEligible } : null,
   };
 }
