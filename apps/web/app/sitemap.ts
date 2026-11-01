@@ -10,17 +10,19 @@ const tokenMod = (t: ApiToken & { updatedAt?: number }) => t.updatedAt || t.crea
 export const revalidate = 60;
 
 /** Public pages only: portfolio, settings and rewards are personal and noindex. lastModified is real: the token's API
- *  row update (or launch), the lock's creation; static pages carry none rather than a made-up date. */
+ *  row update (or launch), the lock's creation. /locks and /open-book take the newest of those (a new lock, a new trade), the
+ *  other static pages carry none rather than a made-up date. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const site = siteUrl();
   const [tokens, locks] = await Promise.all([getAllTokens(), getAllLocks()]);
   const newest = tokens?.reduce((m, t) => Math.max(m, tokenMod(t)), 0) || 0;
+  const newestLock = (locks ?? []).reduce((m, l) => Math.max(m, l.lockedAt ? l.lockedAt * 1000 : 0), 0);
   const statics: MetadataRoute.Sitemap = [
     { url: `${site}/`, changeFrequency: "hourly", priority: 1, ...(newest ? { lastModified: new Date(newest) } : {}) },
     { url: `${site}/launch`, changeFrequency: "monthly", priority: 0.9 },
     { url: `${site}/leaderboard`, changeFrequency: "hourly", priority: 0.8, ...(newest ? { lastModified: new Date(newest) } : {}) },
-    { url: `${site}/locks`, changeFrequency: "daily", priority: 0.7 },
-    { url: `${site}/open-book`, changeFrequency: "daily", priority: 0.7 },
+    { url: `${site}/locks`, changeFrequency: "daily", priority: 0.7, ...(newestLock ? { lastModified: new Date(newestLock) } : {}) },
+    { url: `${site}/open-book`, changeFrequency: "daily", priority: 0.7, ...(newest ? { lastModified: new Date(newest) } : {}) },
     { url: `${site}/docs`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${site}/docs/api`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${site}/terms`, changeFrequency: "yearly", priority: 0.2 },

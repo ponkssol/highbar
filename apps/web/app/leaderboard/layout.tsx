@@ -4,7 +4,7 @@ import { pageMeta } from "@/lib/seo";
 
 /** Metadata for the client-rendered leaderboard page. */
 export const metadata: Metadata = pageMeta({
-  title: "Leaderboard: top Solana memecoins",
+  title: "Leaderboard: top Solana tokens",
   description: "Top tokens, creators and traders on highbar, the Solana token launchpad built on Meteora, ranked by volume, market cap and score.",
   path: "/leaderboard",
   keywords: ["Solana memecoin leaderboard", "top Solana tokens", "top memecoin creators"],

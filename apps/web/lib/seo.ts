@@ -1,7 +1,15 @@
 /** Page metadata, canonical URLs and JSON-LD for the server-rendered routes. Server components only: SITE_URL is a runtime server env. */
 import type { Metadata } from "next";
 
-export const SITE_NAME = "highbar";
+/** Site name in every title, og:site_name, the manifest and JSON-LD. Titles read "<Page> | highbar Meteora Launchpad". */
+export const SITE_NAME = "highbar Meteora Launchpad";
+export const SHORT_NAME = "highbar";
+export const HOME_TITLE = "highbar | Meteora Launchpad on Solana";
+/** "<page> | highbar Meteora Launchpad", the one title shape (the root layout template uses the same). */
+export const fullTitle = (page: string) => `${page} | ${SITE_NAME}`;
+/** Current favicon set (gold column mark). New file names or ?v= so search engines and browsers fetch them again. */
+export const ICON_V = "5";
+export const LOGO_URL = "/icons/hb-v5-512.png";
 export const X_URL = "https://x.com/highbar_capital";
 export const siteUrl = () => (process.env.SITE_URL || "https://highbar.capital").replace(/\/+$/, "");
 export const absUrl = (path: string) => `${siteUrl()}${path.startsWith("/") ? path : `/${path}`}`;
@@ -16,13 +24,13 @@ const OG_IMAGE = { url: "/og/og-main.png?v=3", width: 1200, height: 630, alt: "h
 const TW_IMAGE = { url: "/og/og-main-twitter.png?v=3", width: 1200, height: 675, alt: "highbar: Rise above the bar" };
 
 export interface PageMetaInput {
-  /** Page name without the brand; the title becomes "<title> | highbar" (or `absoluteTitle` as is). */
+  /** Page name without the brand; the title becomes "<title> | highbar Meteora Launchpad" (or `absoluteTitle` as is). */
   title?: string; absoluteTitle?: string; description: string; path: string; keywords?: string[]; noindex?: boolean;
   /** false: the route has its own opengraph-image / twitter-image files, do not set images here. */
   images?: boolean;
 }
 export function pageMeta({ title, absoluteTitle, description, path, keywords = [], noindex = false, images = true }: PageMetaInput): Metadata {
-  const full = absoluteTitle ?? `${title} | ${SITE_NAME}`;
+  const full = absoluteTitle ?? fullTitle(title ?? "");
   return {
     metadataBase: new URL(siteUrl()),
     title: { absolute: full },
@@ -37,7 +45,7 @@ export function pageMeta({ title, absoluteTitle, description, path, keywords = [
 
 /** Root JSON-LD (rendered from the home page, so app/layout.tsx stays byte for byte). */
 export const siteJsonLd = () => [
-  { "@context": "https://schema.org", "@type": "Organization", "@id": `${siteUrl()}/#organization`, name: SITE_NAME, url: siteUrl(), logo: absUrl("/icon.png"), sameAs: [X_URL],
+  { "@context": "https://schema.org", "@type": "Organization", "@id": `${siteUrl()}/#organization`, name: SITE_NAME, url: siteUrl(), logo: absUrl(LOGO_URL), sameAs: [X_URL],
     description: "highbar is a Solana token launchpad built on Meteora: tiered Meteora DBC bonding curves that graduate to Meteora DAMM v2." },
   { "@context": "https://schema.org", "@type": "WebSite", "@id": `${siteUrl()}/#website`, name: SITE_NAME, url: siteUrl(), publisher: { "@id": `${siteUrl()}/#organization` },
     description: "Launch a Solana memecoin on a Meteora bonding curve with an anti-sniper fee, Dev Lock and locked DAMM v2 liquidity." },

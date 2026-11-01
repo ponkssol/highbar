@@ -3,10 +3,10 @@ import { HomeView } from "@/components/HomeView";
 import { HomeIntro } from "@/components/HomeIntro";
 import { JsonLd } from "@/components/JsonLd";
 import { getHomeTokens, getStats } from "@/lib/seoData";
-import { pageMeta, siteJsonLd } from "@/lib/seo";
+import { HOME_TITLE, pageMeta, siteJsonLd } from "@/lib/seo";
 
 export const metadata: Metadata = pageMeta({
-  absoluteTitle: "highbar | Solana token launchpad built on Meteora",
+  absoluteTitle: HOME_TITLE,
   description: "Launch a Solana memecoin on a Meteora DBC bonding curve that graduates to DAMM v2, with an anti-sniper fee and Dev Lock. Trade new tokens on highbar.",
   path: "/",
   keywords: ["Solana launchpad", "Solana memecoin launchpad", "Meteora DBC bonding curve", "DAMM v2 migration", "buyback and burn"],

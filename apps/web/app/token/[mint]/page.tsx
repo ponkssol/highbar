@@ -6,7 +6,7 @@ import { TokenView } from "@/components/TokenView";
 import { TokenAbout } from "@/components/TokenAbout";
 import { JsonLd } from "@/components/JsonLd";
 import { getScore, getToken, getTrades, REVALIDATE_S } from "@/lib/seoData";
-import { absUrl, breadcrumbJsonLd, pageMeta } from "@/lib/seo";
+import { absUrl, breadcrumbJsonLd, fullTitle, pageMeta } from "@/lib/seo";
 import { tokenDescription, tokenName, tokenSummary, tokenTicker, tokenTitle } from "@/lib/tokenSeo";
 import { fetchPending, visitorIp } from "@/lib/pendingToken";
 import { TokenPending } from "./TokenPending";
@@ -45,7 +45,7 @@ async function load(mint: string) {
 export async function generateMetadata({ params, searchParams }: Params): Promise<Metadata> {
   const { mint } = await params;
   const d = await load(mint);
-  if (!d) return { title: { absolute: (await showPending(mint, searchParams)) ? "Indexing token | highbar" : "Token not found | highbar" }, robots: { index: false, follow: true } };
+  if (!d) return { title: { absolute: fullTitle((await showPending(mint, searchParams)) ? "Indexing token" : "Token not found") }, robots: { index: false, follow: true } };
   const t = d.live;
   return pageMeta({
     absoluteTitle: tokenTitle(t), description: tokenDescription(t, d.holders), path: `/token/${t.mint}`, images: false,

@@ -4,6 +4,7 @@ import { fmtDateUS } from "@/lib/date";
 import { TIERS, thresholdSolFor, type TierId } from "@hb/shared";
 import type { ApiToken } from "./api";
 import { fmtUsd } from "./format";
+import { SITE_NAME } from "./seo";
 
 const net = () => (process.env.NETWORK === "mainnet" || process.env.NETWORK === "mainnet-beta" ? "mainnet" : "devnet");
 export const tierLabel = (t: TierId) => TIERS[t]?.label ?? t;
@@ -41,8 +42,9 @@ export function tokenDescription(t: ApiToken, holders: number | null): string {
   return out === head ? out : `${out}.`;
 }
 export function tokenTitle(t: ApiToken) {
-  const tic = tokenTicker(t), suffix = ` ($${tic}) | highbar`;
+  // "<Name> ($TIC) | highbar Meteora Launchpad", the name cut with "…" so the whole title stays near 60 characters.
+  const tic = tokenTicker(t), suffix = ` ($${tic}) | ${SITE_NAME}`;
   let name = tokenName(t);
-  if (name.length + suffix.length > 60) name = `${name.slice(0, Math.max(8, 59 - suffix.length))}…`;
+  if (name.length + suffix.length > 60) name = `${name.slice(0, Math.max(8, 59 - suffix.length)).trimEnd()}…`;
   return `${name}${suffix}`;
 }

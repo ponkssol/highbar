@@ -5,7 +5,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { OpenBookPlatform } from "@/components/openbook/OpenBookPlatform";
 import { getOpenBook, getOpenBookTokens } from "@/lib/seoData";
 import { normWindow } from "@/lib/openbook";
-import { absUrl, breadcrumbJsonLd, pageMeta } from "@/lib/seo";
+import { absUrl, breadcrumbJsonLd, fullTitle, pageMeta } from "@/lib/seo";
 
 const DESCRIPTION = "Every fee, tip and treasury movement across all highbar tokens, reconciled against Solana. See where DBC trading fees, block engine tips and network fees went, with every figure linked to its source.";
 
@@ -24,7 +24,7 @@ export default async function OpenBookPage({ searchParams }: Props) {
   const [ob, tokens] = await Promise.all([getOpenBook(w), getOpenBookTokens(q)]);
   const url = absUrl("/open-book");
   const ld = [
-    { "@context": "https://schema.org", "@type": "WebPage", "@id": url, url, name: "Open Book | highbar", description: DESCRIPTION, isPartOf: { "@id": absUrl("/#website") } },
+    { "@context": "https://schema.org", "@type": "WebPage", "@id": url, url, name: fullTitle("Open Book"), description: DESCRIPTION, isPartOf: { "@id": absUrl("/#website") } },
     breadcrumbJsonLd([["Home", "/"], ["Open Book", "/open-book"]]),
   ];
   return (

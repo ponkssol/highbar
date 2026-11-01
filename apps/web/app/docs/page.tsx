@@ -13,7 +13,7 @@ import { FAQ_TEXT } from "@/lib/docsFaq";
 import { absUrl, breadcrumbJsonLd, pageMeta } from "@/lib/seo";
 
 export const metadata: Metadata = pageMeta({
-  title: "Docs: how the Meteora launchpad works",
+  title: "Docs: how the launchpad works",
   description: "How highbar works: tiers, the Meteora DBC bonding curve and DAMM v2 migration, anti-sniper fee, Dev Lock, creator fees, cashback and buyback.",
   path: "/docs",
   keywords: ["highbar docs", "Meteora DBC bonding curve", "DAMM v2 migration", "anti-sniper fee", "Dev Lock Jupiter Lock", "LP rebate"],

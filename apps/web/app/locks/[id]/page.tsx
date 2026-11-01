@@ -11,7 +11,7 @@ import { LockDonut, fmtPct } from "@/components/LockDonut";
 import { LockPending } from "./LockPending";
 import { JsonLd } from "@/components/JsonLd";
 import { getLock } from "@/lib/seoData";
-import { breadcrumbJsonLd, pageMeta } from "@/lib/seo";
+import { breadcrumbJsonLd, fullTitle, pageMeta } from "@/lib/seo";
 
 // Lock reads are cached for 60 s (lib/seoData). Non-address ids 404 in middleware.ts; an unreadable address shows LockPending.
 export const revalidate = 60;
@@ -23,10 +23,12 @@ const isAddress = (s: string) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const l = await getLock(id);
-  if (!l) return { title: { absolute: "Lock not found | highbar" }, robots: { index: false, follow: true } };
+  if (!l) return { title: { absolute: fullTitle("Lock not found") }, robots: { index: false, follow: true } };
   const sym = l.token?.symbol || "TOKEN";
+  // The unlock date goes when it would push the title far past 60 characters.
+  const page = fullTitle(`$${sym} Dev Lock until ${fmtLockDate(l.cliffTime)}`).length <= 64 ? `$${sym} Dev Lock until ${fmtLockDate(l.cliffTime)}` : `$${sym} Dev Lock`;
   return pageMeta({
-    absoluteTitle: `$${sym} Dev Lock until ${fmtLockDate(l.cliffTime)} | highbar`, path: `/locks/${id}`, images: false,
+    title: page, path: `/locks/${id}`, images: false,
     description: `${fmtPct(l.supplyPct)} of the $${sym} supply is locked by its creator with Jupiter Lock on highbar, a Solana launchpad built on Meteora. Unlocks ${fmtLockDate(l.cliffTime)}.`,
     keywords: [`$${sym} Dev Lock`, `${sym} token lock`, "Jupiter Lock", "Solana token lock"],
   });
