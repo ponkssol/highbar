@@ -34,3 +34,10 @@ test("manifest: the CA chart page is web accessible on x.com and frames only Gec
   assert.match(manifest.content_security_policy.extension_pages, /script-src 'self'/);
   readFileSync(new URL("chart.html", dir));
 });
+
+test("manifest: chart and logo hosts are the only additions (pump.fun candles and coin data, DexScreener's image CDN)", () => {
+  assert.ok(manifest.host_permissions.includes("https://frontend-api-v3.pump.fun/*"));
+  assert.ok(manifest.host_permissions.includes("https://cdn.dexscreener.com/*"));
+  assert.ok(!manifest.host_permissions.some((h: string) => h === "https://*/*" || h === "<all_urls>"));
+  assert.ok(!manifest.web_accessible_resources[0].resources.some((r: string) => r.includes("licenses")));
+});

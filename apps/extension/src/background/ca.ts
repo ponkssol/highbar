@@ -5,7 +5,10 @@
 import { caFromUrl, isMintAccount, isPubkey, NOT_TOKENS, pickTicker, type CaHit, type CaInfo, type TickerCandidate } from "../lib/ca";
 import type { Api } from "../lib/api";
 import type { Rpc } from "../lib/rpc";
-import { thumbFromUrl, tokenThumb } from "./image";
+import { firstThumb, metadataImage, tokenThumb } from "./image";
+import { logoCandidates, withGateways } from "../lib/logo";
+import { PUMP_API } from "../lib/candles";
+import { metaplexUri, metadataPda } from "../lib/metadata";
 
 export const JUP_TOKENS = "https://api.jup.ag/tokens/v2/search";
 export const DEXS_TOKENS = "https://api.dexscreener.com/tokens/v1/solana";
@@ -16,6 +19,11 @@ export interface JupToken { id: string; name?: string; symbol?: string; icon?: s
   isVerified?: boolean; tokenProgram?: string; stats24h?: { priceChange?: number; buyVolume?: number; sellVolume?: number } }
 export interface DexPair { pairAddress?: string; dexId?: string; priceUsd?: string; priceChange?: { h24?: number }; volume?: { h24?: number }; liquidity?: { usd?: number }; marketCap?: number; fdv?: number;
   baseToken?: { address?: string; name?: string; symbol?: string }; quoteToken?: { address?: string }; info?: { imageUrl?: string } }
+/** pump.fun's coin record (GET frontend-api-v3.pump.fun/coins-v2/:mint), the fields used here. */
+/** pump.fun's coin record. It indexes other tokens too: `program` is "pump" for its own launches, "non_launchpad" otherwise. */
+export interface PumpCoin { mint?: string; name?: string; symbol?: string; image_uri?: string; metadata_uri?: string; program?: string }
+/** pump.fun launched this coin (any address, not only "…pump" vanity ones). */
+export const pumpLaunched = (pf: PumpCoin | null | undefined) => !!pf && pf.program !== "non_launchpad";
 interface HbToken { mint: string; name: string; symbol: string; priceSol: number; mcapSol: number; mcapUsd: number; pool?: string; isMigrated?: boolean; image?: string | null; uri?: string; volume24hSol?: number }
 
 const num = (v: unknown): number | null => { const n = typeof v === "string" ? Number(v) : (v as number); return typeof n === "number" && Number.isFinite(n) ? n : null; };
@@ -47,16 +55,16 @@ export function topPair(pairs: DexPair[] | null | undefined, mint: string): DexP
 }
 
 /** Merges what the sources know into the popup shape (pure, tested). */
-export function mergeInfo(mint: string, x: { hb?: HbToken | null; jup?: JupToken | null; dex?: DexPair | null; gtPool?: string | null; image?: string | null; siteUrl: string }): CaInfo {
-  const { hb, jup, dex } = x;
+export function mergeInfo(mint: string, x: { hb?: HbToken | null; jup?: JupToken | null; dex?: DexPair | null; gtPool?: string | null; image?: string | null; siteUrl: string; pump?: PumpCoin | null }): CaInfo {
+  const { hb, jup, dex } = x, pf = x.pump?.mint === mint ? x.pump : null;
   const solUsd = hb && hb.mcapSol > 0 && hb.mcapUsd > 0 ? hb.mcapUsd / hb.mcapSol : null;
   const vol = jup?.stats24h ? (num(jup.stats24h.buyVolume) ?? 0) + (num(jup.stats24h.sellVolume) ?? 0) : null;
-  const sources = [hb && "highbar", jup && "jupiter", dex && "dexscreener", x.gtPool && "geckoterminal"].filter((s): s is string => !!s);
+  const sources = [hb && "highbar", jup && "jupiter", dex && "dexscreener", x.gtPool && "geckoterminal", pumpLaunched(pf) && "pump.fun"].filter((s): s is string => !!s);
   const hbPrice = hb && solUsd !== null ? hb.priceSol * solUsd : null;
   return {
     mint,
-    name: hb?.name || jup?.name || dex?.baseToken?.name || "Unknown token",
-    symbol: hb?.symbol || jup?.symbol || dex?.baseToken?.symbol || "?",
+    name: hb?.name || jup?.name || dex?.baseToken?.name || pf?.name || "Unknown token",
+    symbol: hb?.symbol || jup?.symbol || dex?.baseToken?.symbol || pf?.symbol || "?",
     image: x.image ?? null,
     priceUsd: hbPrice ?? num(jup?.usdPrice) ?? num(dex?.priceUsd),
     change24h: num(dex?.priceChange?.h24) ?? num(jup?.stats24h?.priceChange),
@@ -77,13 +85,32 @@ export function mergeInfo(mint: string, x: { hb?: HbToken | null; jup?: JupToken
 export interface CaDeps { rpc: () => Promise<Rpc>; api: Api; apiBase: string; siteUrl: () => Promise<string> }
 
 export function caService(d: CaDeps) {
-  const jup = gate(2100), dexs = gate(250), gt = gate(2100), rpcGate = gate(1000);
+  const jup = gate(2100), dexs = gate(250), gt = gate(2100), rpcGate = gate(1000), pumpGate = gate(250);
   const mintC = new Map<string, { v: string | null; at: number }>();
   const tickC = new Map<string, { v: CaHit | null; at: number }>();
   const infoC = new Map<string, { v: CaInfo; at: number }>();
-  const imgC = new Map<string, string | null>();
+  /** Logos: a data URL kept for the session; a miss is retried after 5 minutes. */
+  const imgC = new Map<string, { v: string | null; at: number }>();
+  const imgRun = new Map<string, Promise<string | null>>();
+  const pumpC = new Map<string, { v: PumpCoin | null; at: number }>();
   const hbC = new Map<string, { v: HbToken | null; at: number }>();
   const inflight = new Map<string, Promise<CaInfo>>();
+  const pumpBlk = new Map<string, { m: string; at: number }>();
+  /** Raw source answers per mint (key "src:mint"), kept 15 s: a source that missed the popup's 1.5 s window still lands here
+   *  and the next ask (the popup asks again while data is partial) uses it. Prefetch fills them too. */
+  const rawC = new Map<string, { at: number; v: Promise<unknown> }>();
+  const raw = <T>(key: string, fn: () => Promise<T>, ttl = 15_000): Promise<T> => {
+    const c = rawC.get(key);
+    if (c && Date.now() - c.at < ttl) return c.v as Promise<T>;
+    const v = fn();
+    rawC.set(key, { at: Date.now(), v });
+    v.catch(() => rawC.delete(key));
+    if (rawC.size > 400) for (const [k, x] of rawC) if (Date.now() - x.at > 60_000) rawC.delete(k);
+    return v;
+  };
+  const TIMEOUT = Symbol("timeout");
+  const within = <T>(p: Promise<T>, ms: number): Promise<T | typeof TIMEOUT> => Promise.race([p, sleep(ms).then((): typeof TIMEOUT => TIMEOUT)]);
+  const SESSION_LOGO = (mint: string) => `hb.logo.${mint}`;
 
   const hbToken = async (mint: string): Promise<HbToken | null> => {
     const c = hbC.get(mint);
@@ -144,32 +171,122 @@ export function caService(d: CaDeps) {
     return v;
   }
 
-  async function load(mint: string): Promise<CaInfo> {
+  /** pump.fun's own coin record (name, image_uri, metadata_uri), 10 minutes. Needs the frontend-api-v3.pump.fun host
+   *  permission: its CORS answers 403 to any Origin but pump.fun's, and a worker fetch with the host permission is not CORS. */
+  async function pumpCoin(mint: string): Promise<PumpCoin | null> {
+    const c = pumpC.get(mint);
+    if (c && Date.now() - c.at < 10 * 60_000) return c.v;
+    let blocked: string | null = null;
+    const v = await pumpGate(() => getJson<PumpCoin>(`${PUMP_API}/coins-v2/${mint}`, 6000)).then((r) => (r?.mint === mint ? r : null)).catch((e) => {
+      // not "unknown coin" (404) but refused: a Cloudflare page, a 403, a network or CORS failure. Remembered so the chart
+      // still asks pump.fun and says why it shows another source.
+      const m = String((e as Error)?.message ?? e);
+      if (!/HTTP 404|HTTP 400/.test(m)) blocked = m;
+      return null;
+    });
+    pumpC.set(mint, { v, at: Date.now() });
+    if (blocked) pumpBlk.set(mint, { m: blocked, at: Date.now() }); else pumpBlk.delete(mint);
+    return v;
+  }
+
+  /** The token logo as a 64 px data URL. Order: the highbar api's image (highbar tokens), pump.fun (its image CDN, then the
+   *  coin's image_uri on IPFS gateways), the Jupiter icon, the DexScreener image, the metadata uri's image. */
+  /** The token's metadata uri on chain: the Token-2022 metadata extension, else the Metaplex metadata account. One read-only
+   *  getMultipleAccounts on the api's /rpc, only when no other source had an image. */
+  async function onchainUri(mint: string): Promise<string | null> {
+    try {
+      const R = await d.rpc();
+      const r = await rpcGate(() => R.call<{ value: ({ data?: unknown } | null)[] }>("getMultipleAccounts", [[mint, metadataPda(mint)], { encoding: "jsonParsed", commitment: "confirmed" }]));
+      const ext = (r?.value?.[0]?.data as { parsed?: { info?: { extensions?: { extension?: string; state?: { uri?: string } }[] } } } | undefined)?.parsed?.info?.extensions;
+      const t22 = ext?.find((e) => e?.extension === "tokenMetadata")?.state?.uri;
+      if (typeof t22 === "string" && t22.trim()) return t22.trim();
+      const md = r?.value?.[1]?.data;
+      return Array.isArray(md) && typeof md[0] === "string" ? metaplexUri(md[0]) : null;
+    } catch { return null; }
+  }
+
+  function logo(mint: string, x: { hb: HbToken | null; jupT: JupToken | null; dex: DexPair | null; pf: PumpCoin | null; site: string }): Promise<string | null> {
+    const c = imgC.get(mint);
+    if (c && (c.v || Date.now() - c.at < 5 * 60_000)) return Promise.resolve(c.v);
+    const run = imgRun.get(mint);
+    if (run) return run;
+    const p = (async () => {
+      // a logo found earlier this browser session (the worker sleeps after 30 s idle, chrome.storage.session outlives it)
+      const ss = await chrome.storage?.session?.get(SESSION_LOGO(mint)).catch(() => null);
+      const sv = ss?.[SESSION_LOGO(mint)];
+      if (typeof sv === "string" && sv.startsWith("data:image/")) return sv;
+      if (x.hb) { const t = await tokenThumb(d.apiBase, mint, { siteUrl: x.site, image: x.hb.image ?? null, uri: x.hb.uri ?? null }); if (t) return t; }
+      const first = await firstThumb(logoCandidates({ mint, pump: pumpLaunched(x.pf), pumpImage: x.pf?.image_uri, jupIcon: x.jupT?.icon, dexImage: x.dex?.info?.imageUrl }));
+      if (first) return first;
+      const uri = x.pf?.metadata_uri ?? x.hb?.uri ?? (await onchainUri(mint));
+      for (const u of withGateways(uri).slice(0, 2)) {
+        const m = await metadataImage(u, x.site);
+        if (m) return firstThumb(logoCandidates({ mint, metaImage: m }));
+      }
+      return null;
+    })().catch(() => null).then((v) => {
+      imgC.set(mint, { v, at: Date.now() }); imgRun.delete(mint);
+      if (v) void chrome.storage?.session?.set({ [SESSION_LOGO(mint)]: v }).catch(() => {});
+      return v;
+    });
+    imgRun.set(mint, p);
+    return p;
+  }
+
+  const dexFor = (mint: string) => raw(`dex:${mint}`, () => dexs(() => getJson<DexPair[]>(`${DEXS_TOKENS}/${mint}`, 5000)));
+  const jupFor = (mint: string) => raw(`jup:${mint}`, () => jup(() => getJson<JupToken[]>(`${JUP_TOKENS}?query=${mint}`, 5000)).then((l) => (Array.isArray(l) ? l.find((t) => t.id === mint) ?? null : null)), 60_000);
+  const gtPoolFor = (mint: string) => raw(`gt:${mint}`, () => gt(() => getJson<{ data?: { attributes?: { address?: string } }[] }>(`${GT_POOLS}/${mint}/pools?page=1`, 5000)).then((g) => g.data?.[0]?.attributes?.address ?? null), 60_000);
+
+  /** All sources at once, each given 1.5 s: the popup draws from whatever answered and asks again for the rest (partial). */
+  async function load(mint: string): Promise<CaInfo & { partial?: boolean }> {
     const site = await d.siteUrl();
-    const [hb, jupT, pairs] = await Promise.all([
-      hbToken(mint).catch(() => null),
-      jup(() => getJson<JupToken[]>(`${JUP_TOKENS}?query=${mint}`)).then((l) => (Array.isArray(l) ? l.find((t) => t.id === mint) ?? null : null)).catch(() => null),
-      dexs(() => getJson<DexPair[]>(`${DEXS_TOKENS}/${mint}`)).catch(() => null),
+    const W = 1500;
+    const [hbR, jupR, pairsR, pfR] = await Promise.all([
+      within(raw(`hb:${mint}`, () => hbToken(mint)).catch(() => null), W),
+      within(jupFor(mint).catch(() => null), W),
+      within(dexFor(mint).catch(() => null), W),
+      within(raw(`pf:${mint}`, () => pumpCoin(mint), 60_000), W),
     ]);
+    let partial = [hbR, jupR, pairsR, pfR].some((x) => x === TIMEOUT);
+    const v = <T>(x: T | typeof TIMEOUT): T | null => (x === TIMEOUT ? null : x);
+    const hb = v(hbR), jupT = v(jupR), pf = v(pfR), pairs = v(pairsR);
     const dex = topPair(Array.isArray(pairs) ? pairs : null, mint);
     let gtPool: string | null = null;
     if (!dex && !hb?.pool) {
-      try { const g = await gt(() => getJson<{ data?: { attributes?: { address?: string } }[] }>(`${GT_POOLS}/${mint}/pools?page=1`)); gtPool = g.data?.[0]?.attributes?.address ?? null; } catch { /* no chart pool */ }
+      const g = await within(gtPoolFor(mint).catch(() => null), W);
+      if (g === TIMEOUT) partial = true; else gtPool = g;
     }
-    if (!hb && !jupT && !dex && !gtPool) throw new Error("No market data for this token yet");
-    let image = imgC.get(mint);
-    if (image === undefined) {
-      image = hb ? await tokenThumb(d.apiBase, mint, { siteUrl: site, image: hb.image ?? null, uri: hb.uri ?? null })
-        : (jupT?.icon ? await thumbFromUrl(jupT.icon) : null) ?? (dex?.info?.imageUrl ? await thumbFromUrl(dex.info.imageUrl) : null);
-      imgC.set(mint, image);
+    if (!hb && !jupT && !dex && !gtPool && !pf) {
+      if (partial) return { ...mergeInfo(mint, { hb, jup: jupT, dex, gtPool, image: null, siteUrl: site, pump: pf }), partial: true };
+      throw new Error("No market data for this token yet");
     }
-    return mergeInfo(mint, { hb, jup: jupT, dex, gtPool, image, siteUrl: site });
+    // the logo resolves beside the data: a cached one comes now, a new one on the popup's next ask
+    const img = logo(mint, { hb, jupT, dex, pf, site });
+    const image = await Promise.race([img, sleep(250).then(() => null)]);
+    const blk = !pf && !hb ? pumpBlk.get(mint)?.m ?? null : null;
+    return { ...mergeInfo(mint, { hb, jup: jupT, dex, gtPool, image, siteUrl: site, pump: pf }), ...(partial ? { partial: true } : {}), ...(blk ? { pumpBlocked: blk } : {}) };
   }
 
-  async function info(mint: string, fresh = false): Promise<CaInfo> {
+  /** Tweets with a token button came into view: one DexScreener call for up to 30 mints warms the cache (name, price, pair),
+   *  `full` (pointer over a button) loads everything for that one token. */
+  const prefetchGate = gate(2000);
+  async function prefetch(mints: string[], full = false): Promise<void> {
+    const list = [...new Set(mints.filter((m) => isPubkey(m) && !NOT_TOKENS.has(m)))].slice(0, 30);
+    if (full) { if (list[0]) await info(list[0]).catch(() => null); return; }
+    const todo = list.filter((m) => !rawC.has(`dex:${m}`) && !infoC.has(m));
+    if (!todo.length) return;
+    await prefetchGate(async () => {
+      const pairs = await dexs(() => getJson<DexPair[]>(`${DEXS_TOKENS}/${todo.join(",")}`, 5000)).catch(() => null);
+      if (!Array.isArray(pairs)) return;
+      for (const m of todo) { const mine = pairs.filter((p) => p?.baseToken?.address === m); rawC.set(`dex:${m}`, { at: Date.now(), v: Promise.resolve(mine) }); }
+    });
+  }
+
+  async function info(mint: string, fresh = false): Promise<CaInfo & { partial?: boolean }> {
     if (!isPubkey(mint) || NOT_TOKENS.has(mint)) throw new Error("That is not a token address");
-    const c = infoC.get(mint);
-    if (c && Date.now() - c.at < (fresh ? 8_000 : 15_000)) return c.v;
+    const c = infoC.get(mint) as { v: CaInfo & { partial?: boolean }; at: number } | undefined;
+    // partial answers are kept 1 s only, so the popup's next ask picks up the late sources
+    if (c && Date.now() - c.at < (c.v.partial ? 1000 : fresh ? 8_000 : 15_000)) return c.v.image ? c.v : { ...c.v, image: imgC.get(mint)?.v ?? null };
     const f = inflight.get(mint);
     if (f) return f;
     const p = load(mint).then((v) => { infoC.set(mint, { v, at: Date.now() }); return v; }).finally(() => inflight.delete(mint));
@@ -177,6 +294,6 @@ export function caService(d: CaDeps) {
     return p;
   }
 
-  return { check, ticker, info, hbToken, caFromUrl };
+  return { check, ticker, info, prefetch, hbToken, caFromUrl, pumpCoin };
 }
 export type CaService = ReturnType<typeof caService>;

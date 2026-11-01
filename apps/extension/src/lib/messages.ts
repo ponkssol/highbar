@@ -1,5 +1,6 @@
 /** Messages between extension pages / the x.com content script and the background worker. Keys never leave the worker:
  *  no response type below carries a secret except wallet:export / wallet:create (backup), which only extension pages may call. */
+import type { CandleReply, ChartSource, Res as ChartRes } from "./candles";
 import type { LaunchTier, Presets, Settings } from "./settings";
 import type { LaunchDraft } from "./tweet";
 import type { ClaimRes, QuoteRes } from "./api";
@@ -76,7 +77,15 @@ export type Req =
   | { type: "ca:prefs:get" }
   | { type: "ca:prefs:set"; slippagePct?: number; tab?: "buy" | "sell" }
   | { type: "ca:pos:get" }
-  | { type: "ca:pos:set"; pos: { left: number; top: number } | null };
+  | { type: "ca:pos:set"; pos: { left: number; top: number } | null }
+  /** chart.html: candles for the popup chart (highbar api, pump.fun or GeckoTerminal, whichever has the token). */
+  | { type: "ca:candles"; mint: string; pool?: string | null; highbar?: boolean; res: ChartRes; count?: number; source?: ChartSource | null; auto?: boolean; pump?: boolean }
+  /** ca:live: the open popup's header numbers (price, market cap, 24h volume, liquidity), polled every second while it is open.
+   *  ca:prefetch: tweets with a token button came into view, warm the cache (batched, throttled). diag:sources: Settings >
+   *  Diagnostics, one request to each market data source. */
+  | { type: "ca:live"; mint: string }
+  | { type: "ca:prefetch"; mints: string[]; full?: boolean }
+  | { type: "diag:sources" };
 
 export type Res<T extends Req["type"]> =
   T extends "status" ? WalletStatus :
@@ -110,6 +119,10 @@ export type Res<T extends Req["type"]> =
   T extends "ca:prefs:get" ? CaPrefs :
   T extends "ca:prefs:set" ? CaPrefs :
   T extends "ca:pos:get" ? { left: number; top: number } | null :
+  T extends "ca:candles" ? CandleReply :
+  T extends "ca:live" ? LiveStats :
+  T extends "ca:prefetch" ? { ok: true } :
+  T extends "diag:sources" ? DiagResult[] :
   { ok: true };
 
 export type Reply<T> = { ok: true; data: T } | { ok: false; error: string; code?: string };
@@ -141,3 +154,9 @@ export async function send<T extends Req>(req: T): Promise<Res<T["type"]>> {
   if (!r.ok) { const e = new Error(r.error) as Error & { code?: string }; e.code = r.code; throw e; }
   return r.data;
 }
+
+/** Live header numbers for the CA popup (ca:live). */
+export interface LiveStats { mint: string; priceUsd: number | null; priceAt: number | null; source: "pump.fun" | "jupiter" | "dexscreener" | null;
+  mcapUsd: number | null; change24h: number | null; volume24hUsd: number | null; liquidityUsd: number | null; at: number }
+/** One line of Settings > Diagnostics. */
+export interface DiagResult { name: string; url: string; ok: boolean; status: number | null; ms: number; note: string }

@@ -16,6 +16,10 @@ export interface CaInfo {
   pool: string | null; dex: string | null;
   tokenUrl: string | null;
   sources: string[]; updatedAt: number;
+  /** Some sources had not answered within 1.5 s: ask again shortly. */
+  partial?: boolean;
+  /** pump.fun refused the coin lookup ("HTTP 403 (Cloudflare challenge)"): the chart still tries it and shows why not. */
+  pumpBlocked?: string;
 }
 
 const B58 = "1-9A-HJ-NP-Za-km-z";

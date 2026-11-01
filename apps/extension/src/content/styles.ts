@@ -260,16 +260,20 @@ border:1px solid var(--hb-border-strong);border-radius:12px;box-shadow:0 20px 50
 
 /** CA pill under a tweet's name row: 22px tall, in the flow (the row reserves it as soon as a token is known, before paint
  *  when the tweet is still below the viewport). Gold outline on dark, darker gold on light, solid gold on hover. */
-export const CA_PILL_CSS = `:host{all:initial;display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px;min-height:22px;${VARS}}
+export const CA_PILL_CSS = `:host{all:initial;display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px;min-height:22px;${VARS}
+--p-ink:#FFD35C;--p-bg:#15130F;--p-line:rgba(255,199,44,.32);--p-ink-h:#FFE08A;--p-bg-h:#211C10;--p-line-h:rgba(255,199,44,.62)}
+:host([data-hb-theme="light"]){--p-ink:#6B4F00;--p-bg:#FFF8E1;--p-line:rgba(166,124,0,.40);--p-ink-h:#4F3A00;--p-bg-h:#FFEFC2;--p-line-h:rgba(166,124,0,.72)}
 button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px 0 4px;border-radius:999px;
-font:600 12px/1 ${SANS};letter-spacing:-.003em;white-space:nowrap;color:#FFD35C;background:#15130F;border:1px solid rgba(255,199,44,.35);transition:background-color .15s,color .15s,border-color .15s}
-button:hover{background:var(--hb-gold);color:var(--hb-gold-ink);border-color:transparent}
+font:600 12px/1 ${SANS};letter-spacing:-.003em;white-space:nowrap;color:var(--p-ink);background:var(--p-bg);border:1px solid var(--p-line);
+text-decoration:none;-webkit-text-fill-color:currentColor;transition:background-color .15s,color .15s,border-color .15s,box-shadow .15s}
+button *{color:inherit;text-decoration:none}
+button:hover,button:focus-visible{color:var(--p-ink-h);background:var(--p-bg-h);border-color:var(--p-line-h);text-decoration:none;box-shadow:0 0 0 2px rgba(255,199,44,.08)}
+button:active{background:var(--p-bg)}
 button:focus-visible{outline:2px solid rgba(255,199,44,.55);outline-offset:1px}
 .hbm{width:14px;height:14px;flex:none;display:block}
-.arr{width:9px;height:9px;flex:none;opacity:.8}
-.mono{font:500 11px/1 ${MONO};opacity:.85}
-:host([data-hb-theme="light"]) button{color:#6B4F00;background:#FFF8E1;border-color:rgba(166,124,0,.45)}
-:host([data-hb-theme="light"]) button:hover{background:var(--hb-gold);color:var(--hb-gold-ink);border-color:transparent}`;
+.arr{width:9px;height:9px;flex:none;opacity:.8;transition:opacity .15s,transform .15s}
+button:hover .arr{opacity:1;transform:translate(1px,-1px)}
+.mono{font:500 11px/1 ${MONO};opacity:.85}`;
 
 /** CA popup, on top of DRAWER_CSS: same window, header and controls, plus the token head, chart, stats and trade box. */
 export const CA_CSS = `.drawer.capop{width:360px}
@@ -283,13 +287,18 @@ export const CA_CSS = `.drawer.capop{width:360px}
 .tprice{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none;font-variant-numeric:tabular-nums}
 .tprice .p{font:600 14px/1 ${SANS};color:var(--hb-ink)}
 .chg{font:600 11px/1 ${SANS}}.chg.up{color:var(--hb-buy)}.chg.dn{color:var(--hb-sell)}.chg.flat{color:var(--hb-ink-3)}
-.chart{position:relative;height:196px;border-radius:10px;overflow:hidden;border:1px solid var(--hb-border);background:#111}
-.chart iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#111}
+.chart{position:relative;height:208px;border-radius:10px;overflow:hidden;border:1px solid var(--hb-border);background:#0F0E0B}
+.chart iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#0F0E0B}
 .chart .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--hb-ink-3);font-size:11px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .stat{border:1px solid var(--hb-border);border-radius:9px;padding:6px 8px;display:flex;flex-direction:column;gap:3px;background:var(--hb-surface-muted)}
 .stat .k{font:500 10px/1 ${SANS};letter-spacing:.06em;text-transform:uppercase;color:var(--hb-ink-3)}
 .stat .v{font:600 12px/1 ${SANS};color:var(--hb-ink);font-variant-numeric:tabular-nums}
+.tprice .p{font-variant-numeric:tabular-nums}
+.fl,.fl-up,.fl-dn{border-radius:4px;animation:hbfl .9s ease-out}
+.fl-up{--hb-fl:rgba(34,197,94,.28)}.fl-dn{--hb-fl:rgba(239,68,68,.28)}.fl{--hb-fl:rgba(148,163,184,.25)}
+@keyframes hbfl{from{background:var(--hb-fl)}to{background:transparent}}
+@media (prefers-reduced-motion:reduce){.fl,.fl-up,.fl-dn{animation:none}}
 .seg.side button.on.buy{background:rgba(76,182,122,.16);color:#7FD4A2}.seg.side button.on.sell{background:rgba(224,106,92,.16);color:#F0968B}
 .amts{display:flex;align-items:center;gap:5px}
 .amts .chip{flex:1;min-width:0;justify-content:center;font-variant-numeric:tabular-nums}
@@ -310,5 +319,5 @@ export const CA_CSS = `.drawer.capop{width:360px}
 .run{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--hb-ink-2);border:1px solid var(--hb-border);border-radius:8px;padding:6px 8px;background:var(--hb-surface-muted)}
 .run .w{color:var(--hb-ink);font-weight:500}.run .s{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .run.ok .s{color:var(--hb-buy)}.run.err .s{color:var(--hb-sell);white-space:normal}
-.verify{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--hb-ink-3);font-size:10.5px}
+.verify{display:block;text-align:center;color:var(--hb-ink-3);font-size:10.5px;line-height:1.2}
 .loading{color:var(--hb-ink-3);font-size:11px;padding:20px 0;text-align:center}`;

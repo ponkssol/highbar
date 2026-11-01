@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { send, type HistoryItem, type RpcStatus, type WalletRow, type WalletStatus } from "../lib/messages";
+import { send, type DiagResult, type HistoryItem, type RpcStatus, type WalletRow, type WalletStatus } from "../lib/messages";
 import { cleanRpcUrl, type Presets, type Settings } from "../lib/settings";
 import { fmtDate, fmtDateTime, fmtNum, fmtSol, fmtUsd, short, solscan } from "../lib/format";
 import type { ClaimRow } from "../lib/api";
@@ -209,7 +209,39 @@ function SettingsTab({ st }: { st: WalletStatus }) {
       </Card>
       <ReferralCard p={s.presets} onSave={(presets) => save({ presets })} ready={st.ready} label={st.walletCount > 1 ? st.label : null} />
       <RpcCard />
+      <DiagCard />
+      <p className="pb-1 pt-0.5 text-center text-[10.5px] text-ink-3" data-testid="hb-version">highbar extension v{chrome.runtime.getManifest().version}</p>
     </>
+  );
+}
+
+/** Settings > Diagnostics: one request to each chart and price source, exactly as the token popup makes it (from the worker). */
+function DiagCard() {
+  const [rows, setRows] = useState<DiagResult[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => { setBusy(true); setErr(null); try { setRows(await send({ type: "diag:sources" })); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <Eyebrow>Diagnostics</Eyebrow>
+        <Button className="h-7 px-3 text-[12px]" onClick={() => void run()} disabled={busy} data-testid="hb-diag-run">{busy ? "Testing…" : rows ? "Test again" : "Test sources"}</Button>
+      </div>
+      <p className="text-[12px] text-ink-3">Checks the market data sources the token popup uses: pump.fun candles, Jupiter price, DexScreener and GeckoTerminal.</p>
+      {err && <Note kind="error">{err}</Note>}
+      {rows && (
+        <ul className="flex flex-col gap-1" data-testid="hb-diag">
+          {rows.map((r) => (
+            <li key={r.name} className="flex items-center gap-2 rounded-[8px] border border-border bg-control px-2.5 py-1.5 text-[12px]" title={r.url}>
+              <span className={`h-2 w-2 flex-none rounded-full ${r.ok ? "bg-buy" : "bg-sell"}`} aria-hidden="true" />
+              <span className="flex-1 text-ink-2">{r.name}</span>
+              <span className={r.ok ? "text-ink-3" : "text-sell"}>{r.ok ? "OK" : r.status ? `HTTP ${r.status}` : "Failed"}{r.note && r.note !== "OK" ? ` · ${r.note}` : ""}</span>
+              <span className="w-12 text-right tabular-nums text-ink-3">{r.ms} ms</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 

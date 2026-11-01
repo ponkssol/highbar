@@ -1,9 +1,9 @@
 /** Token detection on x.com and the CA popup. Tweets that name a Solana token (a CA in the text, a token page link or a $TICKER
  *  that resolves without doubt) get a small button under the name row. It opens a draggable popup with the token's price,
- *  24h change, market cap, volume, a live chart (GeckoTerminal, framed by an extension page because x.com's CSP blocks
- *  third party frames) and a buy and sell box. Like the drawer, nothing here sees a key: the worker resolves, fetches,
+ *  24h change, market cap, volume, a live candle chart (pump.fun 1 s candles for pump coins, the highbar api or GeckoTerminal,
+ *  drawn by an extension page because x.com's CSP blocks third party frames and connections) and a buy and sell box. Like the drawer, nothing here sees a key: the worker resolves, fetches,
  *  builds, checks, signs, simulates and sends. */
-import type { CaPrefs, SellPortIn, SellPortOut, WalletRow, WalletStatus } from "../lib/messages";
+import type { CaPrefs, LiveStats, SellPortIn, SellPortOut, WalletRow, WalletStatus } from "../lib/messages";
 import { fmtChange, fmtUsdCompact, fmtUsdPrice, tweetCandidates, type CaInfo } from "../lib/ca";
 import { CA_SLIPPAGE_PRESETS, cleanCaSlippage } from "../lib/caprefs";
 import { DEV_PRESETS_DEFAULT } from "../lib/devpresets";
@@ -100,8 +100,19 @@ export function initCa(k: CaKit) {
         svg(HB_MARK), f.label.startsWith("$") ? f.label : h("span", { class: "mono" }, f.label), svg(ARROW));
       (b.firstChild as HTMLElement).classList.add("hbm");
       b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openPopup(f.mint, f.label, b.getBoundingClientRect(), a.getBoundingClientRect()); });
+      // pointer resting on the button: load the token fully now, so the popup opens on cached data
+      let hov: ReturnType<typeof setTimeout> | null = null;
+      b.addEventListener("pointerenter", () => { hov = setTimeout(() => { void ask({ type: "ca:prefetch", mints: [f.mint], full: true }).catch(() => {}); }, 120); });
+      b.addEventListener("pointerleave", () => { if (hov) clearTimeout(hov); });
       return b;
     }));
+    warm(found.map((f) => f.mint));
+  }
+  // buttons that just appeared: their names and prices in one batched DexScreener call (the worker throttles it, one per 2 s)
+  let warmList: string[] = [], warmT: ReturnType<typeof setTimeout> | null = null;
+  function warm(mints: string[]) {
+    warmList.push(...mints);
+    if (!warmT) warmT = setTimeout(() => { const l = [...new Set(warmList)].slice(0, 30); warmList = []; warmT = null; void ask({ type: "ca:prefetch", mints: l }).catch(() => {}); }, 400);
   }
 
   // Tweets resolve when they come within ~1.5 screens below (or half a screen above) the viewport, so the button is usually in
@@ -260,12 +271,17 @@ export function initCa(k: CaKit) {
     const chartBox = h("div", { class: "chart", "data-testid": "hb-ca-chart" });
     let chartFor = "";
     const drawChart = () => {
-      const pool = info?.pool ?? "";
-      if (pool === chartFor) return;
-      chartFor = pool;
-      if (!pool) { chartBox.replaceChildren(h("div", { class: "empty" }, "No chart yet for this token")); return; }
-      const src = chrome.runtime.getURL(`chart.html?pool=${encodeURIComponent(pool)}&theme=dark`);
-      chartBox.replaceChildren(h("iframe", { src, title: `${sym()} chart`, loading: "lazy", referrerpolicy: "no-referrer", "data-testid": "hb-ca-chart-frame" }));
+      if (!info) return;
+      // pump.fun knows the coin (whatever its address ends with): its own 1 s candles
+      const pool = info.pool ?? "", pump = info.sources.includes("pump.fun") || !!info.pumpBlocked, priced = info.priceUsd !== null;
+      const key = `${pool}|${info.highbar ? 1 : 0}|${pump ? 1 : 0}`;
+      if (key === chartFor) return;
+      if (info.partial && !pool && !pump && !info.highbar) return; // more sources are coming, wait for them
+      chartFor = key;
+      if (!pool && !pump && !info.highbar && !priced) { chartBox.replaceChildren(h("div", { class: "empty" }, "No chart yet for this token")); return; }
+      // chart.html draws the candles (pump.fun 1 s, the highbar api, GeckoTerminal or live 1 s bars, through the worker)
+      const qs = new URLSearchParams({ mint, theme: "dark", ...(pool ? { pool } : {}), ...(info.highbar ? { hb: "1" } : {}), ...(pump ? { pf: "1" } : {}) });
+      chartBox.replaceChildren(h("iframe", { src: chrome.runtime.getURL(`chart.html?${qs.toString()}`), title: `${sym()} chart`, referrerpolicy: "no-referrer", "data-testid": "hb-ca-chart-frame" }));
     };
     const head = h("div", { class: "tok" }), stats = h("div", { class: "stats" });
     const drawInfo = () => {
@@ -278,15 +294,46 @@ export function initCa(k: CaKit) {
         h("div", { class: "tprice", "data-testid": "hb-ca-price" }, h("span", { class: "p" }, fmtUsdPrice(info.priceUsd)), h("span", { class: `chg ${chg === null ? "flat" : chg > 0 ? "up" : chg < 0 ? "dn" : "flat"}`, title: "24h change" }, fmtChange(chg))));
       const stat = (kk: string, v: string) => h("div", { class: "stat" }, h("span", { class: "k" }, kk), h("span", { class: "v" }, v));
       stats.replaceChildren(stat("Market cap", fmtUsdCompact(info.mcapUsd)), stat("Vol 24h", fmtUsdCompact(info.volume24hUsd)), stat("Liquidity", fmtUsdCompact(info.liquidityUsd)));
+      stats.querySelectorAll(".stat .v").forEach((el, i) => el.setAttribute("data-k", ["mcap", "vol", "liq"][i]));
       drawChart(); drawSum();
+    };
+    // live: price, 24h change, market cap, volume and liquidity from the worker's realtime tick, each changed value flashes
+    const setText = (el: Element | null, v: string, dir = 0) => {
+      if (!el || el.textContent === v) return;
+      el.textContent = v;
+      el.classList.remove("fl-up", "fl-dn", "fl");
+      void (el as HTMLElement).offsetWidth; // restart the animation
+      el.classList.add(dir > 0 ? "fl-up" : dir < 0 ? "fl-dn" : "fl");
+    };
+    const applyLive = (l: LiveStats) => {
+      if (!info || l.mint !== mint || !head.isConnected) return;
+      const prev = info.priceUsd;
+      const pick = (a: number | null, b: number | null) => (a !== null && Number.isFinite(a) ? a : b);
+      info = { ...info, priceUsd: pick(l.priceUsd, info.priceUsd), mcapUsd: pick(l.mcapUsd, info.mcapUsd), change24h: pick(l.change24h, info.change24h), volume24hUsd: pick(l.volume24hUsd, info.volume24hUsd), liquidityUsd: pick(l.liquidityUsd, info.liquidityUsd) };
+      const dir = prev !== null && info.priceUsd !== null ? Math.sign(info.priceUsd - prev) : 0;
+      setText(head.querySelector(".tprice .p"), fmtUsdPrice(info.priceUsd), dir);
+      const chg = head.querySelector(".tprice .chg"), c = info.change24h;
+      if (chg) { chg.className = `chg ${c === null ? "flat" : c > 0 ? "up" : c < 0 ? "dn" : "flat"}`; chg.textContent = fmtChange(c); }
+      setText(stats.querySelector('[data-k="mcap"]'), fmtUsdCompact(info.mcapUsd), dir);
+      setText(stats.querySelector('[data-k="vol"]'), fmtUsdCompact(info.volume24hUsd));
+      setText(stats.querySelector('[data-k="liq"]'), fmtUsdCompact(info.liquidityUsd));
+      pop.setAttribute("data-live-src", l.source ?? "");
     };
     const build = () => {
       body.replaceChildren(head, chartBox, stats, sideSeg, amts, sum, runs);
-      foot.replaceChildren(cta, h("div", { class: "verify" }, k.terminalRow(mint, info?.tokenUrl ?? null, true), h("span", {}, "Always verify the contract address")));
+      foot.replaceChildren(cta, h("div", { class: "verify", "data-testid": "hb-ca-verify" }, "Always verify the contract address"));
       drawInfo(); drawTrade();
     };
+    let logoTries = 0, partTries = 0, logoT: ReturnType<typeof setTimeout> | null = null;
+    const t0 = performance.now();
     const load = async (fresh: boolean) => {
-      try { info = await ask({ type: "ca:info", mint, fresh }); if (!head.isConnected) build(); else drawInfo(); }
+      try {
+        info = await ask({ type: "ca:info", mint, fresh }); if (!head.isConnected) build(); else drawInfo();
+        if (!pop.hasAttribute("data-t-info")) pop.setAttribute("data-t-info", String(Math.round(performance.now() - t0)));
+        // the worker answers with what came in 1.5 s (partial) and before a slow logo: ask again soon for the rest
+        if (info.partial && partTries < 6 && popHost) { partTries++; if (logoT) clearTimeout(logoT); logoT = setTimeout(() => void load(false), 700); }
+        else if (!info.image && logoTries < 3 && popHost) { logoTries++; if (logoT) clearTimeout(logoT); logoT = setTimeout(() => void load(false), 1500 * logoTries); }
+      }
       catch (e) { if (!info) body.replaceChildren(h("div", { class: "result" }, h("strong", {}, "No market data"), h("span", { class: "muted" }, `${(e as Error).message || "Could not load this token"}. CA ${mint}`)), k.terminalRow(mint, null)); }
     };
     void Promise.all([ask({ type: "ca:prefs:get" }).then((p) => { prefs = p; }).catch(() => {}), ask({ type: "drawer:devpresets:get" }).then((r) => { const v = r.values.filter((x) => x > 0 && x <= BUY_MAX_SOL); if (v.length) presets = v; }).catch(() => {})])
@@ -294,6 +341,13 @@ export function initCa(k: CaKit) {
     drawSlip();
     void load(false);
     const poll = setInterval(() => { if (document.visibilityState === "visible") void load(true); }, 15_000);
+    // realtime ticks for this one open popup (the worker serves them from pump.fun 1 s / Jupiter price, cached and gated)
+    let liveBusy = false;
+    const livePoll = setInterval(() => {
+      if (document.visibilityState !== "visible" || !info || liveBusy) return;
+      liveBusy = true;
+      void ask({ type: "ca:live", mint }).then(applyLive).catch(() => {}).finally(() => { liveBusy = false; });
+    }, 1000);
 
     if (!st?.exists) foot.replaceChildren(h("button", { class: "cta", type: "button", onclick: () => { void ask({ type: "open:sidepanel" }).catch(() => {}); } }, "Create a wallet in the side panel"));
 
@@ -322,7 +376,7 @@ export function initCa(k: CaKit) {
     const end = (e: PointerEvent) => { if (!drag || e.pointerId !== drag.id) return; drag = null; pop.classList.remove("dragging"); savedPos = { ...pos }; void ask({ type: "ca:pos:set", pos: savedPos }).catch(() => {}); };
     header.addEventListener("pointerup", end); header.addEventListener("pointercancel", end);
     header.addEventListener("dblclick", (e) => { if ((e.target as Element).closest("button")) return; savedPos = null; void ask({ type: "ca:pos:set", pos: null }).catch(() => {}); apply(near()); });
-    popCleanup = () => { clearInterval(poll); ro.disconnect(); removeEventListener("resize", onResize); document.removeEventListener("keydown", onKey, true); };
+    popCleanup = () => { clearInterval(poll); clearInterval(livePoll); if (logoT) clearTimeout(logoT); ro.disconnect(); removeEventListener("resize", onResize); document.removeEventListener("keydown", onKey, true); };
   }
 
   return {

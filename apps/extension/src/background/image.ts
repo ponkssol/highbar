@@ -48,20 +48,39 @@ export async function imageUrlToDataUrl(url: string): Promise<string> {
   throw new Error("The tweet image is too large");
 }
 
-/** An image URL to a small JPEG data URL (x.com's CSP img-src blocks the api and highbar.capital hosts, and the content script
- *  runs in a closed shadow root on x.com, so the panel only ever gets data URLs). https only, null when it is not an image. */
-export async function thumbFromUrl(url: string): Promise<string | null> {
+/** An image URL to a small data URL (x.com's CSP img-src blocks the api and highbar.capital hosts, and the content script
+ *  runs in a closed shadow root on x.com, so the panel only ever gets data URLs). https only (redirects too), png, jpeg, webp
+ *  or gif by their magic bytes (an SVG or an HTML error page is skipped: SVG is not sanitized here, so never shown), at most
+ *  8 MB in, downscaled to `px` (64) on an OffscreenCanvas, PNG out so transparent logos stay round. null when it is not one. */
+export async function thumbFromUrl(url: string, px = 64): Promise<string | null> {
   let u: URL;
   try { u = new URL(url); } catch { return null; }
-  if (u.protocol !== "https:" && !(u.protocol === "http:" && (u.hostname === "127.0.0.1" || u.hostname === "localhost"))) return null;
-  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 8000);
+  const local = (x: URL) => x.protocol === "http:" && (x.hostname === "127.0.0.1" || x.hostname === "localhost");
+  if (u.protocol !== "https:" && !local(u)) return null;
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 7000);
   try {
-    const r = await fetch(u.toString(), { credentials: "omit", signal: ctl.signal });
-    if (!r.ok) return null;
+    const r = await fetch(u.toString(), { credentials: "omit", signal: ctl.signal, redirect: "follow", headers: { accept: "image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1" } });
+    if (!r.ok || (r.url && !r.url.startsWith("https:") && !local(new URL(r.url)))) return null;
+    const len = Number(r.headers.get("content-length") ?? 0);
+    if (len > 8 * 1024 * 1024) return null;
     const blob = await r.blob();
     if (blob.size > 8 * 1024 * 1024 || !TYPES.has(sniff(new Uint8Array(await blob.slice(0, 16).arrayBuffer())) ?? "")) return null;
-    return `data:image/jpeg;base64,${b64(await downscale(blob, 72, 0.82))}`;
+    const bmp = await createImageBitmap(blob);
+    try {
+      const s = Math.min(1, px / Math.max(bmp.width, bmp.height));
+      const c = new OffscreenCanvas(Math.max(1, Math.round(bmp.width * s)), Math.max(1, Math.round(bmp.height * s)));
+      const g = c.getContext("2d")!;
+      g.imageSmoothingQuality = "high";
+      g.drawImage(bmp, 0, 0, c.width, c.height);
+      return `data:image/png;base64,${b64(new Uint8Array(await (await c.convertToBlob({ type: "image/png" })).arrayBuffer()))}`;
+    } finally { bmp.close(); }
   } catch { return null; } finally { clearTimeout(t); }
+}
+
+/** The first candidate that loads as an image (in order, one at a time). */
+export async function firstThumb(urls: string[], px = 64): Promise<string | null> {
+  for (const u of urls) { const d = await thumbFromUrl(u, px); if (d) return d; }
+  return null;
 }
 
 /** The api's /tokens image is a site relative path ("/hb-api/img/<mint>"). Resolved against x.com it is an HTML page (the broken
@@ -83,7 +102,8 @@ export async function metadataImage(uri: string | null | undefined, siteUrl: str
     const text = await r.text();
     if (text.length > 64 * 1024) return null;
     const j = JSON.parse(text) as { image?: unknown };
-    return typeof j.image === "string" ? resolveImage(j.image, siteUrl) : null;
+    if (typeof j.image !== "string") return null;
+    return /^ipfs:\/\//i.test(j.image) ? j.image : resolveImage(j.image, siteUrl);
   } catch { return null; } finally { clearTimeout(t); }
 }
 

@@ -22,6 +22,8 @@ import { buildRows, cleanSlippage, pollMs, rawToUi, type Bal } from "../lib/hold
 import { ata, runBuy, runSell, SellAborted, type BuildArgs, type SellDeps } from "../lib/sell";
 import { buildDammBuy, buildDammSell } from "../lib/damm";
 import { caService, gate } from "./ca";
+import { candleService } from "./candles";
+import { diagSources } from "./diag";
 import { JUP_BASES, quotePath, runJupBuy, runJupSell, swapBody, type JupDeps, type JupQuote } from "../lib/jup";
 import { cleanCaSlippage, CA_SLIPPAGE_DEFAULT } from "../lib/caprefs";
 
@@ -361,6 +363,7 @@ async function trade(m: SellPortIn, s: Settings, network: "mainnet" | "devnet", 
 }
 
 // ---- CA popup: token data and Jupiter swaps for tokens that are not highbar's ----
+const CANDLES = candleService({ api: A0() });
 const CA = caService({ rpc: async () => rpcFor(await settings()), api: A0(), apiBase: API_BASE, siteUrl: async () => (await config(await settings()))?.siteUrl ?? DEFAULT_SITE });
 const jupGate = gate(2100);
 /** Jupiter's Metis API, the current host first and the older lite-api host when it fails. */
@@ -604,6 +607,10 @@ async function handle(req: Req, sender: chrome.runtime.MessageSender): Promise<u
     case "ca:check": return CA.check(Array.isArray(req.items) ? req.items : []);
     case "ca:ticker": return CA.ticker(req.symbol);
     case "ca:info": return CA.info(req.mint, req.fresh === true);
+    case "ca:candles": return CANDLES.candles({ mint: req.mint, pool: req.pool ?? null, highbar: req.highbar === true, res: req.res, count: req.count, source: req.source ?? null, auto: req.auto === true, pump: req.pump === true });
+    case "ca:live": return CANDLES.live(req.mint);
+    case "ca:prefetch": { void CA.prefetch(Array.isArray(req.mints) ? req.mints : [], req.full === true).catch(() => {}); return { ok: true as const }; }
+    case "diag:sources": return diagSources();
     case "ca:prefs:get": return caPrefs();
     case "ca:prefs:set": {
       const cur = await caPrefs();

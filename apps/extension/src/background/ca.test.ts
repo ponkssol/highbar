@@ -40,3 +40,10 @@ test("ca worker: the gate spaces calls", async () => {
   await Promise.all([1, 2, 3].map(() => g(async () => { at.push(Date.now() - t0); })));
   assert.ok(at[2]! >= 75, String(at));
 });
+
+test("ca: a pump coin only pump.fun knows still opens (name, symbol from its coin record)", () => {
+  const mint = "CEMEy7jkeytkxq3qYjaKyQnKiUdHAMJDM1B1tv2Upump";
+  const i = mergeInfo(mint, { pump: { mint, name: "Test Coin", symbol: "TEST" }, siteUrl: "https://highbar.capital" });
+  assert.equal(i.name, "Test Coin"); assert.equal(i.symbol, "TEST"); assert.deepEqual(i.sources, ["pump.fun"]);
+  assert.equal(mergeInfo(mint, { pump: { mint: "other", name: "Other" }, siteUrl: "https://highbar.capital" }).name, "Unknown token");
+});

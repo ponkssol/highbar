@@ -55,6 +55,11 @@ const fonts: [string, string][] = [
   ["@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2", "mono-400.woff2"], ["@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2", "mono-500.woff2"],
 ];
 for (const [from, to] of fonts) copyFileSync(req.resolve(from), join(dist, "fonts", to));
+// lightweight-charts (Apache-2.0) is bundled into chart.js: its NOTICE (attribution) and license ship with the extension, and the
+// chart shows its attribution logo, a link to https://www.tradingview.com/
+mkdirSync(join(dist, "licenses"), { recursive: true });
+writeFileSync(join(dist, "licenses", "lightweight-charts.txt"), "TradingView Lightweight Charts\u2122\nCopyright (c) 2025 TradingView, Inc. https://www.tradingview.com/\n\n" +
+  readFileSync(join(dirname(req.resolve("lightweight-charts/package.json")), "LICENSE"), "utf8"));
 
 // version from package.json
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version?: string };

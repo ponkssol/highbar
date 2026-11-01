@@ -1,6 +1,6 @@
 {
   "name": "@hb/extension",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,6 +16,7 @@
     "@solana/web3.js": "1.99.0",
     "bn.js": "^5.2.5",
     "bs58": "^6.0.0",
+    "lightweight-charts": "5.2.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tweetnacl": "^1.0.3"
