@@ -4,7 +4,8 @@
  *               getBalance, getLatestBlockhash, getTokenAccountsByOwner, getParsedTokenAccountsByOwner,
  *               getSignatureStatuses, sendTransaction (base64, fully signed bytes; the API never signs here),
  *               simulateTransaction (base64, signed, no accounts config: the extension's sell safety check),
- *               getAccountInfo, getMultipleAccounts (up to 20), getSlot, getBlockTime (reads for DAMM v2 sell quotes)
+ *               getAccountInfo, getMultipleAccounts (up to 20), getSlot, getBlockTime (reads for DAMM v2 sell quotes),
+ *               getTokenLargestAccounts, getTokenSupply ([mint, { commitment }?]: holder concentration / supply of a mint)
  *  Params are rebuilt from validated fields (unknown config keys are dropped), batches are refused, and the upstream
  *  URL (RPC_URL / DEVNET_RPC via @hb/onchain rpcUrl()) is never returned, logged or put in an error message.
  *  Rate limits: the "rpc" class per IP (security/rateLimit.ts) plus stricter per-IP limits on sendTransaction and
@@ -17,7 +18,7 @@ import { isAddress } from "../security/validate.js";
 import { extFeeConfig, extFeeReceiver } from "../extFee.js";
 
 export const RPC_METHODS = ["getBalance", "getLatestBlockhash", "getTokenAccountsByOwner", "getParsedTokenAccountsByOwner", "getSignatureStatuses", "sendTransaction",
-  "simulateTransaction", "getAccountInfo", "getMultipleAccounts", "getSlot", "getBlockTime"] as const;
+  "simulateTransaction", "getAccountInfo", "getMultipleAccounts", "getSlot", "getBlockTime", "getTokenLargestAccounts", "getTokenSupply"] as const;
 export type RpcMethod = (typeof RPC_METHODS)[number];
 
 /** SPL Token and Token-2022: the only programs a token-accounts query may name. */
@@ -156,6 +157,14 @@ export function sanitizeRpc(method: string, params: unknown): unknown[] {
       const c = obj(p[0]), out: Record<string, unknown> = {};
       commitment(c, out); minContextSlot(c, out);
       return [out];
+    }
+    case "getTokenLargestAccounts":
+    case "getTokenSupply": {
+      // a single base58 mint and a commitment-only config (any other key is dropped)
+      if (p.length < 1 || p.length > 2) throw new RpcReject(`${method} takes [mint, config?]`);
+      const c = obj(p[1]), out: Record<string, unknown> = {};
+      commitment(c, out);
+      return [addr(p[0], "mint"), out];
     }
     case "getBlockTime": {
       if (p.length !== 1 || !Number.isSafeInteger(p[0]) || (p[0] as number) < 0) throw new RpcReject("getBlockTime takes [slot] (a non-negative integer)");

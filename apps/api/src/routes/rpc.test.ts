@@ -166,3 +166,28 @@ test("POST /rpc: simulateTransaction has its own per-IP limit", async () => {
   assert.equal(two.statusCode, 429);
   assert.equal(calls.length, 1);
 });
+
+test("sanitizeRpc: getTokenLargestAccounts / getTokenSupply take one base58 mint and a commitment-only config", () => {
+  const mint = pk();
+  for (const m of ["getTokenLargestAccounts", "getTokenSupply"]) {
+    assert.deepEqual(sanitizeRpc(m, [mint]), [mint, {}], m);
+    assert.deepEqual(sanitizeRpc(m, [mint, { commitment: "confirmed" }]), [mint, { commitment: "confirmed" }], m);
+    assert.deepEqual(sanitizeRpc(m, [mint, { commitment: "finalized", minContextSlot: 5, encoding: "jsonParsed", evil: "x" }]), [mint, { commitment: "finalized" }], `${m}: other config keys dropped`);
+    for (const bad of [[], ["not-a-mint"], [123], [[mint]], [mint, mint], [mint, { commitment: "max" }], [mint, [1]], [mint, {}, {}], "x"])
+      assert.throws(() => sanitizeRpc(m, bad), RpcReject, `${m} ${JSON.stringify(bad)}`);
+  }
+});
+
+test("POST /rpc: getTokenLargestAccounts / getTokenSupply are forwarded under the per-IP rpc class, bad params refused before upstream", async () => {
+  const { f, calls } = app();
+  const mint = pk();
+  for (const method of ["getTokenLargestAccounts", "getTokenSupply"]) {
+    const r = await rpc(f, { jsonrpc: "2.0", id: 5, method, params: [mint, { commitment: "confirmed", extra: true }] });
+    assert.equal(r.statusCode, 200, method);
+    assert.deepEqual(r.json(), { jsonrpc: "2.0", id: 5, result: { ok: method } });
+    assert.deepEqual(calls.at(-1)!.body, { jsonrpc: "2.0", id: 1, method, params: [mint, { commitment: "confirmed" }] });
+    const bad = await rpc(f, { jsonrpc: "2.0", id: 6, method, params: ["nope"] });
+    assert.equal(bad.statusCode, 400); assert.equal(bad.json().error.code, -32602);
+  }
+  assert.equal(calls.length, 2);
+});
