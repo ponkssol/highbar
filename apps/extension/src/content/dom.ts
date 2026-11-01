@@ -8,6 +8,20 @@ export async function ask<T extends Req>(req: T): Promise<Res<T["type"]>> {
   return r.data;
 }
 
+/** Runs work when the page is idle (at most `timeout` ms later), so scanning never competes with X's own scrolling frames. */
+export const onIdle = (fn: () => void, timeout = 200) => {
+  if (typeof requestIdleCallback === "function") requestIdleCallback(() => fn(), { timeout }); else setTimeout(fn, 50);
+};
+
+/** One constructable stylesheet per CSS text, shared by every shadow root that uses it (parsed once instead of once per tweet). */
+const sheets = new Map<string, CSSStyleSheet | null>();
+export function adoptCss(root: ShadowRoot, css: string): void {
+  let sh = sheets.get(css);
+  if (sh === undefined) { try { sh = new CSSStyleSheet(); sh.replaceSync(css); } catch { sh = null; } sheets.set(css, sh); }
+  if (sh) { try { root.adoptedStyleSheets = [sh]; return; } catch { /* fall back to a style element */ } }
+  const st = document.createElement("style"); st.textContent = css; root.prepend(st);
+}
+
 // ---- tiny DOM helper (text only goes through textContent) ----
 export type Attrs = Record<string, string | boolean | number | undefined | ((e: Event) => void)>;
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs = {}, ...kids: (Node | string | null | false | undefined)[]): HTMLElementTagNameMap[K] {

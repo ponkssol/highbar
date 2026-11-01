@@ -1,20 +1,16 @@
 /** Token detection on x.com and the CA popup. Tweets that name a Solana token (a CA in the text, a token page link or a $TICKER
  *  that resolves without doubt) get a small button under the name row. It opens a draggable popup with the token's price,
- *  24h change, market cap, volume, a live candle chart (pump.fun 1 s candles for pump coins, the highbar api or GeckoTerminal,
- *  drawn by an extension page because x.com's CSP blocks third party frames and connections) and a buy and sell box. Like the drawer, nothing here sees a key: the worker resolves, fetches,
- *  builds, checks, signs, simulates and sends. */
-import type { CaPrefs, LiveStats, SellPortIn, SellPortOut, WalletRow, WalletStatus } from "../lib/messages";
-import { fmtChange, fmtUsdCompact, fmtUsdPrice, tweetCandidates, type CaInfo } from "../lib/ca";
-import { CA_SLIPPAGE_PRESETS, cleanCaSlippage } from "../lib/caprefs";
-import { DEV_PRESETS_DEFAULT } from "../lib/devpresets";
-import { parsePct } from "../lib/holding";
-import { BUY_MAX_SOL, type SellStep } from "../lib/sell";
-import { fmtSol, short } from "../lib/format";
-import { CLOSE, GEAR, HB_MARK, SOL_MARK } from "../lib/icons";
-import { clampPos, readPos, type Pos } from "../lib/place";
-import { ask, h, scrollFade, svg } from "./dom";
-import { CA_CSS, CA_PILL_CSS, DRAWER_CSS } from "./styles";
-import { parseBuySol } from "./holding";
+ *  24h change, market cap, volume, a live chart and a buy and sell box. The popup itself lives in ca-popup.ts, loaded on first
+ *  use; this file only detects tokens and places the buttons. */
+import type { WalletRow, WalletStatus } from "../lib/messages";
+import { tweetCandidates, type PillStats } from "../lib/ca";
+import { fmtUsdShort } from "../lib/tween";
+import { tweenText } from "./tween";
+import { short } from "../lib/format";
+import { HB_MARK } from "../lib/icons";
+import { readPos, type Pos } from "../lib/place";
+import { adoptCss, ask, h, onIdle, svg } from "./dom";
+import { CA_PILL_CSS } from "./styles";
 
 export interface CaKit {
   status(): WalletStatus | null;
@@ -28,9 +24,6 @@ export interface CaKit {
 
 const HOST = "data-hb-ca-host";
 const ARROW = `<svg class="arr" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3 7l4-4M3.6 3H7v3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const VERIFIED = `<svg class="vbadge" viewBox="0 0 16 16" aria-label="Verified on Jupiter" role="img"><path fill="currentColor" d="M8 1l1.7 1.3 2.1-.2.7 2 1.8 1.1-.5 2.1.9 1.9-1.6 1.4-.1 2.1-2.1.4L9.6 15 8 13.7 6.4 15l-1.3-1.7-2.1-.4-.1-2.1L1.3 9.4l.9-1.9-.5-2.1 1.8-1.1.7-2 2.1.2z"/><path d="M5.3 8.2l1.8 1.8 3.6-3.7" stroke="#111" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const STEP: Record<SellStep, string> = { build: "Building", sign: "Signing in the extension", simulate: "Simulating", send: "Sending", confirm: "Confirming on Solana" };
-const SELL_PCTS = [25, 50, 100] as const;
 
 export function initCa(k: CaKit) {
   // ---------------- detection ----------------
@@ -94,26 +87,80 @@ export function initCa(k: CaKit) {
       row.after(host);
     }
     const root = (host as HTMLElement & { _r?: ShadowRoot })._r!;
-    const st = h("style"); st.textContent = CA_PILL_CSS;
-    root.replaceChildren(st, ...found.map((f) => {
+    const cells: Cell[] = [];
+    root.replaceChildren(...found.map((f) => {
+      const mc = h("b", { "data-k": "mc" }), vol = h("b", { "data-k": "vol" }), liq = h("b", { "data-k": "liq" });
+      const known = statC.get(f.mint)?.v;
+      for (const [el, v] of [[mc, known?.mcapUsd], [vol, known?.volume24hUsd], [liq, known?.liquidityUsd]] as const) tweenText(el, v ?? null, fmtUsdShort);
+      const mk = h("span", { class: `mk${known ? "" : " ld"}` }, h("i", {}, "·"), "MC ", mc, h("i", {}, "·"), "Vol ", vol, h("i", {}, "·"), "Liq ", liq);
+      cells.push({ mint: f.mint, mc, vol, liq, mk });
       const b = h("button", { type: "button", title: `Trade ${f.label} · ${f.mint}`, "aria-label": `Open the token popup for ${f.label}`, "data-testid": "hb-ca-btn", "data-mint": f.mint },
-        svg(HB_MARK), f.label.startsWith("$") ? f.label : h("span", { class: "mono" }, f.label), svg(ARROW));
+        svg(HB_MARK), f.label.startsWith("$") ? f.label : h("span", { class: "mono" }, f.label), mk, svg(ARROW));
       (b.firstChild as HTMLElement).classList.add("hbm");
       b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openPopup(f.mint, f.label, b.getBoundingClientRect(), a.getBoundingClientRect()); });
       // pointer resting on the button: load the token fully now, so the popup opens on cached data
       let hov: ReturnType<typeof setTimeout> | null = null;
-      b.addEventListener("pointerenter", () => { hov = setTimeout(() => { void ask({ type: "ca:prefetch", mints: [f.mint], full: true }).catch(() => {}); }, 120); });
+      b.addEventListener("pointerenter", () => { hov = setTimeout(() => { void loadPopup().catch(() => { popMod = null; }); void ask({ type: "ca:prefetch", mints: [f.mint], full: true }).catch(() => {}); }, 120); });
       b.addEventListener("pointerleave", () => { if (hov) clearTimeout(hov); });
       return b;
     }));
-    warm(found.map((f) => f.mint));
+    adoptCss(root, CA_PILL_CSS);
+    pillCells.set(host, cells);
+    pio.observe(host);
   }
-  // buttons that just appeared: their names and prices in one batched DexScreener call (the worker throttles it, one per 2 s)
-  let warmList: string[] = [], warmT: ReturnType<typeof setTimeout> | null = null;
-  function warm(mints: string[]) {
-    warmList.push(...mints);
-    if (!warmT) warmT = setTimeout(() => { const l = [...new Set(warmList)].slice(0, 30); warmList = []; warmT = null; void ask({ type: "ca:prefetch", mints: l }).catch(() => {}); }, 400);
+  // ---------------- pill market numbers ----------------
+  // Only pills on screen (and a quarter screen around it) ask, in one batched ca:stats call for every mint that is not fresh
+  // (45 s per mint, the worker shares the DexScreener cache with the popup). Nothing runs for pills off screen, while the
+  // tab is hidden, or when no pill is in view; new numbers glide into place (tweenText), the pill is never rebuilt for them.
+  type Cell = { mint: string; mc: HTMLElement; vol: HTMLElement; liq: HTMLElement; mk: HTMLElement };
+  const STATS_TTL = 45_000;
+  const statC = new Map<string, { v: PillStats; at: number }>();
+  const pillCells = new WeakMap<HTMLElement, Cell[]>();
+  const inView = new Set<HTMLElement>();
+  let statT: ReturnType<typeof setTimeout> | null = null, statBusy = false;
+  const pio = new IntersectionObserver((es) => {
+    for (const e of es) { const el = e.target as HTMLElement; if (e.isIntersecting) inView.add(el); else inView.delete(el); }
+    schedStats(150);
+  }, { rootMargin: "25% 0px" });
+  function schedStats(ms: number) {
+    if (statT || document.visibilityState !== "visible" || !inView.size) return;
+    statT = setTimeout(() => { statT = null; void tickStats(); }, ms);
   }
+  const paint = (mints: Set<string>) => {
+    for (const host of inView) for (const c of pillCells.get(host) ?? []) {
+      if (!mints.has(c.mint)) continue;
+      const v = statC.get(c.mint)?.v;
+      if (!v) continue;
+      c.mk.classList.remove("ld");
+      tweenText(c.mc, v.mcapUsd, fmtUsdShort); tweenText(c.vol, v.volume24hUsd, fmtUsdShort); tweenText(c.liq, v.liquidityUsd, fmtUsdShort);
+    }
+  };
+  async function tickStats() {
+    if (document.visibilityState !== "visible") return;
+    for (const h of inView) if (!h.isConnected) { inView.delete(h); pio.unobserve(h); }
+    const now = Date.now();
+    const mints = new Set<string>();
+    for (const h of inView) for (const c of pillCells.get(h) ?? []) mints.add(c.mint);
+    paint(mints); // pills re-rendered with numbers already known
+    const staleAll = [...mints].filter((m) => { const c = statC.get(m); return !c || now - c.at > STATS_TTL; }), stale = staleAll.slice(0, 30);
+    if (stale.length && !statBusy) {
+      statBusy = true;
+      try {
+        const r = await ask({ type: "ca:stats", mints: stale });
+        const got = new Set<string>();
+        for (const x of r) { statC.set(x.mint, { v: x, at: Date.now() }); got.add(x.mint); }
+        paint(got);
+      } catch { /* the next tick asks again */ }
+      finally { statBusy = false; }
+      if (statC.size > 500) for (const [m, c] of statC) if (Date.now() - c.at > 5 * 60_000) statC.delete(m);
+    }
+    // while pills stay in view: look again when the oldest of them goes stale
+    schedStats(staleAll.length > 30 ? 1000 : 15_000);
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") schedStats(100);
+    else if (statT) { clearTimeout(statT); statT = null; }
+  });
 
   // Tweets resolve when they come within ~1.5 screens below (or half a screen above) the viewport, so the button is usually in
   // place before the tweet scrolls into view and nothing visible moves.
@@ -128,255 +175,34 @@ export function initCa(k: CaKit) {
     if (!c.text.length && !c.links.length && !c.tags.length) { a.querySelector(`[${HOST}]`)?.remove(); return; }
     io.observe(a);
   }
+  // Tweets to (re)scan come from the content script's one shared, idle-batched MutationObserver (index.ts): new tweets, and
+  // tweets whose text or link card changed. Like and view counts never get here.
   const pending = new Set<HTMLElement>();
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const flush = () => { timer = null; const list = [...pending]; pending.clear(); for (const a of list) if (a.isConnected) scanArticle(a); };
-  const queue = (a: HTMLElement) => { pending.add(a); if (!timer) timer = setTimeout(flush, 150); };
+  let idle = false;
+  const flush = () => { idle = false; const list = [...pending]; pending.clear(); for (const a of list) if (a.isConnected) scanArticle(a); };
+  const queue = (a: HTMLElement) => { pending.add(a); if (!idle) { idle = true; onIdle(flush); } };
   const scanAll = () => document.querySelectorAll<HTMLElement>('article[data-testid="tweet"]').forEach(queue);
-  // Debounced: X re-renders often (counts, "Show more"), every change in a tweet queues that tweet once per 150 ms.
-  new MutationObserver((muts) => {
-    for (const m of muts) {
-      const t = m.target instanceof HTMLElement ? m.target : m.target.parentElement;
-      if (t?.closest?.(`[${HOST}]`)) continue;
-      const a = t?.closest?.<HTMLElement>('article[data-testid="tweet"]');
-      if (a) queue(a);
-      m.addedNodes.forEach((n) => { if (n instanceof HTMLElement && !n.hasAttribute(HOST)) { if (n.matches?.('article[data-testid="tweet"]')) queue(n); else n.querySelectorAll?.<HTMLElement>('article[data-testid="tweet"]').forEach(queue); } });
-    }
-  }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
   scanAll();
 
   // ---------------- popup ----------------
   let popHost: HTMLElement | null = null, popCleanup: (() => void) | null = null;
   let savedPos: Pos | null = null;
   void ask({ type: "ca:pos:get" }).then((p) => { savedPos = readPos(p); }).catch(() => {});
-  const close = () => { popCleanup?.(); popCleanup = null; popHost?.remove(); popHost = null; };
+  let openSeq = 0;
+  const close = () => { openSeq++; popCleanup?.(); popCleanup = null; popHost?.remove(); popHost = null; };
+  // the popup module is fetched once, the first time a token button is hovered or clicked
+  let popMod: Promise<typeof import("./ca-popup")> | null = null;
+  const loadPopup = () => (popMod ??= import(chrome.runtime.getURL("ca-popup.js")) as Promise<typeof import("./ca-popup")>);
 
   function openPopup(mint: string, label: string, anchor: DOMRect | null, tweet: DOMRect | null = null) {
     close();
-    k.injectFonts();
-    const st = k.status();
-    popHost = h("div", { "data-hb-ca-pop": "" });
-    const root = popHost.attachShadow({ mode: "closed" });
-    const style = h("style"); style.textContent = DRAWER_CSS + CA_CSS;
-    let prefs: CaPrefs = { slippagePct: 1, tab: "buy" };
-    let info: CaInfo | null = null, presets: number[] = [...DEV_PRESETS_DEFAULT].filter((v) => v > 0);
-    let buySol: number | null = null, sellPct: number | null = null, busy = false;
-
-    const wslot = h("span", { class: "wslot" });
-    const gearB = h("button", { class: "gearb", type: "button", "aria-haspopup": "dialog", "aria-expanded": "false", title: "Slippage", "data-testid": "hb-ca-slip-btn" });
-    const header = h("header", { title: "Drag to move, double click to reset", "data-testid": "hb-ca-head" }, svg(HB_MARK), h("h2", {}, "Trade"), h("span", { style: "flex:1" }), wslot, gearB,
-      h("button", { class: "x", type: "button", "aria-label": "Close", onclick: close, html: CLOSE }));
-    const body = scrollFade(h("div", { class: "body" }, h("div", { class: "loading" }, `Loading ${label}…`)));
-    const foot = h("footer");
-    const pop = h("div", { class: "drawer capop", role: "dialog", "aria-modal": "false", "aria-label": `Trade ${label}`, "data-testid": "hb-ca-pop" }, header, body, foot);
-    root.append(style, pop);
-    for (const ev of ["keydown", "keyup", "keypress"]) pop.addEventListener(ev, (e) => e.stopPropagation());
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && popHost) { e.stopPropagation(); if (!slipPop.hidden) { slipPop.hidden = true; gearB.setAttribute("aria-expanded", "false"); return; } if (sw?.close()) return; close(); } };
-    document.addEventListener("keydown", onKey, true);
-
-    // wallets (the drawer's multi select picker and its checked wallets)
-    const sw = st?.exists ? k.walletSwitcher(root, st.network, (ws) => { void ask({ type: "drawer:wallets:set", ids: ws.map((w) => w.id) }).catch(() => {}); drawTrade(); }, "Trade wallets") : null;
-    if (sw) { wslot.append(sw.btn); root.append(sw.pop); void Promise.all([ask({ type: "wallets:list" }), ask({ type: "drawer:wallets:get" })]).then(([l, d]) => { sw.set(l, d.ids); drawTrade(); void sw.load(true); }).catch(() => {}); }
-
-    // slippage popover: 0.5 / 1 / 5 % or a custom value, kept for the next popup
-    const slipIn = h("input", { type: "text", inputmode: "decimal", "aria-label": "Custom slippage percent", "data-testid": "hb-ca-slip-custom" }) as HTMLInputElement;
-    const slipChips = h("div", { class: "row" });
-    const slipPop = h("div", { class: "slip", hidden: true, role: "dialog", "aria-label": "Slippage", "data-testid": "hb-ca-slip" },
-      h("div", { class: "t" }, "Max slippage"), h("div", { class: "row" }, slipChips, h("span", { class: "cus" }, slipIn, h("span", {}, "%"))),
-      h("div", { class: "note" }, "The swap fails instead of filling worse than this. Kept for every token."));
-    root.append(slipPop);
-    const drawSlip = () => {
-      gearB.replaceChildren(svg(GEAR), h("span", {}, `${prefs.slippagePct}%`));
-      slipChips.replaceChildren(...CA_SLIPPAGE_PRESETS.map((v) => h("button", { class: `chip${prefs.slippagePct === v ? " on" : ""}`, type: "button", "aria-pressed": String(prefs.slippagePct === v), "data-testid": "hb-ca-slip-chip", onclick: () => setSlip(v) }, `${v}%`)));
-      if (document.activeElement !== popHost) slipIn.value = (CA_SLIPPAGE_PRESETS as readonly number[]).includes(prefs.slippagePct) ? "" : String(prefs.slippagePct);
-      drawSum();
-    };
-    const setSlip = (v: number) => { prefs.slippagePct = cleanCaSlippage(v); drawSlip(); void ask({ type: "ca:prefs:set", slippagePct: prefs.slippagePct }).then((p) => { prefs = p; drawSlip(); }).catch(() => {}); };
-    const commitCustom = () => { const n = Number(slipIn.value.replace(",", ".")); if (slipIn.value.trim() && Number.isFinite(n)) setSlip(n); };
-    slipIn.addEventListener("change", commitCustom);
-    slipIn.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") commitCustom(); });
-    gearB.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (!slipPop.hidden) { slipPop.hidden = true; gearB.setAttribute("aria-expanded", "false"); return; }
-      const r = gearB.getBoundingClientRect();
-      slipPop.style.top = `${Math.round(r.bottom + 6)}px`; slipPop.style.left = `${Math.round(Math.max(8, Math.min(r.right - 236, innerWidth - 244)))}px`;
-      slipPop.hidden = false; gearB.setAttribute("aria-expanded", "true");
-    });
-    root.addEventListener("pointerdown", (e) => { const t = e.target as Node; if (!slipPop.contains(t) && !gearB.contains(t)) { slipPop.hidden = true; gearB.setAttribute("aria-expanded", "false"); } }, true);
-
-    // trade box
-    const sideSeg = h("div", { class: "seg side", role: "tablist", "aria-label": "Buy or sell" });
-    const amts = h("div", { class: "amts", role: "group" });
-    const custom = h("input", { type: "text", inputmode: "decimal", autocomplete: "off", spellcheck: "false", "data-testid": "hb-ca-amount" }) as HTMLInputElement;
-    const sum = h("div", { class: "sumline", "data-testid": "hb-ca-sum" });
-    const cta = h("button", { class: "cta", type: "button", "data-testid": "hb-ca-go" });
-    const runs = h("div", { class: "runs", "data-testid": "hb-ca-runs" });
-    const amount = () => (prefs.tab === "buy" ? buySol : sellPct);
-    const sym = () => (info?.symbol ? `$${info.symbol}` : label.startsWith("$") ? label : "token");
-    function drawSum() {
-      const ws = sw?.get() ?? [], a = amount();
-      const route = !info ? "" : info.highbar ? (info.migrated ? "Meteora DAMM v2" : "Meteora DBC") : "Jupiter";
-      sum.replaceChildren(h("span", {}, `${ws.length > 1 ? `${ws.length} wallets` : ws[0]?.label ?? "No wallet"}`), h("span", {}, "·"), h("span", {}, `${prefs.slippagePct}% slippage`), ...(route ? [h("span", {}, "·"), h("span", {}, `via ${route}`)] : []));
-      const ok = !!a && !!ws.length && !busy && !!info;
-      cta.className = `cta${prefs.tab === "sell" ? " sell" : ""}`;
-      cta.setAttribute("aria-disabled", String(!ok));
-      cta.textContent = busy ? "Working…" : prefs.tab === "buy" ? `Buy ${sym()}${a ? ` · ${fmtSol(a)} SOL` : ""}` : `Sell ${a ? `${a}% ` : ""}${sym()}`;
-    }
-    function drawTrade() {
-      sideSeg.replaceChildren(...(["buy", "sell"] as const).map((s) => h("button", { class: `${prefs.tab === s ? "on " : ""}${s}`, type: "button", role: "tab", "aria-selected": String(prefs.tab === s), "data-testid": `hb-ca-tab-${s}`,
-        onclick: () => { prefs.tab = s; custom.value = ""; void ask({ type: "ca:prefs:set", tab: s }).catch(() => {}); drawTrade(); } }, s === "buy" ? "Buy" : "Sell")));
-      const buy = prefs.tab === "buy";
-      custom.placeholder = buy ? "SOL" : "%"; custom.setAttribute("aria-label", buy ? "Buy amount in SOL" : "Sell percent");
-      const chips = buy ? presets : [...SELL_PCTS];
-      amts.replaceChildren(...chips.map((v) => {
-        const on = buy ? buySol === v : sellPct === v;
-        return h("button", { class: `chip${on ? " on" : ""}`, type: "button", "aria-pressed": String(on), "data-testid": buy ? "hb-ca-buy-chip" : "hb-ca-sell-chip",
-          onclick: () => { if (buy) buySol = v; else sellPct = v; custom.value = ""; drawTrade(); } }, buy ? fmtSol(v) : `${v}%`);
-      }), h("div", { class: "solin" }, buy ? svg(SOL_MARK) : null, custom));
-      drawSum();
-    }
-    custom.addEventListener("input", () => {
-      if (prefs.tab === "buy") buySol = parseBuySol(custom.value); else sellPct = parsePct(custom.value);
-      amts.querySelectorAll(".chip").forEach((c) => { c.classList.remove("on"); c.setAttribute("aria-pressed", "false"); });
-      drawSum();
-    });
-
-    cta.addEventListener("click", async () => {
-      const ws = sw?.get() ?? [], a = amount();
-      if (cta.getAttribute("aria-disabled") === "true" || !a || !ws.length || !info) return;
-      busy = true; sw?.lock(); drawSum();
-      const side = prefs.tab, slip = prefs.slippagePct;
-      runs.replaceChildren();
-      for (const w of ws) {
-        const line = h("div", { class: "run", "data-testid": "hb-ca-run" }, h("span", { class: "w" }, w.label), h("span", { class: "s" }, "Waiting"));
-        runs.append(line);
-        const s = line.querySelector(".s") as HTMLElement;
-        await new Promise<void>((res) => {
-          const port = chrome.runtime.connect({ name: "sell" });
-          const fin = () => { try { port.disconnect(); } catch { /* gone */ } res(); };
-          port.onMessage.addListener((m: SellPortOut) => {
-            if (m.type === "step") s.textContent = `${STEP[m.step]}…`;
-            else if (m.type === "done") { line.classList.add("ok"); s.replaceChildren(`${side === "buy" ? "Bought" : "Sold"}${m.route ? ` via ${m.route}` : ""} · `, h("a", { class: "link", href: m.solscanUrl, target: "_blank", rel: "noopener noreferrer" }, "View tx")); fin(); }
-            else { line.classList.add("err"); s.textContent = m.error; fin(); }
-          });
-          port.onDisconnect.addListener(() => res());
-          const msg: SellPortIn = side === "buy" ? { type: "sell", side: "buy", walletId: w.id, mint, pct: 0, sol: a, slippagePct: slip } : { type: "sell", side: "sell", walletId: w.id, mint, pct: a, slippagePct: slip };
-          port.postMessage(msg);
-        });
-      }
-      busy = false; sw?.unlock?.(); drawSum(); void sw?.load(true, true);
-    });
-
-    // token head, chart, stats
-    const chartBox = h("div", { class: "chart", "data-testid": "hb-ca-chart" });
-    let chartFor = "";
-    const drawChart = () => {
-      if (!info) return;
-      // pump.fun knows the coin (whatever its address ends with): its own 1 s candles
-      const pool = info.pool ?? "", pump = info.sources.includes("pump.fun") || !!info.pumpBlocked, priced = info.priceUsd !== null;
-      const key = `${pool}|${info.highbar ? 1 : 0}|${pump ? 1 : 0}`;
-      if (key === chartFor) return;
-      if (info.partial && !pool && !pump && !info.highbar) return; // more sources are coming, wait for them
-      chartFor = key;
-      if (!pool && !pump && !info.highbar && !priced) { chartBox.replaceChildren(h("div", { class: "empty" }, "No chart yet for this token")); return; }
-      // chart.html draws the candles (pump.fun 1 s, the highbar api, GeckoTerminal or live 1 s bars, through the worker)
-      const qs = new URLSearchParams({ mint, theme: "dark", ...(pool ? { pool } : {}), ...(info.highbar ? { hb: "1" } : {}), ...(pump ? { pf: "1" } : {}) });
-      chartBox.replaceChildren(h("iframe", { src: chrome.runtime.getURL(`chart.html?${qs.toString()}`), title: `${sym()} chart`, referrerpolicy: "no-referrer", "data-testid": "hb-ca-chart-frame" }));
-    };
-    const head = h("div", { class: "tok" }), stats = h("div", { class: "stats" });
-    const drawInfo = () => {
-      if (!info) return;
-      const logo = info.image ? h("img", { class: "tlogo", src: info.image, alt: "" }) : h("span", { class: "tlogo", "aria-hidden": "true" }, (info.symbol || "?").slice(0, 1).toUpperCase());
-      if (logo instanceof HTMLImageElement) logo.addEventListener("error", () => logo.replaceWith(h("span", { class: "tlogo" }, (info?.symbol || "?").slice(0, 1).toUpperCase())));
-      const chg = info.change24h;
-      head.replaceChildren(logo,
-        h("div", { class: "tname" }, h("div", { class: "tn1" }, h("span", { class: "nm", title: info.name }, info.name), info.verified ? svg(VERIFIED) : null, h("span", { class: "tsym" }, `$${info.symbol}`)), k.caLine(mint, true)),
-        h("div", { class: "tprice", "data-testid": "hb-ca-price" }, h("span", { class: "p" }, fmtUsdPrice(info.priceUsd)), h("span", { class: `chg ${chg === null ? "flat" : chg > 0 ? "up" : chg < 0 ? "dn" : "flat"}`, title: "24h change" }, fmtChange(chg))));
-      const stat = (kk: string, v: string) => h("div", { class: "stat" }, h("span", { class: "k" }, kk), h("span", { class: "v" }, v));
-      stats.replaceChildren(stat("Market cap", fmtUsdCompact(info.mcapUsd)), stat("Vol 24h", fmtUsdCompact(info.volume24hUsd)), stat("Liquidity", fmtUsdCompact(info.liquidityUsd)));
-      stats.querySelectorAll(".stat .v").forEach((el, i) => el.setAttribute("data-k", ["mcap", "vol", "liq"][i]));
-      drawChart(); drawSum();
-    };
-    // live: price, 24h change, market cap, volume and liquidity from the worker's realtime tick, each changed value flashes
-    const setText = (el: Element | null, v: string, dir = 0) => {
-      if (!el || el.textContent === v) return;
-      el.textContent = v;
-      el.classList.remove("fl-up", "fl-dn", "fl");
-      void (el as HTMLElement).offsetWidth; // restart the animation
-      el.classList.add(dir > 0 ? "fl-up" : dir < 0 ? "fl-dn" : "fl");
-    };
-    const applyLive = (l: LiveStats) => {
-      if (!info || l.mint !== mint || !head.isConnected) return;
-      const prev = info.priceUsd;
-      const pick = (a: number | null, b: number | null) => (a !== null && Number.isFinite(a) ? a : b);
-      info = { ...info, priceUsd: pick(l.priceUsd, info.priceUsd), mcapUsd: pick(l.mcapUsd, info.mcapUsd), change24h: pick(l.change24h, info.change24h), volume24hUsd: pick(l.volume24hUsd, info.volume24hUsd), liquidityUsd: pick(l.liquidityUsd, info.liquidityUsd) };
-      const dir = prev !== null && info.priceUsd !== null ? Math.sign(info.priceUsd - prev) : 0;
-      setText(head.querySelector(".tprice .p"), fmtUsdPrice(info.priceUsd), dir);
-      const chg = head.querySelector(".tprice .chg"), c = info.change24h;
-      if (chg) { chg.className = `chg ${c === null ? "flat" : c > 0 ? "up" : c < 0 ? "dn" : "flat"}`; chg.textContent = fmtChange(c); }
-      setText(stats.querySelector('[data-k="mcap"]'), fmtUsdCompact(info.mcapUsd), dir);
-      setText(stats.querySelector('[data-k="vol"]'), fmtUsdCompact(info.volume24hUsd));
-      setText(stats.querySelector('[data-k="liq"]'), fmtUsdCompact(info.liquidityUsd));
-      pop.setAttribute("data-live-src", l.source ?? "");
-    };
-    const build = () => {
-      body.replaceChildren(head, chartBox, stats, sideSeg, amts, sum, runs);
-      foot.replaceChildren(cta, h("div", { class: "verify", "data-testid": "hb-ca-verify" }, "Always verify the contract address"));
-      drawInfo(); drawTrade();
-    };
-    let logoTries = 0, partTries = 0, logoT: ReturnType<typeof setTimeout> | null = null;
-    const t0 = performance.now();
-    const load = async (fresh: boolean) => {
-      try {
-        info = await ask({ type: "ca:info", mint, fresh }); if (!head.isConnected) build(); else drawInfo();
-        if (!pop.hasAttribute("data-t-info")) pop.setAttribute("data-t-info", String(Math.round(performance.now() - t0)));
-        // the worker answers with what came in 1.5 s (partial) and before a slow logo: ask again soon for the rest
-        if (info.partial && partTries < 6 && popHost) { partTries++; if (logoT) clearTimeout(logoT); logoT = setTimeout(() => void load(false), 700); }
-        else if (!info.image && logoTries < 3 && popHost) { logoTries++; if (logoT) clearTimeout(logoT); logoT = setTimeout(() => void load(false), 1500 * logoTries); }
-      }
-      catch (e) { if (!info) body.replaceChildren(h("div", { class: "result" }, h("strong", {}, "No market data"), h("span", { class: "muted" }, `${(e as Error).message || "Could not load this token"}. CA ${mint}`)), k.terminalRow(mint, null)); }
-    };
-    void Promise.all([ask({ type: "ca:prefs:get" }).then((p) => { prefs = p; }).catch(() => {}), ask({ type: "drawer:devpresets:get" }).then((r) => { const v = r.values.filter((x) => x > 0 && x <= BUY_MAX_SOL); if (v.length) presets = v; }).catch(() => {})])
-      .then(() => { drawSlip(); if (info) drawTrade(); });
-    drawSlip();
-    void load(false);
-    const poll = setInterval(() => { if (document.visibilityState === "visible") void load(true); }, 15_000);
-    // realtime ticks for this one open popup (the worker serves them from pump.fun 1 s / Jupiter price, cached and gated)
-    let liveBusy = false;
-    const livePoll = setInterval(() => {
-      if (document.visibilityState !== "visible" || !info || liveBusy) return;
-      liveBusy = true;
-      void ask({ type: "ca:live", mint }).then(applyLive).catch(() => {}).finally(() => { liveBusy = false; });
-    }, 1000);
-
-    if (!st?.exists) foot.replaceChildren(h("button", { class: "cta", type: "button", onclick: () => { void ask({ type: "open:sidepanel" }).catch(() => {}); } }, "Create a wallet in the side panel"));
-
-    document.documentElement.append(popHost);
-    // placement: next to the button (or the dragged spot), kept on screen, header drags it, double click resets
-    const vp = () => ({ w: document.documentElement.clientWidth || innerWidth, h: innerHeight });
-    let pos: Pos = { left: 0, top: 0 };
-    const apply = (p: Pos) => { const r = pop.getBoundingClientRect(); pos = clampPos(p, { w: r.width, h: r.height }, vp()); pop.style.left = `${pos.left}px`; pop.style.top = `${pos.top}px`; };
-    // below the button when it fits, else beside the tweet column (right, then left) at the button's height, else clamped
-    const near = (): Pos => {
-      const r = pop.getBoundingClientRect(), v = vp(), m = 12;
-      if (!anchor) return { left: v.w - r.width - 20, top: 60 };
-      if (anchor.bottom + 8 + r.height <= v.h - m) return { left: anchor.left, top: anchor.bottom + 8 };
-      if (anchor.top - 8 - r.height >= m) return { left: anchor.left, top: anchor.top - 8 - r.height };
-      const top = Math.max(m, Math.min(anchor.top - 40, v.h - r.height - m));
-      if (tweet && tweet.right + 12 + r.width <= v.w - m) return { left: tweet.right + 12, top };
-      if (tweet && tweet.left - 12 - r.width >= m) return { left: tweet.left - 12 - r.width, top };
-      return { left: anchor.left, top: anchor.bottom + 8 };
-    };
-    apply(savedPos ?? near());
-    const ro = new ResizeObserver(() => apply(pos)); ro.observe(pop);
-    const onResize = () => apply(pos); addEventListener("resize", onResize);
-    let drag: { id: number; dx: number; dy: number } | null = null;
-    header.addEventListener("pointerdown", (e) => { if (e.button !== 0 || (e.target as Element).closest("button")) return; e.preventDefault(); drag = { id: e.pointerId, dx: e.clientX - pos.left, dy: e.clientY - pos.top }; header.setPointerCapture(e.pointerId); pop.classList.add("dragging", "moved"); });
-    header.addEventListener("pointermove", (e) => { if (drag && e.pointerId === drag.id) apply({ left: e.clientX - drag.dx, top: e.clientY - drag.dy }); });
-    const end = (e: PointerEvent) => { if (!drag || e.pointerId !== drag.id) return; drag = null; pop.classList.remove("dragging"); savedPos = { ...pos }; void ask({ type: "ca:pos:set", pos: savedPos }).catch(() => {}); };
-    header.addEventListener("pointerup", end); header.addEventListener("pointercancel", end);
-    header.addEventListener("dblclick", (e) => { if ((e.target as Element).closest("button")) return; savedPos = null; void ask({ type: "ca:pos:set", pos: null }).catch(() => {}); apply(near()); });
-    popCleanup = () => { clearInterval(poll); clearInterval(livePoll); if (logoT) clearTimeout(logoT); ro.disconnect(); removeEventListener("resize", onResize); document.removeEventListener("keydown", onKey, true); };
+    const my = openSeq;
+    void loadPopup().then((m) => {
+      if (my !== openSeq) return; // closed, or another button was clicked meanwhile
+      k.injectFonts();
+      const r = m.mountPopup({ k, mint, label, anchor, tweet, savedPos: () => savedPos, setSavedPos: (p) => { savedPos = p; }, close });
+      popHost = r.host; popCleanup = r.cleanup;
+    }).catch((e) => console.warn("highbar: popup failed to load", e));
   }
 
   return {
@@ -384,5 +210,7 @@ export function initCa(k: CaKit) {
     refresh() { document.querySelectorAll<HTMLElement>('article[data-testid="tweet"]').forEach((a) => { want.delete(a); done.delete(a); }); scanAll(); },
     theme(t: "light" | "dark") { document.querySelectorAll<HTMLElement>(`[${HOST}]`).forEach((el) => el.setAttribute("data-hb-theme", t)); },
     open: openPopup,
+    /** A tweet appeared or its text changed (from the shared observer). */
+    queue,
   };
 }

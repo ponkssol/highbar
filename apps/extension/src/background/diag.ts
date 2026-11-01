@@ -30,5 +30,8 @@ export async function diagSources(): Promise<DiagResult[]> {
     probe("GeckoTerminal", `${GT_POOLS}/${PROBE_MINT}/pools?page=1`, (j) => ((j as { data?: unknown })?.data ? null : "unexpected answer")),
   ]);
   list[0].note += granted ? "" : " · host permission NOT granted (reload the extension)";
+  // the last CA popup trade with its route and the full error: the toasts never show either
+  const t = (await chrome.storage.session.get("hb.lastTrade").catch(() => ({})) as Record<string, { at: number; side: string; route: string | null; ok: boolean; note: string } | undefined>)["hb.lastTrade"];
+  if (t) list.push({ name: `Last trade (${t.side}${t.route ? `, ${t.route}` : ""})`, url: "", ok: t.ok, status: null, ms: 0, note: `${new Date(t.at).toLocaleTimeString()} · ${t.note}`.slice(0, 240) });
   return list;
 }

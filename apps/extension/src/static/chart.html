@@ -13,13 +13,13 @@ body{display:flex;flex-direction:column}
 #tf button:hover{color:#F3EEDF;background:rgba(255,255,255,.05)}
 #tf button.on{color:#FFC72C;background:rgba(255,199,44,.12)}
 #tf button:disabled{opacity:.35;cursor:default;background:none;color:#958C79}
-#src{margin-left:auto;color:#7d7564;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}#src.warn{color:#d9a441;font-size:9.5px;letter-spacing:-.1px}
 #c{position:relative;flex:1;min-height:0}
 #c iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 #msg{position:absolute;inset:22px 0 0;display:flex;align-items:center;justify-content:center;font-size:11px;pointer-events:none}
 #msg[hidden]{display:none}
+body.gm #msg{inset:0}
 #tv-attr-logo{transform:scale(.72);transform-origin:left bottom;opacity:.7}
 </style>
 </head>
-<body><div id="bar"><div id="tf" role="group" aria-label="Candle width"></div><span id="src"></span></div><div id="c"></div><div id="msg">Loading chart…</div><script src="chart.js"></script></body>
+<body><div id="bar" hidden><div id="tf" role="group" aria-label="Candle width"></div></div><div id="c"></div><div id="msg">Loading chart…</div><script src="chart.js"></script></body>
 </html>

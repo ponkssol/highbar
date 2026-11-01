@@ -49,8 +49,9 @@ export function chartSources(mint: string, o: { highbar?: boolean; pool?: string
 /** The width a source serves for a wanted width (GeckoTerminal and the api have no 1s: 1m). */
 export const servedRes = (s: ChartSource, r: Res): Res => (SOURCE_RES[s].includes(r) ? r : SOURCE_RES[s][0]);
 
-export const pumpCandlesUrl = (mint: string, res: Res, count: number) =>
-  `${PUMP_API}/candles/${SOLANA_CAIP2}/${encodeURIComponent(mint)}?res=${res}&measure=price_usd&count=${Math.max(1, Math.min(300, Math.floor(count)))}`;
+/** `before` (ms): one older page, candles that end before that time (pump.fun pages with `to`). */
+export const pumpCandlesUrl = (mint: string, res: Res, count: number, before?: number) =>
+  `${PUMP_API}/candles/${SOLANA_CAIP2}/${encodeURIComponent(mint)}?res=${res}&measure=price_usd&count=${Math.max(1, Math.min(300, Math.floor(count)))}${before && Number.isFinite(before) && before > 0 ? `&to=${Math.floor(before)}` : ""}`;
 /** `token` (the mint) makes GeckoTerminal price that side of the pool, whichever side it is. */
 export function gtOhlcvUrl(pool: string, res: Res, limit: number, token?: string): string | null {
   const agg = res === "1m" ? 1 : res === "5m" ? 5 : res === "15m" ? 15 : 0;
@@ -146,3 +147,26 @@ export function fmtPrice(p: number): string {
   const sub = String(z).split("").map((d) => "₀₁₂₃₄₅₆₇₈₉"[Number(d)]).join("");
   return `0.0${sub}${s.slice(z, z + 4).replace(/0+$/, "") || "0"}`;
 }
+
+/** Fills the seconds (or minutes) without trades with flat candles at the previous close, and carries the last close up to
+ *  `now`, so a chart moves with the clock and shows real time instead of squeezing hours of sparse trades together.
+ *  Keeps the newest `max` slots; a bar older than the window only seeds the first close. */
+export function fillGaps(bars: Bar[], sec: number, nowSec: number, max = MAX_BARS): Bar[] {
+  if (!bars.length || !(sec > 0)) return bars;
+  const last = bars[bars.length - 1].time;
+  const end = Math.max(last, Math.floor(nowSec / sec) * sec);
+  const start = end - (max - 1) * sec;
+  const out: Bar[] = [];
+  let prev: Bar | null = null, j = 0;
+  const n = bars.length;
+  for (; j < n && bars[j].time < start; j++) prev = bars[j];
+  if (!prev && j >= n) return bars.slice(-max);
+  for (let t = prev ? start : bars[j].time; t <= end; t += sec) {
+    while (j < n && bars[j].time < t) prev = bars[j++]; // a bar off the grid only carries its close
+    if (j < n && bars[j].time === t) { prev = bars[j++]; out.push(prev); }
+    else if (prev) out.push({ time: t, open: prev.close, high: prev.close, low: prev.close, close: prev.close, volume: 0 });
+  }
+  return out;
+}
+/** Bars that really traded inside the last `windowSec` (not counting fill). */
+export const tradedIn = (bars: Bar[], nowSec: number, windowSec: number) => bars.reduce((n, b) => n + (b.time >= nowSec - windowSec && (b.volume ?? 0) > 0 ? 1 : 0), 0);

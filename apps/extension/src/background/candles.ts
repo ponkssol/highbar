@@ -20,7 +20,9 @@ import type { LiveStats } from "../lib/messages";
 import { DEXS_TOKENS, gate, topPair, type DexPair } from "./ca";
 
 export const JUP_PRICE = "https://api.jup.ag/price/v3";
-export interface CandleReq { mint: string; pool?: string | null; highbar?: boolean; res: Res; count?: number; source?: ChartSource | null; auto?: boolean; pump?: boolean }
+export interface CandleReq { mint: string; pool?: string | null; highbar?: boolean; res: Res; count?: number; source?: ChartSource | null; auto?: boolean; pump?: boolean;
+  /** One older page of pump.fun candles (ms): history further back than the first 300. */
+  before?: number }
 
 async function getJson(url: string, ms = 8000): Promise<unknown> {
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
@@ -88,8 +90,8 @@ export function candleService(d: { api: Api }) {
   };
 
   /** pump.fun 1 s candles; the newest close is also the live price. */
-  const pumpBars = (mint: string, res: Res, count: number) => {
-    const u = pumpCandlesUrl(mint, res, count);
+  const pumpBars = (mint: string, res: Res, count: number, before?: number) => {
+    const u = pumpCandlesUrl(mint, res, count, before);
     return cached("pump.fun", u, async () => {
       let j: unknown;
       // pump.fun answers 404/400 (JSON) for a coin it does not know: that is "no bars", not a blocked source
@@ -97,8 +99,8 @@ export function candleService(d: { api: Api }) {
       pumpErr.delete(mint);
       const b = parsePump(j, res);
       // no bars at this width (pump.fun indexes many tokens, but 1 s often only for its own coins): skip that width only
-      if (b && !b.length && count >= 2) pumpEmpty.set(`${mint}|${res}`, Date.now());
-      if (b?.length && res === "1s") { const l = b[b.length - 1]; addTick(mint, Math.min(Date.now(), (l.time + 1) * 1000), l.close); pumpAt.set(mint, Date.now()); }
+      if (b && !b.length && count >= 2 && !before) pumpEmpty.set(`${mint}|${res}`, Date.now());
+      if (b?.length && res === "1s" && !before) { const l = b[b.length - 1]; addTick(mint, Math.min(Date.now(), (l.time + 1) * 1000), l.close); pumpAt.set(mint, Date.now()); }
       return b;
     });
   };
@@ -157,7 +159,7 @@ export function candleService(d: { api: Api }) {
   }
 
   async function from(src: ChartSource, q: CandleReq, res: Res, count: number): Promise<Bar[] | null> {
-    if (src === "pump.fun") return pumpBars(q.mint, res, count);
+    if (src === "pump.fun") return pumpBars(q.mint, res, count, typeof q.before === "number" && Number.isFinite(q.before) && q.before > 0 ? q.before : undefined);
     if (src === "geckoterminal") {
       const u = q.pool ? gtOhlcvUrl(q.pool, res, count, q.mint) : null;
       if (!u) return null;

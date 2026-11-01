@@ -2,7 +2,7 @@
  *  It never sees keys or signs: wallet state, quotes and the launch itself go through the background worker. */
 import { draftFromTweet, NAME_MAX_BYTES, normalizeXLink, readTweet, TICKER_MAX_BYTES, type LaunchDraft, type TweetInfo } from "../lib/tweet";
 import type { LaunchOpts, LaunchPortIn, LaunchPortOut, LaunchStep, ToContent, WalletRow, WalletStatus } from "../lib/messages";
-import { ask, h, scrollFade, svg } from "./dom";
+import { adoptCss, ask, h, onIdle, scrollFade, svg } from "./dom";
 import { holdingPanel, type HoldingPanel } from "./holding";
 import { initCa } from "./ca";
 import { LAUNCH_TIERS, TIER_LABEL, type LaunchTier } from "../lib/settings";
@@ -14,6 +14,7 @@ import { terminalLinks } from "../lib/terminals";
 import { BUTTON_CSS, DRAWER_CSS } from "./styles";
 import { isShort, launchNeedSol, MULTI_MAX, toggleChecked, type MultiRow } from "../lib/multi";
 import { notice, pickNotice, walletNotice, type Notice } from "../lib/notice";
+import { playSfx, primeSfx } from "../lib/sfx";
 
 const MARK = "data-hb-launch";
 let status: WalletStatus | null = null;
@@ -85,44 +86,58 @@ function overflows(bar: HTMLElement): boolean {
 }
 /** X sets its font on the text spans, not on the row, so inheriting gives the page default (a serif). Copy it from a native count. */
 const X_FONT = 'TwitterChirp, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+let fontCache = "";
 function nativeFont(bar: HTMLElement): string {
+  if (fontCache) return fontCache; // read once: getComputedStyle per tweet forced a style recalc while scrolling
   const el = bar.querySelector<HTMLElement>('[data-testid="like"] span, [data-testid="reply"] span, [data-testid="retweet"] span, span');
   const f = el ? getComputedStyle(el).fontFamily : "";
-  return f && !/^(serif|"?Times)/i.test(f) ? f : X_FONT;
+  if (f && !/^(serif|"?Times)/i.test(f)) { fontCache = f; return f; }
+  return X_FONT;
 }
 let lastTheme = "";
+/** The current theme, cached (computed style is read only when x.com restyles html or body, not once per tweet). */
+let curTheme: "light" | "dark" | null = null;
+const theme = () => (curTheme ??= xTheme());
 function syncTheme() {
-  const t = xTheme(); if (t === lastTheme) return; lastTheme = t;
+  const t = xTheme(); curTheme = t; if (t === lastTheme) return; lastTheme = t;
   document.querySelectorAll<HTMLElement>("[data-hb-host]").forEach((el) => el.setAttribute("data-hb-theme", t));
 }
 
+/** Tweets that already have their button (cheaper than an attribute read, and forgets removed tweets by itself). */
+const processed = new WeakSet<HTMLElement>();
+/** One ResizeObserver for every action row (instead of one per tweet); its callback runs after layout, so fit() reads are cheap. */
+const fits = new WeakMap<Element, () => void>();
+const fitRO = new ResizeObserver((es) => { for (const e of es) fits.get(e.target)?.(); });
+
 function addButton(article: HTMLElement) {
-  if (article.hasAttribute(MARK)) return;
+  if (processed.has(article)) return;
+  if (article.hasAttribute(MARK)) { processed.add(article); return; }
   const groups = article.querySelectorAll<HTMLElement>('[role="group"]');
   const bar = [...groups].reverse().find((g) => g.querySelector('[data-testid="reply"],[data-testid="like"],[data-testid="retweet"]')) ?? groups[groups.length - 1];
   if (!bar || bar.closest("article") !== article) return;
-  article.setAttribute(MARK, "");
-  const host = h("span", { "data-hb-host": "", "data-hb-theme": xTheme() });
+  article.setAttribute(MARK, ""); processed.add(article);
+  const host = h("span", { "data-hb-host": "", "data-hb-theme": theme() });
   host.style.display = "inline-flex"; host.style.alignItems = "center"; host.style.fontFamily = nativeFont(bar);
   const root = host.attachShadow({ mode: "closed" });
-  const style = h("style"); style.textContent = BUTTON_CSS;
   const btn = h("button", { type: "button", "data-testid": "hb-launch-button" });
   const update = () => {
     const inst = instantOn();
     btn.className = inst ? "instant" : "";
-    btn.replaceChildren(svg(HB_MARK), h("span", { class: "lbl" }, "Instant Launch"));
+    btn.replaceChildren(svg(HB_MARK), h("span", { class: "lbl" }, "Launch"));
     if (inst) btn.append(h("span", { class: "amt", html: SOL_MARK }, fmtSol(status!.presets.devBuySol)));
     btn.title = inst ? `Instant launch with presets. Dev buy ${fmtSol(status!.presets.devBuySol)} SOL. Shift click to review first.` : "Launch on highbar";
     btn.setAttribute("aria-label", btn.title);
   };
-  update(); buttonUpdaters.add(() => { update(); fit(); });
+  update();
+  const upd = () => { if (!host.isConnected) { buttonUpdaters.delete(upd); fits.delete(bar); fitRO.unobserve(bar); return; } update(); fit(); };
+  buttonUpdaters.add(upd);
   btn.addEventListener("click", (e) => {
     e.preventDefault(); e.stopPropagation();
     if (!e.isTrusted) return; // only a real user click, never a script on the page
     const t = readTweet(article);
     if (t) openDrawer(t, { instant: instantOn() && !e.shiftKey, anchor: btn.getBoundingClientRect() });
   });
-  root.append(style, btn);
+  root.append(btn); adoptCss(root, BUTTON_CSS);
   // Before the bookmark and share block so the share icon stays at the end of the row
   const end = [...bar.children].find((c) => c.querySelector('[data-testid="bookmark"],[data-testid="removeBookmark"]') || (c.querySelector('[aria-label*="Share"],[data-testid="share"]') && !c.querySelector('[data-testid="like"],[data-testid="unlike"]')));
   if (end) bar.insertBefore(host, end); else bar.append(host);
@@ -134,7 +149,7 @@ function addButton(article: HTMLElement) {
     host.setAttribute("data-compact", "");
     if (overflows(bar)) host.setAttribute("data-mini", "");
   }
-  new ResizeObserver(() => fit()).observe(bar); fit();
+  fits.set(bar, fit); fitRO.observe(bar); // observe() reports the first size right after layout: that is the first fit
 }
 
 function scan(root: ParentNode = document) { root.querySelectorAll<HTMLElement>('article[data-testid="tweet"]').forEach(addButton); }
@@ -581,6 +596,7 @@ function runLaunch(body: HTMLElement, foot: HTMLElement, s: DrawerState, instant
       if (seen) li.querySelector(".b")!.innerHTML = CHECK;
     }
   };
+  primeSfx();
   const port = chrome.runtime.connect({ name: "launch" });
   port.onMessage.addListener((m: LaunchPortOut) => {
     if (m.type === "step") mark(m.step);
@@ -589,11 +605,13 @@ function runLaunch(body: HTMLElement, foot: HTMLElement, s: DrawerState, instant
       items.forEach((li) => { li.className = "done"; li.querySelector(".b")!.innerHTML = CHECK; });
       list.remove();
       body.append(h("div", { class: "result ok", "data-testid": "hb-done" },
-        h("div", { class: "rhead" }, h("strong", {}, "Launched"), h("span", { style: "flex:1" }), h("a", { class: "link sm", href: m.result.solscanUrl, target: "_blank", rel: "noopener noreferrer" }, "Solscan")),
+        h("div", { class: "rhead" }, h("strong", {}, "Launch success"), h("span", { class: "muted" }, "·"), h("a", { class: "link sm", href: m.result.tokenUrl ?? m.result.solscanUrl, target: "_blank", rel: "noopener noreferrer", "data-testid": "hb-view-token" }, "View token"), h("span", { style: "flex:1" }), h("a", { class: "link sm", href: m.result.solscanUrl, target: "_blank", rel: "noopener noreferrer" }, "View tx")),
         caLine(m.result.mint), terminalRow(m.result.mint, m.result.tokenUrl)));
       foot.replaceChildren(h("button", { class: "ghost", title: "Back to the form for a new launch", "data-testid": "hb-done-close", onclick: backToForm }, "Close"));
+      playSfx("ok");
       port.disconnect();
     } else if (m.type === "error") {
+      playSfx("err");
       body.append(h("div", { class: "result" }, h("strong", { class: "warn" }, "Launch stopped"), h("span", { class: "muted" }, m.error)));
       foot.replaceChildren(h("button", { class: "ghost", onclick: closeDrawer }, "Close"));
       port.disconnect();
@@ -627,14 +645,17 @@ function runLaunchMulti(body: HTMLElement, foot: HTMLElement, s: DrawerState, in
   foot.replaceChildren(tally, h("div", { class: "muted" }, "Keep this tab open until they confirm. If you close it the launches keep going and show up in Create history of each wallet."));
   const count = (rows: MultiRow[]) => { const d = rows.filter((r) => r.status === "done").length, f = rows.filter((r) => r.status === "failed").length, k = rows.filter((r) => r.status === "skipped").length;
     return [`${d} launched`, ...(f ? [`${f} failed`] : []), ...(k ? [`${k} skipped`] : [])].join(" · "); };
+  primeSfx();
   const port = chrome.runtime.connect({ name: "launch" });
   port.onMessage.addListener((m: LaunchPortOut) => {
     if (m.type === "multi") { draw(m.rows); tally.textContent = `${m.rows.filter((r) => r.status !== "queued" && r.status !== "running").length} of ${m.rows.length} finished · ${count(m.rows)}`; }
     else if (m.type === "multi:done") {
       draw(m.rows);
+      playSfx(m.rows.some((r) => r.status === "done") ? "ok" : "err");
       foot.replaceChildren(h("div", { class: "mtally done", "data-testid": "hb-multi-done" }, count(m.rows)), h("button", { class: "ghost", title: "Back to the form for a new launch", "data-testid": "hb-done-close", onclick: backToForm }, "Close"));
       port.disconnect();
     } else if (m.type === "error") {
+      playSfx("err");
       body.append(h("div", { class: "result" }, h("strong", { class: "warn" }, "Launch stopped"), h("span", { class: "muted" }, m.error)));
       foot.replaceChildren(h("button", { class: "ghost", onclick: closeDrawer }, "Close"));
       port.disconnect();
@@ -649,10 +670,42 @@ chrome.runtime.onMessage.addListener((m: ToContent) => {
   if (m?.type === "hotkey:launch") { const k = hotkeyTweet(); if (k) openDrawer(k.t, { instant: instantOn(), anchor: buttonBox(k.a) }); }
 });
 
-new MutationObserver((muts) => { for (const m of muts) m.addedNodes.forEach((n) => { if (n instanceof HTMLElement) { if (n.matches?.('article[data-testid="tweet"]')) addButton(n); else scan(n); } }); })
-  .observe(document.documentElement, { childList: true, subtree: true });
 // Token detection: the CA button under the name row of tweets that name a Solana token, and its trade popup
-const ca = initCa({ status: () => status, injectFonts, theme: xTheme, caLine, terminalRow, walletSwitcher });
+const ca = initCa({ status: () => status, injectFonts, theme, caLine, terminalRow, walletSwitcher });
+
+// One MutationObserver for the whole content script (launch buttons and token detection). The callback only collects nodes;
+// the work runs in an idle callback, batched. Only childList changes are observed: like, repost and view counts (text and
+// attribute churn) never wake it, and a tweet is re-scanned for tokens only when its text or link card changed.
+const ART = 'article[data-testid="tweet"]', TEXT_SEL = '[data-testid="tweetText"],[data-testid="card.wrapper"]';
+const added: Element[] = [], touched = new Set<Node>();
+let mutIdle = false;
+function flushMutations() {
+  mutIdle = false;
+  const list = added.splice(0), tl = [...touched]; touched.clear();
+  const arts = new Set<HTMLElement>();
+  for (const n of list) {
+    if (!n.isConnected || n.hasAttribute("data-hb-host") || n.hasAttribute("data-hb-ca-host")) continue;
+    if (n.matches(ART)) arts.add(n as HTMLElement);
+    else if (n.firstElementChild) n.querySelectorAll<HTMLElement>(ART).forEach((a) => arts.add(a));
+  }
+  for (const a of arts) { addButton(a); ca.queue(a); }
+  for (const t of tl) {
+    const el = t instanceof Element ? t : t.parentElement;
+    if (!el?.isConnected) continue;
+    const a = el.closest<HTMLElement>(ART);
+    if (!a || arts.has(a)) continue;
+    if (!processed.has(a)) addButton(a); // the action row rendered after the tweet
+    if (el.closest(TEXT_SEL)) ca.queue(a);
+  }
+}
+new MutationObserver((muts) => {
+  for (const m of muts) {
+    if (!m.addedNodes.length) continue;
+    for (const n of m.addedNodes) if (n.nodeType === 1) added.push(n as Element);
+    touched.add(m.target);
+  }
+  if (!mutIdle && (added.length || touched.size)) { mutIdle = true; onIdle(flushMutations); }
+}).observe(document.documentElement, { childList: true, subtree: true });
 void refresh().then(() => { scan(); ca.refresh(); });
 // x.com switches themes by restyling body and html, keep the buttons legible on Default, Dim and Lights out
 const themeObs = new MutationObserver(() => syncTheme());

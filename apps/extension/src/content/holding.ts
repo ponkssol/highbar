@@ -3,12 +3,14 @@
  *  "sell" port: the worker builds, signs with that wallet, simulates and sends. No key or signed tx ever reaches this page. */
 import type { HoldingRes, HoldPrefs, SellPortIn, SellPortOut, WalletRow } from "../lib/messages";
 import { cleanSlippage, fmtCompact, fmtMcap, fmtPct, fmtSolFit, parsePct, SLIPPAGE_DEFAULT, type HoldRow } from "../lib/holding";
-import { BUY_MAX_SOL, type SellStep } from "../lib/sell";
+import type { SellStep } from "../lib/sell";
+import { BUY_MAX_SOL } from "../lib/limits";
 import { fmtSol, short } from "../lib/format";
 import { CLOSE } from "../lib/icons";
 import { ask, h, scrollFade, svg } from "./dom";
 import { attachLayout } from "../lib/place";
 import { menu } from "./menu";
+import { playSfx, primeSfx } from "../lib/sfx";
 
 export const HOLD_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true" focusable="false"><rect x="2.25" y="2.75" width="11.5" height="10.5" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 10.5V8.5M8 10.5V5.5M11 10.5V7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 const REFRESH = `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.46-3.54" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M13 2.75V5.5h-2.75" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -195,9 +197,9 @@ export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () 
       return h("div", { class: "hsell run", role: "status", "data-testid": "hb-sell-progress" }, h("span", { class: "hspin" }), h("span", { class: "hmsg" }, h("span", { class: "hl1" }, `${stepText(s.side, s.step)}…`)), h("span", { class: "hsm" }, amtText(s.side, s.amt)));
     }
     if (s.kind === "done") {
-      const what = s.side === "buy" ? `Bought ${r.symbol} for ${fmtSol(s.amt)} SOL` : `Sold ${s.amt}% of ${r.symbol}`;
-      return h("div", { class: "hsell done", role: "status", "data-testid": "hb-sell-done" }, h("span", { class: "hmsg", title: what }, h("span", { class: "hl1" }, what)),
-        h("a", { class: "hlink", href: s.url, target: "_blank", rel: "noopener noreferrer", "data-testid": "hb-sell-solscan" }, "Solscan", svg(OPEN)),
+      const what = `${s.side === "buy" ? "Buy" : "Sell"} success`, tip = s.side === "buy" ? `Bought ${r.symbol} for ${fmtSol(s.amt)} SOL` : `Sold ${s.amt}% of ${r.symbol}`;
+      return h("div", { class: "hsell done", role: "status", "data-testid": "hb-sell-done" }, h("span", { class: "hmsg", title: tip }, h("span", { class: "hl1" }, `${what} ·`)),
+        h("a", { class: "hlink", href: s.url, target: "_blank", rel: "noopener noreferrer", "data-testid": "hb-sell-solscan" }, "View tx", svg(OPEN)),
         h("button", { class: "hb ghost", type: "button", onclick: () => setRow(r.key, { kind: "idle", custom: "" }) }, "OK"));
     }
     if (s.kind === "error") {
@@ -227,6 +229,7 @@ export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () 
   }
 
   function runTrade(r: HoldRow, side: Side, amt: number) {
+    primeSfx();
     setRow(r.key, { kind: "run", side, amt, step: "build" });
     const port = chrome.runtime.connect({ name: "sell" });
     ports.add(port);
@@ -234,8 +237,8 @@ export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () 
     const fail = (error: string) => setRow(r.key, { kind: "error", side, amt, error, title: error });
     port.onMessage.addListener((m: SellPortOut) => {
       if (m.type === "step") setRow(r.key, { kind: "run", side, amt, step: m.step });
-      else if (m.type === "done") { setRow(r.key, { kind: "done", side, amt, url: m.solscanUrl }); end(); void load(true); }
-      else if (m.type === "error") { fail(m.error); end(); }
+      else if (m.type === "done") { setRow(r.key, { kind: "done", side, amt, url: m.solscanUrl }); playSfx("ok"); end(); void load(true); }
+      else if (m.type === "error") { fail(m.error); playSfx("err"); end(); }
     });
     port.onDisconnect.addListener(() => { ports.delete(port); const cur = st.get(r.key); if (cur?.kind === "run") fail("The extension stopped answering. Check Solscan before you try again."); });
     const msg: SellPortIn = side === "buy"

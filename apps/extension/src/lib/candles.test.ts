@@ -72,3 +72,21 @@ test("candles: live 1 s bars from price ticks, and the last history bar patched 
   assert.equal(patchLive(hist, { t: T - 120_000, p: 9 }, 60), hist);
   assert.equal(patchLive(hist, null, 60), hist);
 });
+
+test("candles: gaps are filled with flat bars at the previous close and carried up to now", async () => {
+  const { fillGaps, tradedIn } = await import("./candles");
+  const b = (time: number, close: number, volume = 1) => ({ time, open: close, high: close, low: close, close, volume });
+  const out = fillGaps([b(100, 1), b(103, 2), b(104, 3)], 1, 107.6, 1500);
+  assert.deepEqual(out.map((x) => x.time), [100, 101, 102, 103, 104, 105, 106, 107]);
+  assert.deepEqual(out.map((x) => x.close), [1, 1, 1, 2, 3, 3, 3, 3]);
+  assert.equal(out[1].volume, 0); assert.equal(out[1].open, 1);
+  // the window keeps the newest slots; an older bar seeds the first close
+  const w = fillGaps([b(0, 5), b(1000, 6)], 1, 1004, 10);
+  assert.equal(w.length, 10); assert.equal(w[0].time, 995); assert.equal(w[0].close, 5); assert.equal(w[5].close, 6);
+  // 1 m bars
+  const m = fillGaps([b(60, 1), b(240, 2)], 60, 400, 1500);
+  assert.deepEqual(m.map((x) => x.time), [60, 120, 180, 240, 300, 360]);
+  assert.deepEqual(fillGaps([], 1, 10), []);
+  assert.equal(tradedIn(out, 107, 5), 2);
+  assert.equal((await import("./candles")).pumpCandlesUrl(PUMP, "1s", 300, 1_700_000_000_000).endsWith("&count=300&to=1700000000000"), true);
+});

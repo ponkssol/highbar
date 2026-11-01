@@ -7,7 +7,11 @@ import type { ClaimRes, QuoteRes } from "./api";
 import type { MultiRow } from "./multi";
 import type { HoldRow } from "./holding";
 import type { SellStep } from "./sell";
-import type { CaInfo, CaHit } from "./ca";
+import type { CaInfo, CaHit, PillStats } from "./ca";
+import type { TokenAudit } from "./audit";
+import type { LedgerEntry } from "./ledger";
+/** The PnL card: the selected wallet's balance of the token, its ledger entries and SOL/USD. */
+export interface CaPosition { walletId: string; label: string; balanceRaw: string; decimals: number; solUsd: number | null; entries: LedgerEntry[] }
 
 export interface WalletStatus {
   /** ready: the wallet can sign (no lock). needsMigration: a wallet from before the no-password update, waiting for its old password once. */
@@ -79,12 +83,15 @@ export type Req =
   | { type: "ca:pos:get" }
   | { type: "ca:pos:set"; pos: { left: number; top: number } | null }
   /** chart.html: candles for the popup chart (highbar api, pump.fun or GeckoTerminal, whichever has the token). */
-  | { type: "ca:candles"; mint: string; pool?: string | null; highbar?: boolean; res: ChartRes; count?: number; source?: ChartSource | null; auto?: boolean; pump?: boolean }
+  | { type: "ca:candles"; mint: string; pool?: string | null; highbar?: boolean; res: ChartRes; count?: number; source?: ChartSource | null; auto?: boolean; pump?: boolean; before?: number }
   /** ca:live: the open popup's header numbers (price, market cap, 24h volume, liquidity), polled every second while it is open.
    *  ca:prefetch: tweets with a token button came into view, warm the cache (batched, throttled). diag:sources: Settings >
    *  Diagnostics, one request to each market data source. */
   | { type: "ca:live"; mint: string }
   | { type: "ca:prefetch"; mints: string[]; full?: boolean }
+  | { type: "ca:stats"; mints: string[] }
+  | { type: "ca:audit"; mint: string }
+  | { type: "ca:position"; walletId: string; mint: string }
   | { type: "diag:sources" };
 
 export type Res<T extends Req["type"]> =
@@ -122,6 +129,9 @@ export type Res<T extends Req["type"]> =
   T extends "ca:candles" ? CandleReply :
   T extends "ca:live" ? LiveStats :
   T extends "ca:prefetch" ? { ok: true } :
+  T extends "ca:stats" ? PillStats[] :
+  T extends "ca:audit" ? TokenAudit :
+  T extends "ca:position" ? CaPosition :
   T extends "diag:sources" ? DiagResult[] :
   { ok: true };
 

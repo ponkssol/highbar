@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { playSfx, primeSfx } from "../lib/sfx";
 import { createRoot } from "react-dom/client";
 import { send, type DiagResult, type HistoryItem, type RpcStatus, type WalletRow, type WalletStatus } from "../lib/messages";
 import { cleanRpcUrl, type Presets, type Settings } from "../lib/settings";
@@ -194,6 +195,7 @@ function WalletItem({ w, last, open, onToggle, onSelect, onChanged }: { w: Walle
   );
 }
 
+let volT: ReturnType<typeof setTimeout> | null = null;
 function SettingsTab({ st }: { st: WalletStatus }) {
   const { s, save } = useSettings(st);
   if (!s) return null;
@@ -205,6 +207,21 @@ function SettingsTab({ st }: { st: WalletStatus }) {
         <div className="flex items-center justify-between rounded-[10px] border border-border bg-control px-3 py-2.5">
           <span className="text-[13px] text-ink-2">Token detection <InfoTip text="Adds a small button under the name of tweets that mention a Solana token (a contract address, a token page link or a $TICKER that resolves to one token). It opens the price, chart and a buy and sell box." /></span>
           <Switch on={s.caDetect} onChange={(v) => void save({ caDetect: v })} label="Token detection" />
+        </div>
+        <div className="mt-2 rounded-[10px] border border-border bg-control px-3 py-2.5" data-testid="hb-sound">
+          <div className="flex items-center justify-between">
+            <span className="text-[13px] text-ink-2">Sound <InfoTip text="A short chime when a buy, sell or launch succeeds and a soft low tone when it fails. Made in the browser (no audio files, nothing downloaded)." /></span>
+            <Switch on={s.sound} onChange={(v) => void save({ sound: v })} label="Sound" />
+          </div>
+          {s.sound && (
+            <label className="mt-2 flex items-center gap-2.5 text-[12px] text-ink-3">
+              <span>Volume</span>
+              <input type="range" min={0} max={100} step={5} defaultValue={Math.round(s.soundVol * 100)} aria-label="Sound volume" data-testid="hb-sound-vol"
+                className="h-1 flex-1 cursor-pointer accent-[#FFC72C]"
+                onChange={(e) => { const v = Number(e.currentTarget.value) / 100; primeSfx(); if (volT) clearTimeout(volT); volT = setTimeout(() => { playSfx("ok", v); void save({ soundVol: v }); }, 200); }} />
+              <span className="w-8 text-right tabular-nums text-ink-2">{Math.round(s.soundVol * 100)}%</span>
+            </label>
+          )}
         </div>
       </Card>
       <ReferralCard p={s.presets} onSave={(presets) => save({ presets })} ready={st.ready} label={st.walletCount > 1 ? st.label : null} />

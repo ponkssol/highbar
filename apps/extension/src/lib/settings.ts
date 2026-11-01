@@ -35,10 +35,14 @@ export interface Settings {
   dedicatedAck: boolean;
   /** Token detection on x.com: a small button under the name row of tweets that mention a Solana token (CA, link or cashtag). On by default. */
   caDetect: boolean;
+  /** Trade and launch sounds (Web Audio, in the page where the user acted). On by default. */
+  sound: boolean;
+  /** Their volume, 0 to 1. */
+  soundVol: number;
 }
 
 export const DEFAULT_PRESETS: Presets = { tier: "standard", antiSniper: false, antiSniperChosen: false, devBuySol: 0, slippageBps: 100, description: "", useTweetText: true, referrer: "", instant: false };
-export const DEFAULT_SETTINGS: Settings = { rpcUrl: "", presets: DEFAULT_PRESETS, dedicatedAck: false, caDetect: true };
+export const DEFAULT_SETTINGS: Settings = { rpcUrl: "", presets: DEFAULT_PRESETS, dedicatedAck: false, caDetect: true, sound: true, soundVol: 0.5 };
 
 const httpsUrl = (s: string) => { try { const u = new URL(s); return u.protocol === "https:" || (u.protocol === "http:" && /^(localhost|127\.0\.0\.1)$/.test(u.hostname)); } catch { return false; } };
 
@@ -51,6 +55,8 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
     rpcUrl: cleanRpcUrl(s?.rpcUrl) ?? "",
     dedicatedAck: !!s?.dedicatedAck,
     caDetect: s?.caDetect !== false,
+    sound: s?.sound !== false,
+    soundVol: Number.isFinite(Number(s?.soundVol)) && Number(s?.soundVol) >= 0 && Number(s?.soundVol) <= 1 ? Math.round(Number(s?.soundVol) * 100) / 100 : 0.5,
     presets: {
       tier: LAUNCH_TIERS.includes(p.tier as LaunchTier) ? (p.tier as LaunchTier) : "standard",
       antiSniper: p.antiSniperChosen === true ? p.antiSniper === true : false,

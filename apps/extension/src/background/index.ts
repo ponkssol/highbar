@@ -26,6 +26,9 @@ import { candleService } from "./candles";
 import { diagSources } from "./diag";
 import { JUP_BASES, quotePath, runJupBuy, runJupSell, swapBody, type JupDeps, type JupQuote } from "../lib/jup";
 import { cleanCaSlippage, CA_SLIPPAGE_DEFAULT } from "../lib/caprefs";
+import { addEntry, LEDGER_KEY, readLedger } from "../lib/ledger";
+import { publicTradeError } from "../lib/tradeerr";
+import { JUP_PRICE } from "./candles";
 
 const SETTINGS = "hb.settings", HISTORY = "hb.history", REFERRAL = "hb.referral", CONFIG = "hb.config";
 /** Last dragged drawer position, session storage only (gone when the browser closes). The content script reaches it through the worker. */
@@ -334,9 +337,84 @@ function sellDeps(s: Settings): SellDeps {
     send: (raw, onSent) => sendAndConfirm(R, raw, { onSent, what: "sell transaction" }),
   };
 }
-async function sell(m: SellPortIn, step: (s: SellPortOut) => void) {
-  const s = await settings(), cfg = await config(s);
-  return trade(m, s, cfg?.network ?? "devnet", step);
+async function sell(m: SellPortIn, step: (s: SellPortOut) => void): Promise<SellPortOut> {
+  const s = await settings(), cfg = await config(s), R = rpcFor(s);
+  const owner = (await W.list().catch(() => [])).find((x) => x.id === m.walletId)?.address ?? null;
+  // the wallet's SOL and token balance before the trade, read while the trade is being built, for the trade ledger (PnL card)
+  const before = owner ? snap(R, owner, m.mint).catch(() => null) : Promise.resolve(null);
+  try {
+    const r = await trade(m, s, cfg?.network ?? "devnet", step);
+    void lastTrade({ at: Date.now(), side: m.side ?? "sell", route: r.route ?? "highbar pool", ok: true, note: r.signature });
+    if (owner) void record(R, owner, m, r.signature, before);
+    posC.delete(`${owner}:${m.mint}`);
+    // the toast says "Buy success · View tx": the route stays in Diagnostics
+    return { type: "done", signature: r.signature, solscanUrl: r.solscanUrl, amountRaw: r.amountRaw };
+  } catch (e) {
+    void lastTrade({ at: Date.now(), side: m.side ?? "sell", route: null, ok: false, note: friendly(e) });
+    return { type: "error", error: publicTradeError(friendly(e)), code: (e as { code?: string }).code };
+  }
+}
+
+// ---- trade ledger: SOL in/out and tokens per confirmed CA popup trade, per wallet and token (the PnL card's cost basis) ----
+type Snap = { lam: number; raw: bigint; dec: number };
+async function snap(R: Rpc, owner: string, mint: string): Promise<Snap> {
+  const [lam, a, b] = await Promise.all([R.balance(owner), R.tokenAccounts(owner, TOKEN_PROGRAM), R.tokenAccounts(owner, TOKEN_2022).catch(() => [])]);
+  let raw = 0n, dec = 6;
+  for (const x of [...a, ...b]) {
+    const i = x.account.data.parsed.info;
+    if (i.mint !== mint) continue;
+    try { raw += BigInt(i.tokenAmount.amount ?? "0"); } catch { /* not an integer */ }
+    dec = Number(i.tokenAmount.decimals);
+  }
+  return { lam, raw, dec };
+}
+let ledgerQ: Promise<unknown> = Promise.resolve();
+async function record(R: Rpc, owner: string, m: SellPortIn, sig: string, before: Promise<Snap | null>) {
+  const b = await before;
+  if (!b) return;
+  for (let i = 0; i < 4; i++) {
+    if (i) await sleep(1200 * i);
+    const a = await snap(R, owner, m.mint).catch(() => null);
+    if (!a) continue;
+    const dRaw = a.raw - b.raw, dSol = (b.lam - a.lam) / 1e9, side: "buy" | "sell" = m.side === "buy" ? "buy" : "sell";
+    if (side === "buy" ? dRaw <= 0n : dRaw >= 0n) continue; // balance not updated yet
+    const e = { sig, side, sol: Math.max(0, side === "buy" ? dSol : -dSol), raw: (dRaw < 0n ? -dRaw : dRaw).toString(), decimals: a.dec, at: Date.now() };
+    ledgerQ = ledgerQ.then(async () => {
+      const l = readLedger((await chrome.storage.local.get(LEDGER_KEY))[LEDGER_KEY]);
+      await chrome.storage.local.set({ [LEDGER_KEY]: addEntry(l, owner, m.mint, e) });
+    }).catch(() => {});
+    posC.delete(`${owner}:${m.mint}`);
+    return;
+  }
+}
+const LAST_TRADE = "hb.lastTrade";
+const lastTrade = (v: { at: number; side: string; route: string | null; ok: boolean; note: string }) => chrome.storage.session.set({ [LAST_TRADE]: v }).catch(() => {});
+let solUsdC: { v: number; at: number } | null = null;
+async function solUsd(): Promise<number | null> {
+  if (solUsdC && Date.now() - solUsdC.at < 60_000) return solUsdC.v;
+  const SOL = "So11111111111111111111111111111111111111112";
+  for (const base of [JUP_PRICE, "https://lite-api.jup.ag/price/v3"]) {
+    try {
+      const r = await fetch(`${base}?ids=${SOL}`, { credentials: "omit", signal: AbortSignal.timeout(4000) });
+      const v = Number(((await r.json()) as Record<string, { usdPrice?: number }>)?.[SOL]?.usdPrice);
+      if (r.ok && v > 0) { solUsdC = { v, at: Date.now() }; return v; }
+    } catch { /* next host */ }
+  }
+  return solUsdC?.v ?? null;
+}
+const posC = new Map<string, { at: number; v: Snap }>();
+/** The PnL card: the wallet's balance of the token (5 s cache, dropped after its trades), the ledger entries and SOL/USD. */
+async function position(walletId: string, mint: string) {
+  const w = (await W.list()).find((x) => x.id === walletId);
+  if (!w) throw new Error("That wallet is not in the extension");
+  const key = `${w.address}:${mint}`, c = posC.get(key);
+  const [b, l, usd] = await Promise.all([
+    c && Date.now() - c.at < 5000 ? c.v : snap(rpcFor(await settings()), w.address, mint).then((v) => { posC.set(key, { at: Date.now(), v }); return v; }),
+    chrome.storage.local.get(LEDGER_KEY).then((r) => readLedger(r[LEDGER_KEY])),
+    solUsd(),
+  ]);
+  if (posC.size > 50) for (const [k, x] of posC) if (Date.now() - x.at > 60_000) posC.delete(k);
+  return { walletId, label: w.label, balanceRaw: b.raw.toString(), decimals: b.dec, solUsd: usd, entries: l[w.address]?.[mint] ?? [] };
 }
 async function trade(m: SellPortIn, s: Settings, network: "mainnet" | "devnet", step: (s: SellPortOut) => void) {
   // highbar tokens trade on their own pool (DBC, or DAMM v2 after migration); any other token through Jupiter
@@ -607,9 +685,12 @@ async function handle(req: Req, sender: chrome.runtime.MessageSender): Promise<u
     case "ca:check": return CA.check(Array.isArray(req.items) ? req.items : []);
     case "ca:ticker": return CA.ticker(req.symbol);
     case "ca:info": return CA.info(req.mint, req.fresh === true);
-    case "ca:candles": return CANDLES.candles({ mint: req.mint, pool: req.pool ?? null, highbar: req.highbar === true, res: req.res, count: req.count, source: req.source ?? null, auto: req.auto === true, pump: req.pump === true });
+    case "ca:candles": return CANDLES.candles({ mint: req.mint, pool: req.pool ?? null, highbar: req.highbar === true, res: req.res, count: req.count, source: req.source ?? null, auto: req.auto === true, pump: req.pump === true, before: typeof req.before === "number" ? req.before : undefined });
     case "ca:live": return CANDLES.live(req.mint);
     case "ca:prefetch": { void CA.prefetch(Array.isArray(req.mints) ? req.mints : [], req.full === true).catch(() => {}); return { ok: true as const }; }
+    case "ca:stats": return CA.stats(Array.isArray(req.mints) ? req.mints.slice(0, 30) : []);
+    case "ca:audit": return CA.audit(req.mint);
+    case "ca:position": return position(req.walletId, req.mint);
     case "diag:sources": return diagSources();
     case "ca:prefs:get": return caPrefs();
     case "ca:prefs:set": {
@@ -652,7 +733,7 @@ chrome.runtime.onConnect.addListener((port) => {
     port.onMessage.addListener((m: SellPortIn) => {
       if (m?.type !== "sell" || used) return;
       used = true;
-      sell(m, out).then(out, (e) => out({ type: "error", error: friendly(e), code: (e as { code?: string }).code }));
+      sell(m, out).then(out, (e) => out({ type: "error", error: publicTradeError(friendly(e)), code: (e as { code?: string }).code }));
     });
     return;
   }

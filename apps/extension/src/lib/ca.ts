@@ -128,3 +128,11 @@ export const fmtUsdCompact = (n: number | null): string => {
   return a >= 1e9 ? f(n / 1e9, "B") : a >= 1e6 ? f(n / 1e6, "M") : a >= 1e3 ? f(n / 1e3, "K") : `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 };
 export const fmtChange = (n: number | null): string => (n === null || !Number.isFinite(n) ? "–" : `${n > 0 ? "+" : ""}${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}%`);
+
+/** GMGN's official price chart embed (docs.gmgn.ai "Integrate GMGN Price Chart"): 1S candles for pump.fun coins, 1 m otherwise.
+ *  Only a base58 mint is accepted. */
+export const gmgnUrl = (mint: string, pump: boolean): string | null =>
+  isPubkey(mint) ? `https://www.gmgn.cc/kline/sol/${mint}?theme=dark&interval=${pump ? "1S" : "1"}` : null;
+
+/** A token pill's compact market numbers (ca:stats). */
+export interface PillStats { mint: string; mcapUsd: number | null; volume24hUsd: number | null; liquidityUsd: number | null }

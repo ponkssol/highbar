@@ -133,7 +133,8 @@ export interface BuyDeps extends Omit<SellDeps, "balance"> {
 export interface BuyDone { signature: string; lamports: string; route: SellRoute; wallet: string }
 /** SOL a buy keeps back for the token account rent and fees. */
 export const BUY_RESERVE_SOL = 0.003;
-export const BUY_MAX_SOL = 100;
+import { BUY_MAX_SOL } from "./limits";
+export { BUY_MAX_SOL };
 
 /** Checks a built buy before signing: owner pays and signs alone, known programs only, the only SOL that moves goes into the
  *  owner's own wrapped SOL account (at most the amount), one swap on the expected pool, SOL in from the owner, the token out

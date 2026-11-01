@@ -8,21 +8,17 @@ const DISPLAY = `"HB Cinzel",Cinzel,Georgia,serif`;
 /** Tweet action bar button. It sits in X's action row like reply, repost and like: the host takes the row's 20px line
  *  and centers on it, the visible pill is 26px tall (negative margins, so the row never grows) and the click area is 34px.
  *  Font family and the gray come from X (inherited through the shadow host), the size is X's 13px count size. */
-export const BUTTON_CSS = `:host{all:initial;font-family:inherit;color:inherit;display:flex;align-items:center;align-self:center;flex:none;height:20px;margin:0 14px 0 8px;${VARS}}
-button{all:unset;box-sizing:border-box;position:relative;display:inline-flex;align-items:center;justify-content:center;gap:5px;height:26px;margin:-3px 0;padding:0 10px 0 8px;border-radius:999px;cursor:pointer;
-font-family:inherit;font-size:13px;font-weight:500;line-height:16px;letter-spacing:normal;white-space:nowrap;color:inherit;border:1px solid var(--hb-pill-line);background:transparent;transition:background-color .2s,color .2s,border-color .2s}
-button::before{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
-button:hover{color:var(--hb-gold-text-x);background:var(--hb-gold-soft);border-color:var(--hb-gold-line)}
-button:focus-visible{outline:2px solid var(--hb-gold-line);outline-offset:1px}
-button.instant{color:var(--hb-gold-ink);background:var(--hb-gold);border-color:transparent;--hb-mark:var(--hb-gold-ink)}
-button.instant:hover{filter:brightness(1.05)}
-:host([data-compact]){margin:0 4px 0 0}:host([data-compact]) button{padding:0 5px;gap:0}:host([data-compact]) .lbl,:host([data-compact]) .amt{display:none}:host([data-mini]){margin:0}:host([data-mini]) button{padding:0 2px;border-color:transparent;background:transparent}:host([data-mini]) button.instant{background:var(--hb-gold)}
-.hbm{width:16px;height:16px;flex:none;display:block}
+export const BUTTON_CSS = `:host{all:initial;font-family:inherit;color:inherit;display:flex;align-items:center;align-self:center;flex:none;height:20px;margin:0 14px 0 10px;${VARS}
+--p-ink:#FFD35C;--p-bg:#15130F;--p-line:rgba(255,199,44,.32);--p-ink-h:#FFE08A;--p-bg-h:#211C10;--p-line-h:rgba(255,199,44,.62);--hb-mark:#FFC72C}
+button{all:unset;box-sizing:border-box;position:relative;display:inline-flex;align-items:center;justify-content:center;gap:5px;height:24px;margin:-2px 0;padding:0 11px 0 7px;border-radius:999px;cursor:pointer;
+font:600 12px/1 ${SANS};letter-spacing:-.003em;white-space:nowrap;color:var(--p-ink);-webkit-text-fill-color:currentColor;border:1px solid var(--p-line);background:var(--p-bg);transition:background-color .15s,color .15s,border-color .15s,box-shadow .15s}
+button::before{content:"";position:absolute;left:0;right:0;top:-5px;bottom:-5px}
+button:hover{color:var(--p-ink-h);background:var(--p-bg-h);border-color:var(--p-line-h);box-shadow:0 0 0 2px rgba(255,199,44,.08)}
+button:focus-visible{outline:2px solid rgba(255,199,44,.55);outline-offset:1px}
+:host([data-compact]){margin:0 4px 0 0}:host([data-compact]) button{padding:0 6px;gap:0}:host([data-compact]) .lbl,:host([data-compact]) .amt{display:none}:host([data-mini]){margin:0}:host([data-mini]) button{padding:0 3px}
+.hbm{width:15px;height:15px;flex:none;display:block}
 .lbl{display:block}
-:host{--hb-pill-line:rgba(255,199,44,.24);--hb-gold-text-x:#FFD35C}
-:host([data-hb-theme="light"]){--hb-pill-line:rgba(166,124,0,.32);--hb-gold-line:rgba(166,124,0,.55);--hb-gold-soft:rgba(255,199,44,.14);--hb-gold-text-x:#7A5B00;--hb-mark:#B88A00}
-:host([data-hb-theme="light"]) button.instant{--hb-mark:var(--hb-gold-ink)}
-.amt{display:inline-flex;align-items:center;font:600 11px/1 ${MONO};opacity:.85;margin-left:1px}
+.amt{display:inline-flex;align-items:center;font:600 11px/1 ${MONO};opacity:.8;margin-left:1px}
 .sol{height:.78em;width:auto;fill:currentColor;margin-right:2px}`;
 
 /** Drawer surfaces: solid neutral dark, no alpha, so nothing of the page (or a blue tint) shows through. */
@@ -260,10 +256,9 @@ border:1px solid var(--hb-border-strong);border-radius:12px;box-shadow:0 20px 50
 
 /** CA pill under a tweet's name row: 22px tall, in the flow (the row reserves it as soon as a token is known, before paint
  *  when the tweet is still below the viewport). Gold outline on dark, darker gold on light, solid gold on hover. */
-export const CA_PILL_CSS = `:host{all:initial;display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px;min-height:22px;${VARS}
---p-ink:#FFD35C;--p-bg:#15130F;--p-line:rgba(255,199,44,.32);--p-ink-h:#FFE08A;--p-bg-h:#211C10;--p-line-h:rgba(255,199,44,.62)}
-:host([data-hb-theme="light"]){--p-ink:#6B4F00;--p-bg:#FFF8E1;--p-line:rgba(166,124,0,.40);--p-ink-h:#4F3A00;--p-bg-h:#FFEFC2;--p-line-h:rgba(166,124,0,.72)}
-button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px 0 4px;border-radius:999px;
+export const CA_PILL_CSS = `:host{all:initial;display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 6px;padding:0 2px;min-height:22px;${VARS}
+--p-ink:#FFD35C;--p-bg:#15130F;--p-line:rgba(255,199,44,.32);--p-ink-h:#FFE08A;--p-bg-h:#211C10;--p-line-h:rgba(255,199,44,.62);--p-dim:#A79B7E}
+button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:6px;height:22px;max-width:100%;padding:0 10px 0 6px;border-radius:999px;
 font:600 12px/1 ${SANS};letter-spacing:-.003em;white-space:nowrap;color:var(--p-ink);background:var(--p-bg);border:1px solid var(--p-line);
 text-decoration:none;-webkit-text-fill-color:currentColor;transition:background-color .15s,color .15s,border-color .15s,box-shadow .15s}
 button *{color:inherit;text-decoration:none}
@@ -273,7 +268,13 @@ button:focus-visible{outline:2px solid rgba(255,199,44,.55);outline-offset:1px}
 .hbm{width:14px;height:14px;flex:none;display:block}
 .arr{width:9px;height:9px;flex:none;opacity:.8;transition:opacity .15s,transform .15s}
 button:hover .arr{opacity:1;transform:translate(1px,-1px)}
-.mono{font:500 11px/1 ${MONO};opacity:.85}`;
+.mono{font:500 11px/1 ${MONO};opacity:.85}
+.mk{display:inline-flex;align-items:center;gap:4px;min-width:0;overflow:hidden;text-overflow:ellipsis;font:500 11px/1 ${SANS};color:var(--p-dim);-webkit-text-fill-color:var(--p-dim)}
+.mk i{font-style:normal;opacity:.6;margin:0 1px}
+.mk b{font-weight:600;color:var(--p-ink);-webkit-text-fill-color:var(--p-ink);font-variant-numeric:tabular-nums;transition:color .45s}
+.mk.ld b{opacity:.55}
+.mk b[data-dir=up]{color:#8FE0A8;-webkit-text-fill-color:#8FE0A8}.mk b[data-dir=dn]{color:#F2A093;-webkit-text-fill-color:#F2A093}
+@media (prefers-reduced-motion:reduce){.mk b{transition:none}}`;
 
 /** CA popup, on top of DRAWER_CSS: same window, header and controls, plus the token head, chart, stats and trade box. */
 export const CA_CSS = `.drawer.capop{width:360px}
@@ -287,7 +288,7 @@ export const CA_CSS = `.drawer.capop{width:360px}
 .tprice{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none;font-variant-numeric:tabular-nums}
 .tprice .p{font:600 14px/1 ${SANS};color:var(--hb-ink)}
 .chg{font:600 11px/1 ${SANS}}.chg.up{color:var(--hb-buy)}.chg.dn{color:var(--hb-sell)}.chg.flat{color:var(--hb-ink-3)}
-.chart{position:relative;height:208px;border-radius:10px;overflow:hidden;border:1px solid var(--hb-border);background:#0F0E0B}
+.chart{position:relative;height:248px;border-radius:10px;overflow:hidden;border:1px solid var(--hb-border);background:#0F0E0B}
 .chart iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#0F0E0B}
 .chart .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--hb-ink-3);font-size:11px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
@@ -295,10 +296,42 @@ export const CA_CSS = `.drawer.capop{width:360px}
 .stat .k{font:500 10px/1 ${SANS};letter-spacing:.06em;text-transform:uppercase;color:var(--hb-ink-3)}
 .stat .v{font:600 12px/1 ${SANS};color:var(--hb-ink);font-variant-numeric:tabular-nums}
 .tprice .p{font-variant-numeric:tabular-nums}
-.fl,.fl-up,.fl-dn{border-radius:4px;animation:hbfl .9s ease-out}
-.fl-up{--hb-fl:rgba(34,197,94,.28)}.fl-dn{--hb-fl:rgba(239,68,68,.28)}.fl{--hb-fl:rgba(148,163,184,.25)}
-@keyframes hbfl{from{background:var(--hb-fl)}to{background:transparent}}
-@media (prefers-reduced-motion:reduce){.fl,.fl-up,.fl-dn{animation:none}}
+.pnl{border:1px solid var(--hb-gold-line);border-radius:9px;padding:8px 9px 7px;display:flex;flex-direction:column;gap:7px;background:linear-gradient(180deg,rgba(255,199,44,.06),rgba(255,199,44,.015));font:500 11px/1.2 ${SANS}}
+.pnl[hidden]{display:none}
+.ptop{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.pgrid{display:grid;grid-template-columns:1fr 1fr 1.35fr;gap:6px;padding-top:6px;border-top:1px solid var(--hb-border)}
+.pcell{display:flex;flex-direction:column;gap:3px;min-width:0}.pcell.r{align-items:flex-end}
+.pk{font:500 10px/1 ${SANS};letter-spacing:.06em;text-transform:uppercase;color:var(--hb-ink-3)}
+.pline{display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
+.pv{font:600 12px/1 ${SANS};color:var(--hb-ink);font-variant-numeric:tabular-nums;white-space:nowrap;transition:color .45s}
+.pv.big{font-size:14px;color:var(--hb-gold-text)}
+.psym{font:500 11px/1 ${SANS};color:var(--hb-ink-3)}
+.ppct{font:600 11px/1 ${SANS};font-variant-numeric:tabular-nums}
+.pnlc.up .pv,.pnlc.up .ppct{color:var(--hb-buy)}.pnlc.dn .pv,.pnlc.dn .ppct{color:var(--hb-sell)}.pnlc.na .pv{color:var(--hb-ink-3)}
+.pv[data-dir],.ppct[data-dir]{transition:color .45s}
+@media (prefers-reduced-motion:reduce){.pv{transition:none}}
+.audit{border:1px solid var(--hb-border);border-radius:9px;background:var(--hb-surface-muted);font:500 11px/1.2 ${SANS};color:var(--hb-ink-2)}
+.audit[hidden]{display:none}
+.ahead{all:unset;box-sizing:border-box;cursor:pointer;width:100%;display:flex;align-items:center;gap:5px;padding:7px 9px;font:600 11.5px/1 ${SANS};color:var(--hb-ink)}
+.ahead:focus-visible{outline:2px solid var(--hb-gold-line);outline-offset:-2px;border-radius:9px}
+.ahead .chev{display:inline-flex;color:var(--hb-ink-3);transition:transform .2s}.ahead .chev svg{width:11px;height:11px}
+.audit.shut .chev{transform:rotate(180deg)}.audit.shut .abody{display:none}
+.abody{padding:0 9px 6px}
+.arows{display:flex;flex-direction:column;gap:5px}
+.arow{display:flex;align-items:center;justify-content:space-between;min-height:15px}
+.alab{color:var(--hb-ink-3)}
+.aend{display:inline-flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums;color:var(--hb-ink)}
+.aval:empty{display:none}
+.aic{display:inline-flex;width:14px;height:14px}.aic svg{width:14px;height:14px}.aic.na,.aic.neutral{display:none}
+.aic.ok{color:var(--hb-buy)}.aic.warn{color:#E0A43A}.aic.bad{color:var(--hb-sell)}
+.arow[data-k=lp] .aval{color:var(--hb-ink-2)}
+.afoot{display:flex;justify-content:center;margin-top:6px;padding-top:5px;border-top:1px solid var(--hb-border)}
+.asrc{display:inline-flex;align-items:center;gap:4px;font:600 10px/1 ${SANS};letter-spacing:.04em;color:var(--hb-gold-text)}
+.aic2{display:inline-flex}.aic2 svg{width:11px;height:11px}
+.tprice .p,.stat .v{transition:color .45s ease;font-feature-settings:"tnum" 1}
+.tprice .p[data-dir=up],.stat .v[data-dir=up]{color:color-mix(in srgb,var(--hb-ink) 72%,#22c55e)}
+.tprice .p[data-dir=dn],.stat .v[data-dir=dn]{color:color-mix(in srgb,var(--hb-ink) 72%,#ef4444)}
+@media (prefers-reduced-motion:reduce){.tprice .p,.stat .v{transition:none}}
 .seg.side button.on.buy{background:rgba(76,182,122,.16);color:#7FD4A2}.seg.side button.on.sell{background:rgba(224,106,92,.16);color:#F0968B}
 .amts{display:flex;align-items:center;gap:5px}
 .amts .chip{flex:1;min-width:0;justify-content:center;font-variant-numeric:tabular-nums}

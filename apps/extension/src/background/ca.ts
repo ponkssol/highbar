@@ -2,13 +2,15 @@
  *  the highbar api (/tokens/:mint, the token's own pool and stats), Jupiter's token search (name, icon, USD price, market cap,
  *  24h change and volume, verified), DexScreener (top pool, 24h volume and change, market cap) and GeckoTerminal (a pool for the
  *  chart when DexScreener has none). Answers are cached: mint checks for an hour, tickers for ten minutes, token data 15 s. */
-import { caFromUrl, isMintAccount, isPubkey, NOT_TOKENS, pickTicker, type CaHit, type CaInfo, type TickerCandidate } from "../lib/ca";
+import { caFromUrl, isMintAccount, isPubkey, NOT_TOKENS, pickTicker, type CaHit, type CaInfo, type PillStats, type TickerCandidate } from "../lib/ca";
 import type { Api } from "../lib/api";
 import type { Rpc } from "../lib/rpc";
 import { firstThumb, metadataImage, tokenThumb } from "./image";
 import { logoCandidates, withGateways } from "../lib/logo";
 import { PUMP_API } from "../lib/candles";
 import { metaplexUri, metadataPda } from "../lib/metadata";
+import { lpBurntPct, notAllowed, parseMint, parsePumpSwapPool, PUMPSWAP, top10, type LpState, type TokenAudit } from "../lib/audit";
+import bs58 from "bs58";
 
 export const JUP_TOKENS = "https://api.jup.ag/tokens/v2/search";
 export const DEXS_TOKENS = "https://api.dexscreener.com/tokens/v1/solana";
@@ -21,7 +23,7 @@ export interface DexPair { pairAddress?: string; dexId?: string; priceUsd?: stri
   baseToken?: { address?: string; name?: string; symbol?: string }; quoteToken?: { address?: string }; info?: { imageUrl?: string } }
 /** pump.fun's coin record (GET frontend-api-v3.pump.fun/coins-v2/:mint), the fields used here. */
 /** pump.fun's coin record. It indexes other tokens too: `program` is "pump" for its own launches, "non_launchpad" otherwise. */
-export interface PumpCoin { mint?: string; name?: string; symbol?: string; image_uri?: string; metadata_uri?: string; program?: string }
+export interface PumpCoin { mint?: string; name?: string; symbol?: string; image_uri?: string; metadata_uri?: string; program?: string; complete?: boolean; pump_swap_pool?: string | null }
 /** pump.fun launched this coin (any address, not only "…pump" vanity ones). */
 export const pumpLaunched = (pf: PumpCoin | null | undefined) => !!pf && pf.program !== "non_launchpad";
 interface HbToken { mint: string; name: string; symbol: string; priceSol: number; mcapSol: number; mcapUsd: number; pool?: string; isMigrated?: boolean; image?: string | null; uri?: string; volume24hSol?: number }
@@ -282,6 +284,89 @@ export function caService(d: CaDeps) {
     });
   }
 
+  /** Compact market numbers for the token pills in view: one DexScreener call for up to 30 mints (shared with the popup's
+   *  cache), pump.fun's coin record for a pump coin DexScreener has no pair for yet (at most 4 per call). Kept 45 s per mint. */
+  const STATS_TTL = 45_000;
+  const statsGate = gate(1500);
+  async function stats(mints: string[]): Promise<PillStats[]> {
+    const list = [...new Set(mints.filter((m) => isPubkey(m) && !NOT_TOKENS.has(m)))].slice(0, 30);
+    const fresh = (k: string) => { const c = rawC.get(k); return c && Date.now() - c.at < STATS_TTL ? c : null; };
+    const infoFresh = (m: string) => { const c = infoC.get(m) as { v: CaInfo & { partial?: boolean }; at: number } | undefined; return c && !c.v.partial && Date.now() - c.at < STATS_TTL ? c.v : null; };
+    const todo = list.filter((m) => !fresh(`dex:${m}`) && !infoFresh(m));
+    if (todo.length) await statsGate(async () => {
+      const left = todo.filter((m) => !fresh(`dex:${m}`)); // another call may have fetched them meanwhile
+      if (!left.length) return;
+      const pairs = await dexs(() => getJson<DexPair[]>(`${DEXS_TOKENS}/${left.join(",")}`, 5000)).catch(() => null);
+      if (!Array.isArray(pairs)) return;
+      for (const m of left) rawC.set(`dex:${m}`, { at: Date.now(), v: Promise.resolve(pairs.filter((p) => p?.baseToken?.address === m)) });
+    }).catch(() => {});
+    let pumpN = 0;
+    const pick = (m: string, v: CaInfo): PillStats => ({ mint: m, mcapUsd: v.mcapUsd, volume24hUsd: v.volume24hUsd, liquidityUsd: v.liquidityUsd });
+    return Promise.all(list.map(async (m): Promise<PillStats> => {
+      const iv = infoFresh(m);
+      if (iv) return pick(m, iv);
+      const pairs = await (fresh(`dex:${m}`)?.v ?? Promise.resolve(null)).catch(() => null);
+      const dex = topPair(Array.isArray(pairs) ? (pairs as DexPair[]) : null, m);
+      if (dex) return pick(m, mergeInfo(m, { dex, siteUrl: "" }));
+      if (m.endsWith("pump") && pumpN++ < 4) {
+        const pf = await raw(`pf:${m}`, () => pumpCoin(m), 60_000).catch(() => null);
+        if (pf) return pick(m, mergeInfo(m, { pump: pf, siteUrl: "" }));
+      }
+      return { mint: m, mcapUsd: null, volume24hUsd: null, liquidityUsd: null };
+    }));
+  }
+
+  /** Token audit from chain data through the configured RPC (the highbar /rpc by default): mint and freeze authority,
+   *  the top 10 holders' share (getTokenLargestAccounts; "—" while the /rpc allowlist refuses it), and the LP state: a coin
+   *  on its bonding curve (pump.fun not complete, highbar DBC not migrated) has none yet, a PumpSwap pool's LP burn is read
+   *  from the pool and its LP mint. Free, no third-party API. Kept 60 s per mint. */
+  const auditC = new Map<string, { at: number; v: Promise<TokenAudit> }>();
+  const auditGate = gate(120);
+  function audit(mint: string): Promise<TokenAudit> {
+    if (!isPubkey(mint) || NOT_TOKENS.has(mint)) return Promise.reject(new Error("That is not a token address"));
+    const c = auditC.get(mint);
+    if (c && Date.now() - c.at < 60_000) return c.v;
+    const v = loadAudit(mint);
+    auditC.set(mint, { at: Date.now(), v });
+    v.catch(() => auditC.delete(mint));
+    if (auditC.size > 100) for (const [k, x] of auditC) if (Date.now() - x.at > 60_000) auditC.delete(k);
+    return v;
+  }
+  async function loadAudit(mint: string): Promise<TokenAudit> {
+    const R = await d.rpc();
+    const call = <T>(m: string, p: unknown[]) => auditGate(() => R.call<T>(m, p));
+    const pfP = within(raw(`pf:${mint}`, () => pumpCoin(mint), 60_000).catch(() => null), 2500);
+    const hbP = within(raw(`hb:${mint}`, () => hbToken(mint)).catch(() => null), 2500);
+    const largestP = call<{ value: unknown[] }>("getTokenLargestAccounts", [mint, { commitment: "confirmed" }]).then((r) => r.value)
+      .catch((e) => { if (!notAllowed(e)) console.debug("highbar: largest accounts", String((e as Error)?.message ?? e)); return null; });
+    const [pfR, hbR] = await Promise.all([pfP, hbP]);
+    const pf = pfR === TIMEOUT ? null : pfR, hb = hbR === TIMEOUT ? null : hbR;
+    let pool: string | null = pf?.pump_swap_pool && isPubkey(pf.pump_swap_pool) ? pf.pump_swap_pool : null;
+    if (!pool) {
+      const pairs = await (rawC.get(`dex:${mint}`)?.v ?? Promise.resolve(null)).catch(() => null);
+      const ps = Array.isArray(pairs) ? (pairs as DexPair[]).find((x) => x?.baseToken?.address === mint && x.dexId === "pumpswap") : null;
+      if (ps?.pairAddress && isPubkey(ps.pairAddress)) pool = ps.pairAddress;
+    }
+    const accs = await call<{ value: ({ owner?: string; data?: unknown } | null)[] }>("getMultipleAccounts", [pool ? [mint, pool] : [mint], { encoding: "jsonParsed", commitment: "confirmed" }]);
+    const m = parseMint(accs?.value?.[0]);
+    if (!m) throw new Error("Not a token mint");
+    let lp: LpState = null, burnt: number | null = null;
+    if (hb && hb.isMigrated === false) lp = "curve";
+    else if (pf && pumpLaunched(pf) && pf.complete === false) lp = "curve";
+    else if (pool && accs.value[1]?.owner === PUMPSWAP) {
+      const raw64 = accs.value[1]?.data;
+      const b64 = Array.isArray(raw64) && typeof raw64[0] === "string" ? raw64[0] : null;
+      const ps = b64 ? parsePumpSwapPool(b64) : null;
+      if (ps && bs58.encode(ps.baseMint) === mint) {
+        const lm = await call<{ value: unknown }>("getAccountInfo", [bs58.encode(ps.lpMint), { encoding: "jsonParsed", commitment: "confirmed" }]).catch(() => null);
+        burnt = lpBurntPct(parseMint(lm?.value)?.supply ?? null, ps.lpSupply);
+        lp = burnt === null ? null : burnt >= 99 ? "burnt" : "partial";
+      }
+    }
+    const largest = await largestP;
+    return { mint, source: "onchain", noMint: m.mintAuthority === null, noFreeze: m.freezeAuthority === null, lp, lpBurntPct: burnt, top10Pct: top10(largest, m.supply), t22: m.t22, at: Date.now() };
+  }
+
   async function info(mint: string, fresh = false): Promise<CaInfo & { partial?: boolean }> {
     if (!isPubkey(mint) || NOT_TOKENS.has(mint)) throw new Error("That is not a token address");
     const c = infoC.get(mint) as { v: CaInfo & { partial?: boolean }; at: number } | undefined;
@@ -294,6 +379,6 @@ export function caService(d: CaDeps) {
     return p;
   }
 
-  return { check, ticker, info, prefetch, hbToken, caFromUrl, pumpCoin };
+  return { check, ticker, info, prefetch, stats, audit, hbToken, caFromUrl, pumpCoin };
 }
 export type CaService = ReturnType<typeof caService>;
