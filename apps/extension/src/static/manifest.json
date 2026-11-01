@@ -3,7 +3,7 @@
   "name": "highbar",
   "short_name": "highbar",
   "description": "Launch a coin on highbar from any tweet on x.com, with a local launch wallet.",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "minimum_chrome_version": "116",
   "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
   "action": { "default_title": "highbar", "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" } },
@@ -15,5 +15,5 @@
   "content_scripts": [{ "matches": ["https://x.com/*", "https://twitter.com/*"], "js": ["content.js"], "run_at": "document_idle" }],
   "commands": { "launch-tweet": { "suggested_key": { "default": "Alt+L" }, "description": "Launch the tweet under the mouse or in view" } },
   "web_accessible_resources": [{ "resources": ["fonts/*.woff2", "terminals/*.png", "icons/icon-32.png", "chart.html", "chart.js", "ca-popup.js"], "matches": ["https://x.com/*", "https://twitter.com/*"] }],
-  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'; frame-src https://www.geckoterminal.com" }
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'; frame-src 'self' https://www.gmgn.cc https://www.geckoterminal.com" }
 }

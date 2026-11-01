@@ -74,3 +74,25 @@ test("rpc methods: every helper sends a real Solana method on the api allowlist 
   assert.deepEqual(ta!.params[2], { commitment: "confirmed", encoding: "jsonParsed" });
   assert.ok(!seen.some((c) => c.method === "getParsedTokenAccountsByOwner"), "not a node method, a node answers Method not found");
 });
+
+test("sendAndConfirm reports Sent only after a node accepted the bytes (or the signature shows up)", async () => {
+  const { sendAndConfirm, RpcError } = await import("./rpc");
+  const raw = new Uint8Array(1 + 64 + 8); raw[0] = 1; raw[1] = 7; // one signature, not all zero
+  type R = Parameters<typeof sendAndConfirm>[0];
+  // accepted at once: Sent before the first status poll
+  const ev1: string[] = [];
+  const ok = { send: async () => { ev1.push("send"); return "x"; }, statuses: async () => { ev1.push("status"); return [{ err: null, confirmationStatus: "confirmed" as const }]; } } as unknown as R;
+  await sendAndConfirm(ok, raw, { onSent: () => ev1.push("sent"), pollMs: 1 });
+  assert.deepEqual(ev1, ["send", "sent", "status"]);
+  // three transient failures: not "Sent" until the status shows the tx
+  const ev2: string[] = []; let polls = 0;
+  const flaky = { send: async () => { ev2.push("send"); throw new Error("fetch failed"); }, statuses: async () => { ev2.push("status"); return [++polls < 2 ? null : { err: null, confirmationStatus: "confirmed" as const }]; } } as unknown as R;
+  await sendAndConfirm(flaky, raw, { onSent: () => ev2.push("sent"), pollMs: 1 });
+  assert.equal(ev2.indexOf("sent"), ev2.lastIndexOf("status") + 1); // right after the status that showed the tx, not after the sends
+  assert.equal(ev2.filter((x) => x === "sent").length, 1);
+  // a deterministic rejection: an error, never "Sent"
+  let sent3 = false;
+  const bad = { send: async () => { throw new RpcError("Transaction simulation failed: insufficient funds", -32002); }, statuses: async () => [null] } as unknown as R;
+  await assert.rejects(sendAndConfirm(bad, raw, { onSent: () => { sent3 = true; }, pollMs: 1 }), /rejected/);
+  assert.equal(sent3, false);
+});

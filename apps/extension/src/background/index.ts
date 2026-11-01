@@ -6,7 +6,7 @@ import { api, type ApiConfig } from "../lib/api";
 import { b64, unb64, utf8 } from "../lib/bytes";
 import { KeyMismatch, WrongPassword } from "../lib/crypto";
 import { solscan } from "../lib/format";
-import type { CaPrefs, HistoryItem, HoldingRes, HoldPrefs, LaunchDone, LaunchPortIn, LaunchPortOut, LaunchStep, Portfolio, Req, Reply, RpcStatus, SellPortIn, SellPortOut, WalletRow, WalletStatus } from "../lib/messages";
+import type { CaPrefs, HeldToken, HistoryItem, HoldingRes, HoldPrefs, LaunchDone, LaunchPortIn, LaunchPortOut, LaunchStep, Portfolio, Req, Reply, RpcStatus, SellPortIn, SellPortOut, WalletRow, WalletStatus } from "../lib/messages";
 import { CUSTOM_RPC_DOWN, GENESIS, rpc, RpcError, sendAndConfirm, SERVER_RPC_DOWN, TOKEN_2022, TOKEN_PROGRAM, type Rpc } from "../lib/rpc";
 import { checkDevPresets, readDevPresets } from "../lib/devpresets";
 import { API_BASE, cleanRpcUrl, DEFAULT_SITE, LAUNCH_TIERS, normalizeSettings, rpcEndpoint, type Settings } from "../lib/settings";
@@ -19,7 +19,8 @@ import * as W from "./wallet";
 import { readReferrals } from "../lib/wallets";
 import { launchNeedSol, MULTI_MAX, readChecked, runMulti, type MultiRow } from "../lib/multi";
 import { ApiError, type CreatedToken, type TokenView, type TradeLite } from "../lib/api";
-import { buildRows, cleanSlippage, pollMs, rawToUi, type Bal } from "../lib/holding";
+import { buildRows, cleanSlippage, pollMs, rawToUi, slippageBps, type Bal } from "../lib/holding";
+import { isPubkey } from "../lib/ca";
 import { ata, runBuy, runSell, SellAborted, type BuildArgs, type SellDeps } from "../lib/sell";
 import { buildDammBuy, buildDammSell } from "../lib/damm";
 import { caService, gate } from "./ca";
@@ -31,6 +32,15 @@ import { cleanCaSlippage, CA_SLIPPAGE_DEFAULT } from "../lib/caprefs";
 import { addEntry, LEDGER_KEY, readLedger } from "../lib/ledger";
 import { publicTradeError } from "../lib/tradeerr";
 import { JUP_PRICE } from "./candles";
+import { memo, timer } from "../lib/memo";
+
+// ---- trade speed: short caches shared by the warm-up (trade:warm) and the click ----
+/** Pool route per mint (30 s: a migration flips it, and the build re-checks the pool on chain). */
+const targetC = memo<{ route: "dbc" | "damm"; pool: string }>(30_000);
+/** A recent blockhash (20 s of its ~60 s life) for txs built locally (DAMM v2). */
+const hashC = memo<string>(20_000, 4);
+/** Jupiter quotes per exact request (2.5 s: the price moves, slippage covers the rest). */
+const quoteC = memo<JupQuote>(2500, 40);
 
 const SETTINGS = "hb.settings", HISTORY = "hb.history", REFERRAL = "hb.referral", CONFIG = "hb.config";
 /** Last dragged drawer position, session storage only (gone when the browser closes). The content script reaches it through the worker. */
@@ -44,7 +54,7 @@ const CA_PREFS = "hb.caPrefs", CA_POS = "hb.caPos";
 /** The dev buy chips in the drawer (up to 4 SOL amounts). */
 const DEV_PRESETS = "hb.devBuyPresets";
 const PAGE_ONLY = new Set<Req["type"]>(["wallet:create", "wallet:import", "wallet:migrate", "wallet:export", "wallet:remove", "wallet:rename", "wallet:select",
-  "settings:get", "settings:set", "referral:bind", "portfolio", "history", "fees", "fees:claim", "rpc:status", "rpc:set"]);
+  "settings:get", "settings:set", "referral:bind", "portfolio", "history", "fees", "fees:claim", "rpc:set"]);
 
 async function settings(): Promise<Settings> { return normalizeSettings((await chrome.storage.local.get(SETTINGS))[SETTINGS] as Partial<Settings> | undefined); }
 /** The custom RPC when one is set (balances, token reads and sends all use it), else the highbar server RPC. */
@@ -303,9 +313,10 @@ async function holding(walletIds: unknown, fresh: boolean): Promise<HoldingRes> 
 }
 
 // ---- sell (Holding panel): built here, checked, signed by the owning wallet, simulated, then sent ----
-function sellDeps(s: Settings): SellDeps {
-  const R = rpcFor(s), A = A0();
+function sellDeps(s: Settings, sent?: (sig: string) => void): SellDeps {
+  const R = rpcFor(s), A = A0(), fast = s.fastTrade;
   return {
+    fast,
     fee: () => extFee(s),
     owner: async (id) => {
       const w = (await W.list()).find((x) => x.id === id);
@@ -320,13 +331,13 @@ function sellDeps(s: Settings): SellDeps {
       if (!acc) throw new SellAborted("This wallet holds none of this token");
       return { raw: BigInt(acc.account.data.parsed.info.tokenAmount.amount ?? "0"), decimals: Number(acc.account.data.parsed.info.tokenAmount.decimals) };
     },
-    target: async (mint) => {
+    target: (mint) => targetC.get(mint, async () => {
       const t = await A.token(mint);
       if (!t.isMigrated) { if (!t.pool) throw new SellAborted("The pool for this token is not known yet"); return { route: "dbc", pool: t.pool }; }
       const dp = (await A.openbook(mint)).migration?.steps?.migrated?.dammPool;
       if (!dp) throw new SellAborted("This token is moving to its DAMM v2 pool. Try again in a minute");
-      return { route: "damm", pool: dp };
-    },
+      return { route: "damm" as const, pool: dp };
+    }),
     // Before migration: the api's POST /tx/swap, the same Meteora DBC swap2 the web trade panel builds (fee payer = owner, unsigned).
     buildDbc: async (a: BuildArgs) => {
       if (a.decimals !== 6) throw new SellAborted("This token does not use 6 decimals, the bonding curve sell cannot size it");
@@ -336,29 +347,36 @@ function sellDeps(s: Settings): SellDeps {
       return Transaction.from(unb64(r.tx));
     },
     // After migration: Meteora DAMM v2 swap from @meteora-ag/cp-amm-sdk, built here with the configured RPC. No referral account.
-    buildDamm: (a: BuildArgs) => (a.side === "buy" ? buildDammBuy : buildDammSell)(new Connection(rpcEndpoint(s), { commitment: "confirmed", disableRetryOnRateLimit: true }), a, async () => (await R.latestBlockhash()).blockhash),
+    buildDamm: (a: BuildArgs) => (a.side === "buy" ? buildDammBuy : buildDammSell)(new Connection(rpcEndpoint(s), { commitment: "confirmed", disableRetryOnRateLimit: true }), a, () => hashC.get(rpcEndpoint(s), async () => (await R.latestBlockhash()).blockhash)),
     simulate: async (raw) => {
       const r = await R.call<{ value: { err: unknown; logs?: string[] | null; unitsConsumed?: number } }>("simulateTransaction", [b64(raw), { encoding: "base64", sigVerify: true, commitment: "confirmed" }]);
       return { err: r?.value?.err ?? null, logs: r?.value?.logs ?? null, unitsConsumed: typeof r?.value?.unitsConsumed === "number" ? r.value.unitsConsumed : null };
     },
-    send: (raw, onSent) => sendAndConfirm(R, raw, { onSent, what: "sell transaction" }),
+    send: (raw, onSent) => sendAndConfirm(R, raw, { onSent: (sig) => { onSent(sig); sent?.(sig); }, what: "sell transaction", skipPreflight: fast, pollMs: fast ? 400 : 700 }),
   };
 }
-async function sell(m: SellPortIn, step: (s: SellPortOut) => void): Promise<SellPortOut> {
-  const s = await settings(), cfg = await config(s), R = rpcFor(s);
+async function sell(m: SellPortIn, step0: (s: SellPortOut) => void): Promise<SellPortOut> {
+  const tm = timer();
+  const [s, cfg] = await Promise.all([settings(), settings().then(config)]);
+  const R = rpcFor(s), net = cfg?.network ?? "devnet";
+  // per-step timings (ms since the click reached the worker) for Diagnostics; "sent" goes to the popup at once (fast mode
+  // shows it as success, the confirmation follows in the background and only a failure toasts again)
+  const step = (x: SellPortOut) => { if (x.type === "step") tm.mark(x.step); step0(x); };
+  const sent = (sig: string) => { tm.mark("sent"); step0({ type: "sent", signature: sig, solscanUrl: solscan("tx", sig, net), ms: tm.marks() }); };
   const owner = (await W.list().catch(() => [])).find((x) => x.id === m.walletId)?.address ?? null;
   // the wallet's SOL and token balance before the trade, read while the trade is being built, for the trade ledger (PnL card)
   const before = owner ? snap(R, owner, m.mint).catch(() => null) : Promise.resolve(null);
   try {
-    const r = await trade(m, s, cfg?.network ?? "devnet", step);
-    void lastTrade({ at: Date.now(), side: m.side ?? "sell", route: r.route ?? "highbar pool", ok: true, note: r.signature });
+    const r = await trade(m, s, net, step, sent);
+    tm.mark("confirmed");
+    void lastTrade({ at: Date.now(), side: m.side ?? "sell", route: r.route ?? "highbar pool", ok: true, note: r.signature, ms: tm.marks(), fast: s.fastTrade });
     if (owner) void record(R, owner, m, r.signature, before);
-    posC.delete(`${owner}:${m.mint}`);
+    posC.delete(`${owner}:${m.mint}`); if (owner) heldC.delete(owner);
     // the toast says "Buy success · View tx": the route stays in Diagnostics
-    return { type: "done", signature: r.signature, solscanUrl: r.solscanUrl, amountRaw: r.amountRaw };
+    return { type: "done", signature: r.signature, solscanUrl: r.solscanUrl, amountRaw: r.amountRaw, ms: tm.marks() };
   } catch (e) {
-    void lastTrade({ at: Date.now(), side: m.side ?? "sell", route: null, ok: false, note: friendly(e) });
-    return { type: "error", error: publicTradeError(friendly(e)), code: (e as { code?: string }).code };
+    void lastTrade({ at: Date.now(), side: m.side ?? "sell", route: null, ok: false, note: friendly(e), ms: tm.marks(), fast: s.fastTrade });
+    return { type: "error", error: publicTradeError(friendly(e)), code: (e as { code?: string }).code, sent: "sent" in tm.marks() };
   }
 }
 
@@ -395,7 +413,7 @@ async function record(R: Rpc, owner: string, m: SellPortIn, sig: string, before:
   }
 }
 const LAST_TRADE = "hb.lastTrade";
-const lastTrade = (v: { at: number; side: string; route: string | null; ok: boolean; note: string }) => chrome.storage.session.set({ [LAST_TRADE]: v }).catch(() => {});
+const lastTrade = (v: { at: number; side: string; route: string | null; ok: boolean; note: string; ms?: Record<string, number>; fast?: boolean }) => chrome.storage.session.set({ [LAST_TRADE]: v }).catch(() => {});
 let solUsdC: { v: number; at: number } | null = null;
 async function solUsd(): Promise<number | null> {
   if (solUsdC && Date.now() - solUsdC.at < 60_000) return solUsdC.v;
@@ -423,11 +441,11 @@ async function position(walletId: string, mint: string) {
   if (posC.size > 50) for (const [k, x] of posC) if (Date.now() - x.at > 60_000) posC.delete(k);
   return { walletId, label: w.label, balanceRaw: b.raw.toString(), decimals: b.dec, solUsd: usd, entries: l[w.address]?.[mint] ?? [] };
 }
-async function trade(m: SellPortIn, s: Settings, network: "mainnet" | "devnet", step: (s: SellPortOut) => void) {
+async function trade(m: SellPortIn, s: Settings, network: "mainnet" | "devnet", step: (s: SellPortOut) => void, sent?: (sig: string) => void) {
   // highbar tokens trade on their own pool (DBC, or DAMM v2 after migration); any other token through Jupiter
   if (!(await CA.hbToken(m.mint))) {
     if (network !== "mainnet") throw new SellAborted("Jupiter swaps run on mainnet only");
-    const d: JupDeps = { ...jupDeps(s), step: (x) => step({ type: "step", step: x }) };
+    const d: JupDeps = { ...jupDeps(s, sent), step: (x) => step({ type: "step", step: x }) };
     const r = m.side === "buy"
       ? await runJupBuy({ walletId: m.walletId, mint: m.mint, sol: Number(m.sol), slippagePct: cleanCaSlippage(m.slippagePct), prioritySol: s.prioritySol }, d)
       : await runJupSell({ walletId: m.walletId, mint: m.mint, pct: Number(m.pct), slippagePct: cleanCaSlippage(m.slippagePct), prioritySol: s.prioritySol }, d);
@@ -437,12 +455,12 @@ async function trade(m: SellPortIn, s: Settings, network: "mainnet" | "devnet", 
   if (m.side === "buy") {
     const R = rpcFor(s);
     const r = await runBuy({ walletId: m.walletId, mint: m.mint, sol: Number(m.sol), slippagePct: cleanSlippage(m.slippagePct), prioritySol: s.prioritySol },
-      { ...sellDeps(s), solBalance: async (owner) => (await R.balance(owner)) / 1e9, step: (x) => step({ type: "step", step: x }) });
+      { ...sellDeps(s, sent), solBalance: async (owner) => (await R.balance(owner)) / 1e9, step: (x) => step({ type: "step", step: x }) });
     forgetWallet(r.wallet);
     return { type: "done" as const, signature: r.signature, solscanUrl: solscan("tx", r.signature, network), amountRaw: r.lamports };
   }
   const cfg = { network };
-  const r = await runSell({ walletId: m.walletId, mint: m.mint, pct: Number(m.pct), slippagePct: cleanSlippage(m.slippagePct), prioritySol: s.prioritySol }, { ...sellDeps(s), step: (x) => step({ type: "step", step: x }) });
+  const r = await runSell({ walletId: m.walletId, mint: m.mint, pct: Number(m.pct), slippagePct: cleanSlippage(m.slippagePct), prioritySol: s.prioritySol }, { ...sellDeps(s, sent), step: (x) => step({ type: "step", step: x }) });
   forgetWallet(r.wallet);
   return { type: "done" as const, signature: r.signature, solscanUrl: solscan("tx", r.signature, cfg.network), amountRaw: r.amountRaw };
 }
@@ -469,9 +487,10 @@ async function jupFetch<T>(path: string, init?: RequestInit): Promise<T> {
   }
   throw last instanceof Error ? last : new SellAborted("Jupiter did not answer", "JUP_HTTP");
 }
-function jupDeps(s: Settings): JupDeps {
-  const R = rpcFor(s), base = sellDeps(s);
+function jupDeps(s: Settings, sent?: (sig: string) => void): JupDeps {
+  const R = rpcFor(s), base = sellDeps(s), fast = s.fastTrade;
   return {
+    fast,
     owner: base.owner, keypair: base.keypair,
     fee: () => extFee(s),
     // The swap tx's lookup tables, read through the same RPC (getMultipleAccounts, base64), to append the highbar fee.
@@ -492,9 +511,9 @@ function jupDeps(s: Settings): JupDeps {
       }
       throw new SellAborted("This wallet holds none of this token");
     },
-    quote: (input, output, amount, bps) => jupFetch<JupQuote>(quotePath(input, output, amount, bps)),
+    quote: (input, output, amount, bps) => { const p = quotePath(input, output, amount, bps); return quoteC.get(p, () => jupFetch<JupQuote>(p)); },
     swapTx: async (quote, owner, priority) => {
-      const r = await jupFetch<{ swapTransaction?: string; simulationError?: unknown }>("/swap", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(swapBody(quote, owner, priority)) });
+      const r = await jupFetch<{ swapTransaction?: string; simulationError?: unknown }>("/swap", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(swapBody(quote, owner, priority, !fast)) });
       if (typeof r.swapTransaction !== "string") throw new SellAborted("Jupiter sent no transaction", "JUP_HTTP");
       return r.swapTransaction;
     },
@@ -505,8 +524,43 @@ function jupDeps(s: Settings): JupDeps {
       const after = r?.value?.accounts?.[0]?.lamports;
       return { err: r?.value?.err ?? null, logs: r?.value?.logs ?? null, lamportsAfter: typeof after === "number" ? after : null };
     },
-    send: (raw, onSent) => sendAndConfirm(R, raw, { onSent, what: "swap" }),
+    send: (raw, onSent) => sendAndConfirm(R, raw, { onSent: (sig) => { onSent(sig); sent?.(sig); }, what: "swap", skipPreflight: fast, pollMs: fast ? 400 : 700 }),
   };
+}
+/** ca:held: the wallet's tokens with a balance (SPL and Token-2022, 12 at most), named and priced from the CA popup's own
+ *  token info (cached per mint), biggest value first. 10 s cache per wallet; dropped after a trade. */
+const heldC = memo<HeldToken[]>(10_000, 20);
+async function held(walletId: string): Promise<HeldToken[]> {
+  const w = (await W.list()).find((x) => x.id === walletId);
+  if (!w) throw new Error("That wallet is not in the extension");
+  return heldC.get(w.address, async () => {
+    const R = rpcFor(await settings());
+    const [a, b] = await Promise.all([R.tokenAccounts(w.address, TOKEN_PROGRAM), R.tokenAccounts(w.address, TOKEN_2022).catch(() => [])]);
+    const amt = new Map<string, number>();
+    for (const x of [...a, ...b]) { const i = x.account.data.parsed.info, n = Number(i.tokenAmount.uiAmount ?? 0); if (n > 0) amt.set(i.mint, (amt.get(i.mint) ?? 0) + n); }
+    const rows = await Promise.all([...amt].slice(0, 24).map(async ([mint, amount]) => {
+      const t = await CA.info(mint).catch(() => null);
+      const priceUsd = t?.priceUsd ?? null;
+      return { mint, amount, symbol: t?.symbol || null, name: t?.name || null, image: t?.image ?? null, priceUsd, valueUsd: priceUsd !== null ? amount * priceUsd : null, change24h: t?.change24h ?? null };
+    }));
+    return rows.sort((x, y) => (y.valueUsd ?? -1) - (x.valueUsd ?? -1)).slice(0, 12);
+  });
+}
+/** trade:warm: fills the caches the next click reads (pool route or a Jupiter quote for the typed buy amount, a blockhash,
+ *  the fee config and the token check). Read only and best effort: nothing is built, signed or sent. */
+async function warm(mint: string, sol?: number) {
+  if (!isPubkey(mint)) return;
+  try {
+    const s = await settings(), R = rpcFor(s);
+    void config(s).catch(() => null);
+    void hashC.get(rpcEndpoint(s), async () => (await R.latestBlockhash()).blockhash).catch(() => {});
+    if (await CA.hbToken(mint)) { await sellDeps(s).target(mint).catch(() => {}); return; }
+    const n = Number(sol);
+    if (Number.isFinite(n) && n > 0 && n <= 100) {
+      const p = quotePath("So11111111111111111111111111111111111111112", mint, BigInt(Math.round(n * 1e9)), slippageBps(cleanCaSlippage((await caPrefs()).slippagePct)));
+      await quoteC.get(p, () => jupFetch<JupQuote>(p)).catch(() => {});
+    }
+  } catch { /* warming is optional */ }
 }
 async function caPrefs(): Promise<CaPrefs> {
   const v = (await chrome.storage.local.get(CA_PREFS))[CA_PREFS] as Partial<CaPrefs> | undefined;
@@ -727,6 +781,8 @@ async function handle(req: Req, sender: chrome.runtime.MessageSender): Promise<u
     case "ca:info": return CA.info(req.mint, req.fresh === true);
     case "ca:candles": return CANDLES.candles({ mint: req.mint, pool: req.pool ?? null, highbar: req.highbar === true, res: req.res, count: req.count, source: req.source ?? null, auto: req.auto === true, pump: req.pump === true, before: typeof req.before === "number" ? req.before : undefined });
     case "ca:live": return CANDLES.live(req.mint);
+    case "ca:held": return held(req.walletId);
+    case "trade:warm": { void warm(req.mint, req.sol); return { ok: true as const }; }
     case "ca:prefetch": { void CA.prefetch(Array.isArray(req.mints) ? req.mints : [], req.full === true).catch(() => {}); return { ok: true as const }; }
     case "ca:stats": return CA.stats(Array.isArray(req.mints) ? req.mints.slice(0, 30) : []);
     case "ca:audit": return CA.audit(req.mint);
@@ -742,7 +798,6 @@ async function handle(req: Req, sender: chrome.runtime.MessageSender): Promise<u
     case "ca:pos:get": return readPos((await chrome.storage.session.get(CA_POS))[CA_POS]);
     case "ca:pos:set": { const p = req.pos === null ? null : readPos(req.pos); if (p) await chrome.storage.session.set({ [CA_POS]: p }); else await chrome.storage.session.remove(CA_POS); return { ok: true }; }
     case "drawer:pos:set": { const p = req.pos === null ? null : readPos(req.pos); if (p) await chrome.storage.session.set({ [DRAWER_POS]: p }); else await chrome.storage.session.remove(DRAWER_POS); return { ok: true }; }
-    case "rpc:status": return checkRpc(s);
     case "rpc:set": return setRpc(req.url, s);
     case "open:sidepanel": await openSidePanel(sender); return { ok: true };
     default: throw new Error("Unknown request");

@@ -30,8 +30,9 @@ test("manifest: the CA chart page and lazy popup module are web accessible on x.
   const war = manifest.web_accessible_resources[0];
   assert.ok(war.resources.includes("chart.html") && war.resources.includes("chart.js") && war.resources.includes("ca-popup.js"));
   assert.deepEqual(war.matches, ["https://x.com/*", "https://twitter.com/*"]);
-  assert.match(manifest.content_security_policy.extension_pages, /frame-src https:\/\/www\.geckoterminal\.com(;|$)/);
-  assert.doesNotMatch(JSON.stringify(manifest), /gmgn\.cc/); // the GMGN chart embed is gone (0.3.2): highbar's own chart only
+  // 0.4.0: GMGN's official chart embed is the primary chart again (chart.html), 'self' lets the side panel frame chart.html
+  assert.match(manifest.content_security_policy.extension_pages, /frame-src 'self' https:\/\/www\.gmgn\.cc https:\/\/www\.geckoterminal\.com(;|$)/);
+  assert.doesNotMatch(JSON.stringify(manifest.host_permissions), /gmgn/); // a frame only, no host permission
   assert.match(manifest.content_security_policy.extension_pages, /script-src 'self'/);
   readFileSync(new URL("chart.html", dir));
 });

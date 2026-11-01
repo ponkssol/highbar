@@ -157,3 +157,12 @@ export function fmtPct(n: number | null): string {
   const a = Math.abs(n), s = a >= 10_000 ? compact.format(a) : a.toLocaleString("en-US", { maximumFractionDigits: a >= 100 ? 0 : 1 });
   return `${n > 0 ? "+" : n < 0 ? "−" : ""}${s}%`;
 }
+
+/** "Sell All" in the Holding header: every row with a balance above zero (the rows already follow the checked wallets and the
+ *  wallet filter), and the counts the confirm step shows. Busy rows (a trade running) are skipped. */
+export function sellAllPlan<R extends Pick<HoldRow, "key" | "raw" | "mint" | "walletId">>(rows: readonly R[], busy: (key: string) => boolean = () => false): { rows: R[]; tokens: number; wallets: number } {
+  const out = rows.filter((r) => { try { return BigInt(r.raw || "0") > 0n && !busy(r.key); } catch { return false; } });
+  return { rows: out, tokens: new Set(out.map((r) => r.mint)).size, wallets: new Set(out.map((r) => r.walletId)).size };
+}
+/** "3 tokens in 2 wallets" (singular where it fits). */
+export const planText = (p: { tokens: number; wallets: number }) => `${p.tokens} token${p.tokens === 1 ? "" : "s"} in ${p.wallets} wallet${p.wallets === 1 ? "" : "s"}`;

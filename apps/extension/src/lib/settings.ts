@@ -42,10 +42,13 @@ export interface Settings {
   soundVol: number;
   /** Total priority fee per transaction in SOL (buys, sells, launches): 0 to 0.1, default 0.0001. */
   prioritySol: number;
+  /** Fast trades (default on): no simulation before a buy or sell, sent with skipPreflight and confirmed in the background.
+   *  A trade that would fail can then land and still cost its network and priority fee. Off = simulate first, as before 0.4.0. */
+  fastTrade: boolean;
 }
 
 export const DEFAULT_PRESETS: Presets = { tier: "standard", antiSniper: false, antiSniperChosen: false, devBuySol: 0, slippageBps: 100, description: "", useTweetText: true, referrer: "", instant: false };
-export const DEFAULT_SETTINGS: Settings = { rpcUrl: "", presets: DEFAULT_PRESETS, dedicatedAck: false, caDetect: true, sound: true, soundVol: 0.5, prioritySol: PRIORITY_DEFAULT_SOL };
+export const DEFAULT_SETTINGS: Settings = { rpcUrl: "", presets: DEFAULT_PRESETS, dedicatedAck: false, caDetect: true, sound: true, soundVol: 0.5, prioritySol: PRIORITY_DEFAULT_SOL, fastTrade: true };
 
 const httpsUrl = (s: string) => { try { const u = new URL(s); return u.protocol === "https:" || (u.protocol === "http:" && /^(localhost|127\.0\.0\.1)$/.test(u.hostname)); } catch { return false; } };
 
@@ -60,6 +63,7 @@ export function normalizeSettings(s: Partial<Settings> | undefined): Settings {
     caDetect: s?.caDetect !== false,
     sound: s?.sound !== false,
     prioritySol: readPrioritySol(s?.prioritySol),
+    fastTrade: s?.fastTrade !== false,
     soundVol: Number.isFinite(Number(s?.soundVol)) && Number(s?.soundVol) >= 0 && Number(s?.soundVol) <= 1 ? Math.round(Number(s?.soundVol) * 100) / 100 : 0.5,
     presets: {
       tier: LAUNCH_TIERS.includes(p.tier as LaunchTier) ? (p.tier as LaunchTier) : "standard",

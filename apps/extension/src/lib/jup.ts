@@ -28,8 +28,9 @@ export const quotePath = (input: string, output: string, amount: bigint, bps: nu
   `/quote?inputMint=${input}&outputMint=${output}&amount=${amount}&slippageBps=${bps}&swapMode=ExactIn&restrictIntermediateTokens=true`;
 /** The priority fee the user picked, as an exact amount: Jupiter simulates the swap for its compute unit limit
  *  (dynamicComputeUnitLimit) and sets the price to fit that amount. */
-export const swapBody = (quote: JupQuote, owner: string, priority: bigint = priorityLamports(NaN)) => ({
-  quoteResponse: quote, userPublicKey: owner, wrapAndUnwrapSol: true, dynamicComputeUnitLimit: true,
+export const swapBody = (quote: JupQuote, owner: string, priority: bigint = priorityLamports(NaN), dynamic = true) => ({
+  // fast mode passes dynamic = false: no simulation on Jupiter's side, its static limit (CU_LIMIT.jupiter) instead
+  quoteResponse: quote, userPublicKey: owner, wrapAndUnwrapSol: true, dynamicComputeUnitLimit: dynamic,
   prioritizationFeeLamports: Number(priority > PRIORITY_MAX_LAMPORTS ? PRIORITY_MAX_LAMPORTS : priority),
 });
 /** Route labels for the UI ("Meteora DAMM v2", "Raydium", ...). */
@@ -125,6 +126,8 @@ export interface JupDeps {
   simulate(raw: Uint8Array, owner: string): Promise<JupSim>;
   send(raw: Uint8Array, onSent: (sig: string) => void): Promise<string>;
   step?(s: SellStep): void;
+  /** Fast mode: no simulation before sending (see SellDeps.fast). The static checks of the tx still run. */
+  fast?: boolean;
   /** highbar fee config from the API (GET /config extFee), null = no fee. */
   fee?(): Promise<ExtFee | null>;
   /** The swap tx's address lookup tables (needed to append the fee transfer to a v0 tx). */
@@ -155,15 +158,17 @@ async function signSimSend(d: JupDeps, kp: Keypair, b64tx: string, side: "buy" |
   step("sign");
   tx.sign([kp]);
   const raw = tx.serialize();
-  step("simulate");
-  let sim: JupSim;
-  try { sim = await d.simulate(raw, kp.publicKey.toBase58()); }
-  catch (e) { throw new SellAborted(`Could not run the safety simulation (${(e as Error)?.message || "RPC error"}). Nothing was sent.`, "SELL_SIM"); }
-  if (sim.err) throw new SellAborted(`The ${side} would fail: ${simReason(sim.err, sim.logs)}. Nothing was sent.`, "SELL_SIM_FAILED");
-  if (typeof sim.lamportsAfter === "number") {
-    const spent = before - sim.lamportsAfter;
-    const max = (side === "buy" ? Number(lamports ?? 0n) : 0) + Number(fee) + Number(priority) + JUP_SIM_SLACK_LAMPORTS;
-    if (spent > max) throw new SellAborted(`The ${side} would take more SOL than expected. Nothing was sent.`, "JUP_SIM_SOL");
+  if (!d.fast) {
+    step("simulate");
+    let sim: JupSim;
+    try { sim = await d.simulate(raw, kp.publicKey.toBase58()); }
+    catch (e) { throw new SellAborted(`Could not run the safety simulation (${(e as Error)?.message || "RPC error"}). Nothing was sent.`, "SELL_SIM"); }
+    if (sim.err) throw new SellAborted(`The ${side} would fail: ${simReason(sim.err, sim.logs)}. Nothing was sent.`, "SELL_SIM_FAILED");
+    if (typeof sim.lamportsAfter === "number") {
+      const spent = before - sim.lamportsAfter;
+      const max = (side === "buy" ? Number(lamports ?? 0n) : 0) + Number(fee) + Number(priority) + JUP_SIM_SLACK_LAMPORTS;
+      if (spent > max) throw new SellAborted(`The ${side} would take more SOL than expected. Nothing was sent.`, "JUP_SIM_SOL");
+    }
   }
   step("send");
   return { signature: await d.send(raw, () => step("confirm")), fee, priority, cuLimit };
@@ -178,15 +183,15 @@ export async function runJupBuy(req: { walletId: string; mint: string; sol: numb
   if (!Number.isFinite(sol) || sol <= 0 || sol > BUY_MAX_SOL) throw new SellAborted(`Pick an amount above 0 and up to ${BUY_MAX_SOL} SOL`);
   const lamports = BigInt(Math.round(sol * 1e9)), bps = toBps(req.slippagePct);
   step("build");
-  const w = await d.owner(req.walletId);
-  const kp = await d.keypair(req.walletId);
+  // the quote does not depend on the wallet: asked at once, in parallel with the wallet, key, fee config and balance
+  const qP = d.quote(WSOL_MINT, req.mint, lamports, bps); qP.catch(() => {});
+  const [w, kp] = await Promise.all([d.owner(req.walletId), d.keypair(req.walletId)]);
   if (kp.publicKey.toBase58() !== w.address) throw new SellAborted("The key does not match this wallet. Nothing was signed.");
-  const ext = d.fee ? await d.fee().catch(() => null) : null;
+  const [ext, have] = await Promise.all([d.fee ? d.fee().catch(() => null) : Promise.resolve(null), d.solLamports(w.address)]);
   const prio = priorityLamports(req.prioritySol ?? NaN);
   const feeN = Number((feeLeg(ext, lamports)?.lamports ?? 0n) + prio) / 1e9;
-  const have = await d.solLamports(w.address);
   if (!(have / 1e9 >= sol + feeN + BUY_RESERVE_SOL)) throw new SellAborted(`Not enough SOL in ${w.label} (has ${Math.floor((have / 1e9) * 1e4) / 1e4}, needs about ${Math.ceil((sol + feeN + BUY_RESERVE_SOL) * 1e4) / 1e4})`, "BUY_FUNDS");
-  const q = await d.quote(WSOL_MINT, req.mint, lamports, bps);
+  const q = await qP;
   checkQuote(q, { input: WSOL_MINT, output: req.mint, amount: lamports, bps });
   const r = await signSimSend(d, kp, await d.swapTx(q, w.address, prio), "buy", lamports, have, step, ext, undefined, prio);
   return { signature: r.signature, amountRaw: lamports.toString(), wallet: w.address, route: routeLabel(q), feeLamports: r.fee.toString(), priorityLamports: r.priority.toString(), cuLimit: r.cuLimit ?? undefined };
@@ -199,16 +204,16 @@ export async function runJupSell(req: { walletId: string; mint: string; pct: num
   if (req.mint === WSOL_MINT) throw new SellAborted("That is SOL itself");
   const bps = toBps(req.slippagePct);
   step("build");
-  const w = await d.owner(req.walletId);
-  const kp = await d.keypair(req.walletId);
+  const [w, kp] = await Promise.all([d.owner(req.walletId), d.keypair(req.walletId)]);
   if (kp.publicKey.toBase58() !== w.address) throw new SellAborted("The key does not match this wallet. Nothing was signed.");
+  const extP = d.fee ? d.fee().catch(() => null) : Promise.resolve(null), haveP = d.solLamports(w.address);
+  haveP.catch(() => {});
   const bal = await d.tokenBalance(w.address, req.mint);
   let amountRaw: bigint;
   try { amountRaw = sellRaw(bal.raw, req.pct); } catch (e) { throw new SellAborted((e as Error).message); }
-  const have = await d.solLamports(w.address);
-  const q = await d.quote(req.mint, WSOL_MINT, amountRaw, bps);
+  const [q, have] = await Promise.all([d.quote(req.mint, WSOL_MINT, amountRaw, bps), haveP]);
   const { minOut } = checkQuote(q, { input: req.mint, output: WSOL_MINT, amount: amountRaw, bps });
-  const ext = d.fee ? await d.fee().catch(() => null) : null;
+  const ext = await extP;
   const prio = priorityLamports(req.prioritySol ?? NaN);
   const r = await signSimSend(d, kp, await d.swapTx(q, w.address, prio), "sell", undefined, have, step, ext, minOut, prio);
   return { signature: r.signature, amountRaw: amountRaw.toString(), wallet: w.address, route: routeLabel(q), feeLamports: r.fee.toString(), priorityLamports: r.priority.toString(), cuLimit: r.cuLimit ?? undefined };

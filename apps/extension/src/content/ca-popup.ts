@@ -2,25 +2,27 @@
  *  token button is opened (dynamic import of a packaged, web accessible module), so x.com pages that never open a popup do not
  *  parse this code or its CSS. Like the drawer, nothing here sees a key: the worker resolves, fetches, builds, checks, signs,
  *  simulates and sends. */
-import type { CaPosition, CaPrefs, LiveStats, SellPortIn, SellPortOut } from "../lib/messages";
+import type { CaPosition, CaPrefs, HeldToken, HoldingRes, LiveStats, SellPortIn, SellPortOut } from "../lib/messages";
 import type { FeeInfo } from "../lib/feemath";
 import { PRIORITY_DEFAULT_SOL, PRIORITY_PRESETS_SOL, priorityError, readPrioritySol } from "../lib/priomath";
-import { extraCosts } from "../lib/costs";
-import { costsNodes } from "./costs-el";
+import { shortOnSol } from "../lib/costs";
 import { toasts } from "./toast";
-import { fmtChange, fmtUsdPrice, type CaInfo } from "../lib/ca";
+import { fmtChange, fmtUsdCompact, fmtUsdPrice, type CaInfo } from "../lib/ca";
 import { CA_SLIPPAGE_PRESETS, cleanCaSlippage } from "../lib/caprefs";
 import { DEV_PRESETS_DEFAULT } from "../lib/devpresets";
 import { parsePct } from "../lib/holding";
 import type { SellStep } from "../lib/sell";
 import { BUY_MAX_SOL } from "../lib/limits";
 import { fmtSol } from "../lib/format";
+import { compactSol } from "../lib/compact";
+import { heldTotal } from "../lib/heldsum";
 import { CLOSE, GEAR, HB_MARK, SOL_MARK } from "../lib/icons";
 import { clampPos, onScreen, placeBeside, type Pos } from "../lib/place";
 import { ask, h, scrollFade, svg } from "./dom";
 import { stopTweens, tweenText } from "./tween";
 import { auditCard } from "./audit-card";
 import { pnlCard } from "./pnl-card";
+import { pnl } from "../lib/ledger";
 import { playSfx, primeSfx } from "../lib/sfx";
 import { fmtUsdFixed } from "../lib/tween";
 import { CA_CSS, DRAWER_CSS } from "./styles";
@@ -47,19 +49,132 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
 
     const wslot = h("span", { class: "wslot" });
     const gearB = h("button", { class: "gearb", type: "button", "aria-haspopup": "dialog", "aria-expanded": "false", title: "Slippage and priority fee", "data-testid": "hb-ca-slip-btn" });
-    const header = h("header", { title: "Drag to move, double click to reset", "data-testid": "hb-ca-head" }, svg(HB_MARK), h("h2", {}, "Trade"), h("span", { style: "flex:1" }), wslot, gearB,
+    // one line header: the token (logo, name, ticker, price, 24h, copy CA) once it loads, the highbar mark before; X on the right
+    const hslot = h("div", { class: "hslot" }, svg(HB_MARK), h("h2", {}, "Trade"));
+    // narrow windows (the popup and the Holding column do not fit): the column hides behind this toggle and opens over the trade box
+    const htog = h("button", { class: "htog", type: "button", hidden: true, "aria-pressed": "false", "aria-label": "Show held tokens", title: "Holding", "data-testid": "hb-ca-held-toggle" }, "Holding");
+    const header = h("header", { title: "Drag to move, double click to reset", "data-testid": "hb-ca-head" }, hslot, htog,
       h("button", { class: "x", type: "button", "aria-label": "Close", onclick: () => o.close(), html: CLOSE }));
     const body = scrollFade(h("div", { class: "body" }, h("div", { class: "loading" }, `Loading ${label}…`)));
     const foot = h("footer");
-    const pop = h("div", { class: "drawer capop", role: "dialog", "aria-modal": "false", "aria-label": `Trade ${label}`, "data-testid": "hb-ca-pop" }, header, body, foot);
+    // held tokens of the first selected wallet, beside the trade box: token, value, PnL and quick sell buttons per row.
+    // A row never switches the popup to another token: selling from here keeps the current token open.
+    // right of the title: the total PnL of the listed tokens, or the PnL of the row picked in the list
+    const hsum = h("span", { class: "hsum", "data-testid": "hb-ca-held-sum", "aria-live": "polite" });
+    const railList = scrollFade(h("div", { class: "hlist", role: "list" }));
+    const rail = h("aside", { class: "hrail", hidden: true, "aria-label": "Held tokens", "data-testid": "hb-ca-held" }, h("div", { class: "hhead" }, h("span", { class: "httl" }, "Holding"), hsum), railList);
+    const pop = h("div", { class: "drawer capop", role: "dialog", "aria-modal": "false", "aria-label": `Trade ${label}`, "data-testid": "hb-ca-pop" }, header,
+      h("div", { class: "cagrid" }, h("div", { class: "camain" }, body, foot), rail));
+    const grid = pop.querySelector<HTMLElement>(".cagrid")!;
+    htog.addEventListener("click", () => { const on = grid.classList.toggle("hon"); htog.setAttribute("aria-pressed", String(on)); htog.setAttribute("aria-label", on ? "Hide held tokens" : "Show held tokens"); });
     root.append(style, pop);
     for (const ev of ["keydown", "keyup", "keypress"]) pop.addEventListener(ev, (e) => e.stopPropagation());
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && popHost.isConnected) { e.stopPropagation(); if (!slipPop.hidden) { slipPop.hidden = true; gearB.setAttribute("aria-expanded", "false"); return; } if (sw?.close()) return; o.close(); } };
     document.addEventListener("keydown", onKey, true);
 
     // wallets (the drawer's multi select picker and its checked wallets)
-    const sw = st?.exists ? k.walletSwitcher(root, st.network, (ws) => { void ask({ type: "drawer:wallets:set", ids: ws.map((w) => w.id) }).catch(() => {}); drawTrade(); loadPos(); }, "Trade wallets") : null;
-    if (sw) { wslot.append(sw.btn); root.append(sw.pop); void Promise.all([ask({ type: "wallets:list" }), ask({ type: "drawer:wallets:get" })]).then(([l, d]) => { sw.set(l, d.ids); drawTrade(); void sw.load(true); loadPos(); }).catch(() => {}); }
+    const sw = st?.exists ? k.walletSwitcher(root, st.network, (ws) => { void ask({ type: "drawer:wallets:set", ids: ws.map((w) => w.id) }).catch(() => {}); drawTrade(); loadPos(); loadHeld(); }, "Trade wallets") : null;
+    if (sw) { wslot.append(sw.btn); root.append(sw.pop); void Promise.all([ask({ type: "wallets:list" }), ask({ type: "drawer:wallets:get" })]).then(([l, d]) => { sw.set(l, d.ids); drawTrade(); void sw.load(true); loadPos(); loadHeld(); }).catch(() => {}); }
+    let heldReq = 0, heldL: HeldToken[] = [], heldPnl = new Map<string, { pnlSol: number | null; pnlPct: number | null }>();
+    // the open token's PnL from the local ledger (the PnL card's numbers), for a token bought outside highbar's launches
+    let curPnl: { pnlSol: number | null; pnlPct: number | null } | null = null;
+    // per mint: a sell running from the rail, or "All" waiting for its second tap
+    const railSt = new Map<string, { kind: "run" } | { kind: "arm"; t: ReturnType<typeof setTimeout> }>();
+    // the row picked in the list (its PnL shows in the header); picking it again goes back to the total. Never switches the token.
+    let selMint: string | null = null;
+    const pnlOf = (m: string) => heldPnl.get(m) ?? (m === mint ? curPnl : null);
+    function drawSum2() {
+      const w = sw?.get()[0], who = w ? w.label : "this wallet";
+      const t = selMint ? heldL.find((x) => x.mint === selMint) : null;
+      const signed = (n: number) => `${compactSol(n, true)} SOL`;
+      const cl = (n: number | null) => (n === null ? "flat" : n > 0 ? "up" : n < 0 ? "dn" : "flat");
+      if (t) {
+        const sym = t.symbol ? `$${t.symbol}` : `${t.mint.slice(0, 4)}…`, p = pnlOf(t.mint);
+        const tag = t.symbol ?? t.mint.slice(0, 4);
+        if (p && p.pnlSol !== null) {
+          hsum.replaceChildren(h("span", { class: "hsl" }, tag), h("span", { class: `hsv ${cl(p.pnlSol)}` }, compactSol(p.pnlSol, true)), p.pnlPct === null ? "" : h("span", { class: `hsp ${cl(p.pnlPct)}` }, fmtChange(p.pnlPct)));
+          hsum.title = `${sym} unrealized PnL: ${signed(p.pnlSol)}${p.pnlPct === null ? "" : ` (${fmtChange(p.pnlPct)})`}\nTap the row again for the total`;
+        } else {
+          hsum.replaceChildren(h("span", { class: "hsl" }, tag), h("span", { class: "hsv" }, t.valueUsd === null ? "—" : fmtUsdCompact(t.valueUsd)), t.change24h === null ? "" : h("span", { class: `hsp ${cl(t.change24h)}` }, fmtChange(t.change24h)));
+          hsum.title = `${sym}: no cost basis known (not bought through highbar), value and 24h change shown\nTap the row again for the total`;
+        }
+        return;
+      }
+      const tot = heldTotal(heldL, pnlOf);
+      if (!tot) { hsum.replaceChildren(); hsum.title = ""; return; }
+      if (tot.kind === "pnl") {
+        hsum.replaceChildren(h("span", { class: "hsl" }, "PnL"), h("span", { class: `hsv ${cl(tot.pnlSol)}` }, signed(tot.pnlSol)), tot.pnlPct === null ? "" : h("span", { class: `hsp ${cl(tot.pnlPct)}` }, fmtChange(tot.pnlPct)));
+        hsum.title = `Total unrealized PnL of ${who}: ${tot.counted} of ${tot.of} tokens with a known cost basis (bought through highbar). Tokens without one are left out.\nTap a row for that token's PnL`;
+      } else {
+        hsum.replaceChildren(h("span", { class: "hsl" }, "Value"), h("span", { class: "hsv" }, fmtUsdCompact(tot.usd)));
+        hsum.title = `Total value of ${who}'s ${tot.of} tokens. No cost basis is known for them, so there is no PnL.\nTap a row for that token`;
+      }
+    }
+    function loadHeld() {
+      const w = sw?.get()[0];
+      if (!w) { rail.hidden = htog.hidden = true; return; }
+      const id = ++heldReq;
+      void ask({ type: "ca:held", walletId: w.id }).then((l) => { if (id === heldReq) { heldL = l; drawHeld(); } }).catch(() => {});
+      // PnL from the Holding panel's rows (bought vs value, highbar tokens); other tokens show their 24h change instead
+      void ask({ type: "holding", walletIds: [w.id] }).then((r: HoldingRes) => {
+        if (id !== heldReq) return;
+        heldPnl = new Map(r.rows.filter((x) => x.walletId === w.id).map((x) => [x.mint, { pnlSol: x.pnlSol, pnlPct: x.pnlPct }]));
+        drawHeld();
+      }).catch(() => {});
+    }
+    function railSell(t: HeldToken, pct: number, sym: string) {
+      const w = sw?.get()[0];
+      if (!w || railSt.get(t.mint)?.kind === "run") return;
+      primeSfx();
+      railSt.set(t.mint, { kind: "run" }); drawHeld();
+      const port = chrome.runtime.connect({ name: "sell" });
+      let sent = false, over = false;
+      const fin = () => { if (over) return; over = true; railSt.delete(t.mint); try { port.disconnect(); } catch { /* gone */ } drawHeld(); loadHeld(); if (t.mint === mint) loadPos(); void sw?.load(true, true); };
+      port.onMessage.addListener((m: SellPortOut) => {
+        if (m.type === "sent") { sent = true; toasts().show("ok", `Sell ${pct}% ${sym} sent`, m.solscanUrl); playSfx("ok"); railSt.delete(t.mint); drawHeld(); }
+        else if (m.type === "done") { if (!sent) { toasts().show("ok", `Sold ${pct}% ${sym}`, m.solscanUrl); playSfx("ok"); } fin(); }
+        else if (m.type === "error") { toasts().show(/holds none of this token/.test(m.error) ? "info" : "err", `Sell ${sym} failed: ${m.error}`); playSfx("err"); fin(); }
+      });
+      port.onDisconnect.addListener(() => fin());
+      const msg: SellPortIn = { type: "sell", side: "sell", walletId: w.id, mint: t.mint, pct, slippagePct: prefs.slippagePct };
+      port.postMessage(msg);
+    }
+    function drawHeld() {
+      const l = heldL;
+      rail.hidden = htog.hidden = !l.length;
+      if (!l.length) { grid.classList.remove("hon"); htog.setAttribute("aria-pressed", "false"); }
+      if (selMint && !l.some((x) => x.mint === selMint)) selMint = null;
+      drawSum2();
+      railList.replaceChildren(...l.map((t) => {
+        const sym = t.symbol ? `$${t.symbol}` : `${t.mint.slice(0, 4)}…`;
+        const p = heldPnl.get(t.mint) ?? (t.mint === mint ? curPnl : null) ?? undefined;
+        const pv = p?.pnlPct ?? null, c = p ? pv : t.change24h;
+        const cls = c === null || c === undefined ? "flat" : c > 0 ? "up" : c < 0 ? "dn" : "flat";
+        const lg = t.image ? h("img", { class: "hlogo", src: t.image, alt: "" }) : h("span", { class: "hlogo" }, (t.symbol || "?").slice(0, 1).toUpperCase());
+        if (lg instanceof HTMLImageElement) lg.addEventListener("error", () => lg.replaceWith(h("span", { class: "hlogo" }, (t.symbol || "?").slice(0, 1).toUpperCase())));
+        const s = railSt.get(t.mint), run = s?.kind === "run", arm = s?.kind === "arm";
+        const btn = (pct: number, txt: string) => h("button", { class: `hsb${pct === 100 && arm ? " arm" : ""}`, type: "button", disabled: run, "data-testid": "hb-ca-held-sell",
+          title: pct === 100 ? (arm ? `Tap again to sell all ${sym}` : `Sell all ${sym} (tap twice)`) : `Sell ${pct}% of ${sym}`,
+          onclick: () => {
+            if (pct === 100 && !arm) { const tm = setTimeout(() => { if (railSt.get(t.mint)?.kind === "arm") { railSt.delete(t.mint); drawHeld(); } }, 2500); railSt.set(t.mint, { kind: "arm", t: tm }); drawHeld(); return; }
+            if (arm && s?.kind === "arm") clearTimeout(s.t);
+            railSell(t, pct, sym);
+          } }, run ? "…" : pct === 100 && arm ? "Sure?" : txt);
+        const pnlTxt = p ? (pv === null ? "—" : fmtChange(pv)) : c === null ? "" : fmtChange(c);
+        const sel = selMint === t.mint;
+        const pick = () => { selMint = sel ? null : t.mint; drawHeld(); railList.querySelector<HTMLElement>(`[data-mint="${t.mint}"]`)?.focus(); };
+        const row = h("div", { class: `hrow${t.mint === mint ? " on" : ""}${sel ? " sel" : ""}`, role: "listitem", tabindex: "0", "data-mint": t.mint,
+          title: `${t.name ?? sym} · ${t.mint}\n${p ? "PnL" : "24h change"} ${pnlTxt || "—"}\n${sel ? "Tap again for the total PnL" : "Tap to show its PnL beside Holding"}`,
+          "data-testid": "hb-ca-held-row", "aria-current": t.mint === mint ? "true" : "false", "aria-selected": String(sel) },
+          h("div", { class: "hl1" }, lg, h("span", { class: "hsym" }, sym), h("span", { class: `hchg ${cls}`, "data-testid": "hb-ca-held-pnl", "aria-label": `${p ? "PnL" : "24h change"} ${pnlTxt}`,
+              title: p ? `PnL ${pnlTxt || "—"} (unrealized, from your highbar cost basis)` : `24h change ${pnlTxt || "—"} (no cost basis known for this token)` }, pnlTxt),
+            h("span", { class: "hval" }, t.valueUsd !== null ? fmtUsdCompact(t.valueUsd) : "—")),
+          h("div", { class: "hl2" }, h("span", { class: "hbtns", role: "group", "aria-label": `Sell ${sym}` }, btn(25, "25"), btn(50, "50"), btn(100, "All"))));
+        row.addEventListener("click", (e) => { if (!(e.target as Element).closest("button")) pick(); });
+        row.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === row) { e.preventDefault(); pick(); } });
+        return row;
+      }));
+    }
 
     // slippage popover: 0.5 / 1 / 5 % or a custom value, kept for the next popup
     const slipIn = h("input", { type: "text", inputmode: "decimal", "aria-label": "Custom slippage percent", "data-testid": "hb-ca-slip-custom" }) as HTMLInputElement;
@@ -108,36 +223,31 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
 
     // trade box
     const sideSeg = h("div", { class: "seg side", role: "tablist", "aria-label": "Buy or sell" });
+    // Buy / Sell, then the trade wallets and the slippage / priority gear on the same row
+    const trow = h("div", { class: "trow" }, sideSeg, wslot, gearB);
     const amts = h("div", { class: "amts", role: "group" });
     const custom = h("input", { type: "text", inputmode: "decimal", autocomplete: "off", spellcheck: "false", "data-testid": "hb-ca-amount" }) as HTMLInputElement;
-    const sum = h("div", { class: "sumline", "data-testid": "hb-ca-sum" });
-    const costsEl = h("div", { class: "costs", "data-testid": "hb-ca-costs" });
+    const warmT = { t: null as ReturnType<typeof setTimeout> | null };
+    /** Warm the worker's caches for the amount being picked (debounced): pool / quote and a blockhash, nothing is built. */
+    const warmUp = (sol?: number | null) => { if (warmT.t) clearTimeout(warmT.t); warmT.t = setTimeout(() => { warmT.t = null; void ask({ type: "trade:warm", mint, ...(sol ? { sol } : {}) }).catch(() => {}); }, 250); };
     const cta = h("button", { class: "cta", type: "button", "data-testid": "hb-ca-go" });
     // progress shows in the button; results and errors go to the page's top center toasts (no bottom bar)
     let stepNow = "";
     const amount = () => (prefs.tab === "buy" ? buySol : sellPct);
     const sym = () => (info?.symbol ? `$${info.symbol}` : label.startsWith("$") ? label : "token");
-    // the sell's fee basis is the quoted minimum SOL out: estimated here from the position, the price and the slippage
     let fee: (FeeInfo & { prioritySol: number }) | null = null, held: CaPosition | null = null;
-    const sellBasis = (pct: number | null): bigint | null => {
-      if (!pct || !held || !info?.priceUsd || !held.solUsd) return null;
-      const sol = (Number(held.balanceRaw) / 10 ** held.decimals) * (pct / 100) * info.priceUsd / held.solUsd * (1 - prefs.slippagePct / 100);
-      return Number.isFinite(sol) && sol > 0 ? BigInt(Math.floor(sol * 1e9)) : null;
-    };
     void ask({ type: "fee:info" }).then((f) => { fee = f; drawPrio(); }).catch(() => {});
     function drawSum() {
       const ws = sw?.get() ?? [], a = amount();
-      const route = !info ? "" : info.highbar ? (info.migrated ? "Meteora DAMM v2" : "Meteora DBC") : "Jupiter";
-      sum.replaceChildren(h("span", {}, `${ws.length > 1 ? `${ws.length} wallets` : ws[0]?.label ?? "No wallet"}`), h("span", {}, "·"), h("span", {}, `${prefs.slippagePct}% slippage`), ...(route ? [h("span", {}, "·"), h("span", {}, `via ${route}`)] : []));
-      // extra cost before signing: priority fee + the highbar fee (buy: on the SOL in; sell: on the minimum SOL out, estimated)
-      const buyL = prefs.tab === "buy" && a ? BigInt(Math.round(a * 1e9)) : null;
-      const c = extraCosts(fee?.prioritySol ?? PRIORITY_DEFAULT_SOL, fee, prefs.tab === "buy" ? buyL : sellBasis(a), prefs.tab === "buy" ? "of SOL in" : "of SOL out");
-      costsEl.replaceChildren(...costsNodes(c));
-      costsEl.title = "Added on top of the amount. The highbar fee (0.02%) is shown only when it is on.";
-      const ok = !!a && !!ws.length && !busy && !!info;
-      cta.className = `cta${prefs.tab === "sell" ? " sell" : ""}`;
+      // no cost lines under the amounts: the fee and priority logic is unchanged (the worker adds both), only a wallet
+      // that cannot pay the amount, priority and fee turns the button into a short error state
+      const poor = prefs.tab === "buy" && !busy ? shortOnSol(ws, a, fee?.prioritySol ?? PRIORITY_DEFAULT_SOL, fee) : [];
+      const ok = !!a && !!ws.length && !busy && !!info && !poor.length;
+      cta.className = `cta${prefs.tab === "sell" ? " sell" : ""}${poor.length ? " err" : ""}`;
       cta.setAttribute("aria-disabled", String(!ok));
-      cta.textContent = busy ? stepNow || "Working…" : prefs.tab === "buy" ? `Buy ${sym()}${a ? ` · ${fmtSol(a)} SOL` : ""}` : `Sell ${a ? `${a}% ` : ""}${sym()}`;
+      cta.textContent = busy ? stepNow || "Working…" : poor.length ? `Not enough SOL${ws.length > 1 ? ` · ${poor.length === 1 ? poor[0].label : `${poor.length} wallets`}` : ""}`
+        : prefs.tab === "buy" ? `Buy ${sym()}${a ? ` · ${fmtSol(a)} SOL` : ""}` : `Sell ${a ? `${a}% ` : ""}${sym()}`;
+      cta.title = poor.length ? `${poor.map((w) => w.label).join(", ")}: not enough SOL for the amount, the priority fee and the highbar fee` : "";
     }
     function drawTrade() {
       sideSeg.replaceChildren(...(["buy", "sell"] as const).map((s) => h("button", { class: `${prefs.tab === s ? "on " : ""}${s}`, type: "button", role: "tab", "aria-selected": String(prefs.tab === s), "data-testid": `hb-ca-tab-${s}`,
@@ -148,12 +258,12 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
       amts.replaceChildren(...chips.map((v) => {
         const on = buy ? buySol === v : sellPct === v;
         return h("button", { class: `chip${on ? " on" : ""}`, type: "button", "aria-pressed": String(on), "data-testid": buy ? "hb-ca-buy-chip" : "hb-ca-sell-chip",
-          onclick: () => { if (buy) buySol = v; else sellPct = v; custom.value = ""; drawTrade(); } }, buy ? fmtSol(v) : `${v}%`);
+          onclick: () => { if (buy) { buySol = v; warmUp(v); } else sellPct = v; custom.value = ""; drawTrade(); } }, buy ? fmtSol(v) : `${v}%`);
       }), h("div", { class: "solin" }, buy ? svg(SOL_MARK) : null, custom));
       drawSum();
     }
     custom.addEventListener("input", () => {
-      if (prefs.tab === "buy") buySol = parseBuySol(custom.value); else sellPct = parsePct(custom.value);
+      if (prefs.tab === "buy") { buySol = parseBuySol(custom.value); warmUp(buySol); } else sellPct = parsePct(custom.value);
       amts.querySelectorAll(".chip").forEach((c) => { c.classList.remove("on"); c.setAttribute("aria-pressed", "false"); });
       drawSum();
     });
@@ -167,14 +277,18 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
       for (const w of ws) {
         const who = ws.length > 1 ? `${w.label} · ` : "";
         stepNow = ""; drawSum();
+        const what = side === "buy" ? "Buy" : "Sell";
         await new Promise<void>((res) => {
           const port = chrome.runtime.connect({ name: "sell" });
-          const fin = () => { try { port.disconnect(); } catch { /* gone */ } res(); };
+          // fast mode: "Sent" frees the button at once (res), the port stays open for the background confirmation
+          let sent = false;
+          const fin = () => { try { port.disconnect(); } catch { /* gone */ } res(); loadPos(); loadHeld(); };
           port.onMessage.addListener((m: SellPortOut) => {
-            if (m.type === "step") { stepNow = `${STEP[m.step]}…${ws.length > 1 ? ` · ${w.label}` : ""}`; drawSum(); }
-            else if (m.type === "done") { toasts().show("ok", `${who}${side === "buy" ? "Buy" : "Sell"} success`, m.solscanUrl); playSfx("ok"); fin(); }
+            if (m.type === "step") { if (!sent) { stepNow = `${STEP[m.step]}…${ws.length > 1 ? ` · ${w.label}` : ""}`; drawSum(); } }
+            else if (m.type === "sent") { sent = true; toasts().show("ok", `${who}${what} sent`, m.solscanUrl); playSfx("ok"); res(); }
+            else if (m.type === "done") { if (!sent) { toasts().show("ok", `${who}${what} success`, m.solscanUrl); playSfx("ok"); } fin(); }
             // "holds none of this token" is not a failure, nothing was built or signed: an info toast
-            else { toasts().show(/holds none of this token/.test(m.error) ? "info" : "err", `${who}${m.error}`); playSfx("err"); fin(); }
+            else { toasts().show(/holds none of this token/.test(m.error) ? "info" : "err", `${who}${sent ? `${what} failed: ` : ""}${m.error}`); playSfx("err"); fin(); }
           });
           port.onDisconnect.addListener(() => res());
           const msg: SellPortIn = side === "buy" ? { type: "sell", side: "buy", walletId: w.id, mint, pct: 0, sol: a, slippagePct: slip } : { type: "sell", side: "sell", walletId: w.id, mint, pct: a, slippagePct: slip };
@@ -209,19 +323,28 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
     // live PnL of the first selected wallet: asked on open, on a wallet change, after a trade and with the 15 s refresh
     const pnlc = pnlCard(() => info?.symbol ?? "");
     let posReq = 0, posT: ReturnType<typeof setTimeout> | null = null;
+    function posPnl(p: CaPosition | null): { pnlSol: number | null; pnlPct: number | null } | null {
+      if (!p) return null;
+      let raw = 0n; try { raw = BigInt(p.balanceRaw); } catch { return null; }
+      const usd = info?.priceUsd ?? null, priceSol = usd !== null && p.solUsd ? usd / p.solUsd : null;
+      const r = pnl(raw, p.decimals, priceSol, p.entries);
+      return raw > 0n && r.pnlPct !== null ? { pnlSol: r.pnlSol, pnlPct: r.pnlPct } : null;
+    }
     function loadPos() {
       const w = sw?.get()[0];
       if (!w) { pnlc.set(null); return; }
       const id = ++posReq;
-      void ask({ type: "ca:position", walletId: w.id, mint }).then((p) => { if (id === posReq) { held = p; pnlc.price(info?.priceUsd ?? null); pnlc.set(p); drawSum(); } }).catch(() => {});
+      void ask({ type: "ca:position", walletId: w.id, mint }).then((p) => { if (id === posReq) { held = p; pnlc.price(info?.priceUsd ?? null); pnlc.set(p); drawSum(); curPnl = posPnl(p); drawHeld(); } }).catch(() => {});
     }
     void ask({ type: "ca:audit", mint }).then((a) => audit.set(a)).catch(() => audit.set(null));
     const head = h("div", { class: "tok" }), stats = h("div", { class: "stats" });
     const priceEl = h("span", { class: "p" }), chgEl = h("span", { class: "chg flat", title: "24h change" });
     const priceBox = h("div", { class: "tprice", "data-testid": "hb-ca-price" }, priceEl, chgEl);
-    const statEl = (kk: string, key: string) => { const v = h("span", { class: "v", "data-k": key }); return [h("div", { class: "stat" }, h("span", { class: "k" }, kk), v), v] as const; };
-    const [mcapBox, mcapEl] = statEl("Market cap", "mcap"), [volBox, volEl] = statEl("Vol 24h", "vol"), [liqBox, liqEl] = statEl("Liquidity", "liq");
+    const statEl = (kk: string, key: string, tip: string) => { const v = h("span", { class: "v", "data-k": key }); return [h("span", { class: "stat", title: tip }, h("span", { class: "k" }, kk), v), v] as const; };
+    const [mcapBox, mcapEl] = statEl("MC", "mcap", "Market cap"), [volBox, volEl] = statEl("Vol", "vol", "Volume 24h"), [liqBox, liqEl] = statEl("Liq", "liq", "Liquidity");
     stats.append(mcapBox, volBox, liqBox);
+    // one thin line: market cap, volume and liquidity, the audit shields on the right
+    const meta = h("div", { class: "meta" }, stats, audit.el);
     let headKey = "";
     const drawNumbers = () => {
       if (!info) return;
@@ -240,9 +363,10 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
         headKey = key;
         const logo = info.image ? h("img", { class: "tlogo", src: info.image, alt: "" }) : h("span", { class: "tlogo", "aria-hidden": "true" }, (info.symbol || "?").slice(0, 1).toUpperCase());
         if (logo instanceof HTMLImageElement) logo.addEventListener("error", () => logo.replaceWith(h("span", { class: "tlogo" }, (info?.symbol || "?").slice(0, 1).toUpperCase())));
+        const ca = k.caLine(mint, true); ca.title = `${mint}\nAlways verify the contract address`;
         head.replaceChildren(logo,
-          h("div", { class: "tname" }, h("div", { class: "tn1" }, h("span", { class: "nm", title: info.name }, info.name), info.verified ? svg(VERIFIED) : null, h("span", { class: "tsym" }, `$${info.symbol}`)), k.caLine(mint, true)),
-          priceBox);
+          h("div", { class: "tname" }, h("div", { class: "tn1" }, h("span", { class: "nm", title: info.name }, info.name), info.verified ? svg(VERIFIED) : null, h("span", { class: "tsym" }, `$${info.symbol}`))),
+          priceBox, ca);
       }
       drawNumbers();
       drawChart(); drawSum();
@@ -258,8 +382,10 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
       if (pop.getAttribute("data-live-src") !== (l.source ?? "")) pop.setAttribute("data-live-src", l.source ?? "");
     };
     const build = () => {
-      body.replaceChildren(head, pnlc.el, chartBox, stats, audit.el, sideSeg, amts, sum, costsEl);
-      foot.replaceChildren(cta, h("div", { class: "verify", "data-testid": "hb-ca-verify" }, "Always verify the contract address"));
+      warmUp(prefs.tab === "buy" ? buySol : null);
+      hslot.replaceChildren(head);
+      body.replaceChildren(meta, chartBox, pnlc.el, trow, amts);
+      foot.replaceChildren(cta);
       drawInfo(); drawTrade();
     };
     let logoTries = 0, partTries = 0, logoT: ReturnType<typeof setTimeout> | null = null;
@@ -271,7 +397,7 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
         const keep = info && Date.now() - lastLiveAt < 5000 ? { priceUsd: info.priceUsd, mcapUsd: info.mcapUsd, change24h: info.change24h } : null;
         info = keep ? { ...next, ...keep } : next;
         if (!head.isConnected) build(); else drawInfo();
-        if (fresh) loadPos();
+        if (fresh) { loadPos(); loadHeld(); }
         if (!pop.hasAttribute("data-t-info")) pop.setAttribute("data-t-info", String(Math.round(performance.now() - t0)));
         // the worker answers with what came in 1.5 s (partial) and before a slow logo: ask again soon for the rest
         if (info.partial && partTries < 6 && popHost.isConnected) { partTries++; if (logoT) clearTimeout(logoT); logoT = setTimeout(() => void load(false), 700); }
@@ -319,6 +445,6 @@ export function mountPopup(o: PopupOpts): { host: HTMLElement; cleanup(): void }
     const end = (e: PointerEvent) => { if (!drag || e.pointerId !== drag.id) return; drag = null; pop.classList.remove("dragging"); o.setSavedPos({ ...pos }); void ask({ type: "ca:pos:set", pos: { ...pos } }).catch(() => {}); };
     header.addEventListener("pointerup", end); header.addEventListener("pointercancel", end);
     header.addEventListener("dblclick", (e) => { if ((e.target as Element).closest("button")) return; o.setSavedPos(null); void ask({ type: "ca:pos:set", pos: null }).catch(() => {}); apply(near()); });
-    const cleanup = () => { stopTweens([priceEl, mcapEl, volEl, liqEl, ...pnlc.el.querySelectorAll<HTMLElement>(".pv,.ppct")]); if (posT) clearTimeout(posT); stopPolls(); document.removeEventListener("visibilitychange", onVis); if (logoT) clearTimeout(logoT); ro.disconnect(); removeEventListener("resize", onResize); document.removeEventListener("keydown", onKey, true); };
+    const cleanup = () => { if (warmT.t) clearTimeout(warmT.t); stopTweens([priceEl, mcapEl, volEl, liqEl, ...pnlc.el.querySelectorAll<HTMLElement>(".pv,.ppct")]); if (posT) clearTimeout(posT); stopPolls(); document.removeEventListener("visibilitychange", onVis); if (logoT) clearTimeout(logoT); ro.disconnect(); removeEventListener("resize", onResize); document.removeEventListener("keydown", onKey, true); };
     return { host: popHost, cleanup };
 }

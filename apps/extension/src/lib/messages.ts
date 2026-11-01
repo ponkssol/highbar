@@ -26,6 +26,8 @@ export interface WalletStatus {
 /** One row of the wallet list. No key material. `sol` is null when the balance could not be read (RPC down or rate limited). */
 export interface WalletRow { id: string; label: string; address: string; kind: "key" | "mnemonic"; createdAt: number; active: boolean; needsMigration: boolean; sol: number | null }
 export interface Holding { mint: string; amount: number; name: string | null; symbol: string | null; image: string | null; valueSol: number | null; program: "spl" | "t22" }
+/** One token a wallet holds (ca:held). valueUsd = amount x the token's price when known. */
+export interface HeldToken { mint: string; amount: number; symbol: string | null; name: string | null; image: string | null; priceUsd: number | null; valueUsd: number | null; change24h: number | null }
 export interface Portfolio { sol: number; tokens: Holding[]; updatedAt: number }
 export type HistoryStatus = "pending" | "confirmed" | "failed";
 export interface HistoryItem { id: string; at: number; name: string; ticker: string; tier: string; devBuySol: number; tweetUrl: string | null; image: string | null;
@@ -65,7 +67,6 @@ export type Req =
   | { type: "fees" }
   | { type: "fees:claim"; pool: string; kind: "trading" | "migration" | "lp"; position?: string }
   | { type: "quote"; tier: LaunchTier; antiSniper: boolean; devBuySol: number; slippageBps: number }
-  | { type: "rpc:status" }
   | { type: "rpc:set"; url: string | null }
   | { type: "open:sidepanel" }
   | { type: "drawer:pos:get" }
@@ -89,6 +90,11 @@ export type Req =
    *  ca:prefetch: tweets with a token button came into view, warm the cache (batched, throttled). diag:sources: Settings >
    *  Diagnostics, one request to each market data source. */
   | { type: "ca:live"; mint: string }
+  /** trade:warm: the popup opened or an amount is being typed: the worker warms the pool, blockhash and (Jupiter tokens, buy
+   *  amount known) the quote, so the click skips those round trips. Read only, nothing is built or signed. */
+  | { type: "trade:warm"; mint: string; sol?: number }
+  /** ca:held: the tokens a wallet holds (any SPL / Token-2022 mint), for the list beside the CA popup's trade box. */
+  | { type: "ca:held"; walletId: string }
   | { type: "ca:prefetch"; mints: string[]; full?: boolean }
   | { type: "ca:stats"; mints: string[] }
   | { type: "ca:audit"; mint: string }
@@ -109,7 +115,6 @@ export type Res<T extends Req["type"]> =
   T extends "drawer:antisniper:set" ? { on: boolean } :
   T extends "drawer:devpresets:get" ? { values: number[] } :
   T extends "drawer:devpresets:set" ? { values: number[] } :
-  T extends "rpc:status" ? RpcStatus :
   T extends "rpc:set" ? RpcStatus :
   T extends "wallet:export" ? { privateKey: string; mnemonic: string | null } :
   T extends "settings:get" ? Settings :
@@ -132,6 +137,8 @@ export type Res<T extends Req["type"]> =
   T extends "ca:pos:get" ? { left: number; top: number } | null :
   T extends "ca:candles" ? CandleReply :
   T extends "ca:live" ? LiveStats :
+  T extends "trade:warm" ? { ok: true } :
+  T extends "ca:held" ? HeldToken[] :
   T extends "ca:prefetch" ? { ok: true } :
   T extends "ca:stats" ? PillStats[] :
   T extends "ca:audit" ? TokenAudit :
@@ -156,7 +163,10 @@ export interface HoldingRes { rows: HoldRow[]; walletIds: string[]; rpcMode: "se
 export interface HoldPrefs { open: boolean; filter: string | null; slippagePct: number }
 /** Sell runs over a port (name "sell"): the content script sends what to sell, the worker builds, checks, signs, simulates and sends. */
 export type SellPortIn = { type: "sell"; walletId: string; mint: string; pct: number; slippagePct: number; side?: "buy" | "sell"; sol?: number };
-export type SellPortOut = { type: "step"; step: SellStep } | { type: "done"; signature: string; solscanUrl: string; amountRaw: string; route?: string } | { type: "error"; error: string; code?: string };
+/** "sent": the tx left for the network (fast mode shows it as success at once); "done" follows once it is confirmed, or
+ *  "error" if it fails on-chain. `ms`: per-step timings since the click reached the worker (build, sign, simulate, send, sent, confirmed). */
+export type SellPortOut = { type: "step"; step: SellStep } | { type: "sent"; signature: string; solscanUrl: string; ms?: Record<string, number> }
+  | { type: "done"; signature: string; solscanUrl: string; amountRaw: string; route?: string; ms?: Record<string, number> } | { type: "error"; error: string; code?: string; sent?: boolean };
 
 /** CA popup prefs (local storage): the slippage for its swaps and the last tab. */
 export interface CaPrefs { slippagePct: number; tab: "buy" | "sell" }

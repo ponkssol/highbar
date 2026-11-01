@@ -103,3 +103,16 @@ test("the built tx is checked before signing", () => {
   refuse(unknown, /program/);
   assert.equal(decodeSwap(fakeSwap("damm", { ...a, pool: DAMM_POOL }).instructions[0])?.pool, DAMM_POOL);
 });
+
+test("fast mode: no simulation step, the built tx is still checked before signing, one send", async () => {
+  const kp = Keypair.generate();
+  const a = deps(kp);
+  await runSell({ walletId: "w2", mint: MINT, pct: 50, slippagePct: 10 }, { ...a.d, fast: true });
+  assert.equal(a.log.simulated, 0); assert.equal(a.log.sent.length, 1);
+  assert.deepEqual(a.log.steps, ["build", "sign", "send", "confirm"]);
+  // a tampered build is refused before anything is signed or sent, fast or not
+  const b = deps(kp);
+  b.d.buildDbc = async (x) => fakeSwap("dbc", x, { amountIn: x.amountRaw * 2n });
+  await assert.rejects(runSell({ walletId: "w2", mint: MINT, pct: 50, slippagePct: 10 }, { ...b.d, fast: true }));
+  assert.equal(b.log.sent.length, 0);
+});

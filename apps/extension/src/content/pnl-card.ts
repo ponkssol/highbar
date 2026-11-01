@@ -1,34 +1,29 @@
-/** The CA popup's live PnL card (above the chart): the selected wallet's holding of the token, its value in SOL, average buy,
+/** The CA popup's live position line (under the chart): the selected wallet's holding of the token, its value in SOL, average buy,
  *  SOL invested and unrealized PnL. The balance and the cost basis come from the worker (ca:position: chain balance plus the
  *  extension's own trade ledger); the price is the popup's live price, so the card adds no polling of its own. Hidden when the
  *  wallet holds none. Bought elsewhere (the ledger does not explain the balance): value only and "PnL —". */
 import { h } from "./dom";
 import { tweenText } from "./tween";
 import { pnl } from "../lib/ledger";
-import { compactNum, compactPct, compactSol } from "../lib/compact";
+import { compactNum, compactPct, compactSol, tinySol } from "../lib/compact";
 import type { CaPosition } from "../lib/messages";
 
 const unit = (f: (n: number | null, signed?: boolean) => string, signed = false) => (n: number | null) => (n === null || !Number.isFinite(n) ? "—" : `${f(n, signed)} SOL`);
 const sol = unit(compactSol), signedSol = unit(compactSol, true);
 const pct = compactPct, qty = (n: number | null) => compactNum(n);
-/** SOL per token, small numbers as 0.0₆234 */
-const tiny = (n: number | null) => {
-  if (n === null || !Number.isFinite(n) || n <= 0) return "—";
-  if (n >= 0.0001) return `${n.toLocaleString("en-US", { maximumSignificantDigits: 4 })} SOL`;
-  const s = n.toFixed(20).replace(/^0\./, ""), z = s.match(/^0*/)?.[0].length ?? 0;
-  return `0.0${String(z).split("").map((c) => "₀₁₂₃₄₅₆₇₈₉"[Number(c)]).join("")}${s.slice(z, z + 4).replace(/0+$/, "")} SOL`;
-};
+const tiny = tinySol;
 
 export function pnlCard(sym: () => string): { el: HTMLElement; set(p: CaPosition | null): void; price(usd: number | null): void } {
+  // one line: amount $SYM · value SOL · PnL SOL (PnL %); average buy and SOL invested in the tooltip (and the aria label)
   const amtEl = h("span", { class: "pv", "data-k": "amt" }), symEl = h("span", { class: "psym" });
   const valEl = h("span", { class: "pv big", "data-k": "value" });
-  const avgEl = h("span", { class: "pv", "data-k": "avg" }), invEl = h("span", { class: "pv", "data-k": "invested" });
   const pnlEl = h("span", { class: "pv", "data-k": "pnl" }), pctEl = h("span", { class: "ppct", "data-k": "pnlpct" });
-  const pnlBox = h("div", { class: "pcell pnlc" }, h("span", { class: "pk" }, "Unrealized PnL"), h("span", { class: "pstack" }, pnlEl, pctEl));
-  const el = h("div", { class: "pnl", hidden: true, "data-testid": "hb-ca-pnl" },
-    h("div", { class: "ptop" }, h("div", { class: "pcell" }, h("span", { class: "pk" }, "Holding"), h("span", { class: "pline" }, amtEl, symEl)),
-      h("div", { class: "pcell r" }, h("span", { class: "pk" }, "Value"), valEl)),
-    h("div", { class: "pgrid" }, h("div", { class: "pcell" }, h("span", { class: "pk" }, "Avg buy"), avgEl), h("div", { class: "pcell" }, h("span", { class: "pk" }, "Invested"), invEl), pnlBox));
+  const pnlBox = h("span", { class: "pnlc" }, pnlEl, pctEl);
+  const dot = () => h("i", { class: "pdot", "aria-hidden": "true" }, "·");
+  const el = h("div", { class: "pnl", hidden: true, role: "group", "data-testid": "hb-ca-pnl" },
+    h("span", { class: "pline" }, amtEl, symEl), dot(), valEl, dot(), pnlBox);
+  const pnlNum = (n: number | null) => (n === null || !Number.isFinite(n) ? "PnL —" : compactSol(n, true));
+  const pctNum = (n: number | null) => (n === null || !Number.isFinite(n) ? "" : `(${pct(n)})`);
   let pos: CaPosition | null = null, usd: number | null = null;
   const draw = () => {
     let raw = 0n;
@@ -36,15 +31,16 @@ export function pnlCard(sym: () => string): { el: HTMLElement; set(p: CaPosition
     if (!pos || raw <= 0n) { if (!el.hidden) el.hidden = true; return; }
     const priceSol = usd !== null && pos.solUsd ? usd / pos.solUsd : null;
     const r = pnl(raw, pos.decimals, priceSol, pos.entries);
-    const s = `$${sym()}`; if (symEl.textContent !== s) { symEl.textContent = s; symEl.title = s; }
-    tweenText(amtEl, Number(raw) / 10 ** pos.decimals, qty);
+    const s = `$${sym()}`; if (symEl.textContent !== s) symEl.textContent = s;
+    const n = Number(raw) / 10 ** pos.decimals;
+    tweenText(amtEl, n, qty);
     tweenText(valEl, r.valueSol, sol);
-    tweenText(avgEl, r.avgSol, tiny);
-    tweenText(invEl, r.investedSol, sol);
-    tweenText(pnlEl, r.pnlSol, signedSol);
-    tweenText(pctEl, r.pnlPct, pct);
-    const cls = `pcell pnlc ${r.pnlSol === null ? "na" : r.pnlSol > 0 ? "up" : r.pnlSol < 0 ? "dn" : ""}`;
+    tweenText(pnlEl, r.pnlSol, pnlNum);
+    tweenText(pctEl, r.pnlPct, pctNum);
+    const cls = `pnlc ${r.pnlSol === null ? "na" : r.pnlSol > 0 ? "up" : r.pnlSol < 0 ? "dn" : ""}`;
     if (pnlBox.className !== cls) pnlBox.className = cls;
+    const tip = `Holding ${qty(n)} ${s}\nValue ${sol(r.valueSol)}\nAvg buy ${tiny(r.avgSol)}\nInvested ${sol(r.investedSol)}\nUnrealized PnL ${signedSol(r.pnlSol)}${r.pnlPct === null ? "" : ` (${pct(r.pnlPct)})`}`;
+    if (el.title !== tip) { el.title = tip; el.setAttribute("aria-label", tip.replace(/\n/g, ", ")); }
     el.toggleAttribute("data-basis", r.pnlSol !== null || r.investedSol !== null);
     if (el.hidden) el.hidden = false;
   };

@@ -65,28 +65,34 @@ const ALREADY = /already been processed|already processed/i;
 
 /** Sends fully signed bytes and waits for "confirmed". The SAME bytes are rebroadcast until they land or time runs out, so a retry
  *  can never execute twice (ported from apps/web/lib/confirmTx.ts; blockhash expiry is detected by time, the proxy has no getBlockHeight). */
-export async function sendAndConfirm(r: Rpc, raw: Uint8Array, opts: { onSent?: (sig: string) => void; timeoutMs?: number; what?: string } = {}): Promise<string> {
+export async function sendAndConfirm(r: Rpc, raw: Uint8Array, opts: { onSent?: (sig: string) => void; timeoutMs?: number; what?: string;
+  /** Fast mode: no preflight simulation on the node (the tx goes straight to the leader); poll status sooner. */
+  skipPreflight?: boolean; pollMs?: number } = {}): Promise<string> {
   const what = opts.what ?? "transaction";
   const first = firstSignature(raw);
   if (!first) throw new TxNotLanded(`The ${what} is not signed.`);
   const sig = bs58.encode(first);
+  // "Sent" (onSent) only once a node accepted the bytes, or later once the signature shows up: three failed sends are not reported
+  // as sent (fast mode shows "Sent" to the user at that moment), the status poll below still catches a tx that landed anyway
+  let accepted = false;
   for (let attempt = 0; ; attempt++) {
-    try { await r.send(raw, false); break; }
+    try { await r.send(raw, opts.skipPreflight === true); accepted = true; break; }
     catch (e) {
       const msg = (e as Error).message ?? "";
-      if (ALREADY.test(msg)) break;
+      if (ALREADY.test(msg)) { accepted = true; break; }
       if (/blockhash not found/i.test(msg)) throw new TxNotLanded(`The ${what} expired before it was sent. Try again for a fresh one.`);
       if (e instanceof RpcError && e.code !== undefined && DETERMINISTIC.test(msg)) throw new TxNotLanded(`The ${what} was rejected: ${msg.slice(0, 200)}`);
       if (attempt >= 2) break;
       await sleep(400 * (attempt + 1));
     }
   }
-  opts.onSent?.(sig);
+  if (accepted) opts.onSent?.(sig);
   const start = Date.now(), timeout = opts.timeoutMs ?? 90_000;
   let lastSend = Date.now();
   for (;;) {
-    await sleep(700);
+    await sleep(opts.pollMs ?? 700);
     const st = await r.statuses([sig]).then((v) => v[0]).catch(() => undefined);
+    if (st && !accepted) { accepted = true; opts.onSent?.(sig); }
     if (st?.err) throw new TxNotLanded(`The ${what} failed on-chain (${JSON.stringify(st.err)}).`);
     if (st?.confirmationStatus === "confirmed" || st?.confirmationStatus === "finalized") return sig;
     if (st === null && Date.now() - lastSend >= 2000) { lastSend = Date.now(); void r.send(raw, true).catch(() => {}); }

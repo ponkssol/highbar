@@ -35,6 +35,9 @@ export interface SellDeps {
   simulate(raw: Uint8Array): Promise<{ err: unknown; logs?: string[] | null; unitsConsumed?: number | null }>;
   /** Send and confirm. Returns the signature. */
   send(raw: Uint8Array, onSent: (sig: string) => void): Promise<string>;
+  /** Fast mode: no simulation before sending (static compute unit limit, sent with skipPreflight by the worker). A tx that
+   *  would fail can then land and still cost its network and priority fee. The static checks before signing still run. */
+  fast?: boolean;
   step?(s: SellStep): void;
   /** highbar fee config from the API (GET /config extFee), null = no fee. */
   fee?(): Promise<ExtFee | null>;
@@ -149,13 +152,13 @@ export async function runSell(req: SellReq, d: SellDeps): Promise<SellDone> {
   try { new PublicKey(req.mint); } catch { throw new SellAborted("That is not a token address"); }
   const bps = toBps(req.slippagePct);
   step("build");
-  const w = await d.owner(req.walletId);
-  const kp = await d.keypair(req.walletId);
+  // independent reads in parallel (wallet, key, balance, pool, fee config): one round trip instead of four
+  const [w, kp] = await Promise.all([d.owner(req.walletId), d.keypair(req.walletId)]);
   if (kp.publicKey.toBase58() !== w.address) throw new SellAborted("The key does not match this wallet. Nothing was signed.");
-  const bal = await d.balance(w.address, req.mint);
+  const extP = d.fee ? d.fee().catch(() => null) : Promise.resolve(null);
+  const [bal, t] = await Promise.all([d.balance(w.address, req.mint), d.target(req.mint)]);
   let amountRaw: bigint;
   try { amountRaw = sellRaw(bal.raw, req.pct); } catch (e) { throw new SellAborted((e as Error).message); }
-  const t = await d.target(req.mint);
   const args: BuildArgs = { owner: kp.publicKey, pool: t.pool, mint: req.mint, amountRaw, decimals: bal.decimals, slippageBps: bps };
   const tx = t.route === "damm" ? await d.buildDamm(args) : await d.buildDbc(args);
   // the built tx alone first (no fee transfer allowed from the builder), then the highbar fee: 0.02% of the minimum SOL out
@@ -163,20 +166,22 @@ export async function runSell(req: SellReq, d: SellDeps): Promise<SellDone> {
   // priority fee first (it replaces any builder compute budget), then the highbar fee if it still fits
   const prio = priorityLamports(req.prioritySol ?? NaN), limit = CU_LIMIT[t.route];
   setLegacyBudget(tx, limit, prio);
-  const ext = d.fee ? await d.fee().catch(() => null) : null;
+  const ext = await extP;
   addLegacyFee(tx, kp.publicKey, feeLeg(ext, s0.minOut));
   const opts = { mint: req.mint, pool: t.pool, route: t.route, amountRaw, feeReceiver: ext?.receiver ?? null, maxPriority: prio };
   let sx = checkSellTx(tx, kp.publicKey, opts);
   step("sign");
   tx.partialSign(kp);
   let raw: Uint8Array = tx.serialize({ requireAllSignatures: true, verifySignatures: true });
-  step("simulate");
-  let sim: { err: unknown; logs?: string[] | null; unitsConsumed?: number | null };
-  try { sim = await d.simulate(raw); }
-  catch (e) { throw new SellAborted(`Could not run the safety simulation (${(e as Error)?.message || "RPC error"}). Nothing was sent.`, "SELL_SIM"); }
-  if (sim.err) throw new SellAborted(`The sell would fail: ${simReason(sim.err, sim.logs)}. Nothing was sent.`, "SELL_SIM_FAILED");
-  const tt = sx.cuLimit === limit ? tightened(tx, kp, limit, prio, sim.unitsConsumed, (x) => { sx = checkSellTx(x, kp.publicKey, opts); }) : null;
-  if (tt) raw = tt.raw;
+  if (!d.fast) {
+    step("simulate");
+    let sim: { err: unknown; logs?: string[] | null; unitsConsumed?: number | null };
+    try { sim = await d.simulate(raw); }
+    catch (e) { throw new SellAborted(`Could not run the safety simulation (${(e as Error)?.message || "RPC error"}). Nothing was sent.`, "SELL_SIM"); }
+    if (sim.err) throw new SellAborted(`The sell would fail: ${simReason(sim.err, sim.logs)}. Nothing was sent.`, "SELL_SIM_FAILED");
+    const tt = sx.cuLimit === limit ? tightened(tx, kp, limit, prio, sim.unitsConsumed, (x) => { sx = checkSellTx(x, kp.publicKey, opts); }) : null;
+    if (tt) raw = tt.raw;
+  }
   step("send");
   const signature = await d.send(raw, () => step("confirm"));
   return { signature, amountRaw: amountRaw.toString(), route: t.route, wallet: w.address, feeLamports: sx.feeLamports.toString(), priorityLamports: sx.priorityLamports.toString(), cuLimit: sx.cuLimit ?? undefined };
@@ -244,15 +249,15 @@ export async function runBuy(req: BuyReq, d: BuyDeps): Promise<BuyDone> {
   const lamports = BigInt(Math.round(sol * 1e9));
   const bps = toBps(req.slippagePct);
   step("build");
-  const w = await d.owner(req.walletId);
-  const kp = await d.keypair(req.walletId);
+  // independent reads in parallel (wallet, key, fee config, SOL balance, pool, decimals): one round trip instead of five
+  const [w, kp] = await Promise.all([d.owner(req.walletId), d.keypair(req.walletId)]);
   if (kp.publicKey.toBase58() !== w.address) throw new SellAborted("The key does not match this wallet. Nothing was signed.");
-  const ext = d.fee ? await d.fee().catch(() => null) : null;
+  const tP = d.target(req.mint), decP = d.decimals ? d.decimals(req.mint) : Promise.resolve(6);
+  tP.catch(() => {}); decP.catch(() => {});
+  const [ext, have] = await Promise.all([d.fee ? d.fee().catch(() => null) : Promise.resolve(null), d.solBalance(w.address)]);
   const leg = feeLeg(ext, lamports), prio = priorityLamports(req.prioritySol ?? NaN), feeSolN = (leg ? Number(leg.lamports) / 1e9 : 0) + Number(prio) / 1e9;
-  const have = await d.solBalance(w.address);
   if (!(have >= sol + feeSolN + BUY_RESERVE_SOL)) throw new SellAborted(`Not enough SOL in ${w.label} (has ${Math.floor(have * 1e4) / 1e4}, needs about ${Math.ceil((sol + feeSolN + BUY_RESERVE_SOL) * 1e4) / 1e4})`, "BUY_FUNDS");
-  const t = await d.target(req.mint);
-  const decimals = d.decimals ? await d.decimals(req.mint) : 6;
+  const [t, decimals] = await Promise.all([tP, decP]);
   const args: BuildArgs = { owner: kp.publicKey, pool: t.pool, mint: req.mint, amountRaw: lamports, decimals, slippageBps: bps, side: "buy" };
   const tx = t.route === "damm" ? await d.buildDamm(args) : await d.buildDbc(args);
   checkBuyTx(tx, kp.publicKey, { mint: req.mint, pool: t.pool, route: t.route, lamports });
@@ -264,13 +269,15 @@ export async function runBuy(req: BuyReq, d: BuyDeps): Promise<BuyDone> {
   step("sign");
   tx.partialSign(kp);
   let raw: Uint8Array = tx.serialize({ requireAllSignatures: true, verifySignatures: true });
-  step("simulate");
-  let sim: { err: unknown; logs?: string[] | null; unitsConsumed?: number | null };
-  try { sim = await d.simulate(raw); }
-  catch (e) { throw new SellAborted(`Could not run the safety simulation (${(e as Error)?.message || "RPC error"}). Nothing was sent.`, "SELL_SIM"); }
-  if (sim.err) throw new SellAborted(`The buy would fail: ${simReason(sim.err, sim.logs)}. Nothing was sent.`, "SELL_SIM_FAILED");
-  const tt = bx.cuLimit === limit ? tightened(tx, kp, limit, prio, sim.unitsConsumed, (x) => { bx = checkBuyTx(x, kp.publicKey, opts); }) : null;
-  if (tt) raw = tt.raw;
+  if (!d.fast) {
+    step("simulate");
+    let sim: { err: unknown; logs?: string[] | null; unitsConsumed?: number | null };
+    try { sim = await d.simulate(raw); }
+    catch (e) { throw new SellAborted(`Could not run the safety simulation (${(e as Error)?.message || "RPC error"}). Nothing was sent.`, "SELL_SIM"); }
+    if (sim.err) throw new SellAborted(`The buy would fail: ${simReason(sim.err, sim.logs)}. Nothing was sent.`, "SELL_SIM_FAILED");
+    const tt = bx.cuLimit === limit ? tightened(tx, kp, limit, prio, sim.unitsConsumed, (x) => { bx = checkBuyTx(x, kp.publicKey, opts); }) : null;
+    if (tt) raw = tt.raw;
+  }
   step("send");
   const signature = await d.send(raw, () => step("confirm"));
   return { signature, lamports: lamports.toString(), route: t.route, wallet: w.address, feeLamports: bx.feeLamports.toString(), priorityLamports: bx.priorityLamports.toString(), cuLimit: bx.cuLimit ?? undefined };

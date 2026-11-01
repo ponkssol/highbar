@@ -11,8 +11,12 @@
 /* highbar dark theme tokens (apps/web/app/globals.css .dark) */
 :root{color-scheme:dark;--hb-seg:rgba(255,240,210,.045);--hb-seg-line:rgba(255,236,200,.05);--hb-seg-on:#3A3424;--hb-seg-on-ink:#FFFFFF;--hb-bg:#0C0B09;--hb-surface:#15130F;--hb-surface-muted:#1D1A15;--hb-border:rgba(255,236,200,.075);--hb-border-strong:rgba(255,236,200,.13);--hb-control:rgba(255,255,255,.05);--hb-control-hover:rgba(255,255,255,.08);--hb-gold-line:rgba(255,199,44,.35);--hb-ink:#F3EEDF;--hb-ink-2:#BDB4A0;--hb-ink-3:#958C79;--hb-on-ink:#0C0B09;--hb-highlight-sub:#5A5A55;--hb-tier-standard:#7FA3CC;--hb-tier-higher:#8FB57A;--hb-tier-max:#A98BD4;--hb-buy:#4CB67A;--hb-sell:#E06A5C;--hb-burn:#E8894A;--hb-shadow:none;--hb-gold:#FFC72C;--hb-gold-ink:#1A1405;--hb-gold-text:#FFC72C;--hb-gold-soft:rgba(255,199,44,.12);--hb-silver:#C9CED4;--hb-bronze:#D08A4E;--hb-sol-mark:#FFFFFF}
 html{background-color:var(--hb-bg);background-image:radial-gradient(700px 420px at 8% -12%,rgba(255,190,90,.065),transparent 62%),radial-gradient(600px 400px at 104% 0%,rgba(170,110,50,.05),transparent 60%),linear-gradient(180deg,#0E0C0A,#0A0908 65%,#080706);background-attachment:fixed;color:var(--hb-ink);min-height:100%}
-body{font-family:Inter,system-ui,sans-serif;font-size:13px;-webkit-font-smoothing:antialiased;margin:0}
+body{font-family:Inter,system-ui,sans-serif;font-size:12px;-webkit-font-smoothing:antialiased;margin:0}
 ::selection{background:var(--hb-gold-soft)}
 *{scrollbar-width:thin;scrollbar-color:var(--hb-border-strong) transparent}
+/* Side panel: no visible scrollbars (wheel, trackpad, touch and keys still scroll), so the width never changes between short and long tabs. */
+html.hb-panel,html.hb-panel *{scrollbar-width:none}
+html.hb-panel::-webkit-scrollbar,html.hb-panel ::-webkit-scrollbar{display:none;width:0;height:0}
+html.hb-panel{overflow-y:auto;overscroll-behavior-y:none}
 input[type=number]::-webkit-inner-spin-button{opacity:.4}
 select option{background:#15130F;color:#F3EEDF}

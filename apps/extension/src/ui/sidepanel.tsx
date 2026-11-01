@@ -1,37 +1,48 @@
 import { useEffect, useRef, useState } from "react";
 import { playSfx, primeSfx } from "../lib/sfx";
 import { createRoot } from "react-dom/client";
-import { send, type DiagResult, type HistoryItem, type RpcStatus, type WalletRow, type WalletStatus } from "../lib/messages";
+import { send, type HistoryItem, type WalletRow, type WalletStatus } from "../lib/messages";
 import { cleanRpcUrl, type Presets, type Settings } from "../lib/settings";
 import { PRIORITY_PRESETS_SOL, priorityError } from "../lib/priomath";
 import { fmtDate, fmtDateTime, fmtNum, fmtSol, fmtUsd, short, solscan } from "../lib/format";
 import type { ClaimRow } from "../lib/api";
 import { useAsync, useStatus } from "./hooks";
-import { Button, Card, Copy, Empty, Eyebrow, Field, INPUT, InfoTip, Logo, Note, SolAmt, SolanaMark, Switch, TabBar, TierDot, errText } from "./components/ui";
+import { Button, Card, Copy, Dropdown, TabBar, Empty, Eyebrow, Field, INPUT, InfoTip, Note, SolAmt, SolanaMark, Switch, TierDot, Toasts, errText, useToasts } from "./components/ui";
+import { Label, RefreshIcon, TradeTab } from "./trade";
+import { parseCaInput, sortPositions, toastMs } from "../lib/panel";
+import { HB_MARK_PATH, HB_MARK_VIEWBOX } from "../lib/icons";
 import { DedicatedWarning, ExportBox, MigrateForm, Onboard, RemoveWallet } from "./wallet-forms";
 import { nextWalletLabel, WALLET_LABEL_MAX } from "../lib/wallets";
 
-type Tab = "portfolio" | "wallet" | "history" | "fees" | "settings";
-const TABS: { id: Tab; label: React.ReactNode }[] = [{ id: "portfolio", label: "Portfolio" }, { id: "wallet", label: "Wallet" }, { id: "history", label: "History" }, { id: "fees", label: "Fees" },
-  { id: "settings", label: <span className="inline-flex items-center gap-1.5" aria-label="Settings">{GEAR_ICON()}Settings</span> }];
+type Tab = "trade" | "portfolio" | "wallet" | "history" | "fees" | "settings";
+/** The bottom nav (icon over a short label), left to right. Settings keeps its accessible name for tests and screen readers. */
+const TABS: { id: Tab; label: string; icon: () => React.ReactNode }[] = [
+  { id: "trade", label: "Trade", icon: TRADE_ICON }, { id: "portfolio", label: "Portfolio", icon: PIE_ICON }, { id: "wallet", label: "Wallets", icon: WALLET_ICON },
+  { id: "history", label: "History", icon: CLOCK_ICON }, { id: "fees", label: "Fees", icon: COIN_ICON }];
+const ALL_TABS: Tab[] = ["trade", "portfolio", "wallet", "history", "fees", "settings"];
+const TITLE: Record<Tab, string> = { trade: "Trade", portfolio: "Portfolio", wallet: "Wallets", history: "History", fees: "Fees", settings: "Settings" };
 
 function App() {
   const { st, err, reload } = useStatus();
-  const initial = (new URLSearchParams(location.search).get("tab") as Tab | null) ?? (location.hash.slice(1) as Tab) ?? "portfolio";
-  const [tab, setTab] = useState<Tab>(TABS.some((t) => t.id === initial) ? initial : "portfolio");
+  const q = new URLSearchParams(location.search);
+  const initial = (q.get("tab") as Tab | null) ?? (location.hash.slice(1) as Tab) ?? "trade";
+  const [tab, setTab] = useState<Tab>(ALL_TABS.includes(initial) ? initial : "trade");
+  const [mint, setMint] = useState<string | null>(parseCaInput(q.get("ca") ?? ""));
+  const toasts = useToasts(toastMs);
   // Keeps the setup view (and the one time recovery phrase) on screen after the wallet exists.
   const [inSetup, setInSetup] = useState(false);
-  useEffect(() => { history.replaceState(null, "", `#${tab}`); }, [tab]);
-  if (err) return <Shell st={null}><Note kind="error">{err}</Note></Shell>;
-  if (!st) return <Shell st={null}><div className="py-10 text-center text-ink-3">Loading…</div></Shell>;
+  useEffect(() => { history.replaceState(null, "", `${location.search}#${tab}`); window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }); }, [tab]);
+  if (err) return <Shell st={null} tab={tab} setTab={setTab} reload={reload}><Note kind="error">{err}</Note></Shell>;
+  if (!st) return <Shell st={null} tab={tab} setTab={setTab} reload={reload}><div className="py-10 text-center text-ink-3">Loading…</div></Shell>;
   const needsWallet = !st.exists || inSetup;
   return (
-    <Shell st={st}>
-      <TabBar full label="Sections" value={tab} onChange={setTab} tabs={TABS} />
-      <div className="mt-4 space-y-4">
+    <Shell st={st} tab={tab} setTab={setTab} reload={reload}>
+      <Toasts items={toasts.items} />
+      <div className="space-y-2.5">
         {tab === "settings" && !inSetup ? <SettingsTab st={st} /> : needsWallet ? (tab === "wallet" ? <Card><Eyebrow>Set up a launch wallet</Eyebrow><Onboard onBackup={() => setInSetup(true)} onDone={() => { setInSetup(false); void reload(); }} /></Card> : <Empty title="No wallet yet"><button className="text-gold-text hover:underline" onClick={() => setTab("wallet")}>Create or import one</button> to get started</Empty>)
           : st.needsMigration && tab !== "history" && tab !== "wallet" ? <Card><Eyebrow>Finish the update · {st.label}</Eyebrow><MigrateForm id={st.walletId ?? undefined} onDone={reload} />{st.walletCount > 1 && <div className="mt-3 text-center text-[12px] text-ink-3">Or <button className="text-gold-text hover:underline" onClick={() => setTab("wallet")}>switch to another wallet</button></div>}</Card>
-          : tab === "portfolio" ? <PortfolioTab st={st} onSettings={() => setTab("settings")} />
+          : tab === "trade" ? <TradeTab st={st} toast={toasts.show} mint={mint} setMint={setMint} />
+          : tab === "portfolio" ? <PortfolioTab st={st} onSettings={() => setTab("settings")} onPick={(m) => { setMint(m); setTab("trade"); }} />
           : tab === "wallet" ? <WalletTab st={st} reload={reload} />
           : tab === "history" ? <HistoryTab st={st} />
           : <FeesTab st={st} />}
@@ -40,61 +51,106 @@ function App() {
   );
 }
 
-function Shell({ st, children }: { st: WalletStatus | null; children: React.ReactNode }) {
+/** The panel frame: a sticky header (mark, section title, wallet picker with its SOL balance), the scrolling content on a
+ *  12 px grid, and a fixed bottom icon nav. Colors are the existing highbar tokens only. */
+function Shell({ st, tab, setTab, reload, children }: { st: WalletStatus | null; tab: Tab; setTab: (t: Tab) => void; reload: () => void; children: React.ReactNode }) {
   return (
-    <div className="mx-auto min-h-screen max-w-[520px] px-4 pb-8 pt-4">
-      <header className="mb-4 flex items-center gap-2.5">
-        <Logo className="h-7" />
+    <div className="mx-auto flex min-h-screen max-w-[520px] flex-col">
+      {/* header: mark, the wallet picker (with its balance), settings tucked behind the gear */}
+      <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-bg/95 px-3 backdrop-blur" data-testid="hb-header">
+        <HbMark />
+        <h1 className="sr-only" data-testid="hb-title">{TITLE[tab]}</h1>
+        {st?.exists ? <WalletPick st={st} reload={reload} /> : <span className="text-[12px] font-semibold text-ink">highbar</span>}
         <span className="flex-1" />
-        {st?.network && <span className="rounded-full border border-gold-line px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-gold-text">{st.network === "mainnet" ? "Mainnet" : "Devnet"}</span>}
-        {st?.exists && <span className="inline-flex max-w-[200px] items-center gap-1.5 rounded-full border border-border bg-control px-2.5 py-1 text-[11px] text-ink-2" title={`${st.label ?? ""} ${st.address ?? ""}`} data-testid="header-wallet"><i className={`h-1.5 w-1.5 shrink-0 rounded-full ${st.ready ? "bg-buy" : "bg-gold"}`} /><span className="truncate text-ink">{st.label}</span><span className="font-mono text-ink-3">{short(st.address ?? "", 4)}</span></span>}
+        <button type="button" aria-label="Settings" title="Settings" aria-pressed={tab === "settings"} onClick={() => setTab(tab === "settings" ? "trade" : "settings")} data-testid="hb-nav-settings"
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border ${tab === "settings" ? "border-gold-line bg-gold-soft text-gold-text" : "border-border text-ink-3 hover:bg-control-hover hover:text-ink"}`}>{GEAR_ICON()}</button>
       </header>
-      {children}
+      <main className="flex-1 px-3 pb-[72px] pt-3">{children}</main>
+      <nav role="tablist" aria-label="Sections" className="fixed inset-x-0 bottom-0 z-30 mx-auto grid h-14 max-w-[520px] grid-cols-5 border-t border-border bg-bg" data-testid="hb-nav">
+        {TABS.map((t) => (
+          <button key={t.id} role="tab" type="button" aria-selected={tab === t.id} aria-label={t.label} title={t.label} onClick={() => setTab(t.id)} data-testid={`hb-nav-${t.id}`}
+            className={`relative flex min-w-0 flex-col items-center justify-center gap-1 text-[10px] leading-none transition-colors ${tab === t.id ? "text-gold-text" : "text-ink-3 hover:text-ink-2"}`}>
+            {tab === t.id && <i className="absolute inset-x-[24%] top-0 h-[2px] rounded-b-full bg-gold" aria-hidden="true" />}
+            <span className={`grid h-6 w-10 place-items-center rounded-[8px] ${tab === t.id ? "bg-gold-soft" : ""}`}>{t.icon()}</span>
+            <span className="max-w-full truncate px-0.5">{t.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
 
+/** Header wallet picker: the active wallet with its SOL balance; picking one makes it active (the panel follows). */
+function WalletPick({ st, reload }: { st: WalletStatus; reload: () => void }) {
+  const rows = useAsync(() => send({ type: "wallets:list", balances: true }), [st.walletId, st.walletCount, st.label]);
+  const list = rows.data ?? [];
+  const opts = list.length ? list.map((w) => ({ id: w.id, label: w.label, detail: <SolAmt v={w.sol} className="text-[11px]" />, title: w.address }))
+    : [{ id: st.walletId ?? "", label: st.label ?? "Wallet", detail: <SolAmt v={null} className="text-[11px]" /> }];
+  return (
+    <div className="flex min-w-0 items-center gap-1.5" data-testid="header-wallet" title={`${st.label ?? ""} ${st.address ?? ""}`}>
+      <i className={`h-1.5 w-1.5 shrink-0 rounded-full ${st.ready ? "bg-buy" : "bg-gold"}`} aria-hidden="true" />
+      <Dropdown className="w-[176px] max-w-[56vw]" label="Active wallet" testId="hb-wallet-pick" value={st.walletId ?? ""} options={opts}
+        onChange={(id) => { void send({ type: "wallet:select", id }).then(() => { reload(); void rows.reload(); }).catch(() => {}); }} />
+    </div>
+  );
+}
+
+function HbMark() {
+  return <svg viewBox={HB_MARK_VIEWBOX} width="18" height="18" className="shrink-0" role="img" aria-label="highbar"><path fill="#FECA02" fillRule="evenodd" d={HB_MARK_PATH} /></svg>;
+}
+const ico = (d: React.ReactNode) => <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>;
+function TRADE_ICON() { return ico(<><path d="M2.5 11.5l3.5-3.5 2.5 2.5 5-5" /><path d="M10 5.5h3.5V9" /></>); }
+function PIE_ICON() { return ico(<><path d="M8 2.5a5.5 5.5 0 1 0 5.5 5.5H8z" /><path d="M10 1.8a4.5 4.5 0 0 1 4.2 4.2H10z" /></>); }
+function WALLET_ICON() { return ico(<><rect x="2" y="4" width="12" height="9" rx="2" /><path d="M2 6.5h12M10.5 9.5h1.5" /><path d="M4 4l6-2 1 2" /></>); }
+function CLOCK_ICON() { return ico(<><circle cx="8" cy="8" r="5.5" /><path d="M8 5v3l2 1.5" /></>); }
+function COIN_ICON() { return ico(<><ellipse cx="8" cy="5" rx="5" ry="2.2" /><path d="M3 5v3c0 1.2 2.2 2.2 5 2.2s5-1 5-2.2V5M3 8v3c0 1.2 2.2 2.2 5 2.2s5-1 5-2.2V8" /></>); }
+
 // ---------------- Portfolio ----------------
-function PortfolioTab({ st, onSettings }: { st: WalletStatus; onSettings: () => void }) {
+function PortfolioTab({ st, onSettings, onPick }: { st: WalletStatus; onSettings: () => void; onPick: (mint: string) => void }) {
   const { data, err, busy, reload } = useAsync(() => send({ type: "portfolio" }), [st.walletId]);
   const net = st.network ?? "devnet";
-  const total = data ? data.sol + data.tokens.reduce((a, t) => a + (t.valueSol ?? 0), 0) : null;
+  const tokSol = data ? data.tokens.reduce((a, t) => a + (t.valueSol ?? 0), 0) : null;
+  const total = data ? data.sol + (tokSol ?? 0) : null;
   return (
     <>
-      <Card className="relative overflow-hidden">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[rgba(255,199,44,.10)] blur-3xl" />
-        <Eyebrow>{st.walletCount > 1 ? <span className="normal-case tracking-normal text-ink-2">{st.label}</span> : null}{st.walletCount > 1 ? " · " : ""}Balance <InfoTip text="SOL in this wallet plus your tokens valued at the current highbar price. Tokens from other launchpads show without a value." /></Eyebrow>
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <div className="text-[34px] font-semibold leading-none tracking-tight text-ink"><SolAmt v={data?.sol} /></div>
-            {total != null && data!.tokens.length > 0 && <div className="mt-2 text-[12.5px] text-ink-3">Total with tokens <SolAmt v={total} className="text-ink-2" /></div>}
+      {/* total assets: the big number left, SOL and tokens right, then one action row */}
+      <section className="rounded-[10px] border border-border bg-surface" data-testid="hb-total">
+        <div className="flex items-start justify-between gap-3 px-3 pt-2.5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1 text-[11px] text-ink-3">{st.walletCount > 1 ? <span className="truncate text-ink-2">{st.label} ·</span> : null}Total assets <InfoTip text="SOL in this wallet plus your tokens valued at the current highbar price. Tokens from other launchpads show without a value." /></div>
+            <div className="mt-1 truncate text-[20px] font-semibold leading-none tracking-tight text-ink"><SolAmt v={total} /></div>
           </div>
-          <Button onClick={() => void reload()} disabled={busy}>{busy ? "Loading…" : "Refresh"}</Button>
+          <dl className="grid shrink-0 grid-cols-[auto_auto] gap-x-2 gap-y-1 pt-0.5 text-[11px]">
+            <dt className="text-ink-3">SOL</dt><dd className="text-right text-ink-2"><SolAmt v={data?.sol} /></dd>
+            <dt className="text-ink-3">Tokens</dt><dd className="text-right text-ink-2"><SolAmt v={tokSol} /></dd>
+          </dl>
         </div>
-        <div className="mt-4 flex items-center justify-between border-t border-border pt-3 font-mono text-[12px] text-ink-3">
-          <span title={st.address ?? ""}>{short(st.address ?? "", 6)}</span>
-          <span className="flex gap-3"><Copy text={st.address ?? ""} label="Copy address" /><a className="text-gold-text hover:underline" href={solscan("account", st.address ?? "", net)} target="_blank" rel="noreferrer">Solscan</a></span>
+        <div className="mt-2.5 flex h-8 items-center gap-1.5 border-t border-border px-2 font-mono text-[11px] text-ink-3">
+          <span className="min-w-0 flex-1 truncate" title={st.address ?? ""}>{short(st.address ?? "", 5)}</span>
+          <Copy text={st.address ?? ""} label="Copy" />
+          <a className="ml-1.5 text-gold-text hover:underline" href={solscan("account", st.address ?? "", net)} target="_blank" rel="noreferrer">Solscan</a>
+          <button type="button" aria-label="Refresh" title="Refresh" className="ml-1 grid h-6 w-6 place-items-center rounded-full text-ink-3 hover:bg-control-hover hover:text-ink disabled:opacity-50" disabled={busy} onClick={() => void reload()}><RefreshIcon spin={busy} /></button>
         </div>
-      </Card>
-      {err && <Note kind="error"><span data-testid="portfolio-error">{err}</span>{/RPC/.test(err) && <> <button type="button" className="font-medium text-ink underline-offset-2 hover:underline" onClick={onSettings}>Open Settings</button></>}</Note>}
-      <div>
-        <Eyebrow>Tokens</Eyebrow>
-        {data && data.tokens.length === 0 ? <Empty title="No tokens yet">Coins you launch or buy show up here</Empty> : (
-          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
-            {(data?.tokens ?? []).map((t) => (
-              <li key={t.mint} className="flex items-center gap-3 px-3.5 py-3">
-                {t.image ? <img src={t.image} alt="" className="h-9 w-9 rounded-[10px] border border-border object-cover" /> : <span className="h-9 w-9 rounded-[10px] border border-border bg-muted" />}
-                <div className="min-w-0 flex-1">
-                  <a href={`${st.siteUrl}/token/${t.mint}`} target="_blank" rel="noreferrer" className="block truncate text-[13.5px] font-medium text-ink hover:text-gold-text">{t.name ?? short(t.mint, 4)}</a>
-                  <div className="font-mono text-[11.5px] text-ink-3">{t.symbol ? `$${t.symbol}` : short(t.mint, 4)} · {fmtNum(t.amount)}</div>
+      </section>
+      {err && <div className="flex min-w-0 items-center gap-2"><div className="min-w-0 flex-1" title={err}><Note kind="error"><span data-testid="portfolio-error">{err}</span></Note></div>{/RPC/.test(err) && <button type="button" className="shrink-0 text-[11px] font-medium text-gold-text hover:underline" onClick={onSettings}>Open Settings</button>}</div>}
+      <section>
+        <Label right={data ? <span>Updated {fmtDateTime(data.updatedAt)}</span> : null}>Tokens{data?.tokens.length ? ` · ${data.tokens.length}` : ""}</Label>
+        {data && data.tokens.length === 0 ? <div className="mt-1"><Empty title="No tokens yet">Coins you launch or buy show up here</Empty></div> : (
+          <ul className="mt-1 divide-y divide-border overflow-hidden rounded-[10px] border border-border bg-surface" data-testid="hb-portfolio-tokens">
+            {sortPositions(data?.tokens ?? []).map((t) => (
+              <li key={t.mint} className="grid grid-cols-[28px_minmax(0,1fr)_auto_auto] items-center gap-2 px-2.5 py-1.5">
+                {t.image ? <img src={t.image} alt="" className="h-7 w-7 rounded-[8px] border border-border object-cover" /> : <span className="h-7 w-7 rounded-[8px] border border-border bg-muted" />}
+                <div className="min-w-0">
+                  <a href={`${st.siteUrl}/token/${t.mint}`} target="_blank" rel="noreferrer" className="block truncate text-[12px] font-medium text-ink hover:text-gold-text">{t.name ?? short(t.mint, 4)}</a>
+                  <div className="truncate font-mono text-[11px] text-ink-3">{t.symbol ? `$${t.symbol}` : short(t.mint, 4)} · {fmtNum(t.amount)}</div>
                 </div>
-                <div className="text-right text-[13px] text-ink-2">{t.valueSol != null ? <SolAmt v={t.valueSol} /> : <span className="text-ink-3">–</span>}</div>
+                <div className="text-right text-[11px] text-ink-2">{t.valueSol != null ? <SolAmt v={t.valueSol} /> : <span className="text-ink-3">–</span>}</div>
+                <button type="button" className="h-6 rounded-full border border-gold-line px-2 text-[11px] text-gold-text hover:bg-gold-soft" onClick={() => onPick(t.mint)} aria-label={`Trade ${t.symbol ?? t.mint}`} data-testid="hb-portfolio-trade">Trade</button>
               </li>
             ))}
           </ul>
         )}
-        {data && <div className="mt-2 text-right text-[11.5px] text-ink-3">Updated {fmtDateTime(data.updatedAt)}</div>}
-      </div>
+      </section>
     </>
   );
 }
@@ -123,11 +179,11 @@ function WalletTab({ st, reload }: { st: WalletStatus; reload: () => void }) {
           <Eyebrow className="!mb-0">Wallets <InfoTip text="The active wallet is the one Portfolio, History, Fees and the referral use. On x.com you pick the wallet that launches in the drawer." /></Eyebrow>
           <span className="flex items-center gap-3 text-[12px] text-ink-3">{total != null && list.length > 1 && <span>Total <SolAmt v={total} className="text-ink-2" /></span>}<button className="text-gold-text hover:underline disabled:opacity-50" disabled={rows.busy} onClick={() => void rows.reload()}>{rows.busy ? "Loading…" : "Refresh"}</button></span>
         </div>
-        <ul className="mt-3 space-y-2" data-testid="wallet-list">
+        <ul className="mt-2 space-y-1.5" data-testid="wallet-list">
           {list.map((w) => <WalletItem key={w.id} w={w} last={list.length === 1} open={open === w.id} onToggle={() => setOpen(open === w.id ? null : w.id)} onSelect={() => void select(w.id)} onChanged={() => { reload(); void rows.reload(); }} />)}
         </ul>
         {rows.err && <div className="mt-2"><Note kind="error">{rows.err}</Note></div>}
-        {!adding && <Button className="mt-3 w-full" onClick={() => { setAdding(true); setOpen(null); }} data-testid="add-wallet">+ Add wallet</Button>}
+        {!adding && <Button className="mt-2 w-full" onClick={() => { setAdding(true); setOpen(null); }} data-testid="add-wallet">+ Add wallet</Button>}
       </Card>
 
       {adding && (
@@ -162,8 +218,8 @@ function WalletItem({ w, last, open, onToggle, onSelect, onChanged }: { w: Walle
   };
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
-    <li className={`overflow-hidden rounded-[12px] border transition ${w.active ? "border-gold-line bg-[rgba(255,199,44,.06)]" : "border-border bg-control hover:bg-control-hover"}`} data-testid="wallet-row" data-active={w.active ? "true" : "false"}>
-      <div role="button" tabIndex={0} aria-pressed={w.active} aria-label={`Use ${w.label}`} className="flex cursor-pointer items-center gap-3 px-3 py-2.5 outline-none focus-visible:ring-1 focus-visible:ring-gold-line" onClick={onSelect} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onSelect(); } }}>
+    <li className={`overflow-hidden rounded-[10px] border transition ${w.active ? "border-gold-line bg-[rgba(255,199,44,.06)]" : "border-border bg-control hover:bg-control-hover"}`} data-testid="wallet-row" data-active={w.active ? "true" : "false"}>
+      <div role="button" tabIndex={0} aria-pressed={w.active} aria-label={`Use ${w.label}`} className="flex cursor-pointer items-center gap-2.5 px-2.5 py-2 outline-none focus-visible:ring-1 focus-visible:ring-gold-line" onClick={onSelect} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onSelect(); } }}>
         <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${w.active ? "border-gold" : "border-border-strong"}`}>{w.active && <i className="h-2 w-2 rounded-full bg-gold" />}</span>
         <div className="min-w-0 flex-1">
           {edit ? (
@@ -171,15 +227,15 @@ function WalletItem({ w, last, open, onToggle, onSelect, onChanged }: { w: Walle
               onChange={(e) => setName(e.target.value)} onBlur={() => void saveName()} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") void saveName(); if (e.key === "Escape") { setEdit(false); setName(w.label); } }} />
           ) : (
             <div className="flex items-center gap-1.5">
-              <span className="truncate text-[13.5px] font-medium text-ink" data-testid="wallet-label">{w.label}</span>
+              <span className="truncate text-[12px] font-medium text-ink" data-testid="wallet-label">{w.label}</span>
               <button type="button" className="text-ink-3 hover:text-ink" aria-label={`Rename ${w.label}`} title="Rename" onClick={(e) => { stop(e); setName(w.label); setEdit(true); }}>{PENCIL()}</button>
               {w.active && <span className="rounded-full border border-gold-line px-1.5 text-[10px] uppercase tracking-[0.12em] text-gold-text">Active</span>}
               {w.needsMigration && <span className="rounded-full border border-gold-line px-1.5 text-[10px] text-gold-text">Update pending</span>}
             </div>
           )}
-          <div className="mt-0.5 flex items-center gap-2 font-mono text-[11.5px] text-ink-3"><span title={w.address}>{short(w.address, 4)}</span><span onClick={stop}><Copy text={w.address} /></span></div>
+          <div className="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-ink-3"><span title={w.address}>{short(w.address, 4)}</span><span onClick={stop}><Copy text={w.address} /></span></div>
         </div>
-        <div className="text-right text-[13px] text-ink"><SolAmt v={w.sol} /></div>
+        <div className="text-right text-[12px] text-ink"><SolAmt v={w.sol} /></div>
         <button type="button" className="grid h-7 w-7 place-items-center rounded-full text-ink-3 hover:bg-control-hover hover:text-ink" aria-expanded={open} aria-label={`Manage ${w.label}`} title="Manage" onClick={(e) => { stop(e); onToggle(); }}><CHEVRON up={open} /></button>
       </div>
       {err && <div className="px-3 pb-2"><Note kind="error">{err}</Note></div>}
@@ -187,9 +243,9 @@ function WalletItem({ w, last, open, onToggle, onSelect, onChanged }: { w: Walle
         <div className="space-y-3 border-t border-border bg-surface px-3 py-3" data-testid="wallet-manage">
           <div className="flex items-center justify-between text-[12px] text-ink-3"><span>{w.kind === "mnemonic" ? "Recovery phrase wallet" : "Imported private key"}</span><span>Added {fmtDate(w.createdAt)}</span></div>
           {w.needsMigration ? <MigrateForm id={w.id} onDone={onChanged} /> : (
-            <details><summary className="cursor-pointer text-[13px] text-ink-2 hover:text-ink">Export key</summary><div className="mt-3"><ExportBox id={w.id} /></div></details>
+            <details><summary className="cursor-pointer text-[12px] text-ink-2 hover:text-ink">Export key</summary><div className="mt-3"><ExportBox id={w.id} /></div></details>
           )}
-          <details><summary className="cursor-pointer text-[13px] text-sell hover:brightness-110">Remove wallet</summary><div className="mt-3"><RemoveWallet id={w.id} label={w.label} last={last} /></div></details>
+          <details><summary className="cursor-pointer text-[12px] text-sell hover:brightness-110">Remove wallet</summary><div className="mt-3"><RemoveWallet id={w.id} label={w.label} last={last} /></div></details>
         </div>
       )}
     </li>
@@ -208,7 +264,7 @@ function PriorityCard({ sol, onSave }: { sol: number; onSave: (v: number) => Pro
     <Card>
       <Eyebrow>Transactions</Eyebrow>
       <div className="rounded-[10px] border border-border bg-control px-3 py-2.5" data-testid="hb-priority">
-        <span className="text-[13px] text-ink-2">Priority fee <InfoTip text="Paid to Solana validators so buys, sells and launches land faster. The total per transaction in SOL: highbar sets the compute unit limit from a simulation and the price to match. Max 0.1 SOL." /></span>
+        <span className="text-[12px] text-ink-2">Priority fee <InfoTip text="Paid to Solana validators so buys, sells and launches land faster. The total per transaction in SOL: highbar sets the compute unit limit from a simulation and the price to match. Max 0.1 SOL." /></span>
         <div className="mt-2 flex items-center gap-1.5">
           {PRIORITY_PRESETS_SOL.map((v) => (
             <button key={v} type="button" data-testid="hb-priority-chip" aria-pressed={sol === v}
@@ -222,8 +278,8 @@ function PriorityCard({ sol, onSave }: { sol: number; onSave: (v: number) => Pro
             <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-ink-3">SOL</span>
           </label>
         </div>
-        {err ? <p className="mt-1.5 text-[11.5px] text-[#E06A5C]" role="alert">{err}</p>
-          : <p className="mt-1.5 text-[11.5px] text-ink-3">Now {sol} SOL per transaction{preset ? "" : " (custom)"}. Shown with the highbar fee before you sign.</p>}
+        {err ? <p className="mt-1.5 text-[11px] text-[#E06A5C]" role="alert">{err}</p>
+          : <p className="mt-1.5 text-[11px] text-ink-3">Now {sol} SOL per transaction{preset ? "" : " (custom)"}. Added to every buy, sell and launch.</p>}
       </div>
     </Card>
   );
@@ -237,12 +293,12 @@ function SettingsTab({ st }: { st: WalletStatus }) {
       <Card>
         <Eyebrow>On x.com</Eyebrow>
         <div className="flex items-center justify-between rounded-[10px] border border-border bg-control px-3 py-2.5">
-          <span className="text-[13px] text-ink-2">Token detection <InfoTip text="Adds a small button under the name of tweets that mention a Solana token (a contract address, a token page link or a $TICKER that resolves to one token). It opens the price, chart and a buy and sell box." /></span>
+          <span className="text-[12px] text-ink-2">Token detection <InfoTip text="Adds a small button under the name of tweets that mention a Solana token (a contract address, a token page link or a $TICKER that resolves to one token). It opens the price, chart and a buy and sell box." /></span>
           <Switch on={s.caDetect} onChange={(v) => void save({ caDetect: v })} label="Token detection" />
         </div>
         <div className="mt-2 rounded-[10px] border border-border bg-control px-3 py-2.5" data-testid="hb-sound">
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-ink-2">Sound <InfoTip text="A short chime when a buy, sell or launch succeeds and a soft low tone when it fails. Made in the browser (no audio files, nothing downloaded)." /></span>
+            <span className="text-[12px] text-ink-2">Sound <InfoTip text="A short chime when a buy, sell or launch succeeds and a soft low tone when it fails. Made in the browser (no audio files, nothing downloaded)." /></span>
             <Switch on={s.sound} onChange={(v) => void save({ sound: v })} label="Sound" />
           </div>
           {s.sound && (
@@ -257,46 +313,22 @@ function SettingsTab({ st }: { st: WalletStatus }) {
         </div>
       </Card>
       <PriorityCard sol={s.prioritySol} onSave={(prioritySol) => save({ prioritySol })} />
+      <Card>
+        <Eyebrow>Speed</Eyebrow>
+        <div className="flex items-center justify-between gap-3 rounded-[10px] border border-border bg-control px-3 py-2.5" data-testid="hb-fast">
+          <span className="min-w-0 text-[12px] text-ink-2">Fast trades <InfoTip text="Skips the extra simulation and the RPC preflight, uses a fixed compute limit and shows Sent as soon as the transaction is out; the confirmation runs in the background and a failure shows a toast. Tradeoff: a transaction that would fail can still land on chain and cost its network and priority fee. The highbar fee and your priority fee are unchanged." /></span>
+          <Switch on={s.fastTrade} onChange={(v) => void save({ fastTrade: v })} label="Fast trades" />
+        </div>
+      </Card>
       <ReferralCard p={s.presets} onSave={(presets) => save({ presets })} ready={st.ready} label={st.walletCount > 1 ? st.label : null} />
       <RpcCard />
-      <DiagCard />
-      <p className="pb-1 pt-0.5 text-center text-[10.5px] text-ink-3" data-testid="hb-version">highbar extension v{chrome.runtime.getManifest().version}</p>
+      <p className="pb-1 pt-0.5 text-center text-[11px] text-ink-3" data-testid="hb-version">highbar extension v{chrome.runtime.getManifest().version}</p>
     </>
   );
 }
 
-/** Settings > Diagnostics: one request to each chart and price source, exactly as the token popup makes it (from the worker). */
-function DiagCard() {
-  const [rows, setRows] = useState<DiagResult[] | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const run = async () => { setBusy(true); setErr(null); try { setRows(await send({ type: "diag:sources" })); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
-  return (
-    <Card>
-      <div className="flex items-center justify-between">
-        <Eyebrow>Diagnostics</Eyebrow>
-        <Button className="h-7 px-3 text-[12px]" onClick={() => void run()} disabled={busy} data-testid="hb-diag-run">{busy ? "Testing…" : rows ? "Test again" : "Test sources"}</Button>
-      </div>
-      <p className="text-[12px] text-ink-3">Checks the market data sources the token popup uses: pump.fun candles, Jupiter price, DexScreener and GeckoTerminal.</p>
-      {err && <Note kind="error">{err}</Note>}
-      {rows && (
-        <ul className="flex flex-col gap-1" data-testid="hb-diag">
-          {rows.map((r) => (
-            <li key={r.name} className="flex items-center gap-2 rounded-[8px] border border-border bg-control px-2.5 py-1.5 text-[12px]" title={r.url}>
-              <span className={`h-2 w-2 flex-none rounded-full ${r.ok ? "bg-buy" : "bg-sell"}`} aria-hidden="true" />
-              <span className="flex-1 text-ink-2">{r.name}</span>
-              <span className={r.ok ? "text-ink-3" : "text-sell"}>{r.ok ? "OK" : r.status ? `HTTP ${r.status}` : "Failed"}{r.note && r.note !== "OK" ? ` · ${r.note}` : ""}</span>
-              <span className="w-12 text-right tabular-nums text-ink-3">{r.ms} ms</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
 function GEAR_ICON() {
-  return <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.3" /><path d="M8 1.6v1.6M8 12.8v1.6M14.4 8h-1.6M3.2 8H1.6M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1M12.5 12.5l-1.1-1.1M4.6 4.6L3.5 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /><circle cx="8" cy="8" r="4.4" stroke="currentColor" strokeWidth="1.3" /></svg>;
+  return <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.3" /><path d="M8 1.6v1.6M8 12.8v1.6M14.4 8h-1.6M3.2 8H1.6M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1M12.5 12.5l-1.1-1.1M4.6 4.6L3.5 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /><circle cx="8" cy="8" r="4.4" stroke="currentColor" strokeWidth="1.3" /></svg>;
 }
 
 function PresetsCard({ p, onSave }: { p: Presets; onSave: (p: Partial<Presets>) => Promise<unknown> }) {
@@ -318,7 +350,7 @@ function PresetsCard({ p, onSave }: { p: Presets; onSave: (p: Partial<Presets>) 
           ]} />
         </Field>
         <div className="flex items-center justify-between rounded-[10px] border border-border bg-control px-3 py-2.5">
-          <span className="text-[13px] text-ink-2">Anti-sniper <InfoTip text="Starts the trading fee at 25% and decays it to 1% over the first minute." /></span>
+          <span className="text-[12px] text-ink-2">Anti-sniper <InfoTip text="Starts the trading fee at 25% and decays it to 1% over the first minute." /></span>
           <Switch on={d.antiSniper} onChange={(v) => set({ antiSniper: v })} label="Anti-sniper" />
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -330,7 +362,7 @@ function PresetsCard({ p, onSave }: { p: Presets; onSave: (p: Partial<Presets>) 
           </Field>
         </div>
         <div className="flex items-center justify-between rounded-[10px] border border-border bg-control px-3 py-2.5">
-          <span className="text-[13px] text-ink-2">Use the tweet text as description</span>
+          <span className="text-[12px] text-ink-2">Use the tweet text as description</span>
           <Switch on={d.useTweetText} onChange={(v) => set({ useTweetText: v })} label="Use tweet text" />
         </div>
         <Field label="Default description" hint={d.useTweetText ? "Used when the tweet has no text" : "Used for every launch"}>
@@ -338,12 +370,12 @@ function PresetsCard({ p, onSave }: { p: Presets; onSave: (p: Partial<Presets>) 
         </Field>
         <div className={`rounded-[10px] border px-3 py-2.5 ${d.instant ? "border-gold-line bg-gold-soft" : "border-border bg-control"}`}>
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-ink">Instant mode <InfoTip text="The tweet button launches right away with these presets, with no review step. Shift click the button to review first." /></span>
+            <span className="text-[12px] text-ink">Instant mode <InfoTip text="The tweet button launches right away with these presets, with no review step. Shift click the button to review first." /></span>
             <Switch on={d.instant} onChange={(v) => { set({ instant: v }); setAck(false); }} label="Instant mode" />
           </div>
-          <div className="mt-2 flex items-center justify-between text-[12.5px] text-ink-2"><span>Dev buy per launch</span><SolAmt v={d.devBuySol} className="text-[14px] font-semibold text-ink" /></div>
+          <div className="mt-2 flex items-center justify-between text-[12px] text-ink-2"><span>Dev buy per launch</span><SolAmt v={d.devBuySol} className="text-[12px] font-semibold text-ink" /></div>
           {d.instant && !p.instant && (
-            <label className="mt-2 flex items-start gap-2 text-[12.5px] text-ink-2"><input type="checkbox" className="mt-0.5 accent-[#FFC72C]" checked={ack} onChange={(e) => setAck(e.target.checked)} data-testid="instant-ack" />
+            <label className="mt-2 flex items-start gap-2 text-[12px] text-ink-2"><input type="checkbox" className="mt-0.5 accent-[#FFC72C]" checked={ack} onChange={(e) => setAck(e.target.checked)} data-testid="instant-ack" />
               <span>I understand one click launches a coin and spends {fmtSol(d.devBuySol)} SOL plus network fees from this wallet</span></label>
           )}
         </div>
@@ -378,59 +410,35 @@ function ReferralCard({ p, onSave, ready, label }: { p: Presets; onSave: (p: Par
   );
 }
 
-/** RPC: the highbar server RPC by default (its upstream URL stays on the server and is never shown). A custom URL is checked before it is saved. */
+/** RPC: the highbar server RPC by default (its upstream URL stays on the server and is never shown, and its status is not polled
+ *  here). Only the optional custom URL is shown; it is checked before it is saved, and "Use default" goes back to the server RPC. */
 function RpcCard() {
-  const [st, setSt] = useState<RpcStatus | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ k: "ok" | "error" | "info"; t: string } | null>(null);
-  const [checking, setChecking] = useState(false);
-  const first = useRef(true);
-  // A fresh probe every time: when the panel opens, when it becomes visible again, and on Re-check. The worker retries once before it reports Unavailable.
-  const recheck = async () => {
-    setChecking(true);
-    try { const r = await send({ type: "rpc:status" }); setSt(r); if (first.current) { setUrl(r.customUrl ?? ""); first.current = false; } }
-    catch (e) { setSt((o) => ({ mode: o?.mode ?? "server", customUrl: o?.customUrl ?? null, ok: false, message: errText(e), detail: null, checkedAt: Date.now() })); }
-    finally { setChecking(false); }
-  };
-  useEffect(() => {
-    void recheck();
-    const vis = () => { if (document.visibilityState === "visible") void recheck(); };
-    document.addEventListener("visibilitychange", vis);
-    return () => document.removeEventListener("visibilitychange", vis);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void send({ type: "settings:get" }).then((s) => { const u = s.rpcUrl || null; setSaved(u); setUrl(u ?? ""); }).catch(() => {}); }, []);
   const clean = url ? cleanRpcUrl(url) : null;
   const apply = async (next: string | null) => {
     setBusy(true); setMsg(null);
     try {
       if (next && !(await chrome.permissions.request({ origins: [`${new URL(next).origin}/*`] }))) { setMsg({ k: "error", t: "Permission for that host was not granted" }); return; }
       const r = await send({ type: "rpc:set", url: next });
-      setSt(r); setUrl(r.customUrl ?? "");
-      setMsg(r.mode === "custom" && r.ok ? { k: "ok", t: "Custom RPC saved and answering" } : !next ? { k: r.ok ? "ok" : "error", t: r.ok ? "Using the highbar server RPC" : r.message ?? "Server RPC unavailable" } : { k: "error", t: r.message ?? "That RPC did not answer" });
+      setSaved(r.customUrl); setUrl(r.customUrl ?? "");
+      setMsg(r.mode === "custom" && r.ok ? { k: "ok", t: "Custom RPC saved and answering" } : !next ? { k: "ok", t: "Using the default RPC" } : { k: "error", t: r.message ?? "That RPC did not answer" });
     } catch (e) { setMsg({ k: "error", t: errText(e) }); } finally { setBusy(false); }
   };
-  const host = st?.customUrl ? new URL(st.customUrl).host : null;
   return (
     <Card>
-      <Eyebrow>RPC <InfoTip text="Balances, token reads and sends go through this RPC. The default is the highbar server RPC. Your own RPC is checked before it is saved and stays only in this browser." /></Eyebrow>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between rounded-[10px] border border-border bg-control px-3 py-2.5" data-testid="rpc-mode">
-          <span className="text-[13px] text-ink">{st?.mode === "custom" ? <>Custom RPC <span className="font-mono text-[12px] text-ink-3">{host}</span></> : "highbar server RPC (default)"}</span>
-          <span className={`inline-flex items-center gap-1.5 text-[12px] ${!st ? "text-ink-3" : st.ok ? "text-buy" : "text-sell"}`}><i className={`h-1.5 w-1.5 rounded-full ${!st || checking ? "bg-ink-3" : st.ok ? "bg-buy" : "bg-sell"}`} />{!st || checking ? "Checking…" : st.ok ? "Answering" : "Unavailable"}</span>
-        </div>
-        <div className="-mt-1.5 flex items-center justify-between gap-2 text-[11.5px] text-ink-3">
-          <span className="min-w-0 truncate" data-testid="rpc-detail" title={st?.detail ?? undefined}>{st?.checkedAt ? `Checked ${new Date(st.checkedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : ""}{st && !st.ok && st.detail ? ` · ${st.detail}` : ""}</span>
-          <button type="button" className="shrink-0 text-gold-text hover:underline disabled:opacity-50" disabled={checking || busy} onClick={() => void recheck()} data-testid="rpc-recheck">{checking ? "Checking…" : "Re-check"}</button>
-        </div>
-        {st && !st.ok && !msg && !checking && <Note kind="error">{st.mode === "server" ? "The highbar server RPC is not answering right now. Re-check in a moment or add your own RPC below" : st.message}</Note>}
-        <Field label="Custom RPC" hint="Optional. Leave empty to use the default" tip="An https Solana RPC URL on the same network as highbar. It is checked with a quick getLatestBlockhash call (and a network check) before it is saved. If it does not answer, the server RPC stays in use.">
+      <div className="space-y-3" data-testid="rpc-card">
+        <Field label="Custom RPC" hint="Optional. Leave empty to use the default" tip="An https Solana RPC URL on the same network as highbar. It is checked with a quick getLatestBlockhash call (and a network check) before it is saved. If it does not answer, the default stays in use.">
           <input className={`${INPUT} font-mono text-[12px]`} placeholder="https://" value={url} onChange={(e) => setUrl(e.target.value.trim())} spellCheck={false} autoComplete="off" data-testid="rpc-input" />
         </Field>
         {url && !clean && <div className="text-[12px] text-sell">Use an https:// URL (http only for localhost)</div>}
         {msg && <Note kind={msg.k}>{msg.t}</Note>}
         <div className="flex justify-between gap-2">
-          <Button disabled={busy || (st?.mode !== "custom" && !url)} onClick={() => void apply(null)}>Use default</Button>
-          <Button kind="gold" disabled={busy || !clean || clean === st?.customUrl} onClick={() => void apply(clean)}>{busy ? "Checking…" : "Save"}</Button>
+          <Button disabled={busy || (!saved && !url)} onClick={() => void apply(null)} data-testid="rpc-default">Use default</Button>
+          <Button kind="gold" disabled={busy || !clean || clean === saved} onClick={() => void apply(clean)} data-testid="rpc-save">{busy ? "Checking…" : "Save"}</Button>
         </div>
       </div>
     </Card>
@@ -453,8 +461,8 @@ function HistoryTab({ st }: { st: WalletStatus }) {
               <div className="flex items-center gap-3">
                 {h.image ? <img src={h.image} alt="" className="h-10 w-10 rounded-[10px] border border-border object-cover" /> : <span className="h-10 w-10 rounded-[10px] border border-border bg-muted" />}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2"><span className="truncate text-[13.5px] font-medium text-ink">{h.name}</span><span className="font-mono text-[11.5px] text-ink-3">${h.ticker}</span></div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-3"><TierDot tier={h.tier} /><span className="capitalize">{h.tier}</span><span>·</span><span>{fmtDate(h.at)}</span>{h.devBuySol > 0 && <><span>·</span><span className="inline-flex items-center gap-1">dev buy <SolAmt v={h.devBuySol} /></span></>}</div>
+                  <div className="flex items-center gap-2"><span className="truncate text-[12px] font-medium text-ink">{h.name}</span><span className="font-mono text-[11px] text-ink-3">${h.ticker}</span></div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-3"><TierDot tier={h.tier} /><span className="capitalize">{h.tier}</span><span>·</span><span>{fmtDate(h.at)}</span>{h.devBuySol > 0 && <><span>·</span><span className="inline-flex items-center gap-1">dev buy <SolAmt v={h.devBuySol} /></span></>}</div>
                 </div>
                 <span className={`rounded-full border px-2 py-0.5 text-[11px] capitalize ${STATUS_CHIP[h.status]}`}>{h.status}</span>
               </div>
@@ -494,10 +502,10 @@ function FeesTab({ st }: { st: WalletStatus }) {
       <Card>
         <Eyebrow>Claimable creator fees <InfoTip text="Your share of trading fees on your launches, the migration fee after a coin graduates, and LP fees from locked positions. Claims are built by highbar and signed here." /></Eyebrow>
         <div className="flex items-end justify-between">
-          <div className="text-[30px] font-semibold leading-none text-ink"><SolAmt v={data?.totalSol} /></div>
+          <div className="text-[20px] font-semibold leading-none text-ink"><SolAmt v={data?.totalSol} /></div>
           <Button onClick={() => void reload()} disabled={busy}>{busy ? "Loading…" : "Refresh"}</Button>
         </div>
-        {data && <div className="mt-3 text-[11.5px] text-ink-3">Updated {fmtDateTime(data.updatedAt)} · {short(data.creator, 4)}</div>}
+        {data && <div className="mt-3 text-[11px] text-ink-3">Updated {fmtDateTime(data.updatedAt)} · {short(data.creator, 4)}</div>}
       </Card>
       {err && <Note kind="error">{err}</Note>}
       {msg && <Note kind={msg.k}>{msg.t}</Note>}
@@ -513,14 +521,14 @@ function FeesTab({ st }: { st: WalletStatus }) {
               <li key={r.pool} className="rounded-lg border border-border bg-surface p-3">
                 <div className="flex items-center gap-3">
                   {r.image ? <img src={r.image} alt="" className="h-9 w-9 rounded-[10px] border border-border object-cover" /> : <span className="h-9 w-9 rounded-[10px] border border-border bg-muted" />}
-                  <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-medium text-ink">{r.name}</div><div className="flex items-center gap-1.5 font-mono text-[11.5px] text-ink-3"><TierDot tier={r.tier} />${r.symbol}{r.migrated && <span className="rounded-full border border-border px-1.5 font-sans text-[10.5px]">graduated</span>}</div></div>
+                  <div className="min-w-0 flex-1"><div className="truncate text-[12px] font-medium text-ink">{r.name}</div><div className="flex items-center gap-1.5 font-mono text-[11px] text-ink-3"><TierDot tier={r.tier} />${r.symbol}{r.migrated && <span className="rounded-full border border-border px-1.5 font-sans text-[11px]">graduated</span>}</div></div>
                   <a className="text-[12px] text-gold-text hover:underline" href={solscan("account", r.pool, net)} target="_blank" rel="noreferrer">Pool</a>
                 </div>
                 {r.error && <div className="mt-2 text-[12px] text-sell">{r.error}</div>}
                 {lines.length > 0 ? (
                   <div className="mt-2.5 space-y-1.5 border-t border-border pt-2.5">
                     {lines.map((l) => (
-                      <div key={l.kind + (l.position ?? "")} className="flex items-center justify-between gap-2 text-[12.5px]">
+                      <div key={l.kind + (l.position ?? "")} className="flex items-center justify-between gap-2 text-[12px]">
                         <span className="text-ink-2">{l.kind === "trading" ? "Trading fees" : l.kind === "migration" ? "Migration fee" : "LP fees"}</span>
                         <span className="flex items-center gap-3"><SolAmt v={l.amount} className="text-ink" /><Button className="!h-7 !px-3 !text-[12px]" disabled={!st.ready || claiming} onClick={() => setPending(l)}>Claim</Button></span>
                       </div>
@@ -536,8 +544,8 @@ function FeesTab({ st }: { st: WalletStatus }) {
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
           <Card className="w-full max-w-[480px] !border-gold-line">
             <Eyebrow>Confirm claim</Eyebrow>
-            <div className="text-[13.5px] text-ink">{pending.row.name} {pending.kind === "trading" ? "trading fees" : pending.kind === "migration" ? "migration fee" : "LP fees"}</div>
-            <div className="mt-1 text-[22px] font-semibold"><SolAmt v={pending.amount} /></div>
+            <div className="text-[12px] text-ink">{pending.row.name} {pending.kind === "trading" ? "trading fees" : pending.kind === "migration" ? "migration fee" : "LP fees"}</div>
+            <div className="mt-1 text-[20px] font-semibold"><SolAmt v={pending.amount} /></div>
             <div className="mt-2 text-[12px] text-ink-3">The extension checks that the transaction only has this wallet as fee payer before it signs.</div>
             <div className="mt-4 grid grid-cols-2 gap-2"><Button onClick={() => setPending(null)} disabled={claiming}>Cancel</Button><Button kind="gold" onClick={() => void claim(pending)} disabled={claiming}>{claiming ? "Claiming…" : "Claim"}</Button></div>
           </Card>

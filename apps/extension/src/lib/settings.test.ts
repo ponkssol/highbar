@@ -21,3 +21,8 @@ test("settings: token detection on x.com is on unless turned off", () => {
   assert.equal(normalizeSettings({}).caDetect, true);
   assert.equal(normalizeSettings({ caDetect: false }).caDetect, false);
 });
+
+test("settings: fast trades are on unless turned off", () => {
+  assert.equal(normalizeSettings(undefined).fastTrade, true);
+  assert.equal(normalizeSettings({ fastTrade: false }).fastTrade, false);
+});

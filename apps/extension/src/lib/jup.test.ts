@@ -123,3 +123,12 @@ test("jup: sell sells the picked share of the balance and refuses a SOL transfer
   await assert.rejects(runJupBuy({ walletId: "w1", mint: WSOL_MINT, sol: 0.01, slippagePct: 1 }, deps().d), /SOL itself/);
   await assert.rejects(runJupBuy({ walletId: "w1", mint: MINT, sol: 0, slippagePct: 1 }, deps().d), /Pick an amount/);
 });
+
+test("jup fast mode: quote, build, check, sign and send, no simulation; the checks still refuse a bad tx", async () => {
+  const { d, calls } = deps();
+  await runJupBuy({ walletId: "w1", mint: MINT, sol: 0.01, slippagePct: 1 }, { ...d, fast: true });
+  assert.deepEqual(calls, ["quote", "swap", "send"]);
+  const c = deps({ tx: buyTx(10_000_000, other) });
+  await assert.rejects(runJupBuy({ walletId: "w1", mint: MINT, sol: 0.01, slippagePct: 1 }, { ...c.d, fast: true }), /another account/);
+  assert.ok(!c.calls.includes("send"));
+});

@@ -27,3 +27,11 @@ export function compactPct(n: number | null): string {
   const a = Math.abs(n), s = sign(n, true);
   return a >= 10_000 ? `${s}${compactNum(a)}%` : `${s}${a.toFixed(a >= 1000 ? 0 : 1)}%`;
 }
+
+/** SOL per token, small numbers as 0.0₆234 */
+export const tinySol = (n: number | null): string => {
+  if (n === null || !Number.isFinite(n) || n <= 0) return "—";
+  if (n >= 0.0001) return `${n.toLocaleString("en-US", { maximumSignificantDigits: 4 })} SOL`;
+  const s = n.toFixed(20).replace(/^0\./, ""), z = s.match(/^0*/)?.[0].length ?? 0;
+  return `0.0${String(z).split("").map((c) => "₀₁₂₃₄₅₆₇₈₉"[Number(c)]).join("")}${s.slice(z, z + 4).replace(/0+$/, "")} SOL`;
+};

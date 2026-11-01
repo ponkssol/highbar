@@ -2,7 +2,7 @@
  *  the dev buy. Rows, prices and balances come from the worker. A sell sends only {walletId, mint, pct, slippage} over a
  *  "sell" port: the worker builds, signs with that wallet, simulates and sends. No key or signed tx ever reaches this page. */
 import type { HoldingRes, HoldPrefs, SellPortIn, SellPortOut, WalletRow } from "../lib/messages";
-import { cleanSlippage, fmtCompact, fmtMcap, fmtPct, fmtSolFit, parsePct, SLIPPAGE_DEFAULT, type HoldRow } from "../lib/holding";
+import { cleanSlippage, fmtCompact, fmtMcap, fmtPct, fmtSolFit, parsePct, planText, sellAllPlan, SLIPPAGE_DEFAULT, type HoldRow } from "../lib/holding";
 import type { SellStep } from "../lib/sell";
 import { BUY_MAX_SOL } from "../lib/limits";
 import { fmtSol, short } from "../lib/format";
@@ -14,6 +14,7 @@ import { playSfx, primeSfx } from "../lib/sfx";
 import type { FeeInfo } from "../lib/feemath";
 import { PRIORITY_DEFAULT_SOL } from "../lib/priomath";
 import { costsText, extraCosts } from "../lib/costs";
+import { toasts } from "./toast";
 
 export const HOLD_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true" focusable="false"><rect x="2.25" y="2.75" width="11.5" height="10.5" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 10.5V8.5M8 10.5V5.5M11 10.5V7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 const REFRESH = `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.46-3.54" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M13 2.75V5.5h-2.75" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -65,13 +66,17 @@ export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () 
   const refreshBtn = h("button", { class: "x", type: "button", "aria-label": "Refresh", title: "Refresh", html: REFRESH, "data-testid": "hb-holding-refresh" });
   const count = h("span", { class: "hcount", "data-testid": "hb-holding-count" });
   const note = h("div", { class: "hnote", hidden: true, "data-testid": "hb-holding-note" });
+  // Sell All: 100% of every held token in the listed wallets, after a confirm strip (counts, costs) under the toolbar
+  const allBtn = h("button", { class: "hb hall", type: "button", title: "Sell 100% of every held token in these wallets", "data-testid": "hb-holding-sell-all" }, "Sell All") as HTMLButtonElement;
+  const allBar = h("div", { class: "hallbar", hidden: true, role: "alertdialog", "aria-label": "Confirm Sell All", "data-testid": "hb-sell-all-confirm" });
+  let allRunning = false;
   const list = scrollFade(h("div", { class: "hlist", "data-testid": "hb-holding-list" }));
   const updated = h("span", { class: "hupd" });
   const panel = h("aside", { class: "hpanel", hidden: true, role: "region", "aria-label": "Holding", "data-testid": "hb-holding" },
     h("header", { class: "hhead", title: "Drag to move, double click to reset", "data-testid": "hb-holding-head" }, svg(HOLD_ICON), h("h3", {}, "Holding"), count, h("span", { style: "flex:1" }), refreshBtn,
       h("button", { class: "x", type: "button", "aria-label": "Close holding", onclick: () => setOpen(false), html: CLOSE })),
-    h("div", { class: "htool" }, filter, h("label", { class: "hslipw", title: "Max slippage for sells" }, h("span", {}, "Slippage"), slip, h("span", { class: "hunit" }, "%"))),
-    note,
+    h("div", { class: "htool" }, filter, h("label", { class: "hslipw", title: "Max slippage for sells" }, h("span", {}, "Slippage"), slip, h("span", { class: "hunit" }, "%")), allBtn),
+    allBar, note,
     h("div", { class: "hcols" }, h("span", {}, "Token"), h("span", {}, "Bought"), h("span", {}, "UPnL"), h("span", {}, "Bal")),
     list,
     h("footer", { class: "hfoot" }, updated));
@@ -154,6 +159,9 @@ export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () 
     note.textContent = line;
     note.title = line;
     updated.textContent = data ? `Updated ${new Date(data.updatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : "";
+    const can = sellAllPlan(rows, busy).rows.length > 0;
+    allBtn.disabled = allRunning || !can;
+    if (!can && !allRunning) allBar.hidden = true;
     if (!data) { list.replaceChildren(h("div", { class: "hempty" }, loading ? "Loading…" : loadErr || "Loading…")); return; }
     if (!rows.length) { list.replaceChildren(h("div", { class: "hempty", "data-testid": "hb-holding-empty" }, h("strong", {}, "No tokens yet"), h("span", {}, "Tokens you launch from these wallets show up here with their market cap and your dev buy."))); return; }
     const multi = new Set(rows.map((r) => r.walletId)).size > 1 || (data.walletIds.length > 1);
@@ -169,9 +177,10 @@ export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () 
     if (img.tagName === "IMG") img.addEventListener("error", () => { img.replaceWith(ph()); }, { once: true });
     const token = h("a", { class: "htok", href: r.tokenUrl, target: "_blank", rel: "noopener noreferrer", title: `Open ${r.name} ($${r.symbol}) on highbar` },
       h("span", { class: "himg" }, img),
+      // the name (often a whole tweet line) stays out of the row; it is in the tooltip
       h("span", { class: "htxt" },
-        h("span", { class: "hname" }, h("span", { class: "hn" }, r.name), svg(OPEN)),
-        h("span", { class: "hsub" }, h("span", { class: "htick" }, `$${r.symbol}`), h("span", { class: "hmc", title: "Market cap" }, `MC ${fmtMcap(r)}`))));
+        h("span", { class: "hname" }, h("span", { class: "hn htick" }, `$${r.symbol}`), svg(OPEN)),
+        h("span", { class: "hsub" }, h("span", { class: "hmc", title: "Market cap" }, `MC ${fmtMcap(r)}`))));
     const chips = h("div", { class: "hchips" },
       multi ? h("span", { class: "hchip", title: r.walletAddress }, r.walletLabel) : null,
       r.migrated ? h("span", { class: "hchip mig", title: "Migrated, trading on Meteora DAMM v2" }, "Migrated") : null,
@@ -232,26 +241,66 @@ export function holdingPanel(root: ShadowRoot, drawer: HTMLElement, checked: () 
       ? h("span", { class: "hpg buy", role: "group", "aria-label": "Buy with SOL" }, ...BUY_CHIPS.map((v) => h("button", { class: "hb pct", type: "button", title: `Buy with ${v} SOL`, "data-testid": `hb-buy-${v}`, onclick: () => pick(v) }, String(v))))
       : h("span", { class: "hpg", role: "group", "aria-label": "Sell percent", title: "Sell percent" }, ...[25, 50, 100].map((p) => h("button", { class: "hb pct", type: "button", disabled: !held, title: p === 100 ? "Sell all" : `Sell ${p}%`, "aria-label": p === 100 ? "Sell all" : `Sell ${p}%`, "data-testid": `hb-sell-${p}`, onclick: () => pick(p) }, p === 100 ? "All" : String(p))));
     if (!held && side === "sell") chips.append(h("span", { class: "hnone", title: "This wallet holds none of this token. Switch to Buy to buy some." }, "Nothing left to sell"));
-    return h("div", { class: `hsell ${side}`, "data-testid": "hb-sell-bar" }, chips, toggle, quick, h("span", { class: "hpctw" }, custom), go);
+    return h("div", { class: `hsell idle ${side}`, "data-testid": "hb-sell-bar" }, chips, h("span", { class: "hact" }, toggle, quick, h("span", { class: "hpctw" }, custom), go));
   }
 
-  function runTrade(r: HoldRow, side: Side, amt: number) {
+  function runTrade(r: HoldRow, side: Side, amt: number, bulk = false): Promise<boolean> {
     primeSfx();
+    let settle: (ok: boolean) => void = () => {};
+    const out = new Promise<boolean>((res) => { settle = res; });
+    const tell = (ok: boolean, text: string, href?: string) => { if (bulk) toasts().show(ok ? "ok" : "err", text, href); };
     setRow(r.key, { kind: "run", side, amt, step: "build" });
     const port = chrome.runtime.connect({ name: "sell" });
     ports.add(port);
     const end = () => { ports.delete(port); try { port.disconnect(); } catch { /* gone */ } };
-    const fail = (error: string) => setRow(r.key, { kind: "error", side, amt, error, title: error });
+    const fail = (error: string) => { setRow(r.key, { kind: "error", side, amt, error, title: error }); tell(false, `Sell $${r.symbol} failed: ${error}`); settle(false); };
+    let sent = false;
     port.onMessage.addListener((m: SellPortOut) => {
-      if (m.type === "step") setRow(r.key, { kind: "run", side, amt, step: m.step });
-      else if (m.type === "done") { setRow(r.key, { kind: "done", side, amt, url: m.solscanUrl }); playSfx("ok"); end(); void load(true); }
-      else if (m.type === "error") { fail(m.error); playSfx("err"); end(); }
+      if (m.type === "step") { if (!sent) setRow(r.key, { kind: "run", side, amt, step: m.step }); }
+      // fast mode: shown as done the moment it is sent; the confirmation follows (a failure replaces it with the error)
+      else if (m.type === "sent") { sent = true; setRow(r.key, { kind: "done", side, amt, url: m.solscanUrl }); if (!bulk) playSfx("ok"); tell(true, `Sell $${r.symbol} sent`, m.solscanUrl); settle(true); }
+      else if (m.type === "done") { if (!sent) { setRow(r.key, { kind: "done", side, amt, url: m.solscanUrl }); if (!bulk) playSfx("ok"); tell(true, `Sold $${r.symbol}`, m.solscanUrl); settle(true); } end(); if (!bulk) void load(true); }
+      else if (m.type === "error") { fail(m.error); if (!bulk) playSfx("err"); end(); }
     });
     port.onDisconnect.addListener(() => { ports.delete(port); const cur = st.get(r.key); if (cur?.kind === "run") fail("The extension stopped answering. Check Solscan before you try again."); });
     const msg: SellPortIn = side === "buy"
       ? { type: "sell", side: "buy", sol: amt, pct: 0, walletId: r.walletId, mint: r.mint, slippagePct: prefs.slippagePct }
       : { type: "sell", side: "sell", walletId: r.walletId, mint: r.mint, pct: amt, slippagePct: prefs.slippagePct };
     port.postMessage(msg);
+    return out;
+  }
+
+  const busy = (k: string) => { const x = st.get(k)?.kind; return x === "run" || x === "confirm"; };
+  allBtn.addEventListener("click", () => {
+    const p = sellAllPlan(data?.rows ?? [], busy);
+    if (!p.rows.length) return;
+    void ask({ type: "fee:info" }).then((f) => { feeI = f; drawAll(); }).catch(() => {});
+    drawAll();
+  });
+  function drawAll() {
+    const p = sellAllPlan(data?.rows ?? [], busy);
+    if (!p.rows.length) { allBar.hidden = true; return; }
+    const prio = feeI?.prioritySol ?? PRIORITY_DEFAULT_SOL, fee = feeI?.enabled && feeI.bps ? ` · highbar fee ${feeI.bps / 100}%` : "";
+    allBar.replaceChildren(
+      h("span", { class: "hmsg" }, h("span", { class: "hl1" }, `Sell 100% of ${planText(p)}?`),
+        h("span", { class: "hsm", "data-testid": "hb-sell-all-costs" }, `${p.rows.length} sell${p.rows.length === 1 ? "" : "s"} · Prio ${fmtSol(prio)} SOL each${fee} · Max slippage ${prefs.slippagePct}%`)),
+      h("button", { class: "hb ghost", type: "button", onclick: () => { allBar.hidden = true; } }, "Cancel"),
+      h("button", { class: "hb sell", type: "button", "data-testid": "hb-sell-all-go", onclick: () => void sellAll() }, "Confirm"));
+    allBar.hidden = false;
+  }
+  async function sellAll() {
+    const p = sellAllPlan(data?.rows ?? [], busy);
+    allBar.hidden = true;
+    if (!p.rows.length || allRunning) return;
+    allRunning = true; draw();
+    // three at a time: each sell has its own port and wallet signature in the worker (normal fee and priority fee)
+    const q = [...p.rows]; let ok = 0, bad = 0;
+    const lane = async () => { for (let r = q.shift(); r; r = q.shift()) (await runTrade(r, "sell", 100, true)) ? ok++ : bad++; };
+    await Promise.all([lane(), lane(), lane()]);
+    allRunning = false;
+    playSfx(bad ? "err" : "ok");
+    if (p.rows.length > 1) toasts().show(bad ? "err" : "ok", `Sell All: ${ok} sent${bad ? `, ${bad} failed` : ""}`);
+    void load(true);
   }
 
   // ---- open / close ----

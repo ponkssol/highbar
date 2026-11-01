@@ -83,3 +83,13 @@ test("no server RPC gating text is left in the trade code", () => {
     assert.ok(!/own RPC for now|can't sell yet|sellRpc|serverTradeRpc|NEEDS_RPC/.test(src), f);
   }
 });
+
+test("buy fast mode: no simulation step, still one send and the same checked amount", async () => {
+  const a = deps(Keypair.generate());
+  const r = await runBuy({ walletId: "w2", mint: MINT, sol: 0.5, slippagePct: 10 }, { ...a.d, fast: true });
+  assert.equal(a.log.simulated, 0); assert.equal(a.log.sent, 1); assert.equal(r.lamports, "500000000");
+  assert.deepEqual(a.log.steps, ["build", "sign", "send", "confirm"]);
+  const bad = deps(Keypair.generate(), { sol: 0.1 });
+  await assert.rejects(runBuy({ walletId: "w2", mint: MINT, sol: 0.5, slippagePct: 10 }, { ...bad.d, fast: true }));
+  assert.equal(bad.log.sent, 0);
+});

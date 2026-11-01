@@ -116,3 +116,23 @@ test("scroll areas keep scrolling with the scrollbar hidden", async () => {
   }
   assert.doesNotMatch(css, /scrollbar-width:thin/);
 });
+
+test("Sell All plan: only rows with a balance, not busy; counts distinct tokens and wallets", async () => {
+  const { sellAllPlan, planText } = await import("./holding");
+  const rows = [
+    { key: "a1", raw: "100", mint: "A", walletId: "w1" },
+    { key: "a2", raw: "5", mint: "A", walletId: "w2" },
+    { key: "b1", raw: "0", mint: "B", walletId: "w1" },
+    { key: "c1", raw: "", mint: "C", walletId: "w1" },
+    { key: "d2", raw: "7", mint: "D", walletId: "w2" },
+    { key: "e1", raw: "bad", mint: "E", walletId: "w1" },
+  ];
+  const p = sellAllPlan(rows);
+  assert.deepEqual(p.rows.map((r) => r.key), ["a1", "a2", "d2"]);
+  assert.equal(p.tokens, 2); assert.equal(p.wallets, 2);
+  assert.equal(planText(p), "2 tokens in 2 wallets");
+  const q = sellAllPlan(rows, (k) => k !== "d2");
+  assert.deepEqual(q.rows.map((r) => r.key), ["d2"]);
+  assert.equal(planText(q), "1 token in 1 wallet");
+  assert.equal(sellAllPlan([]).rows.length, 0);
+});

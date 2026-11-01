@@ -32,3 +32,12 @@ export function extraCosts(prioritySol: number, fee: FeeInfo | null, basisLampor
 }
 /** The same as one line of text. */
 export const costsText = (c: ExtraCosts) => c.parts.map((p) => `${p.k} ${p.v}`).join(" · ");
+
+/** The wallets that cannot pay a buy of `sol` SOL: the amount, the priority fee and the highbar fee (when it is on).
+ *  Network rent for a new token account is not counted here (the worker's own check still runs before signing).
+ *  Wallets with an unknown balance are never flagged. */
+export function shortOnSol<W extends { sol: number | null }>(wallets: W[], sol: number | null, prioritySol: number, fee: FeeInfo | null): W[] {
+  if (!sol || !(sol > 0)) return [];
+  const need = sol + (prioritySol > 0 ? prioritySol : 0) + (fee?.enabled && fee.bps > 0 ? (sol * fee.bps) / 10_000 : 0);
+  return wallets.filter((w) => w.sol != null && w.sol + 1e-9 < need);
+}

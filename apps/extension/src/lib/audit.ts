@@ -67,3 +67,35 @@ export function lpBurntPct(current: bigint | null, minted: bigint): number | nul
   if (current === null || minted <= 0n || current > minted) return null;
   return Number(((minted - current) * 10000n) / minted) / 100;
 }
+
+/** One audit shield: its key, short label, level, mark and the hover text (what it checks and this token's result). */
+export type AuditLevel = "ok" | "warn" | "bad" | "na" | "neutral";
+export interface AuditShield { key: "mint" | "freeze" | "lp" | "top10"; label: string; level: AuditLevel; mark: string; tip: string }
+const AUDIT_MARK: Record<AuditLevel, string> = { ok: "✓", bad: "✗", warn: "!", na: "–", neutral: "" };
+const UNKNOWN = "Unknown: couldn't check";
+/** The four shields (mint authority, freeze authority, LP burn, top 10 holders) for an audit result; null = nothing known.
+ *  Shared by the x.com popup and the side panel, so both show the same words. Every state comes from the audit values. */
+export function auditShields(a: TokenAudit | null): AuditShield[] {
+  const s = (key: AuditShield["key"], label: string, level: AuditLevel, tip: string, mark = AUDIT_MARK[level]): AuditShield => ({ key, label, level, mark, tip });
+  const mint = a?.noMint ?? null, frz = a?.noFreeze ?? null;
+  const out = [
+    mint === null ? s("mint", "NoMint", "na", `Mint authority. ${UNKNOWN}`)
+      : mint ? s("mint", "NoMint", "ok", "Mint authority revoked: no one can mint more supply")
+      : s("mint", "NoMint", "bad", "Mint authority active: supply can be increased"),
+    frz === null ? s("freeze", "No Blacklist", "na", `Freeze authority (blacklist). ${UNKNOWN}`)
+      : frz ? s("freeze", "No Blacklist", "ok", "Freeze authority revoked: no holder's account can be frozen")
+      : s("freeze", "No Blacklist", "bad", "Freeze authority active: holders' accounts can be frozen (blacklisted)"),
+  ];
+  const lp = a?.lp ?? null, pct = a?.lpBurntPct ?? null;
+  if (lp === "curve") out.push(s("lp", "Curve", "neutral", "LP burn: still on its bonding curve, there is no LP to burn yet"));
+  else if (lp === "burnt") out.push(s("lp", "Burnt", "ok", `LP burnt: ${pct ?? 100}% of the pool's LP tokens are burnt, so that liquidity is locked`));
+  else if (lp === "partial" && pct !== null) out.push(s("lp", `Burnt ${Math.round(pct)}%`, "warn", `LP partly burnt: only ${pct}% of the pool's LP tokens are burnt, the rest can still be withdrawn`, ""));
+  else out.push(s("lp", "Burnt", "na", `LP burn. ${UNKNOWN}`));
+  const t = a?.top10Pct ?? null, lv = top10Level(t);
+  if (t === null || lv === null) out.push(s("top10", "Top10", "na", `Top 10 holders. ${UNKNOWN}`));
+  else {
+    const how = lv === "ok" ? "well spread (under 30%)" : lv === "warn" ? "concentrated (30 to 50%)" : "highly concentrated (over 50%)";
+    out.push(s("top10", `Top10 ${t < 10 ? t.toFixed(1) : Math.round(t)}%`, lv, `Top 10 holders own ${t}% of supply: ${how}. Pools and the bonding curve count as holders`, ""));
+  }
+  return out;
+}
