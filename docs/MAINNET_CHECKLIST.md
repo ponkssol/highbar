@@ -164,6 +164,7 @@ Also:
 - `SITE_URL` and `CORS_ORIGIN` are the final https web domain. Token metadata URIs are built from `SITE_URL`, so set the custom domain **before** the first launch.
 - Web `NETWORK=mainnet` is read by the web server at runtime (no build-time env vars); a restart applies a change.
 - `REOWN_PROJECT_ID`: add the web domain to the Reown project's allowlist.
+- `EXT_FEE_RECEIVER` (api): `48UKpEwL4MzMxS7s8sZVZbCo4sEFP59CvermMniPhigh` (public key) receives the extension's 0.02% fee. Empty = extension fee off (the API warns); an invalid value on mainnet = the API refuses to start.
 
 ### 6a. Vanity mint pool (every launch's mint ends in `high`) [BLOCKER]
 
