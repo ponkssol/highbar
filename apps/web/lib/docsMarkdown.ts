@@ -7,6 +7,9 @@ import {
   postMigrationSplit, scheduleDurationSeconds, scheduleEndFeeBps, scheduledFeeBps, type TierId,
 } from "@hb/shared";
 import { FAQ_TEXT } from "./docsFaq";
+import {
+  ADDRESS_DISCLAIMER, ADDRESS_INTRO, antiSniperLabel, CONFIG_AFTER, CONFIG_INTRO, DBC_CONFIGS, PUBLIC_ROLES, solscanAccountUrl, tierLabel,
+} from "./publicAddresses";
 
 const TOTAL_SUPPLY = 1_000_000_000, TOKEN_DECIMALS = 6, DEV_BUY_MAX_SOL = 20; // same sources as app/docs/page.tsx
 const IDS = Object.keys(TIERS) as TierId[];
@@ -29,9 +32,19 @@ export function docsMarkdown(site: string): string {
     `Everything about launching, trading and earning on highbar, in plain words. Source: ${u("/docs")}`,
     `## What highbar is`,
     `highbar is a Solana token launchpad in the spirit of pump.fun, with one big difference: the creator picks how high the bar is. Each token starts on a Meteora Dynamic Bonding Curve (DBC) and, once it raises its target, graduates into a Meteora DAMM v2 pool with permanently locked liquidity.`,
-    `A higher target means deeper liquidity at migration and a bigger cut of trading fees for the creator. There is no custom token contract. Every launch uses one of six fixed Meteora DBC configs: three tiers, each with the anti-sniper fee on or off.`,
+    `A higher target means deeper liquidity at migration and a bigger cut of trading fees for the creator. There is no custom token contract and no highbar launchpad program. Every launch uses one of six fixed Meteora DBC configs: three tiers, each with the anti-sniper fee on or off. The accounts are listed under public addresses.`,
     list([`Three tiers: ${IDS.map((id) => TIERS[id].label).join(", ")}.`, `A ${bpsPct(CURVE_FEE_BPS)} trading fee on the curve, shared by the creator, the platform and Meteora.`,
       "Optional Dev Lock for the creator's own tokens, with a public countdown.", "Cashback for traders, a buyback and burn of $HIGHER, and a referral program."]),
+    `## Public addresses`,
+    ...ADDRESS_INTRO,
+    `> ${ADDRESS_DISCLAIMER}`,
+    `### Launch signer and fee wallet`,
+    table(["Role", "Address", "Solscan"], PUBLIC_ROLES.map((r) => [r.label, `\`${r.address}\``, solscanAccountUrl(r.address)])),
+    PUBLIC_ROLES.map((r) => `**${r.label}.** ${r.detail}`).join("\n\n"),
+    `### DBC configuration accounts`,
+    CONFIG_INTRO,
+    table(["Tier", "Anti-sniper", "Address", "Solscan"], DBC_CONFIGS.map((c) => [tierLabel(c.tier), antiSniperLabel(c.antiSniper), `\`${c.address}\``, solscanAccountUrl(c.address)])),
+    `${CONFIG_AFTER} See Anti-sniper fee and Launch a token.`,
     `## Launch a token`,
     list([`Open [Launch](${u("/launch")}) and connect your wallet.`, "Add a name (up to 32 bytes), a ticker (up to 10 bytes), an image and optional links.",
       "Pick a tier: Standard, Higher or Max. The tier sets the migration target and how fees are shared.", "Choose whether the anti-sniper fee is on. It is off by default, so turn it on if you want early bots to pay more.",

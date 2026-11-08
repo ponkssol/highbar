@@ -38,7 +38,7 @@ Mint addresses of tokens launched on highbar end in "high". Every token has a fi
 
 ## Docs
 
-- [How highbar works](${u("/docs")}): tiers and fees, the bonding curve and migration, anti-sniper fee, Dev Lock, creator fees, LP rebate, cashback, buyback and burn, referrals, token supply, FAQ
+- [How highbar works](${u("/docs")}): tiers and fees, the bonding curve and migration, public on-chain addresses, anti-sniper fee, Dev Lock, creator fees, LP rebate, cashback, buyback and burn, referrals, token supply, FAQ
 - [Full docs as Markdown](${u("/llms-full.txt")})
 - [API docs](${u("/docs/api")}): coming soon
 
