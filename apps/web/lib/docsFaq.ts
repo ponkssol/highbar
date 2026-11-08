@@ -10,4 +10,5 @@ export const FAQ_TEXT: [string, string][] = [
   ["When is cashback paid?", "Once a day, per UTC day, after the day closes. Small balances roll over until they reach the minimum payout."],
   ["Is $HIGHER live?", "Not yet. Until it launches, cashback is paid in SOL and the buyback share accrues. The $HIGHER perks tab shows the current status."],
   ["Where can I check the numbers myself?", "Every payout, buyback and burn links its Solana transaction. The public API serves the same data the app shows."],
+  ["What contract does highbar use?", "highbar does not publish its own launchpad program. Tokens launch on Meteora DBC and graduate to Meteora DAMM v2. The public addresses section lists the launch signer, the partner fee wallet and the six DBC configuration accounts. They are not the $HIGHER token mint."],
 ];

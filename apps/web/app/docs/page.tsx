@@ -7,16 +7,18 @@ import {
   REFERRAL_SHARE_OF_PROTOCOL, SPLIT_BPS, SUPPLY_ON_MIGRATION_PCT, TIERS, TRADER_CASHBACK_BPS, curveFeeSplit, lpFeeSplit, migrationMcapSol,
   postMigrationSplit, scheduleDurationSeconds, scheduleEndFeeBps, scheduledFeeBps, type TierId,
 } from "@hb/shared";
+import { DbcConfigTable, PublicAddressIntro, RoleAddresses } from "@/components/docs/PublicAddresses";
 import { Bullets, Code, CodeBlock, DocLink, DocSection, DocTable, DocsHero, DocsPage, Note, Steps, SubHead } from "@/components/docs/Docs";
 import { JsonLd } from "@/components/JsonLd";
 import { FAQ_TEXT } from "@/lib/docsFaq";
+import { ADDRESS_DISCLAIMER, CONFIG_AFTER, CONFIG_INTRO } from "@/lib/publicAddresses";
 import { absUrl, breadcrumbJsonLd, pageMeta } from "@/lib/seo";
 
 export const metadata: Metadata = pageMeta({
   title: "Docs: how the launchpad works",
-  description: "How highbar works: tiers, the Meteora DBC bonding curve and DAMM v2 migration, anti-sniper fee, Dev Lock, creator fees, cashback and buyback.",
+  description: "How highbar works: tiers, the Meteora DBC bonding curve and DAMM v2 migration, anti-sniper fee, Dev Lock, creator fees, cashback, buyback, and the public on-chain addresses.",
   path: "/docs",
-  keywords: ["highbar docs", "Meteora DBC bonding curve", "DAMM v2 migration", "anti-sniper fee", "Dev Lock Jupiter Lock", "LP rebate"],
+  keywords: ["highbar docs", "highbar public addresses", "Meteora DBC bonding curve", "DAMM v2 migration", "anti-sniper fee", "Dev Lock Jupiter Lock", "LP rebate"],
 });
 
 // Every number below comes from code: packages/shared (tiers, fees, schedules, payouts) and packages/onchain createConfigs.ts
@@ -53,17 +55,19 @@ const FAQ: [string, React.ReactNode][] = [
   ["When is cashback paid?", <>Once a day, per UTC day, after the day closes. Small balances roll over until they reach the minimum payout.</>],
   ["Is $HIGHER live?", <>Not yet. Until it launches, cashback is paid in SOL and the buyback share accrues. The $HIGHER perks tab shows the current status.</>],
   ["Where can I check the numbers myself?", <>Every payout, buyback and burn links its Solana transaction. The <DocLink href="/docs/api">public API</DocLink> serves the same data the app shows.</>],
+  ["What contract does highbar use?", <>highbar does not publish its own launchpad program. Tokens launch on Meteora DBC and graduate to Meteora DAMM v2. The <DocLink href="#public-addresses">public addresses</DocLink> section lists the launch signer, the partner fee wallet and the six DBC configuration accounts. They are not the $HIGHER token mint.</>],
 ];
 const docsJsonLd = () => [
   { "@context": "https://schema.org", "@type": "TechArticle", headline: "How the highbar Solana launchpad works", url: absUrl("/docs"), inLanguage: "en",
     about: ["Solana token launchpad", "Meteora DBC bonding curve", "Meteora DAMM v2", "anti-sniper fee", "Dev Lock"], publisher: { "@id": absUrl("/#organization") },
-    description: "Tiers, fees, the Meteora DBC bonding curve and DAMM v2 migration, the anti-sniper fee, Dev Lock, creator fees, cashback, buyback and burn, and referrals." },
+    description: "Tiers, fees, the Meteora DBC bonding curve and DAMM v2 migration, the anti-sniper fee, Dev Lock, creator fees, cashback, buyback and burn, referrals, and the public on-chain addresses." },
   { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: FAQ_TEXT.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) },
   breadcrumbJsonLd([["Home", "/"], ["Docs", "/docs"]]),
 ];
 
 const TOC = [
   { id: "what-is-highbar", label: "What highbar is" },
+  { id: "public-addresses", label: "Public addresses" },
   { id: "launch", label: "Launch a token" },
   { id: "bonding-curve", label: "Meteora DBC bonding curve and DAMM v2" },
   { id: "anti-sniper", label: "Anti-sniper fee" },
@@ -87,13 +91,24 @@ export default function DocsPageRoute() {
       <JsonLd data={docsJsonLd()} />
       <DocSection id="what-is-highbar" eyebrow="Overview" title="What highbar is">
         <p>highbar is a Solana token launchpad in the spirit of pump.fun, with one big difference: the creator picks how high the bar is. Each token starts on a Meteora Dynamic Bonding Curve (DBC) and, once it raises its target, graduates into a Meteora DAMM v2 pool with permanently locked liquidity.</p>
-        <p>A higher target means deeper liquidity at migration and a bigger cut of trading fees for the creator. There is no custom token contract. Every launch uses one of six fixed Meteora DBC configs: three tiers, each with the anti-sniper fee on or off.</p>
+        <p>A higher target means deeper liquidity at migration and a bigger cut of trading fees for the creator. There is no custom token contract and no highbar launchpad program. Every launch uses one of six fixed Meteora DBC configs: three tiers, each with the anti-sniper fee on or off. The accounts are listed under <DocLink href="#public-addresses">public addresses</DocLink>.</p>
         <Bullets items={[
           <>Three tiers: {IDS.map((id) => TIERS[id].label).join(", ")}.</>,
           <>A {bpsPct(CURVE_FEE_BPS)} trading fee on the curve, shared by the creator, the platform and Meteora.</>,
           <>Optional Dev Lock for the creator&apos;s own tokens, with a public countdown.</>,
           <>Cashback for traders, a buyback and burn of $HIGHER, and a referral program.</>,
         ]} />
+      </DocSection>
+
+      <DocSection id="public-addresses" eyebrow="On-chain" title="Public addresses">
+        <PublicAddressIntro />
+        <Note>{ADDRESS_DISCLAIMER}</Note>
+        <SubHead>Launch signer and fee wallet</SubHead>
+        <RoleAddresses />
+        <SubHead>DBC configuration accounts</SubHead>
+        <p>{CONFIG_INTRO}</p>
+        <DbcConfigTable />
+        <p>{CONFIG_AFTER} See <DocLink href="#anti-sniper">Anti-sniper fee</DocLink> and <DocLink href="#launch">Launch a token</DocLink>.</p>
       </DocSection>
 
       <DocSection id="launch" eyebrow="Creators" title="Launch a token">
