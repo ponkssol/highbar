@@ -18,14 +18,17 @@ export function Sidebar() {
         {NAV.map((item) => {
           const { href, label, icon: Icon, badge } = item;
           const on = isNavActive(path, item);
-          return (
-            <Link key={href} href={href} aria-current={on ? "page" : undefined}
-              className={`flex h-10 items-center gap-3 rounded-sm px-3 text-sm transition-colors ${on ? "bg-gold-soft font-medium text-ink" : "text-ink-2 hover:bg-control-hover hover:text-ink"}`}>
+          const className = `flex h-10 items-center gap-3 rounded-sm px-3 text-sm transition-colors ${on ? "bg-gold-soft font-medium text-ink" : "text-ink-2 hover:bg-control-hover hover:text-ink"}`;
+          const inner = (
+            <>
               <Icon size={18} strokeWidth={on ? 2 : 1.5} className={on ? "text-gold-text" : undefined} />
               {label}
               {badge && <span className="ml-auto text-[11px] font-normal text-ink-3">{badge}</span>}
-            </Link>
+            </>
           );
+          return href === "/articles"
+            ? <a key={href} href={href} aria-current={on ? "page" : undefined} className={className}>{inner}</a>
+            : <Link key={href} href={href} aria-current={on ? "page" : undefined} className={className}>{inner}</Link>;
         })}
       </nav>
       <div className="mt-auto" />

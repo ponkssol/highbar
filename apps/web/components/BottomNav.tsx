@@ -35,15 +35,22 @@ export function BottomNav() {
           {MAIN.map((n) => {
             const { href, label, icon: Icon } = n;
             const a = isNavActive(path, n);
-            return (
-              <Link key={href} href={href} aria-current={a ? "page" : undefined} className={item(a)}>
+            const body = (
+              <>
                 {pill(a)}
                 {href === "/launch"
                   ? <span className="flex h-8 w-8 items-center justify-center rounded-sm bg-gold text-gold-ink"><Icon size={18} strokeWidth={1.5} /></span>
                   : <Icon size={22} strokeWidth={1.5} />}
                 <span className="max-w-full truncate">{label}</span>
-              </Link>
+              </>
             );
+            return href === "/articles"
+              ? <a key={href} href={href} aria-current={a ? "page" : undefined} className={item(a)}>{body}</a>
+              : (
+                <Link key={href} href={href} aria-current={a ? "page" : undefined} className={item(a)}>
+                  {body}
+                </Link>
+              );
           })}
           <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} className={item(moreActive)}>
             {pill(moreActive)}<MoreHorizontal size={22} strokeWidth={1.5} /><span className="max-w-full truncate">More</span>
@@ -58,11 +65,13 @@ export function BottomNav() {
               <span className="h-1 w-10 rounded-full bg-border-strong" />
             </button>
             <div className="flex flex-col">
-              {MORE.map((n) => { const { href, label, icon: Icon } = n; return (
-                <Link key={href} href={href} className={`flex h-[52px] items-center gap-3 rounded-md px-3 text-sm ${isNavActive(path, n) ? "bg-muted font-medium text-ink" : "text-ink-2"}`}>
-                  <Icon size={22} strokeWidth={1.5} />{label}
-                </Link>
-              ); })}
+              {MORE.map((n) => { const { href, label, icon: Icon } = n;
+                const className = `flex h-[52px] items-center gap-3 rounded-md px-3 text-sm ${isNavActive(path, n) ? "bg-muted font-medium text-ink" : "text-ink-2"}`;
+                const body = <><Icon size={22} strokeWidth={1.5} />{label}</>;
+                return href === "/articles"
+                  ? <a key={href} href={href} className={className}>{body}</a>
+                  : <Link key={href} href={href} className={className}>{body}</Link>;
+              })}
               <div className="mt-2 border-t border-border pt-2 [&>button]:mb-0 [&>button]:h-[52px] [&>button]:w-full"><ThemeToggle /></div>
               <SocialLinks className="mt-1 border-t border-border pt-2" />
               <BuiltOnRow className="mt-1 border-t border-border px-3 pt-3.5 pb-1" />

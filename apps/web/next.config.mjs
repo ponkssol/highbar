@@ -16,6 +16,19 @@ const nextConfig = {
   htmlLimitedBots: /.*/,
   // Merged pages: old URLs stay valid (API-generated /cashback, /burn, /referral links too). Incoming query strings (e.g. ?ref=) are kept.
   // /higher is the friendly $HIGHER perks alias; it points straight at the merged tab (not via /bar) so it is a single hop.
+  // Search Console was spending crawl budget on generated images, the web manifest and proxied token logos.
+  // The header is added beside the existing response. Image bytes and content-type stay as the route sends them.
+  async headers() {
+    const noindex = [{ key: "X-Robots-Tag", value: "noindex" }];
+    return [
+      { source: "/token/:mint/opengraph-image", headers: noindex },
+      { source: "/token/:mint/opengraph-image.png", headers: noindex },
+      { source: "/token/:mint/twitter-image", headers: noindex },
+      { source: "/token/:mint/twitter-image.png", headers: noindex },
+      { source: "/manifest.webmanifest", headers: noindex },
+      { source: "/hb-api/img/:path*", headers: noindex },
+    ];
+  },
   async redirects() {
     const to = (source, page, tab) => ({ source, destination: `/${page}?tab=${tab}`, permanent: false });
     return [
