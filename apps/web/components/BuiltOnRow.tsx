@@ -11,9 +11,9 @@ export function BuiltOnRow({ className = "" }: { className?: string }) {
       <span className="text-[10px] font-medium uppercase leading-none tracking-[0.18em] text-ink-3">Built on</span>
       <a href="https://www.meteora.ag" target="_blank" rel="noopener noreferrer" aria-label="Meteora, opens in a new tab" className={LINK}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/partners/meteora-logo-light.svg" alt="" width={69} height={16} className="hidden h-[16px] w-[69px] dark:block" />
+        <img src="/brand/partners/meteora-logo-light.svg" alt="" aria-hidden width={69} height={16} className="hidden h-[16px] w-[69px] dark:block" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/partners/meteora-logo-dark.svg" alt="" width={69} height={16} className="h-[16px] w-[69px] dark:hidden" />
+        <img src="/brand/partners/meteora-logo-dark.svg" alt="" aria-hidden width={69} height={16} className="h-[16px] w-[69px] dark:hidden" />
       </a>
     </div>
   );

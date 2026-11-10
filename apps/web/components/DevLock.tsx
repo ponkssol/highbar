@@ -224,7 +224,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
             <p className="flex items-center gap-1 text-xs text-ink-3" data-testid="lock-tip">Protocol tip: <SolAmt>{data?.tipSol ?? 0.005}</SolAmt></p>
             <a href="https://lock.jup.ag" target="_blank" rel="noopener noreferrer" data-testid="jup-lock-badge"
               className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] text-ink-3 transition-colors hover:border-ink-3 hover:text-ink">
-              <img src="/brand/jupiter.svg" alt="" width={14} height={14} className="h-3.5 w-3.5" />Secured by Jupiter Lock
+              <img src="/brand/jupiter.svg" alt="" aria-hidden width={14} height={14} className="h-3.5 w-3.5" />Secured by Jupiter Lock
             </a>
           </div>
           {err && <p className="text-xs text-ink-3">{err}</p>}

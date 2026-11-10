@@ -1,6 +1,8 @@
 /** Text for /llms.txt (llmstxt.org format) and /tokens.md. Facts come from @hb/shared and the API only. */
 import { ANTI_SNIPER_SCHEDULE, MAINNET_THRESHOLD_SOL, TIERS, scheduleDurationSeconds, scheduleEndFeeBps, type TierId } from "@hb/shared";
 import type { ApiToken } from "./api";
+import { publishedArticlesIndex } from "./articles";
+import { EXTENSION_NAME, GUIDES } from "./guideCatalog";
 import { X_URL } from "./seo";
 import { bondingPct, migrationStatus, pct1, targetSolOf, tierLabel, tokenName, tokenTicker } from "./tokenSeo";
 
@@ -15,7 +17,7 @@ export function llmsTxt(site: string) {
 
 > highbar is a Solana token launchpad built on Meteora. Every token launches on a Meteora DBC (Dynamic Bonding Curve) and graduates to a Meteora DAMM v2 pool with permanently locked liquidity once the curve reaches its tier target.
 
-Mint addresses of tokens launched on highbar end in "high". Every token has a fixed supply of 1,000,000,000, 6 decimals, mint authority off and immutable metadata.
+When the vanity mint pool has a key, the mint address ends in "high". If the pool is empty, the default mode falls back to a normal mint and says so. Every token has a fixed supply of 1,000,000,000, 6 decimals, mint authority off and immutable metadata.
 
 ## Features
 
@@ -25,7 +27,8 @@ Mint addresses of tokens launched on highbar end in "high". Every token has a fi
 - Dev Lock: creators can lock their own tokens with Jupiter Lock; locks cannot be cancelled and every lock has a public page.
 - Creator LP rebate: after migration the platform forwards part of its DAMM v2 LP fees to the token's creator.
 - $HIGHER cashback: traders earn cashback on trades made on highbar (paid in SOL until $HIGHER launches).
-- $HIGHER buyback and burn (soon): part of the platform's net income will buy $HIGHER and burn it on-chain. No returns are promised.
+- $HIGHER buyback and burn (soon): part of the platform's net income will buy $HIGHER and burn it on-chain. No returns are promised. $HIGHER is not live.
+- Chrome extension (${EXTENSION_NAME}): trade and launch from posts on X. Extension trades add a 0.02% fee on the SOL amount. The website does not add that fee.
 
 ## Key pages
 
@@ -41,6 +44,11 @@ Mint addresses of tokens launched on highbar end in "high". Every token has a fi
 - [How highbar works](${u("/docs")}): tiers and fees, the bonding curve and migration, public on-chain addresses, anti-sniper fee, Dev Lock, creator fees, LP rebate, cashback, buyback and burn, referrals, token supply, FAQ
 - [Full docs as Markdown](${u("/llms-full.txt")})
 - [API docs](${u("/docs/api")}): coming soon
+
+## Guides
+
+${GUIDES.map((g) => `- [${g.h1}](${u(g.path)}): ${g.description}`).join("\n")}
+${publishedArticlesIndex(site)}
 
 ## Optional
 

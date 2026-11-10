@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isPublishedArticle } from "./lib/articles";
 import { fetchPending, visitorIp } from "./lib/pendingToken";
 
 /** Real 404 status for unknown token mints and lock ids. The pages call notFound(), but the root loading boundary has already
@@ -9,7 +10,7 @@ import { fetchPending, visitorIp } from "./lib/pendingToken";
  *  visitor, not only the launch redirect. A row miss is remembered for 10 s, but only to skip the row lookup, never as a 404 by
  *  itself. Timeouts / rate limits on the pending check also go to the page, which decides. /token/<mint>?new=1 (the launch page's
  *  redirect right after confirmation) skips both checks. */
-export const config = { matcher: ["/token/:mint", "/locks/:id"], runtime: "nodejs" };
+export const config = { matcher: ["/token/:mint", "/locks/:id", "/articles/:slug"], runtime: "nodejs" };
 
 const TTL_MS = 60_000, MISS_TTL_MS = 10_000, MAX = 5000;
 const seen = new Map<string, { ok: boolean; at: number }>();
@@ -31,6 +32,9 @@ async function exists(kind: "tokens" | "locks", id: string): Promise<boolean | n
 
 export async function middleware(req: NextRequest) {
   const [, seg, id] = req.nextUrl.pathname.split("/");
+  // A guide whose publish_at is still in the future, or an unknown slug, is a real 404. notFound() in the page
+  // would be too late: app/loading.tsx has already streamed a 200. Same rewrite the token routes use.
+  if (seg === "articles") return isPublishedArticle(id) ? NextResponse.next() : NextResponse.rewrite(new URL("/_hb-not-found", req.url));
   if (!id) return NextResponse.next();
   const kind = seg === "token" ? "tokens" : "locks";
   // A just-created lock can lag behind the RPC: address-shaped lock ids go to the page, which shows LockPending (noindex) and retries.

@@ -9,6 +9,6 @@ export function TokenLogo({ src, name, size = 32, radius }: { src?: string | nul
     ? <span className="inline-flex shrink-0 items-center justify-center bg-ink font-semibold text-on-ink" style={{ width: size, height: size, borderRadius: radius, fontSize: Math.round(size * 0.32) }}>{name.slice(0, 2).toUpperCase()}</span>
     : <Avatar name={name} size={size} />;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img data-testid="token-logo" src={src} alt="" width={size} height={size} loading="lazy" decoding="async" onError={() => setFailed(true)}
+  return <img data-testid="token-logo" src={src} alt={`${name} logo`} width={size} height={size} loading="lazy" decoding="async" onError={() => setFailed(true)}
     className="shrink-0 bg-muted object-cover" style={{ width: size, height: size, borderRadius: radius ?? 9999 }} />;
 }

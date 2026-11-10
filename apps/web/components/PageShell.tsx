@@ -9,10 +9,15 @@ export function PageShell({ children }: { children: ReactNode }) {
     <div className="mx-auto w-full max-w-[1600px]">
       {children}
       {/* Soft site footer on every page. */}
-      <footer data-testid="site-footer" className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-border pb-2 pt-5 text-[13px] text-ink-3">
-        <Link href="/terms" className="transition-colors hover:text-ink">Terms and Conditions</Link>
-        <Link href="/privacy" className="transition-colors hover:text-ink">Privacy Policy</Link>
-        <CookieSettingsLink className="transition-colors hover:text-ink" />
+      <footer data-testid="site-footer" className="mt-12 border-t border-border pb-2 pt-5 text-[13px] text-ink-3">
+        <nav aria-label="Footer" className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+          <Link href="/docs" className="transition-colors hover:text-ink">Docs</Link>
+          <Link href="/articles" className="transition-colors hover:text-ink">Guides</Link>
+          <Link href="/solana-launchpad" className="transition-colors hover:text-ink">Solana launchpad</Link>
+          <Link href="/terms" className="transition-colors hover:text-ink">Terms and Conditions</Link>
+          <Link href="/privacy" className="transition-colors hover:text-ink">Privacy Policy</Link>
+          <CookieSettingsLink className="transition-colors hover:text-ink" />
+        </nav>
       </footer>
       {/* Renders nothing on the server. Welcome modal and cookie card mount after hydration. */}
       <SiteOverlays />

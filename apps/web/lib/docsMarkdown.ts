@@ -7,6 +7,7 @@ import {
   postMigrationSplit, scheduleDurationSeconds, scheduleEndFeeBps, scheduledFeeBps, type TierId,
 } from "@hb/shared";
 import { FAQ_TEXT } from "./docsFaq";
+import { guidesMarkdown } from "./guideCatalog";
 import {
   ADDRESS_DISCLAIMER, ADDRESS_INTRO, antiSniperLabel, CONFIG_AFTER, CONFIG_INTRO, DBC_CONFIGS, PUBLIC_ROLES, solscanAccountUrl, tierLabel,
 } from "./publicAddresses";
@@ -107,6 +108,7 @@ export function docsMarkdown(site: string): string {
     table(["Property", "Value"], [["Total supply", TOTAL_SUPPLY.toLocaleString("en-US")], ["Decimals", String(TOKEN_DECIMALS)], ["Mint authority", "Off. No new tokens can ever be minted"],
       ["Metadata", "Immutable"], ["Supply into the DAMM v2 pool at migration", `${SUPPLY_ON_MIGRATION_PCT}%`], ["Token standard", "SPL Token"]]),
     `There is no team allocation and no presale. The supply is shared between the bonding curve and the ${SUPPLY_ON_MIGRATION_PCT}% that goes into the DAMM v2 pool at migration, with nothing left over. Creators get tokens only by buying them, like everyone else.`,
+    guidesMarkdown(site),
     `## FAQ`,
     ...FAQ_TEXT.map(([q, a]) => `### ${q}\n\n${a}`),
   ].join("\n\n") + "\n";
