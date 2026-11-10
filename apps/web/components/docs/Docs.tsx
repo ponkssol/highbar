@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isListedPath } from "@/lib/articles";
 import { TableScroll } from "../ui/Scroll";
 import type { ReactNode } from "react";
 import { TopBar } from "@/components/TopBar";
@@ -136,6 +137,8 @@ export function CodeBlock({ children, label, wrap = false }: { children: string;
 /** Inline link in docs copy: internal paths use next/link, anything else opens in a new tab. */
 export function DocLink({ href, children }: { href: string; children: ReactNode }) {
   const cls = "font-medium text-gold-text underline-offset-4 hover:underline";
+  // An article that is not public yet must not be linked, so the URL stays out of the page.
+  if (href.startsWith("/articles/") && !isListedPath(href.split("#")[0])) return <span>{children}</span>;
   return href.startsWith("/") || href.startsWith("#")
     ? <Link href={href} className={cls}>{children}</Link>
     : <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>{children}</a>;

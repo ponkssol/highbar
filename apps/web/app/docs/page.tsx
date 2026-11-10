@@ -12,6 +12,8 @@ import { Bullets, Code, CodeBlock, DocLink, DocSection, DocTable, DocsHero, Docs
 import { JsonLd } from "@/components/JsonLd";
 import { FAQ_TEXT } from "@/lib/docsFaq";
 import { ADDRESS_DISCLAIMER, CONFIG_AFTER, CONFIG_INTRO } from "@/lib/publicAddresses";
+import { articlePath, listPublishedArticles } from "@/lib/articles";
+import { GUIDES } from "@/lib/guideCatalog";
 import { absUrl, breadcrumbJsonLd, pageMeta } from "@/lib/seo";
 
 export const metadata: Metadata = pageMeta({
@@ -78,6 +80,7 @@ const TOC = [
   { id: "buyback", label: "Buyback and burn" },
   { id: "referrals", label: "Referrals" },
   { id: "token-supply", label: "Token supply" },
+  { id: "guides", label: "Guides" },
   { id: "faq", label: "FAQ" },
 ];
 
@@ -231,6 +234,14 @@ export default function DocsPageRoute() {
           ["Token standard", "SPL Token"],
         ]} />
         <p>There is no team allocation and no presale. The supply is shared between the bonding curve and the {SUPPLY_ON_MIGRATION_PCT}% that goes into the DAMM v2 pool at migration, with nothing left over. Creators get tokens only by buying them, like everyone else.</p>
+      </DocSection>
+
+      <DocSection id="guides" eyebrow="Read next" title="Guides">
+        <p>Shorter pages for the same facts. The figures match this document, including the <DocLink href="#public-addresses">public addresses</DocLink>.</p>
+        <ul className="flex flex-col gap-1.5">
+          {GUIDES.map((g) => <li key={g.path}><DocLink href={g.path}>{g.h1}</DocLink><span className="text-ink-3">. {g.description}</span></li>)}
+          {listPublishedArticles().map((a) => <li key={a.slug}><DocLink href={articlePath(a)}>{a.title}</DocLink><span className="text-ink-3">. {a.metaDescription}</span></li>)}
+        </ul>
       </DocSection>
 
       <DocSection id="faq" eyebrow="Questions" title="FAQ">

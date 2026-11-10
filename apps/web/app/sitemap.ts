@@ -1,4 +1,7 @@
 import type { MetadataRoute } from "next";
+import { articlePath, listPublishedArticles } from "@/lib/articles";
+import { GUIDES } from "@/lib/guideCatalog";
+import { publishTimeMs } from "@/lib/publish";
 import { siteUrl } from "@/lib/seo";
 import { getAllLocks, getAllTokens } from "@/lib/seoData";
 import type { ApiToken } from "@/lib/api";
@@ -27,6 +30,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${site}/docs/api`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${site}/terms`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${site}/privacy`, changeFrequency: "yearly", priority: 0.2 },
+    ...GUIDES.filter((g) => g.kind !== "article").map((g): MetadataRoute.Sitemap[number] => ({
+      url: `${site}${g.path}`,
+      changeFrequency: "monthly",
+      priority: g.kind === "landing" ? 0.8 : g.kind === "index" ? 0.7 : 0.6,
+      lastModified: new Date(`${g.updated}T00:00:00.000Z`),
+    })),
+    // Only articles whose publish_at has passed. This file is rebuilt about once a minute (revalidate above).
+    ...listPublishedArticles().map((a): MetadataRoute.Sitemap[number] => ({
+      url: `${site}${articlePath(a)}`,
+      changeFrequency: "monthly",
+      priority: 0.6,
+      lastModified: new Date(publishTimeMs(a)),
+    })),
   ];
   const tok: MetadataRoute.Sitemap = (tokens ?? []).map((t) => {
     const at = tokenMod(t);

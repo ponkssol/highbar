@@ -28,18 +28,27 @@ export interface PageMetaInput {
   title?: string; absoluteTitle?: string; description: string; path: string; keywords?: string[]; noindex?: boolean;
   /** false: the route has its own opengraph-image / twitter-image files, do not set images here. */
   images?: boolean;
+  /** Article pages set Open Graph type article plus published/modified times. */
+  ogType?: "website" | "article";
+  published?: string;
+  modified?: string;
 }
-export function pageMeta({ title, absoluteTitle, description, path, keywords = [], noindex = false, images = true }: PageMetaInput): Metadata {
+export function pageMeta({ title, absoluteTitle, description, path, keywords = [], noindex = false, images = true, ogType = "website", published, modified }: PageMetaInput): Metadata {
   const full = absoluteTitle ?? fullTitle(title ?? "");
+  const image = images ? { images: [OG_IMAGE] } : {};
+  const twImage = images ? { images: [TW_IMAGE] } : {};
+  const article = ogType === "article" && published ? { publishedTime: published, modifiedTime: modified ?? published } : {};
   return {
     metadataBase: new URL(siteUrl()),
     title: { absolute: full },
     description,
     keywords: [...new Set([...keywords, ...DEFAULT_KEYWORDS])],
     alternates: { canonical: path },
-    robots: noindex ? { index: false, follow: true } : { index: true, follow: true },
-    openGraph: { type: "website", siteName: SITE_NAME, title: full, description, url: path, ...(images ? { images: [OG_IMAGE] } : {}) },
-    twitter: { card: "summary_large_image", site: "@highbar_capital", title: full, description, ...(images ? { images: [TW_IMAGE] } : {}) },
+    robots: noindex
+      ? { index: false, follow: true }
+      : { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
+    openGraph: { type: ogType, siteName: SITE_NAME, title: full, description, url: path, ...article, ...image },
+    twitter: { card: "summary_large_image", site: "@highbar_capital", title: full, description, ...twImage },
   };
 }
 
@@ -48,7 +57,7 @@ export const siteJsonLd = () => [
   { "@context": "https://schema.org", "@type": "Organization", "@id": `${siteUrl()}/#organization`, name: SITE_NAME, url: siteUrl(), logo: absUrl(LOGO_URL), sameAs: [X_URL],
     description: "highbar is a Solana token launchpad built on Meteora: tiered Meteora DBC bonding curves that graduate to Meteora DAMM v2." },
   { "@context": "https://schema.org", "@type": "WebSite", "@id": `${siteUrl()}/#website`, name: SITE_NAME, url: siteUrl(), publisher: { "@id": `${siteUrl()}/#organization` },
-    description: "Launch a Solana memecoin on a Meteora bonding curve with an anti-sniper fee, Dev Lock and locked DAMM v2 liquidity." },
+    description: "Launch a Solana memecoin on a Meteora bonding curve with an anti-sniper fee, Dev Lock and locked DAMM v2 liquidity. A Chrome extension can trade from X." },
 ];
 export const breadcrumbJsonLd = (items: [string, string][]) => ({
   "@context": "https://schema.org", "@type": "BreadcrumbList",
