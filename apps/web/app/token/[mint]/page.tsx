@@ -5,9 +5,12 @@ import { cache } from "react";
 import { TokenView } from "@/components/TokenView";
 import { TokenAbout } from "@/components/TokenAbout";
 import { JsonLd } from "@/components/JsonLd";
-import { getScore, getToken, getTrades, REVALIDATE_S } from "@/lib/seoData";
+import { articlePath } from "@/lib/articles";
+import { pickPublished } from "@/lib/guidePicks";
+import { getHomeTokens, getScore, getToken, getTrades, REVALIDATE_S } from "@/lib/seoData";
 import { absUrl, breadcrumbJsonLd, fullTitle, pageMeta } from "@/lib/seo";
-import { tokenDescription, tokenName, tokenSummary, tokenTicker, tokenTitle } from "@/lib/tokenSeo";
+import { pickRelatedTokens, tokenDescription, tokenGuideSlugs, tokenLinkLabel, tokenName, tokenSummary, tokenTicker, tokenTitle } from "@/lib/tokenSeo";
+import { tokenMetadataDescription } from "@/lib/tokenMeta";
 import { fetchPending, visitorIp } from "@/lib/pendingToken";
 import { TokenPending } from "./TokenPending";
 import { isHiddenToken } from "@/lib/hiddenTokens";
@@ -50,7 +53,9 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
   return pageMeta({
     absoluteTitle: tokenTitle(t), description: tokenDescription(t, d.holders), path: `/token/${t.mint}`, images: false,
     keywords: [`${tokenName(t)} token`, `$${tokenTicker(t)}`, `${tokenTicker(t)} Solana`, t.mint],
-    noindex: isHiddenToken(t), // hidden test token: the page works by direct link but stays out of search engines
+    // Hidden test launches only (built-in HIDDEN_TOKEN_MINTS, the HIDDEN_TOKEN_MINTS env list, or API hidden: true).
+    // The page stays reachable. This is not an activity or freshness cutoff.
+    noindex: isHiddenToken(t),
   });
 }
 
@@ -58,19 +63,23 @@ export default async function TokenPage({ params, searchParams }: Params) {
   const { mint } = await params;
   // Real data from the API (server-side, API_URL); unknown mint -> 404 (middleware.ts sets the status before streaming),
   // except a fresh on-chain mint the indexer is still catching up on (?new=1 or the pending check), see showPending.
+  const listedPromise = getHomeTokens();
   const d = await load(mint);
   if (!d) {
     if (await showPending(mint, searchParams)) return <TokenPending mint={mint} fresh={(await searchParams).new === "1"} />;
     notFound();
   }
   const { live, trades } = d;
+  const [description, listed] = await Promise.all([tokenMetadataDescription(live.uri), listedPromise]);
   const name = tokenName(live), ticker = tokenTicker(live);
   const prevPrice = trades.length > 1 ? trades[trades.length - 1].sol / Math.max(1e-9, trades[trades.length - 1].tokens) : live.priceSol;
   // Header price = the last trade's price, the same number the chart's last candle closes at.
   const lastTrade = trades.length ? trades[0] : null;
   const lastPrice = lastTrade && lastTrade.tokens > 0 ? lastTrade.sol / lastTrade.tokens : null;
   const shownPrice = lastPrice ?? live.priceSol;
-  const summary = tokenSummary(live, d.holders);
+  const summary = tokenSummary(live, d.holders, description);
+  const related = pickRelatedTokens(live, listed?.items ?? []).map((t) => ({ href: `/token/${t.mint}`, label: tokenLinkLabel(t) }));
+  const guides = pickPublished(tokenGuideSlugs(live)).slice(0, 4).map((a) => ({ href: articlePath(a), label: a.title }));
   const url = absUrl(`/token/${live.mint}`);
   const ld = [
     { "@context": "https://schema.org", "@type": "WebPage", "@id": url, url, name: `${name} ($${ticker})`, description: tokenDescription(live, d.holders),
@@ -81,7 +90,7 @@ export default async function TokenPage({ params, searchParams }: Params) {
   return (
     <>
       <JsonLd data={ld} />
-      <TokenView about={<TokenAbout t={live} holders={d.holders} summary={summary} />} t={{
+      <TokenView about={<TokenAbout t={live} holders={d.holders} summary={summary} related={related} guides={guides} />} t={{
         mint: live.mint, pool: live.pool || undefined, name, ticker, image: live.image ?? null, tier: live.tier, antiSniper: live.antiSniper,
         creator: live.creator, createdAt: live.createdAt, mcapUsd: live.mcapUsd, raisedSol: live.quoteReserveSol, thresholdSol: live.thresholdSol || undefined, volume24hSol: live.volume24hSol,
         priceSol: shownPrice, priceUsd: live.mcapSol > 0 ? (shownPrice * live.mcapUsd) / live.mcapSol : undefined, change24h: prevPrice ? ((shownPrice - prevPrice) / prevPrice) * 100 : 0,

@@ -1,4 +1,4 @@
-import { BookOpen, Gift, LayoutGrid, Lock, Rocket, Settings, Trophy, Wallet, type LucideIcon } from "lucide-react";
+import { BookOpen, Gift, LayoutGrid, Library, Lock, Rocket, Settings, Trophy, Wallet, type LucideIcon } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; match?: string[]; badge?: string };
 
@@ -11,6 +11,7 @@ export const NAV: NavItem[] = [
   { href: "/portfolio", label: "Portfolio", icon: Wallet, match: ["/claim"] },
   { href: "/rewards", label: "Rewards", icon: Gift, match: ["/cashback", "/referral", "/milestones", "/bar", "/burn", "/higher"] },
   { href: "/open-book", label: "Open Book", icon: BookOpen, badge: "New" },
+  { href: "/articles", label: "Guides", icon: Library },
   { href: "/settings", label: "Settings", icon: Settings, match: ["/about"] },
 ];
 

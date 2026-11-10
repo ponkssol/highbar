@@ -12,7 +12,7 @@ export function PageShell({ children }: { children: ReactNode }) {
       <footer data-testid="site-footer" className="mt-12 border-t border-border pb-2 pt-5 text-[13px] text-ink-3">
         <nav aria-label="Footer" className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
           <Link href="/docs" className="transition-colors hover:text-ink">Docs</Link>
-          <Link href="/articles" className="transition-colors hover:text-ink">Guides</Link>
+          <a href="/articles" className="transition-colors hover:text-ink">Guides</a>
           <Link href="/solana-launchpad" className="transition-colors hover:text-ink">Solana launchpad</Link>
           <Link href="/terms" className="transition-colors hover:text-ink">Terms and Conditions</Link>
           <Link href="/privacy" className="transition-colors hover:text-ink">Privacy Policy</Link>

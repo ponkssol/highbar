@@ -3,7 +3,8 @@
 import { fmtDateUS } from "@/lib/date";
 import { TIERS, thresholdSolFor, type TierId } from "@hb/shared";
 import type { ApiToken } from "./api";
-import { fmtUsd } from "./format";
+import { fmtUsd, shortAddr } from "./format";
+import { visibleOnly } from "./hiddenTokens";
 import { SITE_NAME } from "./seo";
 
 const net = () => (process.env.NETWORK === "mainnet" || process.env.NETWORK === "mainnet-beta" ? "mainnet" : "devnet");
@@ -19,17 +20,86 @@ export const tokenTicker = (t: ApiToken) => t.symbol || "?";
 export const migrationStatus = (t: ApiToken) => (t.isMigrated ? "Graduated to Meteora DAMM v2" : "Trading on the Meteora DBC bonding curve");
 export const devLockStatus = (t: ApiToken) => (t.devLocked ? (t.unlockAt ? `Locked with Jupiter Lock until ${fmtDateUtc(t.unlockAt * 1000)}` : "Locked with Jupiter Lock") : "No Dev Lock");
 
-export function tokenSummary(t: ApiToken, holders: number | null): string {
-  const name = tokenName(t), tic = tokenTicker(t), target = targetSolOf(t);
-  const s: string[] = [`${name} ($${tic}) is a Solana memecoin launched on highbar, a Solana launchpad built on Meteora.`];
-  if (t.isMigrated) s.push("It graduated from its Meteora DBC bonding curve and now trades in a Meteora DAMM v2 pool with locked liquidity.");
-  else if (target > 0) s.push(`It trades on a Meteora DBC bonding curve and is ${pct1(bondingPct(t))}% of the way to graduating at ${target} SOL, when it migrates to Meteora DAMM v2.`);
-  else s.push("It trades on a Meteora DBC bonding curve.");
-  s.push(`It uses the ${tierLabel(t.tier)} tier${t.antiSniper ? " with the anti-sniper fee on" : ""}.`);
-  const stats = [t.mcapUsd > 0 ? `a market cap of about ${fmtUsd(t.mcapUsd)}` : null, holders != null && holders > 0 ? `${holders.toLocaleString("en-US")} holder${holders === 1 ? "" : "s"}` : null].filter(Boolean);
-  if (stats.length) s.push(`It has ${stats.join(" and ")}.`);
-  if (t.devLocked) s.push(`The creator's tokens are in a Dev Lock (Jupiter Lock)${t.unlockAt ? ` until ${fmtDateUtc(t.unlockAt * 1000)}` : ""}.`);
-  if (t.createdAt > 0) s.push(`It was created on ${fmtDateUtc(t.createdAt)}.`);
+/** Creator metadata we will not repeat on the page. Their words, not ours, but the page must not say these. */
+const BANNED_COPY = /anti-bundle|bundle-proof|rug-proof|guaranteed safe/i;
+
+/** Plain description text from a metadata JSON object. Blank and non-strings are omitted. */
+export function descriptionFromMeta(json: unknown): string | null {
+  if (!json || typeof json !== "object") return null;
+  const raw = (json as { description?: unknown }).description;
+  if (typeof raw !== "string") return null;
+  const text = raw.replace(/\s+/g, " ").trim();
+  if (!text || BANNED_COPY.test(text)) return null;
+  return text.length > 1000 ? `${text.slice(0, 999).trimEnd()}…` : text;
+}
+
+/** Id of a highbar-hosted metadata file (`…/hb-api/meta/<24 hex>.json`). Other URIs are ignored. */
+export function ownMetaId(uri: string | null | undefined): string | null {
+  if (!uri) return null;
+  const m = /\/hb-api\/meta\/([a-f0-9]{24})\.json(?:\?[^#]*)?$/.exec(uri.trim());
+  return m ? m[1] : null;
+}
+
+/** Link text from a token's own name and symbol. A missing name falls back to the symbol, then the mint. */
+export function tokenLinkLabel(t: { mint: string; name?: string | null; symbol?: string | null }): string {
+  const name = t.name?.trim() ?? "";
+  const symbol = t.symbol?.trim() ?? "";
+  if (name && symbol) return `${name} ($${symbol})`;
+  if (name) return name;
+  if (symbol) return `$${symbol}`;
+  return shortAddr(t.mint, 4);
+}
+
+/** Other listed tokens: same creator, then same tier, then the rest of the list. Hidden mints and this mint are left out. */
+export function pickRelatedTokens(self: { mint: string; tier?: string; creator?: string }, rows: readonly ApiToken[], limit = 4): ApiToken[] {
+  const pool = visibleOnly(rows).filter((t) => t.mint !== self.mint);
+  const rank = (t: ApiToken) => (self.creator && t.creator === self.creator ? 0 : t.tier === self.tier ? 1 : 2);
+  return pool
+    .map((t, i) => ({ t, i, rank: rank(t) }))
+    .sort((a, b) => a.rank - b.rank || a.i - b.i)
+    .slice(0, limit)
+    .map((x) => x.t);
+}
+
+/** Guides that match this token's curve, fee and lock. Callers drop any that are not published yet. */
+export function tokenGuideSlugs(t: { isMigrated?: boolean; antiSniper?: boolean; devLocked?: boolean }): string[] {
+  const slugs = [
+    t.isMigrated ? "meteora-damm-v2-explained-token-graduation" : "meteora-dynamic-bonding-curve-explained",
+    "how-to-check-a-solana-token-before-buying",
+  ];
+  if (t.antiSniper) slugs.push("anti-sniper-fee-solana-token-launch");
+  if (t.devLocked) slugs.push("dev-lock-token-lock-solana-explained");
+  slugs.push("memecoin-creator-fees-solana-launchpad");
+  return slugs;
+}
+
+/** Factual sentences for the token page. A sentence is left out when its field is missing. */
+export function tokenFactSentences(t: ApiToken, description?: string | null): string[] {
+  const name = t.name?.trim() ?? "";
+  const symbol = t.symbol?.trim() ?? "";
+  const who = name && symbol ? `${name} ($${symbol})` : name || (symbol ? `$${symbol}` : t.mint);
+  const s = [`${who} launched on highbar.`];
+  const desc = description?.replace(/\s+/g, " ").trim();
+  if (desc && !BANNED_COPY.test(desc)) s.push(/[.!?]$/.test(desc) ? desc : `${desc}.`);
+  if (t.creator?.trim()) s.push(`Creator ${shortAddr(t.creator.trim())}.`);
+  if (t.createdAt > 0) s.push(`Launched ${fmtDateUtc(t.createdAt)} (UTC).`);
+  if (t.isMigrated) s.push("Graduated from the Meteora DBC bonding curve to Meteora DAMM v2.");
+  else if (typeof t.progress === "number" && Number.isFinite(t.progress)) {
+    const pct = `${pct1(bondingPct(t))}%`;
+    s.push(t.thresholdSol > 0
+      ? `Trading on a Meteora DBC bonding curve, ${pct} of the way to ${t.thresholdSol} SOL.`
+      : `Trading on a Meteora DBC bonding curve, ${pct} bonded.`);
+  }
+  if (t.tier) s.push(`Config tier: ${TIERS[t.tier]?.label ?? t.tier}.`);
+  if (typeof t.antiSniper === "boolean") s.push(t.antiSniper ? "Anti-sniper fee: on." : "Anti-sniper fee: off.");
+  if (t.devLocked) s.push(`${devLockStatus(t)}.`);
+  if (t.mcapUsd > 0) s.push(`Market cap about ${fmtUsd(t.mcapUsd)}.`);
+  return s;
+}
+
+export function tokenSummary(t: ApiToken, holders: number | null, description?: string | null): string {
+  const s = tokenFactSentences(t, description);
+  if (holders != null && holders > 0) s.push(`${holders.toLocaleString("en-US")} holder${holders === 1 ? "" : "s"}.`);
   return s.join(" ");
 }
 

@@ -13,6 +13,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { FAQ_TEXT } from "@/lib/docsFaq";
 import { ADDRESS_DISCLAIMER, CONFIG_AFTER, CONFIG_INTRO } from "@/lib/publicAddresses";
 import { articlePath, listPublishedArticles } from "@/lib/articles";
+import { GUIDE_PICKS, pickPublished } from "@/lib/guidePicks";
 import { GUIDES } from "@/lib/guideCatalog";
 import { absUrl, breadcrumbJsonLd, pageMeta } from "@/lib/seo";
 
@@ -85,6 +86,9 @@ const TOC = [
 ];
 
 export default function DocsPageRoute() {
+  const featured = pickPublished(GUIDE_PICKS.docs);
+  const featuredSlugs = new Set(featured.map((a) => a.slug));
+  const moreArticles = listPublishedArticles().filter((a) => !featuredSlugs.has(a.slug));
   return (
     <DocsPage toc={TOC} hero={
       <DocsHero eyebrow="Documentation" title="How the highbar Solana launchpad works">
@@ -238,9 +242,17 @@ export default function DocsPageRoute() {
 
       <DocSection id="guides" eyebrow="Read next" title="Guides">
         <p>Shorter pages for the same facts. The figures match this document, including the <DocLink href="#public-addresses">public addresses</DocLink>.</p>
+        {featured.length > 0 && (
+          <>
+            <SubHead>Articles</SubHead>
+            <ul className="flex flex-col gap-1.5">
+              {featured.map((a) => <li key={a.slug}><DocLink href={articlePath(a)}>{a.title}</DocLink><span className="text-ink-3">. {a.metaDescription}</span></li>)}
+            </ul>
+          </>
+        )}
         <ul className="flex flex-col gap-1.5">
           {GUIDES.map((g) => <li key={g.path}><DocLink href={g.path}>{g.h1}</DocLink><span className="text-ink-3">. {g.description}</span></li>)}
-          {listPublishedArticles().map((a) => <li key={a.slug}><DocLink href={articlePath(a)}>{a.title}</DocLink><span className="text-ink-3">. {a.metaDescription}</span></li>)}
+          {moreArticles.map((a) => <li key={a.slug}><DocLink href={articlePath(a)}>{a.title}</DocLink><span className="text-ink-3">. {a.metaDescription}</span></li>)}
         </ul>
       </DocSection>
 
