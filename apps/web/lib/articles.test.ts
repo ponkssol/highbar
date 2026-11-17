@@ -52,9 +52,24 @@ const SCHEDULE_1116: [string, string][] = [
   ["stonkfun-alternatives", "2026-11-16T20:16:00+07:00"],
 ];
 
+/** 2026-11-17 batch, in publish order. Times are WIB (+07:00). */
+const SCHEDULE_1117: [string, string][] = [
+  ["pump-fun-vs-jupiter-studio", "2026-11-17T08:34:00+07:00"],
+  ["bags-vs-pump-fun", "2026-11-17T09:48:00+07:00"],
+  ["float-vs-bags", "2026-11-17T11:02:00+07:00"],
+  ["jupiter-studio-alternatives", "2026-11-17T12:24:00+07:00"],
+  ["boop-fun-vs-pump-fun", "2026-11-17T13:39:00+07:00"],
+  ["how-to-launch-on-moonshot", "2026-11-17T14:58:00+07:00"],
+  ["how-to-launch-on-heaven", "2026-11-17T16:13:00+07:00"],
+  ["bags-vs-jupiter-studio", "2026-11-17T17:29:00+07:00"],
+  ["float-vs-jupiter-studio", "2026-11-17T18:54:00+07:00"],
+  ["believe-app-alternatives", "2026-11-17T20:12:00+07:00"],
+];
+
 const THROUGH_1111 = [...SCHEDULE, ...SCHEDULE_1111];
 const THROUGH_1112 = [...THROUGH_1111, ...SCHEDULE_1112];
-const ALL_SCHEDULED = [...THROUGH_1112, ...SCHEDULE_1116];
+const THROUGH_1116 = [...THROUGH_1112, ...SCHEDULE_1116];
+const ALL_SCHEDULED = [...THROUGH_1116, ...SCHEDULE_1117];
 
 test("the 2026-11-10 batch is hidden until each publish_at, then appears in order", () => {
   const all = loadAllArticles();
@@ -81,5 +96,9 @@ test("the 2026-11-10 batch is hidden until each publish_at, then appears in orde
   const beforeNov16 = Date.parse("2026-11-16T01:36:59.000Z"); // 08:36:59 WIB
   assert.deepEqual(listPublishedArticles(beforeNov16).map((a) => a.slug), THROUGH_1112.map(([slug]) => slug));
   const afterNov16 = Date.parse("2026-11-16T13:16:00.000Z"); // 20:16 WIB
-  assert.deepEqual(listPublishedArticles(afterNov16).map((a) => a.slug), ALL_SCHEDULED.map(([slug]) => slug));
+  assert.deepEqual(listPublishedArticles(afterNov16).map((a) => a.slug), THROUGH_1116.map(([slug]) => slug));
+  const beforeNov17 = Date.parse("2026-11-17T01:33:59.000Z"); // 08:33:59 WIB
+  assert.deepEqual(listPublishedArticles(beforeNov17).map((a) => a.slug), THROUGH_1116.map(([slug]) => slug));
+  const afterNov17 = Date.parse("2026-11-17T13:12:00.000Z"); // 20:12 WIB
+  assert.deepEqual(listPublishedArticles(afterNov17).map((a) => a.slug), ALL_SCHEDULED.map(([slug]) => slug));
 });
