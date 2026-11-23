@@ -46,7 +46,7 @@ The same tracker showed LaunchLab volume up 88% week on week, which is why Bonk.
 | Bonk.fun (LetsBonk) | Raydium LaunchLab platform | 1.25% platform fee in its config, plus Raydium's protocol fee | To a Raydium CPMM pool | [Raydium LaunchLab platform list](https://launch-mint-v1.raydium.io/main/platforms?page=1&pageSize=100) |
 | Bags | Meteora DBC → DAMM v2 | 2% in Default mode (7 modes) | 85 SOL in most modes | [Bags fee modes](https://docs.bags.fm/how-to-guides/customize-token-fees) |
 | Jupiter Studio | Meteora DBC → DAMM v2 | 1% or 2%, 50% to creator | At least 15,000 USDC raised | [Jupiter Studio docs](https://docs.jup.ag/user-docs/launch/studio) |
-| Float | Raydium LaunchLab, stock-paired | 1%, 2% or 2.5% (creator picks) | About $150,000 market cap | [Float docs](https://www.floatlaunch.xyz/docs) |
+| Float | Raydium LaunchLab, stock-paired | 1% on new standard coins; builder launches 1%, 2% or 2.5% | About $150,000 market cap | [Float docs](https://www.floatlaunch.xyz/docs) |
 | Highbar | Meteora DBC → DAMM v2 | 1% | 85, 150 or 250 SOL (creator picks) | [Highbar docs](/docs) |
 
 ## Platform by platform
@@ -69,7 +69,7 @@ Jupiter Studio's [user docs](https://docs.jup.ag/user-docs/launch/studio) descri
 
 ### Float: this week's newcomer
 
-Float pairs every coin with a token such as a tokenized stock, SOL or USDC. Its [docs](https://www.floatlaunch.xyz/docs) list a $20,000 starting market cap, graduation at about $150,000 into a Raydium pool locked with Burn & Earn, and a fee split of 15% holders, 5% creator, 35% $FLOAT buyback, 35% top traders and 10% treasury. The docs also say the Float program has not had an outside audit yet. **Best for:** people who specifically want stock-paired coins.
+Float pairs every coin with a token such as a tokenized stock, SOL or USDC. Its [docs](https://www.floatlaunch.xyz/docs), rechecked on 23 November 2026, list a $20,000 starting market cap and graduation at about $150,000 into a Raydium pool locked with Burn & Earn. New standard coins pay a flat 1% fee. Builder launches can pick 1%, 2% or 2.5%, and older standard coins keep a 2% or 2.5% rate. On standard coins Float splits what it collects 17.5% to holders, 30% to a $FLOAT buyback, 15% to traders, 15% to $FLOAT holders and 22.5% to the treasury, with a 0% creator share. The docs also say the Float program has not had an outside audit yet. **Best for:** people who specifically want stock-paired coins.
 
 ### Highbar: pick your own bar
 
@@ -77,7 +77,7 @@ Highbar launches every token on Meteora DBC and graduates it to a Meteora DAMM v
 
 - **Three graduation targets:** Standard 85 SOL, Higher 150 SOL, Max 250 SOL.
 - **1% curve fee** with no extra app fee on the website. Creator share on the curve: 0.4%, 0.496% or 0.6% by tier.
-- **Optional anti-sniper fee**, off by default: 25% at launch, decaying to about 1% over 60 seconds. It only makes early buys more expensive. See [how the decaying fee works](/articles/anti-sniper-fee-solana-token-launch).
+- **Optional anti-sniper fee**, off by default: 25% at launch, decaying to about 1% over 60 seconds. It only makes early buys more expensive. It does not stop bots, bundles or rug pulls. Locked liquidity is not a guarantee of price or safety. See [how the decaying fee works](/articles/anti-sniper-fee-solana-token-launch).
 - **Dev Lock** with Jupiter Lock for creators who want to lock their own tokens publicly.
 - **Fixed token facts:** 1,000,000,000 supply, mint authority off, immutable metadata, no team allocation or presale.
 

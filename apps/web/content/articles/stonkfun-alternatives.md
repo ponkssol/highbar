@@ -17,7 +17,7 @@ faq:
   - question: "Which StonkFun alternative also supports stock pairs?"
     answer: "Float pairs coins with tokenized stocks, pre-IPO tokens, privacy coins, SOL or USDC. Bags documents launching with a custom quote, including supported stock tokens."
   - question: "Which alternative pays creators the most per trade?"
-    answer: "It depends on volume and settings. On StonkFun's 1% tier the creator gets about 0.5%. Highbar pays 0.4% to 0.6% on the curve by tier. Float pays the creator 5% of its share of the fee."
+    answer: "It depends on volume and settings. On StonkFun's 1% tier the creator gets about 0.5%. Highbar pays 0.4% to 0.6% on the curve by tier. A standard Float coin pays its creator 0%. A builder launch sends 50% of what Float collects to a fee wallet, capped by Raydium at 0.5% of each trade before graduation."
   - question: "Does Highbar support stock-paired coins?"
     answer: "No. Every Highbar token is paired with SOL. Highbar launches on Meteora DBC and graduates to a Meteora DAMM v2 pool with locked liquidity."
   - question: "Does a stock-paired coin give me rights in the company?"
@@ -54,7 +54,7 @@ Reasons you might look elsewhere:
 | Platform | Pair options | Trading fee | Creator share | After graduation |
 | --- | --- | --- | --- | --- |
 | StonkFun | Almost any token | 1% or 2% | About 0.5% on the 1% tier | Raydium CPMM, LP locked to platform |
-| Float | Tokenized stocks, pre-IPO, privacy coins, SOL, USDC | 1%, 2% or 2.5% | 5% of Float's share | Raydium pool, Burn & Earn lock |
+| Float | Tokenized stocks, pre-IPO, privacy coins, SOL, USDC | 1% on new standard coins; builder launches 1%, 2% or 2.5% | 0% on standard coins | Raydium pool, Burn & Earn lock |
 | Bags | SOL modes, or custom quote incl. stock tokens | 2% (Default) | 1% claimers pool (Default) | Meteora DAMM v2 |
 | Bonk.fun | SOL, USD1 | 1.25% platform fee rate | 0 on chain | Raydium CPMM, LP mostly burned |
 | Jupiter Studio | USDC, SOL or JUP (custom mode) | 1% or 2% | 50% of the fee | Meteora DAMM v2, LP locked |
@@ -64,9 +64,9 @@ Sources are linked below.
 
 ### Float: the closest StonkFun alternative
 
-Float also pairs coins with tokenized stocks and runs on Raydium LaunchLab. Per [Float's docs](https://www.floatlaunch.xyz/docs), creators pick a 1%, 2% or 2.5% fee. After Raydium's cut, Float splits its share the same way for every coin: 15% to holders in the paired token, 5% to the creator, 35% to $FLOAT buybacks and burns, 35% to USDC airdrops for top traders, and 10% to the treasury. Coins graduate at about $150,000 market cap and the liquidity is locked with Raydium's Burn & Earn. Float discloses that its program has not had an outside audit yet. Our [Float explainer](/articles/float-launchpad-explained) covers its rules and risk notes.
+Float also pairs coins with tokenized stocks and runs on Raydium LaunchLab. Per [Float's docs](https://www.floatlaunch.xyz/docs), rechecked on 23 November 2026, new standard coins pay a flat 1% fee. Builder launches can pick 1%, 2% or 2.5%, and standard coins launched earlier at 2% or 2.5% keep their rate. After Raydium's 0.25% cut on the curve, Float splits what it collects on standard coins: 17.5% to holders in the paired token, 30% to $FLOAT buybacks and burns, 15% to traders by score, 15% to $FLOAT holders and 22.5% to the treasury. The creator share on a standard coin is 0%. A builder launch sends 50% of what Float collects to a fee wallet. Coins graduate at about $150,000 market cap and the liquidity is locked with Raydium's Burn & Earn. Float discloses that its program has not had an outside audit yet. Our [Float explainer](/articles/float-launchpad-explained) covers its rules and risk notes.
 
-**Pick Float** if you want stock pairs and holder rewards without a transfer tax, and accept a small creator share.
+**Pick Float** if you want stock pairs and holder rewards without a transfer tax, and accept that a standard coin pays the creator nothing.
 
 ### Bags: custom quotes on Meteora
 
@@ -94,7 +94,7 @@ Highbar does not offer stock pairs. Its trade-off is simplicity. From the [Highb
 - **1% curve fee**, with 0.4%, 0.496% or 0.6% to the creator, and no extra app fee on the website.
 - **After graduation**, liquidity is locked forever in a creator position and a platform position; creators receive 0.6%–0.7% of volume including the creator LP rebate.
 - **No transfer tax**, no team allocation, fixed 1,000,000,000 supply and mint authority off.
-- **Optional anti-sniper fee** from 25% decaying to about 1% over 60 seconds. It reduces the early advantage only; it does not stop bots or bundles.
+- **Optional anti-sniper fee** from 25% decaying to about 1% over 60 seconds. It only reduces the early-buy advantage. It does not stop bots, bundles or rug pulls. Locked liquidity is not a guarantee of price or safety.
 
 **Pick Highbar** if you want a SOL pair, an on-chain creator share on both sides of graduation and a locked creator LP position, and you accept a smaller audience.
 

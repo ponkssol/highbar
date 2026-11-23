@@ -94,12 +94,27 @@ const SCHEDULE_1119: [string, string][] = [
   ["fair-launch-solana-memecoin", "2026-11-19T20:15:00+07:00"],
 ];
 
+/** 2026-11-23 batch, in publish order. Times are WIB (+07:00). */
+const SCHEDULE_1123: [string, string][] = [
+  ["pump-fun-wallet-login-change", "2026-11-23T08:38:00+07:00"],
+  ["float-vs-bonk-fun", "2026-11-23T09:51:00+07:00"],
+  ["pump-fun-bonding-curve-nearly-optimal", "2026-11-23T11:19:00+07:00"],
+  ["jupiter-studio-vs-raydium-launchlab", "2026-11-23T12:36:00+07:00"],
+  ["jupiter-lock-explained", "2026-11-23T14:02:00+07:00"],
+  ["bags-vs-bonk-fun", "2026-11-23T15:28:00+07:00"],
+  ["solana-memecoin-graduation-rate", "2026-11-23T16:53:00+07:00"],
+  ["solana-1-0-mainnet-memecoin-traders", "2026-11-23T18:11:00+07:00"],
+  ["burner-wallet-solana-memecoin-trading", "2026-11-23T19:32:00+07:00"],
+  ["solana-token-metadata-mutable-vs-immutable", "2026-11-23T20:57:00+07:00"],
+];
+
 const THROUGH_1111 = [...SCHEDULE, ...SCHEDULE_1111];
 const THROUGH_1112 = [...THROUGH_1111, ...SCHEDULE_1112];
 const THROUGH_1116 = [...THROUGH_1112, ...SCHEDULE_1116];
 const THROUGH_1117 = [...THROUGH_1116, ...SCHEDULE_1117];
 const THROUGH_1118 = [...THROUGH_1117, ...SCHEDULE_1118];
-const ALL_SCHEDULED = [...THROUGH_1118, ...SCHEDULE_1119];
+const THROUGH_1119 = [...THROUGH_1118, ...SCHEDULE_1119];
+const ALL_SCHEDULED = [...THROUGH_1119, ...SCHEDULE_1123];
 
 test("the 2026-11-10 batch is hidden until each publish_at, then appears in order", () => {
   const all = loadAllArticles();
@@ -138,5 +153,10 @@ test("the 2026-11-10 batch is hidden until each publish_at, then appears in orde
   const beforeNov19 = Date.parse("2026-11-19T01:22:59.000Z"); // 08:22:59 WIB
   assert.deepEqual(listPublishedArticles(beforeNov19).map((a) => a.slug), THROUGH_1118.map(([slug]) => slug));
   const afterNov19 = Date.parse("2026-11-19T13:15:00.000Z"); // 20:15 WIB
-  assert.deepEqual(listPublishedArticles(afterNov19).map((a) => a.slug), ALL_SCHEDULED.map(([slug]) => slug));
+  assert.deepEqual(listPublishedArticles(afterNov19).map((a) => a.slug), THROUGH_1119.map(([slug]) => slug));
+  const beforeNov23 = Date.parse("2026-11-23T01:37:59.000Z"); // 08:37:59 WIB
+  assert.deepEqual(listPublishedArticles(beforeNov23).map((a) => a.slug), THROUGH_1119.map(([slug]) => slug));
+  const afterNov23 = Date.parse("2026-11-23T13:57:00.000Z"); // 20:57 WIB
+  assert.deepEqual(listPublishedArticles(afterNov23).map((a) => a.slug), ALL_SCHEDULED.map(([slug]) => slug));
+  assert.equal(ALL_SCHEDULED.length, 74);
 });

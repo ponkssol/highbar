@@ -22,7 +22,7 @@ faq:
     answer: "Studio offers an optional anti-sniping fee in custom mode, starting at 99% and decaying over 1 to 5 minutes. Float's docs describe a creator first buy in the launch transaction, capped at 2% of supply on its launch form, but not a decaying anti-sniper fee."
 ---
 
-Float and Jupiter Studio both let you launch a Solana coin against something other than plain SOL. Float is built around pairs with tokenized stocks and other tokens. Studio lets you choose USDC, SOL or JUP. Beyond that they are quite different: different engines, very different creator economics, and different ideas of who a launch should reward. This comparison uses [Float's docs](https://www.floatlaunch.xyz/docs) and Jupiter's [launching a token](https://docs.jup.ag/user-docs/launch/studio/launching-a-token) and [graduation and fees](https://docs.jup.ag/user-docs/launch/studio/graduation-and-fees) pages, checked on 17 November 2026.
+Float and Jupiter Studio both let you launch a Solana coin against something other than plain SOL. Float is built around pairs with tokenized stocks and other tokens. Studio lets you choose USDC, SOL or JUP. Beyond that they are quite different: different engines, very different creator economics, and different ideas of who a launch should reward. This comparison uses [Float's docs](https://www.floatlaunch.xyz/docs) and Jupiter's [launching a token](https://docs.jup.ag/user-docs/launch/studio/launching-a-token) and [graduation and fees](https://docs.jup.ag/user-docs/launch/studio/graduation-and-fees) pages. Jupiter's pages were checked on 17 November 2026. Float's fee rules were rechecked on 23 November 2026.
 
 We run Highbar, a SOL-only launchpad, and include it briefly. Neither Float nor Jupiter is affiliated with Highbar.
 
@@ -33,7 +33,7 @@ We run Highbar, a SOL-only launchpad, and include it briefly. Neither Float nor 
 | Engine | Raydium LaunchLab, then a Raydium pool | Bonding curve, then Meteora DAMM v2 |
 | Pairs | Tokenized stocks, pre-IPO tokens, ZEC or XMR on Solana, SOL, USDC | USDC, SOL or JUP |
 | Supply | 1,000,000,000, no mint or freeze authority | 1,000,000,000 |
-| Trading fee | Creator picks 1%, 2% or 2.5% | 1% (meme) or 1% / 2% (custom) |
+| Trading fee | 1% on new standard coins; builder launches pick 1%, 2% or 2.5% | 1% (meme) or 1% / 2% (custom) |
 | Creator share | 0% on standard coins; builder launches 50% of Float's collection | 50% of the fee, for life |
 | Holder rewards | 17.5% of Float's collection, paid in the paired token | None described |
 | Graduation | About 7.5x the starting cap (roughly $150,000) | At least 15,000 USDC raised or equivalent |
@@ -53,7 +53,7 @@ If you specifically want a coin tied to a stock or pre-IPO token, Float is the p
 
 ### Float
 
-The creator picks a 1%, 2% or 2.5% fee on every buy and sell. Raydium keeps 0.25% while the coin is on its curve. Float's program collects the rest. On standard coins, before and after graduation, it splits it 17.5% to the coin's holders, 30% to a $FLOAT buyback and burn, 15% to traders and 15% to $FLOAT holders (both as USDC), and 22.5% to the treasury. The creator share is 0%.
+Float's docs say new standard coins pay a flat 1% fee on every buy and sell. Builder launches can pick 1%, 2% or 2.5%, and standard coins launched earlier at 2% or 2.5% keep their rate. Raydium keeps 0.25% while the coin is on its curve. Float's program collects the rest. On standard coins, before and after graduation, it splits it 17.5% to the coin's holders, 30% to a $FLOAT buyback and burn, 15% to traders and 15% to $FLOAT holders (both as USDC), and 22.5% to the treasury. The creator share is 0%.
 
 Builder launches change that: 50% of Float's collection goes to a fee wallet chosen at launch, 15% to airdrops, 15% to buyback and 20% to treasury, with no holder rewards. Raydium caps a creator's cut at 0.5% of each trade before graduation, so Float's docs say the builder gets 0.375% per trade at the 1% level and 0.5% at 2% and 2.5%.
 
@@ -79,7 +79,7 @@ Background: our [Float launchpad explainer](/articles/float-launchpad-explained)
 
 ## Where Highbar fits
 
-Highbar does not offer stock, USDC or JUP pairs. Per the [Highbar docs](/docs), every token is SOL-paired on a Meteora Dynamic Bonding Curve with a 1% fee. Meteora keeps 0.2% and the creator earns 0.4%, 0.496% or 0.6% depending on a graduation target of 85, 150 or 250 SOL. Liquidity then moves into a DAMM v2 pool that is locked forever, and the creator receives 0.6% to 0.7% of post-graduation volume including the LP rebate. An optional anti-sniper fee starts at 25% and decays to about 1% over 60 seconds. It reduces the early sniping advantage and does not stop bots.
+Highbar does not offer stock, USDC or JUP pairs. Per the [Highbar docs](/docs), every token is SOL-paired on a Meteora Dynamic Bonding Curve with a 1% fee. Meteora keeps 0.2% and the creator earns 0.4%, 0.496% or 0.6% depending on a graduation target of 85, 150 or 250 SOL. Liquidity then moves into a DAMM v2 pool that is locked forever, and the creator receives 0.6% to 0.7% of post-graduation volume including the LP rebate. An optional anti-sniper fee starts at 25% and decays to about 1% over 60 seconds. It only reduces the early-buy advantage. It does not stop bots, bundles or rug pulls. Locked liquidity is not a guarantee of price or safety.
 
 ## Which should you choose?
 
