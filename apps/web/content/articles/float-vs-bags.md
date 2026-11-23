@@ -22,7 +22,7 @@ faq:
     answer: "Float says graduated liquidity moves into a Raydium pool locked forever with Raydium's Burn & Earn. Bags tokens migrate to a Meteora DAMM v2 pool; check the specific config and pool before assuming a lock."
 ---
 
-Float and Bags are often mentioned together because both go beyond the plain SOL-paired memecoin. Float pairs every coin with another token, such as a tokenized stock. Bags builds launches around shared creator fees and a choice of fee modes. Underneath they use different engines and pay creators in very different ways. This comparison uses [Float's docs](https://www.floatlaunch.xyz/docs) and Bags' [fee modes](https://docs.bags.fm/how-to-guides/customize-token-fees), [launch guide](https://docs.bags.fm/how-to-guides/launch-token) and [deployer fees](https://docs.bags.fm/how-to-guides/deployer-fees) pages, all read on 17 November 2026.
+Float and Bags are often mentioned together because both go beyond the plain SOL-paired memecoin. Float pairs every coin with another token, such as a tokenized stock. Bags builds launches around shared creator fees and a choice of fee modes. Underneath they use different engines and pay creators in very different ways. This comparison uses [Float's docs](https://www.floatlaunch.xyz/docs) and Bags' [fee modes](https://docs.bags.fm/how-to-guides/customize-token-fees), [launch guide](https://docs.bags.fm/how-to-guides/launch-token) and [deployer fees](https://docs.bags.fm/how-to-guides/deployer-fees) pages. Bags pages were read on 17 November 2026. Float's fee rules were rechecked on 23 November 2026.
 
 We run Highbar, a SOL-only Meteora launchpad. It is not a substitute for stock pairs, and we say so below. Neither Float nor Bags is affiliated with Highbar.
 
@@ -32,7 +32,7 @@ We run Highbar, a SOL-only Meteora launchpad. It is not a substitute for stock p
 | --- | --- | --- |
 | Engine | Raydium LaunchLab | Meteora DBC, then Meteora DAMM v2 |
 | Pairs | Tokenized stocks, pre-IPO tokens, ZEC or XMR on Solana, SOL, USDC | SOL, plus admin-reviewed custom quotes |
-| Trading fee | Creator picks 1%, 2% or 2.5% | 2% (other modes 0.25% to 10% on the curve) |
+| Trading fee | 1% on new standard coins; builder launches pick 1%, 2% or 2.5% | 2% (other modes 0.25% to 10% on the curve) |
 | Creator share | 0% on standard coins; builder launches get 50% of what Float collects | Gross claimers pool, minus a 25% deployer share on new SOL v2 configs |
 | Fee sharing | One builder fee wallet, fixed at launch | Up to 100 earners, by wallet or X, Kick, GitHub account |
 | Holder rewards | 17.5% of Float's collection on standard coins, paid in the paired token | Not part of the Default mode split |
@@ -51,7 +51,7 @@ If you want a coin tied to a stock ticker, Float is the purpose-built option. If
 
 ### Float
 
-The creator chooses a 1%, 2% or 2.5% trading fee on every buy and sell. Raydium keeps 0.25% while a coin is on its curve. The rest is collected by the Float program and, on standard coins, split before and after graduation like this:
+Float's docs say new standard coins pay a flat **1%** trading fee on every buy and sell. Builder launches can pick 1%, 2% or 2.5%, and standard coins launched earlier at 2% or 2.5% keep their rate. Raydium keeps 0.25% while a coin is on its curve. The rest is collected by the Float program and, on standard coins, split before and after graduation like this:
 
 | Recipient | Share of Float's collection |
 | --- | --- |
@@ -84,7 +84,7 @@ Our [Float launchpad explainer](/articles/float-launchpad-explained) and [Bags f
 
 ## Where Highbar fits
 
-Highbar does not do stock pairs or fee sharing. Per the [Highbar docs](/docs), every token is SOL-paired on a Meteora Dynamic Bonding Curve with a 1% fee. Meteora keeps 0.2% and the creator earns 0.4%, 0.496% or 0.6% depending on whether the target is 85, 150 or 250 SOL. Graduated liquidity moves into a Meteora DAMM v2 pool and is locked forever, and the creator receives 0.6% to 0.7% of post-graduation volume including the LP rebate. An optional anti-sniper fee starts at 25% and decays to about 1% over 60 seconds. It reduces the early sniping advantage and does not stop bots.
+Highbar does not do stock pairs or fee sharing. Per the [Highbar docs](/docs), every token is SOL-paired on a Meteora Dynamic Bonding Curve with a 1% fee. Meteora keeps 0.2% and the creator earns 0.4%, 0.496% or 0.6% depending on whether the target is 85, 150 or 250 SOL. Graduated liquidity moves into a Meteora DAMM v2 pool and is locked forever, and the creator receives 0.6% to 0.7% of post-graduation volume including the LP rebate. An optional anti-sniper fee starts at 25% and decays to about 1% over 60 seconds. It only reduces the early-buy advantage. It does not stop bots, bundles or rug pulls. Locked liquidity is not a guarantee of price or safety.
 
 If a stock pair is the point, use Float. If shared fees are the point, use Bags. If you want a SOL pair with a published creator share, compare tiers on the [launch page](/launch) before signing anything.
 
