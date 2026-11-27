@@ -249,7 +249,7 @@ export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered 
       </div>
       {/* mobile sticky actions + bottom sheet */}
       {/* docked to the bottom nav as one surface: one row, one hairline, the creator's Dev Lock as an icon instead of a second row */}
-      <div data-testid="trade-dock" className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex gap-2 border-t border-border bg-surface px-3 pb-1 pt-2 md:hidden">
+      <div data-testid="trade-dock" className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-border bg-surface px-3 pb-[max(4px,env(safe-area-inset-bottom))] pt-2 md:hidden">
         <DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} badge={false} compact />
         <button type="button" onClick={() => setSheet("buy")} className="h-10 flex-1 rounded bg-buy text-sm font-semibold text-on-ink transition-opacity hover:opacity-90">Buy</button>
         <button type="button" onClick={() => setSheet("sell")} className="h-10 flex-1 rounded bg-sell text-sm font-semibold text-on-ink transition-opacity hover:opacity-90">Sell</button>
