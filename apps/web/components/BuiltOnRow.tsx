@@ -3,7 +3,7 @@
  *  Colors are left as shipped, only the link opacity changes on hover. Sizes are px, not rem, so they hold on mobile where the root font
  *  is smaller, and the image has a fixed size, so no layout shift. */
 const LINK =
-  "inline-flex shrink-0 items-center rounded-[3px] opacity-60 transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold-line";
+  "inline-flex shrink-0 items-center rounded-none opacity-60 transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold-line";
 
 export function BuiltOnRow({ className = "" }: { className?: string }) {
   return (

@@ -34,7 +34,7 @@ export default function LocksPage() {
         <ul className="flex flex-col gap-3 p-3 md:hidden" data-testid="lock-cards">
           {data?.items.map((l) => (
             <li key={l.id}>
-              <Link href={`/locks/${l.id}`} className="block rounded-[12px] border border-border p-3 active:bg-muted">
+              <Link href={`/locks/${l.id}`} className="block rounded-none border border-border p-3 active:bg-muted">
                 <div className="flex items-center gap-3">
                   <TokenLogo src={l.token?.image} name={l.token?.symbol || "?"} size={32} />
                   <span className="min-w-0 flex-1"><span className="block truncate font-medium">{l.token?.name || shortAddr(l.mint)}</span><span className="num text-xs text-ink-3">${l.token?.symbol || "?"}</span></span>

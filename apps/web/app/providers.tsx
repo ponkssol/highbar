@@ -34,7 +34,7 @@ const themeVars = () => ({
   "--w3m-accent": isDark() ? "#F2F2EC" : "#0E0E0E",
   "--w3m-border-radius-master": "2px",
   "--w3m-font-size-master": "9px",
-  "--w3m-font-family": "var(--font-inter), Inter, system-ui, sans-serif",
+  "--w3m-font-family": "var(--font-sans), Geist, system-ui, sans-serif",
 });
 
 /** Reown explorer wallet ids (checked against api.web3modal.org getWallets): Phantom, Solflare. Shown first in the connect modal. */

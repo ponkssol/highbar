@@ -90,14 +90,14 @@ export function Chip({ tone = "muted", children, className = "", title }: { tone
   return <span title={title} style={v ? tint(v) : undefined} className={`inline-flex h-[22px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 text-[11px] font-medium leading-none ${tone === "gold" ? "border-gold-line bg-gold-soft text-gold-text" : tone === "muted" ? "border-border bg-control text-ink-2" : ""} ${className}`}>{children}</span>;
 }
 export function NewBadge({ className = "" }: { className?: string }) {
-  return <span className={`num inline-flex h-4 items-center rounded-[4px] border border-gold-line bg-gold-soft px-1 text-[9px] font-semibold uppercase leading-none tracking-[.12em] text-gold-text ${className}`}>New</span>;
+  return <span className={`num inline-flex h-4 items-center rounded-none border border-gold-line bg-gold-soft px-1 text-[9px] font-semibold uppercase leading-none tracking-[.12em] text-gold-text ${className}`}>New</span>;
 }
 
 /** Section head: small gold-outlined letter, serif title, muted subtitle, optional right slot. */
 export function SecHead({ letter, title, sub, right, id, as: H = "h2", info, infoLabel }: { letter?: string; title: string; sub?: ReactNode; right?: ReactNode; id?: string; as?: "h2" | "h3"; /** helper text behind an InfoTip next to the title */ info?: ReactNode; infoLabel?: string }) {
   return (
     <div className="mb-3 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      {letter && <span aria-hidden className="num inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] border border-gold-line px-1 text-[10.5px] text-gold-text">{letter}</span>}
+      {letter && <span aria-hidden className="num inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-none border border-gold-line px-1 text-[10.5px] text-gold-text">{letter}</span>}
       <H id={id} className="flex items-center gap-2 font-serif text-[21px] font-medium leading-tight tracking-normal text-ink md:text-[22px]">{title}{info && <InfoTip label={infoLabel ?? `About ${title.toLowerCase()}`} width={300} className="font-sans">{info}</InfoTip>}</H>
       {sub && <p className="min-w-0 text-[12.5px] text-ink-3">{sub}</p>}
       {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
@@ -126,7 +126,7 @@ export function KV({ k, v, sub, className = "" }: { k: ReactNode; v: ReactNode; 
     </div>
   );
 }
-export const Sq = ({ c, className = "" }: { c: string; className?: string }) => <span aria-hidden className={`inline-block h-2 w-2 shrink-0 rounded-[2px] ${className}`} style={{ background: c }} />;
+export const Sq = ({ c, className = "" }: { c: string; className?: string }) => <span aria-hidden className={`inline-block h-2 w-2 shrink-0 rounded-none ${className}`} style={{ background: c }} />;
 export const TH = "px-3 py-2.5 text-left text-[11px] font-normal text-ink-3 whitespace-nowrap";
 export const TD = "px-3 py-2.5 align-middle whitespace-nowrap";
 

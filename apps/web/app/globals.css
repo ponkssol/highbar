@@ -2,13 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-:root{--hb-seg:rgba(22,19,13,.045);--hb-seg-line:rgba(22,19,13,.05);--hb-seg-on:#E9DFC3;--hb-seg-on-ink:#16130D;--hb-bg:#F3EFE4;--hb-surface:#FFFDF8;--hb-surface-muted:#F7F3E9;--hb-border:rgba(22,19,13,.08);--hb-border-strong:rgba(22,19,13,.16);--hb-control:rgba(22,19,13,.035);--hb-control-hover:rgba(22,19,13,.065);--hb-gold-line:rgba(122,88,0,.35);--hb-ink:#16130D;--hb-ink-2:#4B4436;--hb-ink-3:#6F6754;--hb-on-ink:#FFFDF8;--hb-highlight-bg:#0E0E0E;--hb-highlight-fg:#FFFFFF;--hb-highlight-sub:#A8A8A2;--hb-tier-standard:#5B7FA6;--hb-tier-higher:#6E8F5A;--hb-tier-max:#8A6BB0;--hb-buy:#2F7D4F;--hb-sell:#B4483C;--hb-burn:#C2662D;--hb-hatch:repeating-linear-gradient(135deg,var(--hb-ink) 0 1.5px,transparent 1.5px 6px);--hb-shadow:0 1px 2px rgba(14,14,14,.04);--hb-act-empty:#ECE6D8;--hb-act-launch:#2F9E5B;--hb-act-burn:#D2453A;--hb-act-graduate:#3B74D1;--hb-act-trade:#9A9A93;--hb-tip-bg:#0E0E0E;--hb-tip-fg:#FFFFFF;--hb-gold:#FFC72C;--hb-gold-ink:#1A1405;--hb-gold-text:#7A5800;--hb-gold-soft:rgba(255,199,44,.16);--hb-silver:#7D848C;--hb-bronze:#9A5F2C;--hb-arcade-tint:var(--hb-ink);--hb-arcade-alpha:.07;--hb-grain-alpha:.04;--hb-wash:rgba(196,150,60,.035);--hb-stone-alpha:.45;--hb-hero-top:#FFFDF8;--hb-hero-glow:rgba(255,199,44,.12);--hb-hero-umber:rgba(150,110,50,.06);--hb-hero-veil:rgba(255,253,248,.82);--hb-frame:rgba(22,19,13,.05);}
-.dark{color-scheme:dark;--hb-seg:rgba(255,240,210,.045);--hb-seg-line:rgba(255,236,200,.05);--hb-seg-on:#3A3424;--hb-seg-on-ink:#FFFFFF;--hb-bg:#0C0B09;--hb-surface:#15130F;--hb-surface-muted:#1D1A15;--hb-border:rgba(255,236,200,.075);--hb-border-strong:rgba(255,236,200,.13);--hb-control:rgba(255,255,255,.05);--hb-control-hover:rgba(255,255,255,.08);--hb-gold-line:rgba(255,199,44,.35);--hb-ink:#F3EEDF;--hb-ink-2:#BDB4A0;--hb-ink-3:#958C79;--hb-on-ink:#0C0B09;--hb-highlight-bg:#F2F2EC;--hb-highlight-fg:#0F0F0E;--hb-highlight-sub:#5A5A55;--hb-tier-standard:#7FA3CC;--hb-tier-higher:#8FB57A;--hb-tier-max:#A98BD4;--hb-buy:#4CB67A;--hb-sell:#E06A5C;--hb-burn:#E8894A;--hb-shadow:none;--hb-act-empty:#24201A;--hb-act-launch:#4CC37F;--hb-act-burn:#F0675B;--hb-act-graduate:#6E9DEB;--hb-act-trade:#6A6A64;--hb-tip-bg:#F2EEDF;--hb-tip-fg:#0F0F0E;--hb-gold:#FFC72C;--hb-gold-ink:#1A1405;--hb-gold-text:#FFC72C;--hb-gold-soft:rgba(255,199,44,.12);--hb-silver:#C9CED4;--hb-bronze:#D08A4E;--hb-arcade-tint:var(--hb-ink);--hb-arcade-alpha:.1;--hb-grain-alpha:.08;--hb-wash:rgba(255,228,180,.03);--hb-stone-alpha:.7;--hb-hero-top:#1A1712;--hb-hero-glow:rgba(255,199,44,.08);--hb-hero-umber:rgba(120,70,30,.12);--hb-hero-veil:rgba(21,19,15,.78);--hb-frame:rgba(255,236,200,.05);}
+:root{--hb-seg:rgba(22,19,13,.045);--hb-seg-line:rgba(22,19,13,.05);--hb-seg-on:#E9DFC3;--hb-seg-on-ink:#16130D;--hb-bg:#F3EFE4;--hb-surface:#FFFDF8;--hb-surface-muted:#F7F3E9;--hb-border:rgba(22,19,13,.08);--hb-border-strong:rgba(22,19,13,.16);--hb-control:rgba(22,19,13,.035);--hb-control-hover:rgba(22,19,13,.065);--hb-gold-line:rgba(122,88,0,.35);--hb-ink:#16130D;--hb-ink-2:#4B4436;--hb-ink-3:#6F6754;--hb-on-ink:#FFFDF8;--hb-highlight-bg:#0E0E0E;--hb-highlight-fg:#FFFFFF;--hb-highlight-sub:#A8A8A2;--hb-tier-standard:#5B7FA6;--hb-tier-higher:#6E8F5A;--hb-tier-max:#8A6BB0;--hb-buy:#2F7D4F;--hb-sell:#B4483C;--hb-burn:#C2662D;--hb-hatch:repeating-linear-gradient(135deg,var(--hb-ink) 0 1.5px,transparent 1.5px 6px);--hb-shadow:0 1px 2px rgba(14,14,14,.04);--hb-act-empty:#ECE6D8;--hb-act-launch:#2F9E5B;--hb-act-burn:#D2453A;--hb-act-graduate:#3B74D1;--hb-act-trade:#9A9A93;--hb-tip-bg:#0E0E0E;--hb-tip-fg:#FFFFFF;--hb-gold:#FFC72C;--hb-gold-ink:#101010;--hb-gold-text:#7A5800;--hb-gold-soft:rgba(255,199,44,.16);--hb-silver:#7D848C;--hb-bronze:#9A5F2C;--hb-arcade-tint:var(--hb-ink);--hb-arcade-alpha:.07;--hb-grain-alpha:.04;--hb-wash:rgba(196,150,60,.035);--hb-stone-alpha:.45;--hb-hero-top:#FFFDF8;--hb-hero-glow:rgba(255,199,44,.12);--hb-hero-umber:rgba(150,110,50,.06);--hb-hero-veil:rgba(255,253,248,.82);--hb-frame:rgba(22,19,13,.05);--hb-border-subtle:rgba(22,19,13,.06);--hb-panel:#FFFDF8;--hb-raised:#F7F3E9;--hb-buy-fill:#2F7D4F;--hb-sell-fill:#B4483C;--hb-buy-soft:rgba(47,125,79,.1);--hb-sell-soft:rgba(180,72,60,.1);--hb-cross:rgba(22,19,13,.35);--hb-grid-line:rgba(22,19,13,.05);}
+/* Dark theme: JTX-like near black. bg #101010, panels #1c1c1c (side rails #161616), surface/hover #303030, 1px hairlines (#3b3b36 default, a 9% warm grey for row separators), text #f2f1ee / #a7a79f / #85857a, buy #70d6af (fill #0f7655), sell #e8695e (fill #ca382b). Accent stays highbar yellow, ink on yellow is #101010. No shadows, washes or textures. */
+.dark{color-scheme:dark;--hb-seg:transparent;--hb-seg-line:#3b3b36;--hb-seg-on:#303030;--hb-seg-on-ink:#f2f1ee;--hb-bg:#101010;--hb-surface:#1c1c1c;--hb-surface-muted:#242424;--hb-panel:#161616;--hb-raised:#303030;--hb-border:#3b3b36;--hb-border-subtle:rgba(210,209,201,.094);--hb-border-strong:#85857a;--hb-control:transparent;--hb-control-hover:#303030;--hb-gold-line:rgba(255,199,44,.45);--hb-ink:#f2f1ee;--hb-ink-2:#a7a79f;--hb-ink-3:#85857a;--hb-on-ink:#101010;--hb-highlight-bg:#f2f1ee;--hb-highlight-fg:#101010;--hb-highlight-sub:#5a5a55;--hb-tier-standard:#7FA3CC;--hb-tier-higher:#8FB57A;--hb-tier-max:#A98BD4;--hb-buy:#70d6af;--hb-sell:#e8695e;--hb-buy-fill:#0f7655;--hb-sell-fill:#ca382b;--hb-buy-soft:rgba(112,214,175,.08);--hb-sell-soft:rgba(232,105,94,.08);--hb-burn:#E8894A;--hb-shadow:none;--hb-act-empty:#262626;--hb-act-launch:#70d6af;--hb-act-burn:#e8695e;--hb-act-graduate:#6E9DEB;--hb-act-trade:#5f5f58;--hb-tip-bg:#f2f1ee;--hb-tip-fg:#101010;--hb-gold:#FFC72C;--hb-gold-ink:#101010;--hb-gold-text:#FFC72C;--hb-gold-soft:rgba(255,199,44,.1);--hb-silver:#C9CED4;--hb-bronze:#D08A4E;--hb-arcade-tint:var(--hb-ink);--hb-arcade-alpha:0;--hb-grain-alpha:0;--hb-wash:transparent;--hb-stone-alpha:0;--hb-hero-top:#1c1c1c;--hb-hero-glow:transparent;--hb-hero-umber:transparent;--hb-hero-veil:transparent;--hb-frame:transparent;--hb-cross:#85857a;--hb-grid-line:rgba(210,209,201,.05);}
 /* Arena depth (after colosseum.com): layered warm light over the base color, then a fine film grain across the whole app. Grain is a self-made PNG, see public/theme/CREDITS.md. */
 html{background-color:var(--hb-surface);background-image:radial-gradient(1100px 640px at 8% -12%,rgba(196,150,60,.08),transparent 62%),radial-gradient(900px 560px at 104% 2%,rgba(160,110,60,.05),transparent 60%);}
-html.dark{background-color:var(--hb-bg);background-image:radial-gradient(1100px 640px at 8% -12%,rgba(255,190,90,.065),transparent 62%),radial-gradient(900px 600px at 104% 0%,rgba(170,110,50,.05),transparent 60%),linear-gradient(180deg,#0E0C0A,#0A0908 65%,#080706);}
+/* Dark: one flat near-black, no light washes. */
+html.dark{background-color:var(--hb-bg);background-image:none;}
 body::after{content:"";position:fixed;inset:0;z-index:70;pointer-events:none;background:url(/theme/grain.png) 0 0/192px 192px repeat;opacity:var(--hb-grain-alpha);}
 html.dark body{background:transparent;}
+html.dark body::after{display:none}
 html.dark main{background:transparent;}
 
 html{color:var(--hb-ink);}
@@ -19,12 +22,16 @@ html{color:var(--hb-ink);}
 /* Keep the scrollbar lane reserved, so a tab whose panel is shorter or taller than the window does not shift the page sideways. */
 html{scrollbar-gutter:stable;}
 body{background:transparent;color:var(--hb-ink);}
-body{font-family:var(--font-inter),Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
-/* Arena display type: Cinzel for headings, rank numerals and display text only. Numbers/prices/tables stay sans/mono (.num). */
-h1,h2,h3,.font-display{font-family:var(--font-display),Cinzel,"Trajan Pro",Georgia,serif;letter-spacing:.03em;}
+/* Type (JTX look): Geist for everything, Geist Mono for labels, numbers, table headers and tickers. The former display and serif faces alias the sans. */
+:root{--font-display:var(--font-sans);--font-serif:var(--font-sans);}
+body{font-family:var(--font-sans),Geist,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+/* Headings: light weight, tight negative tracking. Weight wins over the per-page font-semibold classes on purpose. */
+h1,h2,h3,.font-display{font-family:var(--font-sans),Geist,system-ui,sans-serif;letter-spacing:-.025em;}
+h1{font-weight:400!important;letter-spacing:-.035em}
+h2{font-weight:400!important}
 h1 .num,h2 .num,h3 .num{letter-spacing:normal}
 /* InfoTip panels read in the body face even when the icon sits in a display heading, a mono figure or an eyebrow. */
-[data-hb-tip]{font-family:var(--font-inter),Inter,system-ui,sans-serif;letter-spacing:normal;font-variant-numeric:normal}
+[data-hb-tip]{font-family:var(--font-sans),Geist,system-ui,sans-serif;letter-spacing:normal;font-variant-numeric:normal;text-transform:none}
 
 /* Panels: a faint warm wash at the top of each card and the sidebar. Borders stay 1px and low alpha. */
 .rounded-lg.bg-surface,.hb-rail{background-image:linear-gradient(180deg,var(--hb-wash),transparent 160px);}
@@ -33,21 +40,39 @@ h1 .num,h2 .num,h3 .num{letter-spacing:normal}
 .hb-stone{position:absolute;inset:0;background:url(/theme/stone.webp) center/cover no-repeat;mix-blend-mode:soft-light;opacity:var(--hb-stone-alpha);pointer-events:none;}
 .hb-arcade{position:absolute;inset:0;background-color:var(--hb-arcade-tint);opacity:var(--hb-arcade-alpha);-webkit-mask:url(/theme/arcade.svg) 50% 100%/cover no-repeat;mask:url(/theme/arcade.svg) 50% 100%/cover no-repeat;pointer-events:none;}
 .hb-hero-veil{position:absolute;inset:0;background:radial-gradient(85% 110% at 20% 42%,var(--hb-hero-veil),transparent 72%);pointer-events:none;}
-.hb-frame{position:absolute;inset:5px;border:1px solid var(--hb-frame);border-radius:11px;pointer-events:none;}
-@media (max-width:767px){.hb-frame{inset:4px;border-radius:8px}}
+.hb-frame{position:absolute;inset:5px;border:1px solid var(--hb-frame);pointer-events:none;}
+@media (max-width:767px){.hb-frame{inset:4px}}
+.dark .hb-hero{background-image:none;background-color:var(--hb-surface)}
 /* Small caps labels: mono, uppercase, wide tracking. */
-.hb-eyebrow{font-family:var(--font-mono),"JetBrains Mono",monospace;font-size:10.5px;font-weight:500;line-height:1;letter-spacing:.22em;text-transform:uppercase;color:var(--hb-gold-text);}
+.hb-eyebrow{font-family:var(--font-mono),"Geist Mono",monospace;font-size:11px;font-weight:400;line-height:1;letter-spacing:.06em;text-transform:uppercase;color:var(--hb-gold-text);}
+/* JTX label: small uppercase mono, slight tracking, muted ("(01) TOTAL VOLUME"). */
+.hb-label{font-family:var(--font-mono),"Geist Mono",monospace;font-size:11px;font-weight:400;line-height:1.2;letter-spacing:.06em;text-transform:uppercase;color:var(--hb-ink-3);}
+/* Crosshair markers ("+") at section and grid corners, drawn by components/ui/Jtx.tsx. */
+.hb-cross{position:absolute;width:9px;height:9px;pointer-events:none;color:var(--hb-cross);z-index:2}
+.hb-cross::before,.hb-cross::after{content:"";position:absolute;background:currentColor}
+.hb-cross::before{left:4px;top:0;width:1px;height:9px}
+.hb-cross::after{top:4px;left:0;height:1px;width:9px}
+/* Corner brackets on the hero panel. */
+.hb-bracket{position:absolute;width:14px;height:14px;pointer-events:none;border-color:var(--hb-ink-3);border-style:solid;border-width:0;z-index:2}
+/* Faint chart grid (token page chart area). */
+.hb-grid-bg{background-image:linear-gradient(var(--hb-grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--hb-grid-line) 1px,transparent 1px);background-size:48px 48px;background-position:-1px -1px}
 /* Soft controls (arena): no harsh strokes. 1px hairline (8%), soft fill (5%, hover 8%); active = the same soft filled pill as the tabs, no outline. Shared by buttons, toggles and header controls. */
 .hb-ctrl{background-color:var(--hb-control);border:1px solid var(--hb-border);}
 .hb-ctrl:hover{background-color:var(--hb-control-hover);}
 .hb-ctrl-on,.hb-ctrl-on:hover{background-color:var(--hb-seg-on);border-color:transparent;color:var(--hb-seg-on-ink);}
-.num{font-family:var(--font-mono),"Geist Mono","JetBrains Mono",monospace;font-variant-numeric:tabular-nums;}
+.num{font-family:var(--font-mono),"Geist Mono",monospace;font-variant-numeric:tabular-nums;}
+/* Tables: mono uppercase headers with slight tracking, 1px row separators in the subtle hairline. */
+thead th{font-family:var(--font-mono),"Geist Mono",monospace;font-size:11px!important;font-weight:400!important;letter-spacing:.06em;text-transform:uppercase;color:var(--hb-ink-3)}
+thead th .sr-only{text-transform:none}
+.dark tbody tr{border-color:var(--hb-border-subtle)}
+/* No drop shadows in dark: 1px hairlines only. */
+.dark :is(.shadow-card,.shadow-sm,.shadow,.shadow-md,.shadow-lg,.shadow-xl,.shadow-2xl){box-shadow:none}
 
 @keyframes hb-pop{0%{transform:scale(.2);box-shadow:0 0 0 0 var(--glow)}45%{transform:scale(1.35);box-shadow:0 0 10px 3px var(--glow)}100%{transform:scale(1);box-shadow:0 0 0 0 transparent}}
 .hb-cell-pop{animation:hb-pop .9s ease-out}
 @media (prefers-reduced-motion:reduce){.hb-cell-pop{animation:none}}
 
-.hb-tip{position:relative}.hb-tip:hover::after{content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;background:var(--hb-tip-bg);color:var(--hb-tip-fg);font-size:11px;line-height:1;padding:6px 8px;border-radius:6px;z-index:30;pointer-events:none}
+.hb-tip{position:relative}.hb-tip:hover::after{content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;background:var(--hb-tip-bg);color:var(--hb-tip-fg);font-size:11px;line-height:1;padding:6px 8px;border-radius:0;z-index:30;pointer-events:none}
 
 .hb-scrim{background:rgba(14,14,14,.4)}
 .dark .hb-scrim{background:rgba(14,14,14,.6)}
@@ -91,8 +116,6 @@ h1 .num,h2 .num,h3 .num{letter-spacing:normal}
   .text-2xl{font-size:18px;line-height:24px}
   .text-3xl,.text-4xl{font-size:20px;line-height:26px}
   .text-kpi{font-size:21px;line-height:1.15}
-  .rounded{border-radius:10px}
-  .rounded-lg{border-radius:12px}
   .h-10,.h-11{height:40px}
   .min-h-11{min-height:40px}
   .w-10,.w-11{width:40px}

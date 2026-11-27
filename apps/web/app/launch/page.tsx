@@ -178,14 +178,14 @@ export default function LaunchPage() {
           </div>
           <div>
             <span id="launch-tier-label" className="mb-1.5 block text-[13px] text-ink-2">Tier</span>
-            <div role="radiogroup" aria-labelledby="launch-tier-label" className="grid grid-cols-3 gap-1 rounded-[14px] border border-seg-line bg-seg p-1">
+            <div role="radiogroup" aria-labelledby="launch-tier-label" className="grid grid-cols-3 gap-1 rounded-none border border-seg-line bg-seg p-1">
               {(Object.keys(TIERS) as TierId[]).map((id) => {
                 const s = feeSplitPct(id); const sel = tier === id; const locked = id === "max" && maxLocked; const tipId = `launch-tier-${id}-help`;
                 return (
                   // The info icon is a sibling of the radio (not inside it), so tapping it never selects the tier. InfoTip also stops propagation.
                   <div key={id} className="relative min-w-0">
                     <button type="button" role="radio" aria-checked={sel} aria-disabled={locked} aria-describedby={tipId} title={locked ? maxNeed : undefined} onClick={() => !locked && setTier(id)}
-                      className={`flex h-full w-full flex-col items-start gap-2.5 rounded-[10px] px-2.5 pb-3 pt-2.5 text-left transition-colors duration-200 sm:px-3.5 sm:pb-3.5 sm:pt-3 ${sel ? "bg-seg-on text-seg-on-ink" : `text-ink-2 ${locked ? "" : "hover:bg-control-hover hover:text-ink"}`} ${locked ? "cursor-not-allowed opacity-60" : ""}`}>
+                      className={`flex h-full w-full flex-col items-start gap-2.5 rounded-none px-2.5 pb-3 pt-2.5 text-left transition-colors duration-200 sm:px-3.5 sm:pb-3.5 sm:pt-3 ${sel ? "bg-seg-on text-seg-on-ink" : `text-ink-2 ${locked ? "" : "hover:bg-control-hover hover:text-ink"}`} ${locked ? "cursor-not-allowed opacity-60" : ""}`}>
                       <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium leading-none sm:text-sm">
                         <TierDot tier={id} /><span className="truncate">{TIERS[id].label}</span>{locked && <Lock size={11} className="shrink-0 text-ink-3" aria-hidden />}
                       </span>

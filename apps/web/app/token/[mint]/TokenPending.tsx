@@ -57,7 +57,7 @@ export function TokenPending({ mint, fresh = false }: { mint: string; fresh?: bo
     <div className="rounded-lg border border-border bg-surface p-6 shadow-card" data-testid="token-pending">
       <Link href="/" className="inline-flex items-center gap-1 text-sm text-ink-3 hover:text-ink"><ArrowLeft size={14} />All tokens</Link>
       <div className="mt-4 flex flex-wrap items-center gap-4">
-        <TokenLogo src={p?.image || null} name={p?.symbol || name} size={48} radius={12} />
+        <TokenLogo src={p?.image || null} name={p?.symbol || name} size={48} radius={0} />
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">{name}{p?.symbol ? <span className="num ml-2 text-ink-3">${p.symbol}</span> : null}</h1>
           <a href={explorerAddr(mint)} target="_blank" rel="noreferrer" className="num text-xs text-ink-3 hover:text-ink">{shortAddr(mint, 6)}</a>

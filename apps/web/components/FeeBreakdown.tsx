@@ -28,7 +28,7 @@ export function FeeBreakdown({ tier }: { tier: TierId }) {
         <tbody>
           {rows.map(([l, v, s]) => (
             <tr key={l} className="border-b border-border last:border-0">
-              <td className="flex items-center gap-2 py-2"><span className={`h-2.5 w-2.5 rounded-[3px] ${sw[s]}`} />{l}</td>
+              <td className="flex items-center gap-2 py-2"><span className={`h-2.5 w-2.5 rounded-none ${sw[s]}`} />{l}</td>
               <td className="num py-2 text-right">{v}</td>
             </tr>
           ))}

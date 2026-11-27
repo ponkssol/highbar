@@ -144,7 +144,7 @@ export function ActivityGrid({ className = "", bare = false }: { className?: str
           <span className="text-[10px] text-ink-3" title="Totals for the squares shown">Last {cols} min</span>
           {ORDER.map((t) => (
             <span key={t} className="flex items-center gap-1.5 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] text-ink-3">
-              <span className="h-2 w-2 rounded-[2px]" style={{ background: COLOR[t] }} />{PLURAL[t]} <span className="num font-semibold text-ink">{totals[t]}</span>
+              <span className="h-2 w-2 rounded-none" style={{ background: COLOR[t] }} />{PLURAL[t]} <span className="num font-semibold text-ink">{totals[t]}</span>
             </span>
           ))}
         </div>
@@ -163,10 +163,10 @@ export function ActivityGrid({ className = "", bare = false }: { className?: str
         <span className="tabular-nums">{cols} min ago</span>
         <span className="hidden items-center gap-3 md:flex">
           {ORDER.map((t) => (
-            <span key={t} className="flex items-center gap-1.5"><span className="h-[9px] w-[9px] rounded-[2px]" style={{ background: COLOR[t] }} />{LABEL[t]}</span>
+            <span key={t} className="flex items-center gap-1.5"><span className="h-[9px] w-[9px] rounded-none" style={{ background: COLOR[t] }} />{LABEL[t]}</span>
           ))}
         </span>
-        <span className="flex items-center gap-1.5">Now<span className="h-[9px] w-[9px] rounded-[2px]" style={{ boxShadow: "0 0 0 1px var(--hb-gold-line)", background: "var(--hb-gold-soft)" }} /></span>
+        <span className="flex items-center gap-1.5">Now<span className="h-[9px] w-[9px] rounded-none" style={{ boxShadow: "0 0 0 1px var(--hb-gold-line)", background: "var(--hb-gold-soft)" }} /></span>
       </div>
       {hover && now ? <BucketTip k={hover.k} rect={hover.rect} bucket={buckets.get(hover.k)} live={hover.k === curK} bounds={rootRef.current?.getBoundingClientRect() ?? null} /> : null}
     </div>
@@ -207,7 +207,7 @@ function BucketTip({ k, rect, bucket, live, bounds }: { k: number; rect: DOMRect
           <span className="mt-1.5 grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-0.5">
             {ORDER.filter((t) => bucket!.c[t]).map((t) => (
               <span key={t} className="contents">
-                <span className="h-2 w-2 rounded-[2px]" style={{ background: COLOR[t] }} />
+                <span className="h-2 w-2 rounded-none" style={{ background: COLOR[t] }} />
                 <span>{bucket!.c[t] === 1 ? ONE[t] : PLURAL[t]}</span>
                 <span className="num text-right font-semibold text-ink">{bucket!.c[t]}</span>
               </span>

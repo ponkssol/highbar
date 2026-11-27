@@ -92,7 +92,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
           const p = progressOf(t);
           return (
             <li key={t.mint}>
-              <Link href={`/token/${t.mint}`} className="block rounded-[12px] border border-border p-3 active:bg-muted">
+              <Link href={`/token/${t.mint}`} className="block rounded-none border border-border p-3 active:bg-muted">
                 <div className="flex items-center gap-3">
                   <TokenLogo src={t.image} name={t.name} />
                   <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><OfficialBadge official={t.official} /><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></span></span>

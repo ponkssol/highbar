@@ -100,7 +100,7 @@ function Summary({ d, net }: { d: TokenOpenBook; net?: string | null }) {
             {num(tp?.txCount) != null && <>, {fmtNum(num(tp?.txCount)!)} {num(tp?.txCount) === 1 ? "tx" : "txs"}</>}
           </div>
           {sn && num(sn.sol) != null && (
-            <div className="mt-3.5 rounded-[10px] border p-3" style={tint("var(--hb-burn)")} title={str(sn.rule) ? `Sniper rule: ${sn.rule}` : undefined}>
+            <div className="mt-3.5 rounded-none border p-3" style={tint("var(--hb-burn)")} title={str(sn.rule) ? `Sniper rule: ${sn.rule}` : undefined}>
               <div className="text-[12.5px] text-ink-2">
                 <b className="num font-medium text-burn">{fmtSolOb(num(sn.sol)!)} SOL</b>{num(sn.pct) != null && <> ({fmtPct(num(sn.pct)!, 1)})</>} paid by{" "}
                 <b className="font-medium text-ink">{num(sn.walletCount) != null ? `${fmtNum(num(sn.walletCount)!)} sniper ${num(sn.walletCount) === 1 ? "wallet" : "wallets"}` : "snipers"}</b>
@@ -168,7 +168,7 @@ function PlatformShare({ d, net }: { d: TokenOpenBook; net?: string | null }) {
         </div>
         <div className="flex shrink-0 items-center gap-2"><Prov p={pf?.provenance} />{str(pf?.wallet) && <Addr a={pf?.wallet} net={net} className="text-[12px]" />}</div>
       </div>
-      <div className="mb-3 mt-4 flex h-9 gap-[3px] overflow-hidden rounded-[9px]" role="img" aria-label={bk.map((b) => `${BUCKET_LABEL[String(b.bucket)] ?? b.bucket} ${num(b.pct)}%`).join(", ")}>
+      <div className="mb-3 mt-4 flex h-9 gap-[3px] overflow-hidden rounded-none" role="img" aria-label={bk.map((b) => `${BUCKET_LABEL[String(b.bucket)] ?? b.bucket} ${num(b.pct)}%`).join(", ")}>
         {bk.map((b) => { const id = String(b.bucket), p = num(b.pct) ?? 0; return (
           <div key={id} className="flex min-w-0 items-center justify-between gap-1 px-2.5 text-[11.5px] font-semibold text-[#14110b]" style={{ width: `${p}%`, background: BUCKET_COLOR[id] ?? COLORS.muted }}>
             <span className="truncate">{p >= 20 ? BUCKET_LABEL[id] ?? id : ""}</span><span className="num">{fmtPct(p, 0)}</span>
@@ -350,7 +350,7 @@ function Tips({ d, net }: { d: TokenOpenBook; net?: string | null }) {
           <>
             <div className="mb-2 flex flex-wrap gap-3.5 text-[11.5px] text-ink-2">
               <span className="flex items-center gap-1.5"><Sq c={COLORS.gold} />All traders</span>
-              <span className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-2 w-2 rounded-[2px]" style={{ background: "repeating-linear-gradient(45deg,var(--hb-burn) 0 2px,var(--hb-surface) 2px 4px)" }} />of which snipers</span>
+              <span className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-2 w-2 rounded-none" style={{ background: "repeating-linear-gradient(45deg,var(--hb-burn) 0 2px,var(--hb-surface) 2px 4px)" }} />of which snipers</span>
             </div>
             <TipBars rows={rows} />
             <div className="mt-2">
@@ -378,7 +378,7 @@ function Tips({ d, net }: { d: TokenOpenBook; net?: string | null }) {
 
 function Holders({ d, net }: { d: TokenOpenBook; net?: string | null }) {
   const h = d.holders, top = arr(h?.top), max = Math.max(...top.map((x) => num(x.pctSupply) ?? 0), 0.0001);
-  const cell = (k: string, v: ReactNode) => <div className="min-w-0 rounded-[10px] border border-border bg-control px-3 py-2.5"><div className="text-[11px] text-ink-3">{k}</div><div className="num mt-0.5 text-[16px] text-ink">{v}</div></div>;
+  const cell = (k: string, v: ReactNode) => <div className="min-w-0 rounded-none border border-border bg-control px-3 py-2.5"><div className="text-[11px] text-ink-3">{k}</div><div className="num mt-0.5 text-[16px] text-ink">{v}</div></div>;
   return (
     <section aria-labelledby="ob-g" className="min-w-0">
       <SecHead letter="G" id="ob-g" title="Holder concentration" sub={num(h?.asOf) != null ? `As of ${fmtDateTimeUS(num(h?.asOf)!)}` : undefined} right={<Prov p={h?.provenance} />}

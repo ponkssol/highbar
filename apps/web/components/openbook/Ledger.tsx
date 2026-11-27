@@ -33,8 +33,8 @@ function StatusChip({ r }: { r: LedgerRow }) {
   return <Chip tone="ok">Success</Chip>;
 }
 function TypeChip({ t }: { t: string | null | undefined }) {
-  if (t === "buy") return <span className="inline-flex h-[20px] items-center rounded-[6px] px-2 text-[11px] font-medium" style={tint("var(--hb-buy)")}>Buy</span>;
-  if (t === "sell") return <span className="inline-flex h-[20px] items-center rounded-[6px] px-2 text-[11px] font-medium" style={tint("var(--hb-sell)")}>Sell</span>;
+  if (t === "buy") return <span className="inline-flex h-[20px] items-center rounded-none px-2 text-[11px] font-medium" style={tint("var(--hb-buy)")}>Buy</span>;
+  if (t === "sell") return <span className="inline-flex h-[20px] items-center rounded-none px-2 text-[11px] font-medium" style={tint("var(--hb-sell)")}>Sell</span>;
   return <Nil />;
 }
 const Col = ({ title, children, className = "" }: { title: ReactNode; children: ReactNode; className?: string }) => (
@@ -48,7 +48,7 @@ function Detail({ r, net }: { r: LedgerRow; net?: string | null }) {
   const err = dt?.err == null ? null : typeof dt.err === "string" ? dt.err : JSON.stringify(dt.err);
   const tags = arr(r.tags), dups = arr(tx?.duplicates), other = arr(dt?.otherTransfers);
   return (
-    <div data-testid="ledger-detail" className="grid gap-5 rounded-[12px] border border-gold-line bg-surface p-4 md:grid-cols-2 2xl:grid-cols-3">
+    <div data-testid="ledger-detail" className="grid gap-5 rounded-none border border-gold-line bg-surface p-4 md:grid-cols-2 2xl:grid-cols-3">
       <Col title="Network">
         {nw ? (
           <>
@@ -76,7 +76,7 @@ function Detail({ r, net }: { r: LedgerRow; net?: string | null }) {
                   v={<><Sol v={s.sol} dp={6} /><Prov p={s.provenance} /></>} />); })}
             </div>
             {anti != null && anti > 0 && (
-              <div className="rounded-[9px] border px-3 py-2" style={tint("var(--hb-burn)")}>
+              <div className="rounded-none border px-3 py-2" style={tint("var(--hb-burn)")}>
                 <KV k={<span className="text-burn">Anti-sniper portion</span>} sub={feeBps != null && baseBps != null ? `${fmtPct(feeBps / 100)} charged, ${fmtPct(baseBps / 100)} base` : undefined} v={<><Sol v={anti} dp={6} /><Prov p={dbc.antiSniperProvenance} /></>} />
               </div>
             )}
@@ -98,7 +98,7 @@ function Detail({ r, net }: { r: LedgerRow; net?: string | null }) {
         {num(dt?.signerSolDeltaSol) != null && <KV k="Signer SOL change" v={<Sol v={dt?.signerSolDeltaSol} />} />}
         {err && <KV k="Error" v={<span className="max-w-[220px] truncate text-[12px] text-sell" title={err}>{err}</span>} />}
         {all && num(all.costSol) != null && (
-          <div className="mt-1 rounded-[10px] border border-border bg-control p-3">
+          <div className="mt-1 rounded-none border border-border bg-control p-3">
             <div className="flex items-center justify-between gap-2"><span className="text-[12.5px] text-ink-2">All-in cost of this {r.type === "sell" ? "sell" : "buy"}</span><span className="num text-[15px] text-gold-text">{fmtSolOb(num(all.costSol)!, 6)} SOL</span></div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
               {num(all.pctOnTop) != null && <>{fmtPct(num(all.pctOnTop)!)} on top of {num(all.spentSol) != null ? `${fmtSolOb(num(all.spentSol)!)} SOL` : "the trade"}</>}

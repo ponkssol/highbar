@@ -122,7 +122,7 @@ export function DocTable({ head, rows, caption, transpose = false }: { head: Rea
 }
 
 export function Code({ children }: { children: ReactNode }) {
-  return <code className="num rounded-[5px] border border-border bg-muted px-1.5 py-px text-[0.86em] text-ink">{children}</code>;
+  return <code className="num rounded-none border border-border bg-muted px-1.5 py-px text-[0.86em] text-ink">{children}</code>;
 }
 
 export function CodeBlock({ children, label, wrap = false }: { children: string; label?: string; wrap?: boolean }) {

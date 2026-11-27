@@ -65,8 +65,8 @@ export function WelcomeModal({ onContinue }: { onContinue: () => void }) {
     <div className="fixed inset-0 z-[100] flex items-end justify-center md:items-center md:p-6" data-testid="welcome-modal">
       <div className="hb-scrim absolute inset-0 backdrop-blur-[3px]" aria-hidden />
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby="hb-welcome-title" aria-describedby="hb-welcome-desc"
-        className="hb-modal relative max-h-[94dvh] w-full overflow-y-auto overscroll-contain rounded-t-[20px] border border-border bg-surface p-2.5 pb-[calc(18px+env(safe-area-inset-bottom))] shadow-[0_24px_80px_-24px_rgba(0,0,0,.45)] md:max-w-[460px] md:rounded-lg md:p-3 md:pb-6">
-        <div className="relative aspect-[3/2] w-full overflow-hidden rounded-[14px] bg-muted md:rounded-[12px]">
+        className="hb-modal relative max-h-[94dvh] w-full overflow-y-auto overscroll-contain rounded-none border border-border bg-surface p-2.5 pb-[calc(18px+env(safe-area-inset-bottom))] shadow-[0_24px_80px_-24px_rgba(0,0,0,.45)] md:max-w-[460px] md:rounded-lg md:p-3 md:pb-6">
+        <div className="relative aspect-[3/2] w-full overflow-hidden rounded-none bg-muted md:rounded-none">
           <Image src="/brand/welcome-hero.webp" alt="A golden highbar column mark glowing in the clouds between marble arches, with classical statues playing music on the steps below" fill sizes="(min-width: 768px) 436px, 100vw" className="object-cover" loading="lazy" placeholder="blur" blurDataURL={HERO_BLUR} />
           <div className="pointer-events-none absolute inset-0 rounded-[inherit] ring-1 ring-inset ring-black/5 dark:ring-white/[.06]" aria-hidden />
         </div>

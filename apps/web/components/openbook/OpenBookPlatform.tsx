@@ -83,7 +83,7 @@ function WalletCard({ w, net }: { w: TreasuryWallet; net?: string | null }) {
   return (
     <Panel className="flex h-full min-w-0 flex-col p-4">
       <div data-testid="ob-wallet" className="flex items-center gap-3">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border bg-control" style={{ color: mix("var(--hb-gold-text)", 70) }}><WalletIcon /></span>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-none border border-border bg-control" style={{ color: mix("var(--hb-gold-text)", 70) }}><WalletIcon /></span>
         <div className="min-w-0 flex-1">
           <h3 className="flex min-w-0 items-center gap-1.5 font-sans text-[13.5px] font-medium leading-tight tracking-normal text-ink"><span className="truncate">{title}</span>{roles.some((r) => ROLE_NOTE[r]) && <InfoTip label={`About the ${title.toLowerCase()}`}>{roles.map((r) => ROLE_NOTE[r]).filter(Boolean).join(" ")}</InfoTip>}</h3>
           <Addr a={w.address} net={net} className="text-[11.5px] text-ink-3" />
@@ -181,7 +181,7 @@ function Flow({ ob }: { ob: PlatformOpenBook }) {
     </section>
   );
 }
-const Leg = ({ c, children }: { c: string; children: ReactNode }) => <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-[2px]" style={{ background: c }} />{children}</span>;
+const Leg = ({ c, children }: { c: string; children: ReactNode }) => <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-none" style={{ background: c }} />{children}</span>;
 
 type SortKey = "volume" | "dbcFees" | "creatorEarned" | "tips" | "sniperTipPct";
 const COLS: { k: SortKey; label: string }[] = [{ k: "volume", label: "Volume" }, { k: "dbcFees", label: "DBC fees" }, { k: "creatorEarned", label: "Creator earned" }, { k: "tips", label: "Tips paid" }, { k: "sniperTipPct", label: "Sniper share of tips" }];

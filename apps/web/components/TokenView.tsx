@@ -53,7 +53,7 @@ function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
       <Link href="/" className="inline-flex items-center gap-1 text-[13px] text-ink-3 hover:text-ink"><ArrowLeft size={14} />All tokens</Link>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div className="flex min-w-0 items-center gap-3">
-          <TokenLogo src={t.image} name={t.ticker} size={48} radius={12} />
+          <TokenLogo src={t.image} name={t.ticker} size={48} radius={0} />
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
               <h1 className="truncate text-xl font-semibold tracking-tight md:text-2xl">{t.name}</h1>
@@ -257,7 +257,7 @@ export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered 
       {sheet && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="hb-scrim absolute inset-0" onClick={() => setSheet(null)} />
-          <div className="absolute inset-x-0 bottom-0 hb-sheet max-h-[85vh] overflow-y-auto rounded-t-[20px] border-t border-border bg-surface p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
+          <div className="absolute inset-x-0 bottom-0 hb-sheet max-h-[85vh] overflow-y-auto rounded-none border-t border-border bg-surface p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
             {panel(sheet, true)}
           </div>

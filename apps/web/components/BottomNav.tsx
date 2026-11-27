@@ -60,7 +60,7 @@ export function BottomNav() {
       {open && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="More pages" data-testid="more-sheet">
           <div className="hb-scrim absolute inset-0" onClick={() => setOpen(false)} />
-          <div className="hb-sheet absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[20px] border-t border-border bg-surface px-4 pt-2 pb-[calc(16px+env(safe-area-inset-bottom))]">
+          <div className="hb-sheet absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-none border-t border-border bg-surface px-4 pt-2 pb-[calc(16px+env(safe-area-inset-bottom))]">
             <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="mx-auto mb-2 flex h-6 w-full items-center justify-center">
               <span className="h-1 w-10 rounded-full bg-border-strong" />
             </button>

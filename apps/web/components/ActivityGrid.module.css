@@ -1,7 +1,7 @@
 /* Protocol activity "arena wall": one 10 s square per seat, one minute per column. Motion is opt-out via prefers-reduced-motion. */
 .wall{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 22px);mask-image:linear-gradient(90deg,transparent 0,#000 22px)}
 .track{will-change:transform}
-.cell{border-radius:2px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(0,0,0,.035)),var(--hb-act-empty);transition:background-color .6s ease,opacity .6s ease,box-shadow .6s ease}
+.cell{border-radius:0;background:var(--hb-act-empty);transition:background-color .6s ease,opacity .6s ease,box-shadow .6s ease}
 .lit{box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
 .future{background:transparent;box-shadow:inset 0 0 0 1px var(--hb-border)}
 .now{box-shadow:0 0 0 1px var(--hb-gold-line);animation:torch 2.6s ease-in-out infinite}
