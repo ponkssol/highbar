@@ -135,7 +135,7 @@ export function ActivityGrid({ className = "", bare = false }: { className?: str
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold">Protocol activity</h2>
-          <span className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-ink-2">
+          <span className="flex items-center gap-1.5 border border-border px-2 py-0.5 text-[11px] font-medium text-ink-2">
             <span className="h-1.5 w-1.5 rounded-full bg-buy motion-safe:animate-pulse" />
             Live{source === "mock" ? " demo" : ""}
           </span>
@@ -143,7 +143,7 @@ export function ActivityGrid({ className = "", bare = false }: { className?: str
         <div className="flex flex-wrap items-center gap-1.5" data-testid="activity-counts">
           <span className="text-[10px] text-ink-3" title="Totals for the squares shown">Last {cols} min</span>
           {ORDER.map((t) => (
-            <span key={t} className="flex items-center gap-1.5 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] text-ink-3">
+            <span key={t} className="flex items-center gap-1.5 border border-border px-1.5 py-0.5 text-[10px] text-ink-3">
               <span className="h-2 w-2 rounded-none" style={{ background: COLOR[t] }} />{PLURAL[t]} <span className="num font-semibold text-ink">{totals[t]}</span>
             </span>
           ))}

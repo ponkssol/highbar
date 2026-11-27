@@ -64,6 +64,7 @@ h1 .num,h2 .num,h3 .num{letter-spacing:normal}
 /* Tables: mono uppercase headers with slight tracking, 1px row separators in the subtle hairline. */
 thead th{font-family:var(--font-mono),"Geist Mono",monospace;font-size:11px!important;font-weight:400!important;letter-spacing:.06em;text-transform:uppercase;color:var(--hb-ink-3)}
 thead th .sr-only{text-transform:none}
+thead th button{font:inherit;text-transform:inherit;letter-spacing:inherit}
 .dark tbody tr{border-color:var(--hb-border-subtle)}
 /* No drop shadows in dark: 1px hairlines only. */
 .dark :is(.shadow-card,.shadow-sm,.shadow,.shadow-md,.shadow-lg,.shadow-xl,.shadow-2xl){box-shadow:none}
