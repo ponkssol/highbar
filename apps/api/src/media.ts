@@ -38,6 +38,25 @@ async function fetchBuf(url: string, max = MAX): Promise<{ buf: Buffer; type: st
   return { buf, type: (r.headers.get("content-type") ?? "").split(";")[0] };
 }
 
+/** Fallback when the token's own metadata/logo is gone (e.g. media lost in a DB move): a copy cached by Jupiter or DexScreener.
+ *  Links back to our own /hb-api/media are skipped (those are what is missing). The result is stored in logo_cache by the caller. */
+async function externalLogo(mint: string): Promise<{ buf: Buffer; type: string } | null> {
+  const own = /\/hb-api\/(meta|media)\//;
+  const tryImg = async (u: unknown) => {
+    if (typeof u !== "string" || !/^https:\/\//.test(u) || own.test(u)) return null;
+    try { const img = await fetchBuf(u); return img.type.startsWith("image/") ? img : null; } catch { return null; }
+  };
+  try {
+    const r = await fetch(`https://lite-api.jup.ag/tokens/v2/search?query=${encodeURIComponent(mint)}`, { signal: AbortSignal.timeout(8000) });
+    if (r.ok) { const arr = await r.json() as { id?: string; icon?: string }[]; const img = await tryImg(arr?.find?.((x) => x.id === mint)?.icon); if (img) return img; }
+  } catch { /* next source */ }
+  try {
+    const r = await fetch(`https://api.dexscreener.com/tokens/v1/solana/${encodeURIComponent(mint)}`, { signal: AbortSignal.timeout(8000) });
+    if (r.ok) { const arr = await r.json() as { info?: { imageUrl?: string } }[]; const img = await tryImg(arr?.[0]?.info?.imageUrl); if (img) return img; }
+  } catch { /* none */ }
+  return null;
+}
+
 const miss = new Map<string, number>(); // mint -> retry-after ms (negative cache)
 export async function resolveImage(mint: string): Promise<{ buf: Buffer; type: string } | null> {
   const t = await store.getToken(mint);
@@ -54,7 +73,11 @@ export async function resolveImage(mint: string): Promise<{ buf: Buffer; type: s
     if (!img.type.startsWith("image/")) throw new Error("not an image");
     await store.putLogo(key, t.uri, img.type, img.buf); logoIdx.set(key, true);
     return img;
-  } catch { miss.set(mint, Date.now() + 5 * 60_000); return null; }
+  } catch {
+    const ext = await externalLogo(mint);
+    if (ext) { await store.putLogo(key, t.uri, ext.type, ext.buf); logoIdx.set(key, true); return ext; }
+    miss.set(mint, Date.now() + 30 * 60_000); return null;
+  }
 }
 
 export function registerMedia(app: FastifyInstance) {
