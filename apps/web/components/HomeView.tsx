@@ -228,13 +228,43 @@ function demoGrid() {
   return { cells, cnt };
 }
 const DEMO_GRID = demoGrid();
-const DEMO_LOG = [
-  { kind: "l", label: "Launch" },
-  { kind: "t", label: "Buy" },
-  { kind: "s", label: "Sell" },
-  { kind: "b", label: "Burn" },
-  { kind: "t", label: "Buy" },
-];
+const DEMO_TICKERS = ["SCOOBY", "KONGO", "WHITE", "BLOB", "FBI", "ABULL", "GLAD", "CCAT"];
+const DEMO_WALLETS = ["43hp…Zz7k", "5gwC…P7Jp", "GMGN…knJK", "9xQe…Lk2a", "HbR4…m91P", "3vNp…aQ7s"];
+type DemoRow = { id: number; kind: string; label: string; ticker: string; wallet: string; amt: string };
+let demoSeq = 1;
+function demoRow(): DemoRow {
+  const r = Math.random();
+  const kind = r < 0.12 ? "l" : r < 0.18 ? "b" : Math.random() < 0.4 ? "s" : "t";
+  const label = kind === "l" ? "Launch" : kind === "b" ? "Burn" : kind === "s" ? "Sell" : "Buy";
+  return {
+    id: demoSeq++,
+    kind,
+    label,
+    ticker: DEMO_TICKERS[Math.floor(Math.random() * DEMO_TICKERS.length)],
+    wallet: DEMO_WALLETS[Math.floor(Math.random() * DEMO_WALLETS.length)],
+    amt: (Math.random() * 1.4 + 0.05).toFixed(2),
+  };
+}
+function DemoFeed() {
+  const [rows, setRows] = useState<DemoRow[]>([]);
+  useEffect(() => {
+    setRows(Array.from({ length: 5 }, () => demoRow()));
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = window.setInterval(() => setRows((list) => [demoRow(), ...list].slice(0, 7)), 1700);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <ul>
+      {rows.map((e) => (
+        <li key={e.id}>
+          <span className={`ev ${e.kind}`}>{e.label}</span>
+          <b>${e.ticker} <span className="dim mono" style={{ fontSize: 11 }}>{e.wallet}</span></b>
+          <em>{e.kind === "l" ? "new" : <SolAmt>{e.amt}</SolAmt>}</em>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function Activity({ pct, graduated, total, volume, fees, burned, launched, traders }: { pct: number; graduated: number; total: number; volume: number; fees: number; burned: number; launched?: boolean; traders: number }) {
   const { events, source } = useActivity();
@@ -267,15 +297,15 @@ function Activity({ pct, graduated, total, volume, fees, burned, launched, trade
         </div>
         <div className="pa-c pa-log">
           <div className="pa-h"><span className="lbl">Live feed</span>{demo && <span className="lbl">Demo</span>}</div>
-          <ul>
-            {demo ? DEMO_LOG.map((e, i) => (
-              <li key={i}><span className={`ev ${e.kind}`}>{e.label}</span><b>—</b><em>—</em></li>
-            )) : log.map((e) => {
-              const kind = e.type === "launch" ? "l" : e.type === "burn" ? "b" : e.side === "sell" ? "s" : "t";
-              const label = e.type === "launch" ? "Launch" : e.type === "burn" ? "Burn" : e.type === "graduate" ? "Migrated" : e.side === "sell" ? "Sell" : "Buy";
-              return <li key={e.id}><span className={`ev ${kind}`}>{label}</span><b>{e.symbol ? `$${e.symbol}` : "—"}</b><em>{e.amount != null ? e.amount : "—"}</em></li>;
-            })}
-          </ul>
+          {demo ? <DemoFeed /> : (
+            <ul>
+              {log.map((e) => {
+                const kind = e.type === "launch" ? "l" : e.type === "burn" ? "b" : e.side === "sell" ? "s" : "t";
+                const label = e.type === "launch" ? "Launch" : e.type === "burn" ? "Burn" : e.type === "graduate" ? "Migrated" : e.side === "sell" ? "Sell" : "Buy";
+                return <li key={e.id}><span className={`ev ${kind}`}>{label}</span><b>{e.symbol ? `$${e.symbol}` : "—"}</b><em>{kind === "l" ? "new" : e.amount != null ? <SolAmt>{e.amount}</SolAmt> : "—"}</em></li>;
+              })}
+            </ul>
+          )}
         </div>
         <div className="pa-c pa-gauge">
           <div className="pa-h" style={{ width: "100%" }}><span className="lbl">Migration</span><a className="bom" href="https://www.meteora.ag" target="_blank" rel="noopener noreferrer" aria-label="Built on Meteora">Built on <MeteoraMark /></a></div>
