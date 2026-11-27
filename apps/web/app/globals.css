@@ -394,4 +394,69 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .ttabs button.on,.ttabs a.on{color:var(--tx);border-bottom-color:var(--yx)}
 .seg{flex-wrap:nowrap;overflow-x:auto;max-width:100%}
 .seg button{flex:none}
-@media(max-width:700px){.ttabs button,.ttabs a{padding:14px 12px}}
+
+/* Token page, copied from #v-token. Presentation only. */
+.tok{margin:-14px}
+@media(min-width:768px){.tok{margin:-16px}}
+.tok .cover{position:relative;height:150px;border-bottom:1px solid var(--hair);overflow:hidden}
+.tok .cover::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--bg-c),var(--bg-0) 40%,var(--bg-c))}
+.tok .cover .sc{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover}
+.tok .crumb{padding:16px clamp(16px,3vw,32px);border-bottom:1px solid var(--hair);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.tok .th{display:flex;gap:16px;align-items:center}
+.tok .th .av{width:56px;height:56px;flex:none;display:grid;place-items:center;font-family:var(--mono);font-size:14px;background:var(--inv) center/cover no-repeat;color:var(--bg)}
+.tok .th h1{margin:0;font-weight:400;font-size:clamp(26px,3vw,38px);letter-spacing:-.015em;line-height:1.1}
+.tok .th .meta{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--tx3)}
+.tok .th .meta button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+.tok .tier{font-family:var(--mono);font-size:12px;padding:3px 8px;border:1px solid var(--bd)}
+.tok .tier.Higher{border-color:#ffc72c66;color:var(--yx)}.tok .tier.Max{background:var(--y);color:var(--on-y);border-color:var(--yx)}
+.tok .px{text-align:right}
+.tok .px .v{font-family:var(--mono);font-size:clamp(28px,3.4vw,44px);line-height:1}
+.tok .pos{color:var(--pos)}.tok .neg{color:var(--neg)}
+.tok .strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-bottom:1px solid var(--hair)}
+.tok .strip>div{padding:16px clamp(16px,2vw,24px);border-right:1px solid var(--bd-s)}
+.tok .strip>div:last-child{border-right:0}
+.tok .strip .v{font-family:var(--mono);font-size:18px;margin-top:6px;white-space:nowrap}
+.tok .tg{display:grid;grid-template-columns:minmax(0,1fr) 380px;border-bottom:1px solid var(--hair)}
+.tok .cp{padding:clamp(16px,2vw,28px);border-right:1px solid var(--hair);min-width:0}
+.tok .chart{position:relative;height:auto;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}
+.tok .chart>div:first-child{margin-bottom:16px}
+.tok .chart>div:last-child{flex:none;height:420px;min-height:420px;background:var(--d0);border:1px solid var(--bd-s);position:relative}
+.tok .chart [role=tablist]{display:flex;border:1px solid var(--bd);border-radius:0;background:transparent;padding:0;gap:0;width:auto}
+.tok .chart [role=tablist] .hb-tab-ind{display:none}
+.tok .chart [role=tablist] button{height:32px;min-width:42px;border-radius:0;font-family:var(--mono);font-size:12px;background:transparent;color:var(--tx2);padding:0 10px}
+.tok .chart [role=tablist] button[aria-selected=true]{background:var(--inv);color:var(--bg)}
+.tok .jtx-trade>[role=group]{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;border:0;background:transparent;padding:0;width:100%;border-radius:0}
+.tok .jtx-trade>[role=group] button{height:36px;border:1px solid var(--bd);border-radius:0;font-family:var(--mono);font-size:12px;background:transparent;color:var(--tx2);min-width:0;padding:0}
+.tok .jtx-trade>[role=group] button[aria-pressed=true]{border-color:var(--tx);color:var(--tx);background:transparent}
+.tok .jtx-trade dl{border:1px solid var(--bd-s);background:var(--el);border-radius:0;padding:0}
+.tok .jtx-trade dl>div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--bd-s);font-size:13px;margin:0}
+.tok .jtx-trade dl>div:last-child{border-bottom:0}
+.tok .side{padding:clamp(16px,2vw,24px);display:flex;flex-direction:column;gap:16px;background:var(--d2)}
+:root[data-theme=light] .tok .side{background:var(--d1)}
+.tok .jtx-trade{display:flex;flex-direction:column;gap:16px}
+.tok .jtx-trade .bs{display:grid!important;grid-template-columns:1fr 1fr;width:100%;border:1px solid var(--bd);border-radius:0;background:transparent;padding:0;gap:0}
+.tok .jtx-trade .bs .hb-tab-ind{display:none}
+.tok .jtx-trade .bs button{height:44px;border-radius:0;font-size:14px;font-weight:400;color:var(--tx2);background:transparent;box-shadow:none}
+.tok .jtx-trade[data-side=buy] .bs button[aria-selected=true]{background:var(--y);color:var(--on-y);font-weight:500}
+.tok .jtx-trade[data-side=sell] .bs button[aria-selected=true]{background:var(--neg);color:#1a0705;font-weight:500}
+:root[data-theme=light] .tok .jtx-trade[data-side=sell] .bs button[aria-selected=true]{color:#fff}
+.tok .jtx-trade>div>label{height:56px;border-radius:0;background:var(--bg);border-color:var(--bd);padding:0 14px}
+.tok .jtx-trade>div>label input{font:20px var(--mono)}
+.tok .go{height:52px;background:var(--y);color:var(--on-y);font-weight:500;font-size:15px;width:100%;border-radius:0}
+.tok .go.sell{background:var(--neg);color:#1a0705}
+.tok .go:disabled{opacity:.4;cursor:not-allowed}
+.tok .go:hover:not(:disabled){background:var(--y2)}
+.tok .go.sell:hover:not(:disabled){filter:brightness(1.05)}
+.tok .bond{border:1px solid var(--bd-s);padding:16px;background:var(--el);display:flex;flex-direction:column;gap:0;font-size:14px}
+.tok .bar{height:2px;background:var(--sf);position:relative}
+.tok .bond .bar{height:6px;margin:12px 0 8px}
+.tok .bar>i{position:absolute;inset:0 auto 0 0;background:var(--y)}
+.tok [data-testid=trade-dock]{display:none}
+@media(max-width:1000px){
+ .tok .tg{grid-template-columns:minmax(0,1fr)}
+ .tok .cp{border-right:0;border-bottom:1px solid var(--hair)}
+ .tok .strip{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .tok .strip>div{border-bottom:1px solid var(--bd-s)}
+}
+@media(max-width:700px){.tok .strip{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:600px){.tok .px{text-align:left}.tok .chart>div:last-child{height:300px;min-height:300px}}
