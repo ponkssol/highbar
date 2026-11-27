@@ -9,6 +9,7 @@ import { explorerAddr } from "@/lib/settings";
 import { hotCoins, isAddress, loadSpark, searchAll, SEARCH_MIN_CHARS, topTraders, type HotCoin, type SearchResult, type SearchToken, type SearchUser, type Trader } from "@/lib/search";
 import { clearHistory, getFavs, getHistory, HISTORY_EVENT, pushHistory, toggleFav, type HistoryKind, type SavedToken } from "@/lib/searchHistory";
 import { Segmented } from "../TabBar";
+import { hrefInCurrentUi } from "@/lib/uiVersion";
 
 /** Carousel data survives closing and reopening the modal for a minute, so a quick reopen shows cards at once. */
 const memo: { hot?: { at: number; v: HotCoin[] }; traders?: { at: number; v: Trader[] } } = {};
@@ -199,7 +200,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
     return () => { clearTimeout(t); ac.abort(); };
   }, [query]);
 
-  const openToken = (t: SearchToken) => { pushHistory("searched", t); onClose(); router.push(`/token/${t.mint}`); };
+  const openToken = (t: SearchToken) => { pushHistory("searched", t); onClose(); router.push(hrefInCurrentUi(`/token/${t.mint}`)); };
   const openWallet = (w: string) => { window.open(explorerAddr(w), "_blank", "noopener,noreferrer"); onClose(); };
 
   const done = res && res.q === query ? res : null;
@@ -217,7 +218,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
       ...tokens.map((t) => ({ id: `${uid}-t-${t.mint}`, run: () => openToken(t) })),
       ...users.map((u) => ({ id: `${uid}-u-${u.wallet}`, run: () => openWallet(u.wallet) })),
     ];
-    if (addr && noHit) o.push({ id: `${uid}-ot`, run: () => { onClose(); router.push(`/token/${addr}`); } }, { id: `${uid}-ow`, run: () => openWallet(addr) });
+    if (addr && noHit) o.push({ id: `${uid}-ot`, run: () => { onClose(); router.push(hrefInCurrentUi(`/token/${addr}`)); } }, { id: `${uid}-ow`, run: () => openWallet(addr) });
     return o;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, hist, tokens, users, addr, noHit, uid]);

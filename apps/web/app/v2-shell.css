@@ -1,0 +1,33 @@
+/* Isolates the new UI from the classic global styles (grain, Cinzel headings, 14px mobile root).
+   These rules only apply while html[data-shell="v2"] is set, which the shell does for /v2. */
+html[data-shell="v2"] {
+  font-size: 16px !important;
+  background-color: #101010 !important;
+  background-image: none !important;
+  scroll-padding-top: 90px;
+  scrollbar-gutter: auto;
+}
+html[data-shell="v2"][data-theme="light"] {
+  background-color: #f2f1ee !important;
+}
+html[data-shell="v2"] body {
+  background: transparent;
+  color: inherit;
+}
+html[data-shell="v2"] body::after {
+  display: none !important;
+}
+html[data-shell="v2"] :is(button, [role="button"], [role="tab"], nav a, .hb-press):active {
+  scale: 1 !important;
+}
+html[data-shell="v2"] :is(h1, h2, h3, h4, .font-display) {
+  font-family: var(--font-geist), "Geist", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+@media (max-width: 767px) {
+  html[data-shell="v2"],
+  html[data-shell="v2"] body {
+    font-size: 16px !important;
+    line-height: 1.5;
+  }
+}

@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
-import { Cinzel, EB_Garamond, Inter, JetBrains_Mono } from "next/font/google";
+import { Cinzel, EB_Garamond, Geist, Geist_Mono, Inter, JetBrains_Mono } from "next/font/google";
 import { HOME_TITLE, ICON_V, SHORT_NAME, SITE_NAME, siteUrl } from "@/lib/seo";
+import { DEFAULT_UI } from "@/lib/uiVersion";
 import "./globals.css";
+import "./v2-shell.css";
 import { Providers } from "./providers";
-import { Sidebar } from "@/components/Sidebar";
-import { PageShell } from "@/components/PageShell";
-import { BottomNav } from "@/components/BottomNav";
-import { MobileHeader } from "@/components/MobileHeader";
 import { ReferralCapture } from "@/components/ReferralCapture";
-import { SearchLauncher } from "@/components/search/SearchLauncher";
+import { ShellSwitch } from "@/components/ShellSwitch";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
@@ -16,6 +14,8 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 const display = Cinzel({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-display" });
 // Lead text face (SIL OFL 1.1): EB Garamond for banner intros only. Numbers, prices and addresses stay in Inter or JetBrains Mono.
 const serif = EB_Garamond({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-serif" });
+const geist = Geist({ subsets: ["latin"], weight: ["300", "400", "500"], variable: "--font-geist" });
+const geistMono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-geist-mono" });
 
 /** Favicon set, all served from public/ on the root domain (app/ icon files would override them, so there are none). */
 const icons: Metadata["icons"] = {
@@ -37,17 +37,14 @@ export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable} ${display.variable} ${serif.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${mono.variable} ${display.variable} ${serif.variable} ${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("hb-theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark")}catch(e){}` }} />
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("hb-theme");var dark=t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches);if(dark)document.documentElement.classList.add("dark");var p=location.pathname;var app=p==="/"||p==="/launch"||p==="/leaderboard"||p==="/locks"||p==="/portfolio"||p==="/rewards"||p==="/open-book"||p==="/settings"||/^\\/token\\/[^/]+$/.test(p)||/^\\/locks\\/[^/]+$/.test(p);if(p==="/v2"||p.indexOf("/v2/")===0||(${DEFAULT_UI === "v2" ? "app" : "false"})){document.documentElement.dataset.shell="v2";document.documentElement.dataset.theme=t==="light"?"light":dark?"dark":"light"}}catch(e){}` }} />
       </head>
       <body>
         <Providers reownProjectId={process.env.REOWN_PROJECT_ID} rpcUrl={process.env.RPC_URL} network={process.env.NETWORK}>
-          <Sidebar />
-          <main className="min-h-screen p-[14px] pb-[calc(80px+env(safe-area-inset-bottom))] md:ml-sidebar md:p-4 md:pb-4"><PageShell><MobileHeader />{children}</PageShell></main>
-          <BottomNav />
+          <ShellSwitch>{children}</ShellSwitch>
           <ReferralCapture />
-          <SearchLauncher />
         </Providers>
       </body>
     </html>
