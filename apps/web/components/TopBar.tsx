@@ -1,11 +1,11 @@
 "use client";
-import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { ListControls } from "./ListControls";
 import { WalletButton } from "./WalletButton";
 import { useInHub } from "./HubTabs";
 import { prefetchSearch } from "./search/SearchLauncher";
+import { PlusLink } from "./ui/Jtx";
 
 /** listControls: show the token-list Sort by / Filters popovers (home page only; they drive the URL query). */
 export function TopBar({ listControls = false }: { listControls?: boolean }) {
@@ -16,17 +16,15 @@ export function TopBar({ listControls = false }: { listControls?: boolean }) {
     <div data-testid="topbar" className="hidden items-center gap-3 md:flex md:h-header">
       <button type="button" data-hb-search aria-haspopup="dialog" aria-label="Search for coins and users" onClick={() => window.dispatchEvent(new Event("hb-search"))}
         onPointerEnter={prefetchSearch} onFocus={prefetchSearch}
-        className="flex h-9 w-full max-w-sm items-center gap-2 rounded-full px-4 text-left text-sm text-ink-3 hb-ctrl hover:text-ink-2 focus-visible:border-gold-line focus-visible:outline-none">
+        className="flex h-10 w-full max-w-sm items-center gap-2 px-3.5 text-left text-sm text-ink-3 hb-ctrl hover:text-ink-2 focus-visible:border-gold-line focus-visible:outline-none">
         <Search size={16} strokeWidth={1.5} aria-hidden />
         <span className="min-w-0 flex-1 truncate">Search for coins and users…</span>
-        {keys && <kbd className="num shrink-0 rounded bg-control px-1.5 py-0.5 text-[11px] text-ink-3" aria-hidden>{keys}</kbd>}
+        {keys && <kbd className="num shrink-0 border border-border px-1.5 py-0.5 text-[10.5px] text-ink-3" aria-hidden>{keys}</kbd>}
       </button>
       <div className="ml-auto hidden items-center gap-2 md:flex">
         {listControls && <div className="max-lg:hidden"><Suspense fallback={null}><ListControls /></Suspense></div>}
         <WalletButton size="lg" />
-        <Link href="/launch" className="inline-flex h-9 items-center gap-2 rounded bg-gold px-4 text-sm font-semibold text-gold-ink transition-[filter] hover:brightness-105">
-          <Plus size={16} /><span>Launch<span className="max-lg:hidden"> token</span></span>
-        </Link>
+        <PlusLink href="/launch">Launch<span className="max-lg:hidden">&nbsp;token</span></PlusLink>
       </div>
     </div>
   );
@@ -39,7 +37,7 @@ export function TopBlock({ title, children }: { title?: string; children?: React
   return (
     <section className="pb-2">
       <TopBar />
-      {title && <h1 className="mt-0 text-xl md:mt-2 md:text-2xl font-semibold tracking-tight">{title}</h1>}
+      {title && <h1 className="mt-0 text-2xl md:mt-2 md:text-[34px] md:leading-tight">{title}</h1>}
       {children}
     </section>
   );

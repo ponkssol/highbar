@@ -10,15 +10,17 @@ import { BuiltOnRow } from "./BuiltOnRow";
 export function Sidebar() {
   const path = usePathname();
   return (
-    <aside className="fixed inset-y-0 left-0 z-20 hidden w-sidebar md:flex flex-col border-r border-border bg-surface hb-rail px-3 py-5">
+    <aside className="fixed inset-y-0 left-0 z-20 hidden w-sidebar md:flex flex-col border-r border-border bg-panel hb-rail px-3 py-5">
       <Link href="/" className="mb-7 flex items-center px-3" aria-label="highbar home">
         <Logo height={38} />
       </Link>
+      <div className="hb-label mb-2 px-3">Menu</div>
       <nav className="flex flex-col gap-0.5">
         {NAV.map((item) => {
           const { href, label, icon: Icon, badge } = item;
           const on = isNavActive(path, item);
-          const className = `flex h-10 items-center gap-3 rounded-sm px-3 text-sm transition-colors ${on ? "bg-gold-soft font-medium text-ink" : "text-ink-2 hover:bg-control-hover hover:text-ink"}`;
+          // Active item: a raised block with a 2px yellow bar on its left edge (JTX nav).
+          const className = `relative flex h-10 items-center gap-3 px-3 text-sm transition-colors ${on ? "bg-raised text-ink before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-gold" : "text-ink-2 hover:bg-control-hover hover:text-ink"}`;
           const inner = (
             <>
               <Icon size={18} strokeWidth={on ? 2 : 1.5} className={on ? "text-gold-text" : undefined} />

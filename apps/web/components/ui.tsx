@@ -7,11 +7,12 @@ type Variant = "primary" | "secondary" | "ghost" | "gold";
 type Size = "sm" | "md" | "lg";
 const VAR: Record<Variant, string> = {
   primary: "bg-ink text-on-ink hover:opacity-90 border border-ink",
-  secondary: "hb-ctrl text-ink",
+  // Outlined secondary (JTX): 1px muted outline, no fill, a #303030 fill on hover in dark.
+  secondary: "border border-border-strong bg-transparent text-ink hover:bg-control-hover",
   ghost: "bg-transparent text-ink hover:bg-muted",
-  gold: "bg-gold text-gold-ink border border-gold hover:opacity-90",
+  gold: "bg-gold text-gold-ink border border-gold hover:brightness-105",
 };
-/** Control heights: sm 32px, md 40px (default), lg 48px. One radius (12px) and one weight (500) for every button. */
+/** Control heights: sm 32px, md 40px (default), lg 48px. Square corners and one weight (500) for every button. */
 const SIZE: Record<Size, string> = { sm: "h-8 px-3 text-[13px]", md: "h-10 px-4 text-sm", lg: "h-12 px-5 text-sm" };
 const BASE = "hb-press inline-flex items-center justify-center gap-2 rounded font-medium transition-opacity duration-150 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap";
 export const buttonClass = (variant: Variant = "primary", size: Size = "md") => `${BASE} ${SIZE[size]} ${VAR[variant]}`;
@@ -51,7 +52,7 @@ export function TierDot({ tier }: { tier: TierId }) {
 }
 export function TierBadge({ tier }: { tier: TierId }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs text-ink">
+    <span className="num inline-flex items-center gap-1.5 border border-border px-1.5 py-0.5 text-[11px] uppercase tracking-[.04em] text-ink-2">
       <TierDot tier={tier} />
       {TIERS[tier]?.label ?? String(tier ?? "")}
     </span>
@@ -61,8 +62,8 @@ export function TierBadge({ tier }: { tier: TierId }) {
 export function ProgressBar({ value, tier }: { value: number; tier?: TierId }) {
   const pct = Math.max(0, Math.min(1, value)) * 100;
   return (
-    <div className="relative h-1.5 w-full rounded-full bg-border">
-      <div className="h-1.5 rounded-full bg-gold" style={{ width: `${pct}%` }} />
+    <div className="relative h-1.5 w-full bg-border">
+      <div className="h-1.5 bg-gold" style={{ width: `${pct}%` }} />
       {tier === "max" && pct > 0 && (
         <span className={`absolute top-1/2 h-2 w-2 -translate-y-1/2 -translate-x-1/2 rounded-full ring-2 ring-surface ${TIER_COLOR.max}`} style={{ left: `${pct}%` }} />
       )}
@@ -85,15 +86,15 @@ export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
 
 export function BurnBadge({ children = "burn" }: { children?: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-ink-2">
-      <span className="h-1.5 w-1.5 rounded-full bg-burn" />
+    <span className="num inline-flex items-center gap-1 border border-border px-1.5 py-0.5 text-[11px] uppercase tracking-[.04em] text-ink-2">
+      <span className="h-1.5 w-1.5 bg-burn" />
       {children}
     </span>
   );
 }
 
 export function SectionLabel({ children }: { children: ReactNode }) {
-  return <div className="text-[13px] text-ink-3">{children}</div>;
+  return <div className="hb-label">{children}</div>;
 }
 /** Price with a real subscript zero count (0.0<sub>7</sub>2535) so it stays legible in any font. */
 export function Price({ v, prefix = "" }: { v: number; prefix?: string }) {

@@ -35,7 +35,7 @@ const Row = ({ on, onClick, children }: { on: boolean; onClick: () => void; chil
     <span className="flex-1">{children}</span>{on && <Check size={14} />}
   </button>
 );
-const Head = ({ children }: { children: ReactNode }) => <div className="px-2.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-ink-3">{children}</div>;
+const Head = ({ children }: { children: ReactNode }) => <div className="hb-label px-2.5 pb-1 pt-2">{children}</div>;
 
 /** Sort by + Filters popovers for the token list. State lives in the URL (see useListQuery). */
 export function ListControls({ small = false }: { small?: boolean }) {
@@ -58,7 +58,7 @@ export function ListControls({ small = false }: { small?: boolean }) {
       <Popover label="Filter tokens" button={(open, toggle) => (
         <Button variant="secondary" size={size} className={`${btn} ${n ? "hb-ctrl-on" : ""}`} aria-expanded={open} aria-haspopup="dialog" onClick={toggle} data-testid="filters-button">
           <SlidersHorizontal size={16} strokeWidth={1.5} />Filters
-          {n > 0 && <span className="num ml-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[11px] font-semibold text-gold-ink">{n}</span>}
+          {n > 0 && <span className="num ml-0.5 flex h-5 min-w-5 items-center justify-center bg-gold px-1.5 text-[11px] font-semibold text-gold-ink">{n}</span>}
         </Button>
       )}>
         <Head>Tier</Head>

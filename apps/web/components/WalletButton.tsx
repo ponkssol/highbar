@@ -19,7 +19,7 @@ export function WalletButton({ full = false, compact = false, size: sz = "sm" }:
   const open = useWalletModal();
   const { status, signIn } = useAuth();
   // Header controls share one height (36px). The sm pill stays 32px for inline use.
-  const size = compact ? "h-9 rounded-full px-3 text-[12px] gap-1.5" : sz === "lg" ? "h-9 rounded px-4 text-sm gap-2" : "h-8 rounded-full px-3 text-[13px] gap-2";
+  const size = compact ? "h-9 px-3 text-[12px] gap-1.5" : sz === "lg" ? "h-10 px-4 text-sm gap-2" : "h-8 px-3 text-[13px] gap-2";
   const base = `relative inline-flex shrink-0 items-center whitespace-nowrap font-medium leading-none transition-opacity after:absolute after:inset-x-0 after:-inset-y-[6px] after:content-[''] ${size} ${full ? "w-full justify-center" : ""}`;
   if (isConnected && address) {
     const unverified = status !== "verified";

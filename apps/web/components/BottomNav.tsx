@@ -26,11 +26,11 @@ export function BottomNav() {
   const moreActive = open || MORE.some((m) => isNavActive(path, m));
   const item = (active: boolean) =>
     `relative flex h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 text-[11px] font-medium leading-none tracking-[-0.01em] transition-colors ${active ? "text-ink" : "text-ink-3"}`;
-  const pill = (active: boolean) => active && <span aria-hidden className="absolute top-0 h-[3px] w-6 rounded-full bg-gold" />;
+  const pill = (active: boolean) => active && <span aria-hidden className="absolute top-0 h-[2px] w-6 bg-gold" />;
   return (
     <>
       <nav aria-label="Main" data-testid="bottom-nav"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-panel pb-[env(safe-area-inset-bottom)] md:hidden">
         <div className="flex h-16">
           {MAIN.map((n) => {
             const { href, label, icon: Icon } = n;

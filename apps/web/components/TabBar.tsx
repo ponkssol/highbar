@@ -87,15 +87,22 @@ export type TabItem<T extends string> = { id: T; label: ReactNode; href?: string
 
 const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 
-/** The one tab look used on every page: a dark rounded pill track, a warm filled pill under the active tab (it slides, transform
- *  only) and muted text on the rest. Rows that do not fit scroll sideways with a hidden scrollbar, edge fades and the active tab
+/** Two looks share one motion: page tabs (TabBar) are text on a hairline with a sliding yellow underline; segmented controls are
+ *  square outlined button rows with a filled block under the active one (it slides, transform only). Rows that do not fit scroll sideways with a hidden scrollbar, edge fades and the active tab
  *  kept in view, so nothing wraps or clips at 390 or 360. */
-const SEG_TRACK = "relative inline-flex w-max items-center gap-0.5 rounded-full border border-seg-line bg-seg p-1";
-const SEG_ITEM = "relative z-[1] inline-flex h-8 items-center justify-center whitespace-nowrap rounded-full px-3.5 text-[13px] leading-none transition-colors duration-200";
+// JTX segmented buttons: a square 1px-outlined track split by hairlines, mono labels, a filled #303030 block under the active one.
+const SEG_TRACK = "relative inline-flex w-max items-stretch border border-seg-line bg-seg";
+const SEG_ITEM = "relative z-[1] inline-flex h-8 items-center justify-center whitespace-nowrap border-l border-seg-line first-of-type:border-l-0 px-3.5 font-mono text-[11.5px] uppercase tracking-[.05em] leading-none transition-colors duration-200";
 // One weight for on and off: a bolder active label is wider, so the pills (and every tab after them) would nudge sideways on a switch.
 const SEG_ON = "font-medium text-seg-on-ink";
 const SEG_OFF = "font-medium text-ink-3 hover:text-ink-2";
-const SEG_IND = "inset-y-1 rounded-full bg-seg-on";
+
+// Page level tabs (TabBar): plain text on a 1px baseline, the active tab gets a 2px highbar yellow underline that slides.
+const TAB_TRACK = "relative inline-flex w-max min-w-full items-stretch gap-1 border-b border-border";
+const TAB_ITEM = "relative z-[1] inline-flex h-10 items-center justify-center whitespace-nowrap px-3 text-[13px] leading-none transition-colors duration-200";
+const TAB_ON = "font-medium text-ink";
+const TAB_OFF = "font-medium text-ink-3 hover:text-ink-2";
+const TAB_IND = "bottom-[-1px] h-[2px] bg-gold";
 
 type Frame = { scroll?: boolean; fade?: "bg" | "surface"; outerClassName?: string; innerClassName?: string };
 
@@ -112,11 +119,11 @@ export function TabBar<T extends string>({ items, value, onSelect, label, classN
   const { list, ind, ready } = useSlidingIndicator(value);
   return (
     <SegFrame active={value} {...frame}>
-      <div ref={list} role="tablist" aria-label={label} data-testid={testId} className={cx(SEG_TRACK, className)}>
-        <span ref={ind} aria-hidden className={cx("hb-tab-ind", SEG_IND, !ready && "opacity-0")} />
+      <div ref={list} role="tablist" aria-label={label} data-testid={testId} className={cx(TAB_TRACK, className)}>
+        <span ref={ind} aria-hidden className={cx("hb-tab-ind", TAB_IND, !ready && "opacity-0")} />
         {items.map((t) => {
           const on = t.id === value;
-          const cls = cx(SEG_ITEM, on ? SEG_ON : SEG_OFF, on && !ready && "bg-seg-on");
+          const cls = cx(TAB_ITEM, on ? TAB_ON : TAB_OFF, on && !ready && "shadow-[inset_0_-2px_0_var(--hb-gold)]");
           const common = { "data-tab-id": t.id, "data-testid": t.testId, role: "tab", "aria-selected": on, className: cls } as const;
           return t.href ? (
             <a key={t.id} {...common} href={t.href} aria-current={on ? "page" : undefined} onClick={(e) => { if (!plainClick(e)) return; e.preventDefault(); if (!on) holdScrollFloor(); onSelect(t.id); }}>{t.label}</a>
@@ -139,12 +146,13 @@ export function Segmented<T extends string>({ options, value, onChange, label, t
 } & Frame) {
   const { list, ind, ready } = useSlidingIndicator(value);
   const trade = tone === "trade";
-  const pill = trade ? (value === "sell" ? "bg-sell" : "bg-buy") : "bg-seg-on";
-  const onText = trade ? "font-semibold text-on-ink" : SEG_ON;
+  // Trade side: the active half is tinted with the buy or sell soft fill and takes the side colour as text.
+  const pill = trade ? (value === "sell" ? "bg-sell-soft" : "bg-buy-soft") : "bg-seg-on";
+  const onText = trade ? (value === "sell" ? "font-medium text-sell" : "font-medium text-buy") : SEG_ON;
   return (
     <SegFrame active={value} {...frame} scroll={fill ? false : frame.scroll}>
       <div ref={list} role="tablist" aria-label={label} data-testid={testId} className={cx(SEG_TRACK, fill && "!flex !w-full", className)}>
-        <span ref={ind} aria-hidden className={cx("hb-tab-ind inset-y-1 rounded-full", pill, !ready && "opacity-0")} />
+        <span ref={ind} aria-hidden className={cx("hb-tab-ind inset-y-0", pill, !ready && "opacity-0")} />
         {options.map((o) => {
           const on = o.id === value;
           return (

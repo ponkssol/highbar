@@ -9,7 +9,7 @@ export function PageShell({ children }: { children: ReactNode }) {
     <div className="mx-auto w-full max-w-[1600px]">
       {children}
       {/* Soft site footer on every page. */}
-      <footer data-testid="site-footer" className="mt-12 border-t border-border pb-2 pt-5 text-[13px] text-ink-3">
+      <footer data-testid="site-footer" className="relative mt-12 border-t border-border pb-2 pt-5 font-mono text-[11px] uppercase tracking-[.06em] text-ink-3">
         <nav aria-label="Footer" className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
           <Link href="/docs" className="transition-colors hover:text-ink">Docs</Link>
           <a href="/articles" className="transition-colors hover:text-ink">Guides</a>
