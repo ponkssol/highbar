@@ -10,7 +10,7 @@ function Item({ item, path, onNavigate }: { item: NavItem; path: string; onNavig
   const on = isNavActive(path, item);
   const className = `ni${on ? " on" : ""}`;
   const badge = item.badge
-    ? (item.concept ? <b className="nb">{item.badge}</b> : <em className="nw">{item.badge}</em>)
+    ? (item.concept || item.href === "/private" ? <b className="nb">{item.badge}</b> : <em className="nw">{item.badge}</em>)
     : null;
   const inner = (<><item.icon /><span>{item.label}</span>{badge}</>);
   if (item.concept) {
