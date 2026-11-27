@@ -1,0 +1,67 @@
+.hb-shade {
+  position: fixed;
+  z-index: 80;
+  background: rgba(8, 7, 6, 0.55);
+  pointer-events: none;
+}
+.hb-tip {
+  position: fixed;
+  z-index: 81;
+  width: min(320px, calc(100vw - 24px));
+  border: 1px solid var(--hb-border-strong);
+  border-radius: 14px;
+  background: var(--hb-surface);
+  color: var(--hb-ink);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  padding: 12px 12px 10px;
+}
+.hb-tip[hidden], .hb-shade[hidden] { display: none; }
+.hb-tip header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hb-tip img { width: 22px; height: 22px; border-radius: 6px; }
+.hb-tip .kicker {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--hb-gold-text);
+}
+.hb-tip h2 {
+  margin: 1px 0 0;
+  font-family: Cinzel, Georgia, serif;
+  font-size: 15px;
+  line-height: 1.25;
+  font-weight: 600;
+}
+.hb-tip p {
+  margin: 8px 0 0;
+  color: var(--hb-ink-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.hb-tip .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.hb-tip .row span { flex: 1; font-size: 10px; letter-spacing: 0.08em; color: var(--hb-ink-3); }
+.hb-tip button {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hb-border);
+  background: transparent;
+  color: var(--hb-ink-2);
+  font-size: 12px;
+}
+.hb-tip button.gold {
+  background: var(--hb-gold);
+  border-color: transparent;
+  color: var(--hb-gold-ink);
+  font-weight: 600;
+}
+.hb-tip button:disabled { opacity: 0.35; }

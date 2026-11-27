@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>highbar chart</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#15130F;color:#958C79;font:500 11px/1 Inter,system-ui,sans-serif}
+body{display:flex;flex-direction:column}
+#bar{display:flex;align-items:center;gap:4px;height:22px;padding:0 2px;flex:none}
+#bar[hidden]{display:none}
+#tf{display:flex;gap:1px;flex:1}
+#tf button{all:unset;cursor:pointer;padding:3px 5px;border-radius:4px;color:#7E7664;font:600 11px/1 Inter,system-ui,sans-serif}
+#tf button:hover{color:#F3EEDF;background:rgba(255,255,255,.05)}
+#tf button.on{color:#FFC72C;background:rgba(255,199,44,.12)}
+#tf button:disabled{opacity:.3;cursor:default;background:none;color:#7E7664}
+#tf button:focus-visible{outline:1px solid #FFC72C}
+#src{display:flex;flex:none;gap:0;padding:1px;border-radius:5px;background:rgba(255,255,255,.04)}
+#src button{all:unset;cursor:pointer;padding:2px 6px;border-radius:4px;color:#7E7664;font:600 11px/1 Inter,system-ui,sans-serif}
+#src button:hover{color:#F3EEDF}
+#src button.on{color:#FFC72C;background:rgba(255,199,44,.12);cursor:default}
+#src button:focus-visible{outline:1px solid #FFC72C}
+#c{position:relative;flex:1;min-height:0;overflow:hidden}
+#bar{position:relative;z-index:1;background:#15130F}
+#c iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#msg{position:absolute;inset:22px 0 0;display:flex;align-items:center;justify-content:center;font-size:11px;pointer-events:none}
+#msg[hidden]{display:none}
+</style>
+</head>
+<body><div id="bar"><div id="tf" role="group" aria-label="Candle width"></div><div id="src" role="group" aria-label="Chart source"></div></div><div id="c"></div><div id="msg">Loading chart…</div><script src="chart.js"></script></body>
+</html>
