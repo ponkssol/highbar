@@ -64,12 +64,17 @@ function CurveCard() {
         mk += `<line x1="${x}" y1="${y}" x2="${x}" y2="${y0}" stroke="${c}" stroke-dasharray="3 4" opacity=".6"/><rect id="mk${k}" x="${x - 5}" y="${y - 5}" width="10" height="10" fill="var(--bg)" stroke="${c}" stroke-width="1.5"/><text id="ml${k}" x="${x - 11}" y="${y - 12}" text-anchor="end" fill="${c}" font-size="11" ${mono}>${lab}</text>`;
         mk += `<text x="${k === 2 ? x1 : x}" y="${y0 + 18}" text-anchor="${k === 2 ? "end" : "middle"}" fill="var(--tx3)" font-size="11" ${mono}>${q}${k === 2 ? " SOL" : ""}</text>`;
       });
-      cv.innerHTML = `<defs><clipPath id="cclip"><rect id="cclipr" x="${x0}" y="0" width="0" height="${H}"/></clipPath></defs>${zones}${grid}<path d="${d}" fill="none" stroke="var(--bd-x)" stroke-width="1" stroke-dasharray="2 5" opacity=".55"/><g clip-path="url(#cclip)"><path d="${d} L${x1} ${y0} L${x0} ${y0}Z" fill="#ffc72c" fill-opacity=".22"/><path d="${d}" fill="none" stroke="#ffc72c" stroke-width="2.2" stroke-linejoin="round"/></g>${mk}<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}" stroke="var(--tx2)"/><line x1="${x0}" y1="${y1}" x2="${x0}" y2="${y0}" stroke="var(--bd-x)"/><text x="${x0}" y="${y0 + 18}" fill="var(--tx3)" font-size="11" ${mono}>0</text><text x="${x0 + 8}" y="${y1 - 12}" fill="var(--tx3)" font-size="11" ${mono}>PRICE ↑</text><g id="cdot"><circle r="5" fill="#fff6d6"/><circle r="2.6" fill="#ffc72c"/></g><g id="npill"><rect x="-32" y="-34" width="64" height="20" fill="var(--bg)" stroke="#ffc72c"/><text id="ntx" x="0" y="-20" text-anchor="middle" fill="var(--yx)" font-size="11" ${mono}>0 SOL</text></g>`;
+      const grad = small ? "GRADUATED" : "GRADUATED · DAMM v2";
+      cv.innerHTML = `<defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc72c" stop-opacity=".34"/><stop offset="1" stop-color="#ffc72c" stop-opacity="0"/></linearGradient><radialGradient id="hg"><stop offset="0" stop-color="#ffd65e" stop-opacity=".95"/><stop offset="1" stop-color="#ffc72c" stop-opacity="0"/></radialGradient><clipPath id="cclip"><rect id="cclipr" x="${x0}" y="0" width="0" height="${H}"/></clipPath></defs>${zones}${grid}<path d="${d}" fill="none" stroke="var(--bd-x)" stroke-width="1" stroke-dasharray="2 5" opacity=".55"/><g clip-path="url(#cclip)"><path d="${d} L${x1} ${y0} L${x0} ${y0}Z" fill="url(#cg)"/><path d="${d}" fill="none" stroke="#ffc72c" stroke-width="2.2" stroke-linejoin="round"/></g>${mk}<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}" stroke="var(--tx2)"/><line x1="${x0}" y1="${y1}" x2="${x0}" y2="${y0}" stroke="var(--bd-x)"/><text x="${x0}" y="${y0 + 18}" fill="var(--tx3)" font-size="11" ${mono}>0</text><text x="${x0 + 8}" y="${y1 - 12}" fill="var(--tx3)" font-size="11" ${mono}>PRICE ↑</text><g id="rp"></g><g id="sp"></g><g id="cdot"><circle r="18" fill="url(#hg)"/><circle r="5" fill="#fff6d6"/><circle r="2.6" fill="#ffc72c"/></g><g id="npill"><rect x="-32" y="-34" width="64" height="20" fill="var(--bg)" stroke="#ffc72c"/><text id="ntx" x="0" y="-20" text-anchor="middle" fill="var(--yx)" font-size="11" ${mono}>0 SOL</text></g><g id="gb" opacity="0"><rect x="${x0 + 10}" y="${y1 + 10}" width="${small ? 118 : 176}" height="26" fill="var(--bg)" stroke="#ffc72c"/><text x="${x0 + 22}" y="${y1 + 27}" fill="var(--yx)" font-size="11" ${mono}>${grad}</text></g>`;
+      const NS = "http://www.w3.org/2000/svg";
       const $ = (sel: string) => cv.querySelector(sel);
       const clip = $("rect#cclipr") as SVGRectElement | null;
       const dot = $("#cdot") as SVGGElement | null;
       const pill = $("#npill") as SVGGElement | null;
       const ntx = $("#ntx") as SVGTextElement | null;
+      const sp = $("#sp") as SVGGElement | null;
+      const rp = $("#rp") as SVGGElement | null;
+      const gb = $("#gb") as SVGGElement | null;
       const legs = cv.parentElement?.parentElement?.querySelectorAll(".cvl > div") ?? [];
       const place = (p: number) => {
         const q = p * 250, px = X(q), py = f(q);
@@ -78,7 +83,9 @@ function CurveCard() {
         const cx = Math.min(x1 - 32, Math.max(x0 + 32, px));
         pill?.setAttribute("transform", `translate(${cx},${py})`);
         if (ntx) ntx.textContent = `${Math.round(q)} SOL`;
-        return p;
+        const ml2 = $("#ml2");
+        if (ml2) ml2.setAttribute("opacity", p > 0.84 ? "0" : "1");
+        return [px, py] as const;
       };
       const hit = [false, false, false];
       const mark = (k: number, on: boolean) => {
@@ -88,6 +95,26 @@ function CurveCard() {
       };
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (reduce) { place(0.6); mark(0, true); mark(1, true); return; }
+      type Part = { el: SVGCircleElement; x: number; y: number; vx: number; vy: number; l: number; ml: number; g: number };
+      type Rip = { el: SVGCircleElement; x: number; y: number; t: number; d: number; max: number };
+      const parts: Part[] = [];
+      const rips: Rip[] = [];
+      const spawn = (x: number, y: number, vx: number, vy: number, life: number, r: number, g: number) => {
+        if (!sp || parts.length > 140) return;
+        const el = document.createElementNS(NS, "circle");
+        el.setAttribute("r", String(r));
+        el.setAttribute("fill", Math.random() < 0.3 ? "#fff6d6" : "#ffc72c");
+        sp.appendChild(el);
+        parts.push({ el, x, y, vx, vy, l: life, ml: life, g });
+      };
+      const ripple = (x: number, y: number, max: number) => {
+        if (!rp) return;
+        const el = document.createElementNS(NS, "circle");
+        el.setAttribute("fill", "none");
+        el.setAttribute("stroke", "#ffc72c");
+        rp.appendChild(el);
+        rips.push({ el, x, y, t: 0, d: 0.9, max });
+      };
       const pOf = (t: number) => {
         const e = (u: number) => 1 - Math.pow(1 - u, 2.2);
         const io = (u: number) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
@@ -99,13 +126,62 @@ function CurveCard() {
         return 1;
       };
       const t0 = performance.now();
+      let last = t0;
+      let prevT = 0;
+      let burst = false;
+      const reset = () => {
+        hit.fill(false); burst = false;
+        parts.forEach((a) => a.el.remove()); rips.forEach((a) => a.el.remove());
+        parts.length = 0; rips.length = 0;
+        [0, 1, 2].forEach((k) => mark(k, false));
+        gb?.setAttribute("opacity", "0");
+      };
       const step = (n: number) => {
         if (id !== run || !cv.isConnected) return;
+        const dt = Math.min(0.05, (n - last) / 1000); last = n;
         const tt = ((n - t0) / 1000) % 12.6;
+        if (tt < prevT) reset();
+        prevT = tt;
         const p = pOf(tt);
-        place(p);
-        [85, 150, 250].forEach((q, k) => { if (!hit[k] && p >= q / 250 - 0.002) { hit[k] = true; mark(k, true); } });
-        if (tt < 0.05) { hit.fill(false); [0, 1, 2].forEach((k) => mark(k, false)); }
+        const [px, py] = place(p);
+        [85, 150, 250].forEach((q, k) => {
+          if (!hit[k] && p >= q / 250 - 0.002) {
+            hit[k] = true; mark(k, true); ripple(X(q), f(q), k === 2 ? 60 : 34);
+            for (let a = 0; a < (k === 2 ? 0 : 16); a++) {
+              const an = Math.random() * 6.283, sv = 40 + Math.random() * 90;
+              spawn(X(q), f(q), Math.cos(an) * sv, Math.sin(an) * sv, 0.7 + Math.random() * 0.5, 1.6, 0);
+            }
+          }
+        });
+        if (p > 0 && p < 1 && tt < 9) {
+          const mv = (tt > 2.6 && tt < 3.1) || (tt > 5.4 && tt < 5.9) ? 0 : 1;
+          if (mv) for (let a = 0; a < 2; a++) spawn(px + (Math.random() - 0.5) * 4, py + (Math.random() - 0.5) * 4, -(20 + Math.random() * 50), (Math.random() - 0.3) * 40, 0.5 + Math.random() * 0.6, 1.2 + Math.random() * 1.2, 0);
+        }
+        if (tt >= 9 && !burst) {
+          burst = true; ripple(px, py, 90); ripple(px, py, 50);
+          for (let a = 0; a < 46; a++) {
+            const an = Math.random() * 6.283, sv = 50 + Math.random() * 170;
+            spawn(px, py, Math.cos(an) * sv, Math.sin(an) * sv - 30, 1 + Math.random() * 0.9, 1.4 + Math.random() * 1.8, 90);
+          }
+        }
+        if (tt >= 9 && gb) {
+          const bt = tt - 9;
+          gb.setAttribute("opacity", String(Math.min(1, bt * 3) * (tt > 11.6 ? Math.max(0, 12.6 - tt) : 1)));
+        }
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const a = parts[i]; a.l -= dt;
+          if (a.l <= 0) { a.el.remove(); parts.splice(i, 1); continue; }
+          a.vy += a.g * dt; a.x += a.vx * dt; a.y += a.vy * dt;
+          a.el.setAttribute("cx", a.x.toFixed(1)); a.el.setAttribute("cy", a.y.toFixed(1)); a.el.setAttribute("opacity", (a.l / a.ml).toFixed(2));
+        }
+        for (let i = rips.length - 1; i >= 0; i--) {
+          const a = rips[i]; a.t += dt;
+          if (a.t >= a.d) { a.el.remove(); rips.splice(i, 1); continue; }
+          const u = a.t / a.d;
+          a.el.setAttribute("cx", String(a.x)); a.el.setAttribute("cy", String(a.y));
+          a.el.setAttribute("r", (a.max * u).toFixed(1)); a.el.setAttribute("opacity", (1 - u).toFixed(2));
+          a.el.setAttribute("stroke-width", (2.2 * (1 - u) + 0.4).toFixed(1));
+        }
         frame = requestAnimationFrame(step);
       };
       frame = requestAnimationFrame(step);
@@ -138,7 +214,6 @@ function needle(pct: number) {
 }
 
 const FEED_CLASS: Record<ActivityType, string> = { launch: "l", burn: "b", graduate: "m", trade: "t" };
-const FEED_LABEL: Record<ActivityType, string> = { launch: "Launch", burn: "Burn", graduate: "Migration", trade: "Trade" };
 
 function Activity({ pct, graduated, total, volume, fees, burned, launched, traders }: { pct: number; graduated: number; total: number; volume: number; fees: number; burned: number; launched?: boolean; traders: number }) {
   const { events, source } = useActivity();
@@ -168,15 +243,13 @@ function Activity({ pct, graduated, total, volume, fees, burned, launched, trade
         </div>
         <div className="pa-c pa-log">
           <div className="pa-h"><span className="lbl">Live feed</span></div>
-          {log.length === 0 ? <p className="empty">No activity yet.</p> : (
-            <ul>
-              {log.map((e) => {
-                const kind = e.type === "launch" ? "l" : e.type === "burn" ? "b" : e.side === "sell" ? "s" : "t";
-                const label = e.type === "launch" ? "Launch" : e.type === "burn" ? "Burn" : e.type === "graduate" ? "Migrated" : e.side === "sell" ? "Sell" : "Buy";
-                return <li key={e.id}><span className={`ev ${kind}`}>{label}</span><b>{e.symbol ? `$${e.symbol}` : "Token"}</b><em>{e.amount != null ? e.amount : fmtAge(e.ts)}</em></li>;
-              })}
-            </ul>
-          )}
+          <ul>
+            {log.map((e) => {
+              const kind = e.type === "launch" ? "l" : e.type === "burn" ? "b" : e.side === "sell" ? "s" : "t";
+              const label = e.type === "launch" ? "Launch" : e.type === "burn" ? "Burn" : e.type === "graduate" ? "Migrated" : e.side === "sell" ? "Sell" : "Buy";
+              return <li key={e.id}><span className={`ev ${kind}`}>{label}</span><b>{e.symbol ? `$${e.symbol}` : "Token"}</b><em>{e.amount != null ? e.amount : fmtAge(e.ts)}</em></li>;
+            })}
+          </ul>
         </div>
         <div className="pa-c pa-gauge">
           <div className="pa-h" style={{ width: "100%" }}><span className="lbl">Migration</span><a className="bom" href="https://www.meteora.ag" target="_blank" rel="noopener noreferrer" aria-label="Built on Meteora">Built on <MeteoraMark /></a></div>
@@ -264,7 +337,7 @@ export function HomeView({ initialStats = null, initialTokens = null, intro }: {
   const STATS = useStats(initialStats);
   const { tokens, loading } = useTokens(initialTokens);
   const tick = tokens.slice(0, 12);
-  const loop = [...tick, ...tick];
+  const loop = tick.length ? [...tick, ...tick, ...tick, ...tick] : [];
   return (
     <div className="home" id="v-home">
       <section className="dtop">
@@ -300,9 +373,7 @@ export function HomeView({ initialStats = null, initialTokens = null, intro }: {
         </div>
       </section>
       <Activity pct={STATS.graduatedPct} graduated={STATS.graduated} total={STATS.totalTokens} volume={STATS.totalVolumeSol} fees={STATS.creatorFeesSol} burned={STATS.barBurned} launched={STATS.barLaunched} traders={STATS.activeTraders24h ?? 0} />
-      {tick.length > 0 && (
-        <div className="tick"><div className="tr">{loop.map((t, i) => <span key={`${t.mint}-${i}`}><b>${t.ticker}</b><span className="dim">{fmtUsd(t.mcapUsd)}</span></span>)}</div></div>
-      )}
+      <div className="tick"><div className="tr">{loop.map((t, i) => <span key={`${t.mint}-${i}`}><b>${t.ticker}</b><span className="dim">—</span></span>)}</div></div>
       <Suspense fallback={null}><TokenBoard tokens={tokens} loading={loading} /></Suspense>
       <section className="sec feat">
         <div>
