@@ -3,7 +3,8 @@
  *  interactive parts: window chips, token search, status filter, sorting and cursor paging. Aggregates link to the Methodology
  *  section, single accounts and transactions link to Solscan. */
 import { TableScroll } from "../ui/Scroll";
-import { Segmented, TabBar } from "../TabBar";
+import { Segmented } from "../TabBar";
+import { JtxSeg } from "../JtxSeg";
 import { InfoTip } from "../InfoTip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -40,13 +41,13 @@ const solOr = (v: unknown, dp = 2) => { const n = num(v); return n == null ? <Ni
 function Totals({ t }: { t: PlatformOpenBook["totals"] }) {
   const n = (v: unknown) => num(v);
   return (
-    <div data-testid="ob-totals" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-      <Card label="Tokens launched" sub={n(t?.migratedCount) != null && <>{fmtNum(n(t?.migratedCount)!)} migrated to DAMM v2</>}>{n(t?.tokensLaunched) != null ? fmtNum(n(t?.tokensLaunched)!) : <Nil />}</Card>
-      <Card label="Total volume" sub={<>{n(t?.volumeUsd) != null && <>≈ ${fmtNum(n(t?.volumeUsd)!)}, </>}{n(t?.txCount) != null && <>{fmtNum(n(t?.txCount)!)} txs</>}</>}>{solOr(t?.volumeSol)}</Card>
-      <Card label="Total fees paid" sub={n(t?.feesPctOfVolume) != null && <>{fmtPct(n(t?.feesPctOfVolume)!)} of volume, all-in</>}>{solOr(t?.feesPaidSol, 4)}</Card>
-      <Card label="DBC fees" sub={n(t?.dbcPctOfVolume) != null && <>{fmtPct(n(t?.dbcPctOfVolume)!)} of volume</>}>{solOr(t?.dbcFeesSol, 4)}</Card>
-      <Card label="Creators earned" sub={n(t?.creatorCount) != null && <>across {fmtNum(n(t?.creatorCount)!)} {n(t?.creatorCount) === 1 ? "creator" : "creators"}</>}>{solOr(t?.creatorsEarnedSol, 4)}</Card>
-      <Card gold label="Tips paid by traders" sub={n(t?.sniperTipPct) != null && <span className="text-burn">{fmtPct(n(t?.sniperTipPct)!, 1)} from sniper wallets</span>}>{solOr(t?.tipsSol, 4)}</Card>
+    <div data-testid="ob-totals" className="obg">
+      <div><div className="lbl">Tokens launched</div><div className="v">{n(t?.tokensLaunched) != null ? fmtNum(n(t?.tokensLaunched)!) : <Nil />}</div>{n(t?.migratedCount) != null && <small>{fmtNum(n(t?.migratedCount)!)} migrated to DAMM v2</small>}</div>
+      <div><div className="lbl">Total volume</div><div className="v">{solOr(t?.volumeSol)}</div><small>{n(t?.txCount) != null ? <>{fmtNum(n(t?.txCount)!)} txs</> : null}</small></div>
+      <div><div className="lbl">Total fees paid</div><div className="v">{solOr(t?.feesPaidSol, 4)}</div>{n(t?.feesPctOfVolume) != null && <small>{fmtPct(n(t?.feesPctOfVolume)!)} of volume, all-in</small>}</div>
+      <div><div className="lbl">DBC fees</div><div className="v">{solOr(t?.dbcFeesSol, 4)}</div>{n(t?.dbcPctOfVolume) != null && <small>{fmtPct(n(t?.dbcPctOfVolume)!)} of volume</small>}</div>
+      <div><div className="lbl">Creators earned</div><div className="v yl">{solOr(t?.creatorsEarnedSol, 4)}</div>{n(t?.creatorCount) != null && <small>across {fmtNum(n(t?.creatorCount)!)} {n(t?.creatorCount) === 1 ? "creator" : "creators"}</small>}</div>
+      <div><div className="lbl">Tips paid by traders</div><div className="v">{solOr(t?.tipsSol, 4)}</div>{n(t?.sniperTipPct) != null && <small>{fmtPct(n(t?.sniperTipPct)!, 1)} from sniper wallets</small>}</div>
     </div>
   );
 }
@@ -233,7 +234,7 @@ function Tokens({ initial, initialQ }: { initial: ObTokensPage | null; initialQ:
               className="min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-3" />
             {qIn && <button type="button" aria-label="Clear search" onClick={() => { setQIn(""); setQ(""); }} className="text-ink-3 hover:text-ink"><X size={13} /></button>}
           </label>
-          <Segmented label="Token status" value={status} onChange={setStatus} outerClassName="max-w-full" options={[{ id: "all", label: "All" }, { id: "bonding", label: "Bonding" }, { id: "migrated", label: "Migrated" }]} />
+          <JtxSeg label="Token status" value={status} onChange={setStatus} options={[{ id: "all", label: "All" }, { id: "bonding", label: "Bonding" }, { id: "migrated", label: "Migrated" }]} />
         </div>} />
       <Panel className="overflow-hidden">
         <TableScroll sticky label="All tokens">
@@ -278,7 +279,7 @@ function TokenRow({ t, i, net, sniperColor }: { t: ObTokenRow; i: number; net?: 
       <td className={TD}>
         {href ? <Link href={href} className="flex items-center gap-2.5" data-testid="ob-token-link">
           <TokenLogo name={name} size={28} />
-          <span className="min-w-0"><span className="block max-w-[180px] truncate text-[13px] font-medium text-ink">{name}</span>{sym && <span className="num block text-[11px] text-ink-3">${sym}</span>}</span>
+          <span className="tk"><span className="av" style={{ width: 28, height: 28 }}>{name.slice(0, 2).toUpperCase()}</span><span><b>{name}</b>{sym && <small>${sym}</small>}</span></span>
         </Link> : name}
       </td>
       <td className={TD}>{tier ? <TierBadge tier={tier} /> : <Nil />}</td>
@@ -320,13 +321,13 @@ export function OpenBookPlatform({ ob, tokens, window: w, q }: { ob: PlatformOpe
   return (
     <div className="flex min-w-0 flex-col gap-7 pb-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav aria-label="Open Book sections" className="flex flex-wrap gap-4 text-[12.5px] text-ink-3">
-          {[["Overview", "#ob-totals"], ["Treasury", "#ob-treasury"], ["Fee flow", "#ob-flow"], ["All tokens", "#ob-tokens"], ["Methodology", M]].map(([l, h]) => <a key={h} href={h} className="hover:text-ink">{l}</a>)}
-        </nav>
+        <div className="ttabs" role="tablist" aria-label="Open Book sections">
+          {[["Overview", "#ob-totals"], ["Treasury", "#ob-treasury"], ["Fee flow", "#ob-flow"], ["All tokens", "#ob-tokens"], ["Methodology", M]].map(([l, h]) => <a key={h} href={h}>{l}</a>)}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <IndexChip meta={ob?.meta} />
-          <TabBar label="Time window" value={w} onSelect={(id) => { keepY.current = window.scrollY; router.push(winHref(id), { scroll: false }); }} outerClassName="max-w-full"
-            items={OB_WINDOWS.map((o) => ({ id: o.id, label: o.label, href: winHref(o.id), testId: `ob-window-${o.id}` }))} />
+          <JtxSeg label="Time window" value={w} onChange={(id) => { keepY.current = window.scrollY; router.push(winHref(id), { scroll: false }); }}
+            options={OB_WINDOWS.map((o) => ({ id: o.id, label: o.label }))} />
         </div>
       </div>
       {ob ? (

@@ -110,7 +110,7 @@ export function Panel({ children, className = "", gold = false }: { children: Re
   );
 }
 export function Lbl({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`flex items-center gap-1.5 text-[11.5px] text-ink-3 ${className}`}>{children}</div>;
+  return <div className={`lbl ${className}`}>{children}</div>;
 }
 export function Big({ children }: { children: ReactNode }) {
   return <div className="num mt-1.5 text-[26px] font-medium leading-none tracking-[-0.02em] text-ink md:text-[28px]">{children}</div>;
