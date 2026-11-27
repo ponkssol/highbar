@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Highbar redesign mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* VOICE: confident, terse trading-terminal, like jtx.com
+   IDEA: an engineering blueprint of the bonding curve; hairline frame, crosshair corners, bracketed panels
+   PICTURE: hero blueprint of the DBC curve with three tier bars (85/150/250 SOL) and a token climbing it
+   COLOUR and TYPE: jtx dark (#101010 / #1c1c1c / #f2f1ee warm greys), Highbar yellow #FFC72C as the only accent; Aeonik + JTXCommitMono (Geist / Geist Mono as free stand-ins)
+   LAYOUT: centered logo nav, framed 2-column hero, ticker strip, stat strip, token table, numbered features, CTA, footer; token page = chart + trade panel */
+:root{color-scheme:dark;
+--bg:#101010;--el:#1c1c1c;--sf:#303030;--inv:#f2f1ee;--tint:#d2d1c91a;
+--d0:#0b0b0b;--d1:#0d0d0d;--d2:#141414;--d3:#1f1f1f;--hov:#242424;--selt:#1f1b0f;--gold1:#2a220a;--yx:#ffc72c;
+--bg-a:#101010e6;--bg-c:#101010cc;--bg-0:#10101000;--bg-9:#10101099;--bg-f:#101010f2;
+--bd-s:#222;--bd:#3b3b36;--bd-x:#85857a;--hair:#a7a79f4d;
+--tx:#f2f1ee;--tx2:#a7a79f;--tx3:#85857a;
+--y:#ffc72c;--y2:#ffd65e;--yt:#ffc72c1f;--on-y:#1a1405;
+--pos:#70d6af;--neg:#e8695e;
+--sans:"Aeonik","Geist",ui-sans-serif,system-ui,sans-serif;
+--mono:"JTXCommitMono","Commit Mono","Geist Mono",ui-monospace,Menlo,monospace;
+--nav:68px}
+
+:root[data-theme=light]{color-scheme:light;
+--bg:#f2f1ee;--el:#fbfaf7;--sf:#dcdad0;--inv:#101010;--tint:#1010100d;
+--bd-s:#e0ded4;--bd:#cdcbc0;--bd-x:#85857a;--hair:#10101026;
+--tx:#101010;--tx2:#474747;--tx3:#74746a;
+--yx:#9a6a00;--yt:#ffc72c33;--pos:#17855f;--neg:#c4382d;
+--d0:#ffffff;--d1:#f7f6f2;--d2:#ebe9e1;--d3:#dedcd2;--hov:#e9e7de;--selt:#fff3cf;--gold1:#fff0c0;
+--bg-a:#f2f1eee6;--bg-c:#f2f1eecc;--bg-0:#f2f1ee00;--bg-9:#f2f1ee99;--bg-f:#f2f1eef2}
+:root[data-theme=light] .badge.buy{background:#17855f1f}:root[data-theme=light] .badge.sell,:root[data-theme=light] .ev.s,:root[data-theme=light] .ev.b{background:#c4382d1a}
+:root[data-theme=light] .ev.t{background:#17855f1a}:root[data-theme=light] .ev.l{background:#ffc72c55}
+:root[data-theme=light] tbody tr:hover,:root[data-theme=light] .gd a:hover{background:var(--hov)}
+:root[data-theme=light] .tick{background:var(--d2)}
+:root[data-theme=light] .st,:root[data-theme=light] .tw,:root[data-theme=light] .kv{background:var(--el)}
+:root[data-theme=light] .side,:root[data-theme=light] .prev{background:var(--d1)}
+:root[data-theme=light] .arena h2,:root[data-theme=light] .arena p{color:#fff}
+:root[data-theme=light] .arena .lbl{color:#fff!important}
+:root[data-theme=light] .arena .ov{background:linear-gradient(0deg,#00000066,#00000000)}
+:root[data-theme=light] .go.sell{color:#fff}
+:root[data-theme=light] .bs button.on.s{color:#fff}
+:root[data-theme=light] .mlogo{color:#12121c}
+*{box-sizing:border-box;min-width:0}
+html{scroll-padding-top:90px}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 var(--sans);overflow-x:clip;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.mono{font-family:var(--mono)}
+.frame{max-width:none;margin:0 auto;border-inline:1px solid var(--hair);position:relative}
+/* nav */
+.nav{position:sticky;top:0;z-index:20;background:var(--bg-a);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
+.nav .in{max-width:none;margin:0 auto;height:var(--nav);display:grid;grid-template-columns:auto 1fr auto;column-gap:24px;align-items:center;padding:0 24px;position:relative}
+.nav .l,.nav .r{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.nav .r{justify-content:flex-end}
+.nav .l a{padding:8px 10px;color:var(--tx2);font-size:14px}
+.nav .l a:hover,.nav .l a.on{color:var(--tx)}
+.logo{display:flex;align-items:center;gap:8px;font-weight:500;letter-spacing:.02em;font-size:18px}
+.logo svg{width:22px;height:22px}
+.cross{position:absolute;width:13px;height:13px;bottom:-7px}
+.cross::before,.cross::after{content:"";position:absolute;background:var(--tx)}
+.cross::before{left:6px;top:0;width:1px;height:13px}.cross::after{top:6px;left:0;height:1px;width:13px}
+.cross.a{left:-7px}.cross.b{right:-7px}
+/* buttons: jtx pill-less rectangles with a detached + square */
+.btn{display:inline-flex;align-items:center;gap:4px}
+.btn b,.btn i{display:inline-flex;align-items:center;justify-content:center;height:40px;border:1px solid var(--bd-x);font-style:normal;font-weight:400;font-size:14px;transition:.15s}
+.btn b{padding:0 16px}.btn i{width:40px;font-size:18px}
+.btn:hover b,.btn:hover i{border-color:var(--tx);background:var(--tint)}
+.btn.y b,.btn.y i{background:var(--y);border-color:var(--yx);color:var(--on-y);font-weight:500}
+.btn.y:hover b,.btn.y:hover i{background:var(--y2)}
+.btn.sm b,.btn.sm i{height:34px;font-size:13px}.btn.sm i{width:34px}
+.ghost{height:36px;padding:0 14px;border:1px solid var(--bd);font-size:13px;color:var(--tx2);display:inline-flex;align-items:center}
+.ghost:hover{color:var(--tx);border-color:var(--bd-x)}
+:focus-visible{outline:1px solid var(--y);outline-offset:2px}
+/* brackets */
+.brk{position:relative}
+.brk::before,.brk::after,.brk>.c1,.brk>.c2{content:"";position:absolute;width:12px;height:12px;border:0 solid var(--bd-x);pointer-events:none}
+.brk::before{top:-1px;left:-1px;border-top-width:1px;border-left-width:1px}
+.brk::after{top:-1px;right:-1px;border-top-width:1px;border-right-width:1px}
+.brk>.c1{bottom:-1px;left:-1px;border-bottom-width:1px;border-left-width:1px}
+.brk>.c2{bottom:-1px;right:-1px;border-bottom-width:1px;border-right-width:1px}
+.lbl{font-family:var(--mono);font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:.04em}
+.idx{font-family:var(--mono);font-size:13px;color:var(--tx2)}
+.muted{color:var(--tx2)}.dim{color:var(--tx3)}
+.pos{color:var(--pos)}.neg{color:var(--neg)}.yl{color:var(--yx)}
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);border-bottom:1px solid var(--hair)}
+.hero .txt{padding:clamp(32px,5vw,72px);display:flex;flex-direction:column;justify-content:center;gap:22px;border-right:1px solid var(--hair);background:linear-gradient(180deg,var(--d2),var(--bg))}
+.hero h1{font-size:clamp(44px,6vw,84px);line-height:1;font-weight:400;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.hero h1 span{color:var(--tx3)}
+.hero p{margin:0;font-size:18px;color:var(--tx2);max-width:30em}
+.hero .row{display:flex;gap:12px;flex-wrap:wrap}
+.bp{background:var(--d0);position:relative;display:flex;align-items:center;justify-content:center;padding:28px}
+.bp .fig{position:relative;width:100%;aspect-ratio:1.6;max-height:440px}
+.bp svg{position:absolute;inset:0;width:100%;height:100%}
+/* ticker */
+.tick{overflow:hidden;border-bottom:1px solid var(--hair);background:var(--d1)}
+.tick .tr{display:flex;gap:36px;width:max-content;padding:12px 0;animation:mq 40s linear infinite;font-family:var(--mono);font-size:13px}
+.tick span b{font-weight:500;margin-right:8px}
+@keyframes mq{to{transform:translateX(-50%)}}
+/* sections */
+.sec{padding:clamp(40px,6vw,88px) clamp(16px,4vw,56px);border-bottom:1px solid var(--hair)}
+.h2{font-size:clamp(30px,3.6vw,46px);line-height:1.05;font-weight:400;letter-spacing:-.015em;margin:0 0 8px;text-wrap:balance}
+.h2 span{color:var(--tx3)}
+.head{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:28px}
+.bul{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--tx2);margin-bottom:18px}
+.bul::before{content:"";width:8px;height:8px;background:var(--y)}
+.bul b{color:var(--tx);font-weight:400}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:1px solid var(--bd-s);background:var(--el)}
+.st{padding:20px;border-right:1px solid var(--bd-s)}
+.st:last-child{border-right:0}
+.st .v{font-family:var(--mono);font-size:clamp(24px,2.4vw,34px);margin:10px 0 12px;white-space:nowrap}
+.bar{height:2px;background:var(--sf);position:relative}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--y)}
+.st small{display:block;margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--tx3)}
+.feed{display:grid;grid-template-columns:repeat(30,1fr);gap:3px;margin-top:14px}
+.feed i{aspect-ratio:1;background:var(--sf)}
+.feed i.l{background:var(--y)}.feed i.t{background:var(--pos)}.feed i.b{background:var(--neg)}
+/* table */
+.tabs{display:flex;border:1px solid var(--bd);flex-wrap:wrap}
+.tabs button{height:36px;padding:0 14px;font-size:13px;color:var(--tx2);border-right:1px solid var(--bd)}
+.tabs button:last-child{border-right:0}
+.tabs button.on{background:var(--inv);color:var(--bg)}
+.tabs button span{font-family:var(--mono);opacity:.7;margin-left:6px}
+.tw{border:1px solid var(--bd-s);background:var(--el)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-family:var(--mono);font-weight:400;font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:14px 16px;border-bottom:1px solid var(--bd);white-space:nowrap}
+td{padding:14px 16px;border-bottom:1px solid var(--bd-s);white-space:nowrap}
+tbody tr{transition:background .15s;cursor:pointer}
+tbody tr:hover{background:var(--hov)}
+.r{text-align:right}
+.tk{display:flex;align-items:center;gap:12px}
+.av{width:34px;height:34px;flex:none;display:grid;place-items:center;font-family:var(--mono);font-size:11px;background:var(--sf);color:var(--tx)}
+.tk>div:not(.av){min-width:0;flex:1}.tk b{font-weight:400;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk small{font-family:var(--mono);font-size:12px;color:var(--tx3)}
+.tier{font-family:var(--mono);font-size:12px;padding:3px 8px;border:1px solid var(--bd)}
+.tier.Higher{border-color:#ffc72c66;color:var(--yx)}.tier.Max{background:var(--y);color:var(--on-y);border-color:var(--yx)}
+.prog{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--tx3)}
+.prog .bar{width:110px}
+.num{font-family:var(--mono)}
+.pg{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;font-family:var(--mono);font-size:12px;color:var(--tx3);flex-wrap:wrap;gap:10px}
+.pg div{display:flex;gap:4px}
+.pg button{min-width:34px;height:34px;border:1px solid var(--bd);font-family:var(--mono);font-size:12px;color:var(--tx2)}
+.pg button.on{border-color:var(--yx);color:var(--yx)}
+/* features */
+.feat{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:clamp(24px,4vw,64px)}
+.fl{border-top:1px solid var(--bd)}
+.fi{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:16px;padding:22px 0;border-bottom:1px solid var(--bd);align-items:start}
+.fi h3{margin:0 0 6px;font-weight:400;font-size:22px;letter-spacing:-.01em}
+.fi p{margin:0;color:var(--tx2);font-size:15px;max-width:52ch}
+.fi .chip{font-family:var(--mono);font-size:11px;color:var(--yx);border:1px solid #ffc72c55;padding:2px 6px;white-space:nowrap}
+.tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--bd-s);border:1px solid var(--bd-s);margin-top:28px}
+.tiers div{background:var(--el);padding:18px}
+.tiers .v{font-family:var(--mono);font-size:28px;margin:8px 0 2px}
+/* guides */
+.gd{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--bd-s);border:1px solid var(--bd-s)}
+.gd a{background:var(--el);padding:22px;display:flex;flex-direction:column;gap:40px;min-height:200px;justify-content:space-between;transition:background .15s}
+.gd a:hover{background:var(--hov)}
+.gd h4{margin:0;font-weight:400;font-size:18px;line-height:1.3}
+/* cta */
+.cta{text-align:center;padding:clamp(64px,10vw,140px) 24px;background:radial-gradient(ellipse at 50% 120%,#ffc72c26,transparent 60%),var(--bg);border-bottom:1px solid var(--hair)}
+.cta h2{font-size:clamp(36px,5vw,68px);font-weight:400;line-height:1.02;letter-spacing:-.02em;margin:0 auto 28px;max-width:14em;text-wrap:balance}
+.foot{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr));gap:32px;padding:48px clamp(16px,4vw,56px)}
+.foot h5{margin:0 0 12px;font-weight:400}
+.foot a{display:block;color:var(--tx2);font-size:14px;padding:4px 0}
+.foot a:hover{color:var(--tx)}
+.note{font-family:var(--mono);font-size:12px;color:var(--tx3);padding:14px clamp(16px,4vw,56px);border-top:1px solid var(--hair)}
+/* token page */
+.crumb{padding:20px clamp(16px,3vw,32px);border-bottom:1px solid var(--hair);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.th{display:flex;gap:16px;align-items:center}
+.th .av{width:56px;height:56px;font-size:14px;background:var(--inv);color:var(--bg)}
+.th h1{margin:0;font-weight:400;font-size:clamp(26px,3vw,38px);letter-spacing:-.015em;line-height:1.1}
+.th .meta{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--tx3)}
+.px{text-align:right}
+.px .v{font-family:var(--mono);font-size:clamp(28px,3.4vw,44px);line-height:1}
+.px sub{font-size:.45em;vertical-align:-.1em}
+.strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-bottom:1px solid var(--hair)}
+.strip>div{padding:16px clamp(16px,2vw,24px);border-right:1px solid var(--bd-s)}
+.strip>div:last-child{border-right:0}
+.strip .v{font-family:var(--mono);font-size:18px;margin-top:6px;white-space:nowrap}
+.tg{display:grid;grid-template-columns:minmax(0,1fr) 380px;border-bottom:1px solid var(--hair)}
+.cp{padding:clamp(16px,2vw,28px);border-right:1px solid var(--hair)}
+.cp .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.tf{display:flex;border:1px solid var(--bd)}
+.tf button{height:32px;min-width:42px;font-family:var(--mono);font-size:12px;color:var(--tx2)}
+.tf button.on{background:var(--inv);color:var(--bg)}
+.chart{position:relative;height:420px;background:var(--d0);border:1px solid var(--bd-s)}
+.chart svg{position:absolute;inset:0;width:100%;height:100%}
+.side{padding:clamp(16px,2vw,24px);display:flex;flex-direction:column;gap:16px;background:var(--d2)}
+.bs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--bd)}
+.bs button{height:44px;font-size:14px;color:var(--tx2)}
+.bs button.on.b{background:var(--y);color:var(--on-y);font-weight:500}
+.bs button.on.s{background:var(--neg);color:#1a0705;font-weight:500}
+.inp{display:flex;align-items:center;border:1px solid var(--bd);background:var(--bg);height:56px;padding:0 14px}
+.inp input{flex:1;background:none;border:0;color:var(--tx);font:20px var(--mono);outline:0;width:100%}
+.inp:focus-within{border-color:var(--yx)}
+.qk{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.qk button{height:36px;border:1px solid var(--bd);font-family:var(--mono);font-size:12px;color:var(--tx2)}
+.qk button.on{border-color:var(--tx);color:var(--tx)}
+.kv{border:1px solid var(--bd-s);background:var(--el)}
+.kv div{display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--bd-s);font-size:13px}
+.kv div:last-child{border-bottom:0}
+.kv span{color:var(--tx2)}.kv b{font-family:var(--mono);font-weight:400}
+.go{height:52px;background:var(--y);color:var(--on-y);font-weight:500;font-size:15px;width:100%}
+.go:hover{background:var(--y2)}
+.go.sell{background:var(--neg);color:#1a0705}
+.bond{border:1px solid var(--bd-s);padding:16px;background:var(--el)}
+.bond .bar{height:6px;margin:12px 0 8px}
+.ttabs{display:flex;gap:0;border-bottom:1px solid var(--hair);overflow-x:auto;padding:0 clamp(16px,3vw,32px)}
+.ttabs button{padding:16px 14px;font-size:14px;color:var(--tx2);border-bottom:1px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.ttabs button.on{color:var(--tx);border-color:var(--yx)}
+.badge{font-family:var(--mono);font-size:11px;padding:2px 8px}
+.badge.buy{background:#70d6af1f;color:var(--pos)}.badge.sell{background:#e8695e1f;color:var(--neg)}
+.view{display:none}.view.on{display:block}
+.vswitch{position:fixed;right:16px;bottom:16px;z-index:30;display:flex;border:1px solid var(--bd-x);background:var(--bg-f)}
+.vswitch a{padding:10px 14px;font-family:var(--mono);font-size:12px;color:var(--tx2)}
+.vswitch a.on{background:var(--y);color:var(--on-y)}
+@media(max-width:1000px){
+ .hero,.feat,.tg{grid-template-columns:minmax(0,1fr)}
+ .hero .txt,.cp{border-right:0}.hero .txt{border-bottom:1px solid var(--hair)}
+ .stats{grid-template-columns:repeat(2,minmax(0,1fr))}.st{border-bottom:1px solid var(--bd-s)}
+ .gd{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .strip{grid-template-columns:repeat(3,minmax(0,1fr))}.strip>div{border-bottom:1px solid var(--bd-s)}
+ .nav .l{justify-content:center;display:none}.nav .in{grid-template-columns:auto 1fr}.nav .r{justify-content:flex-end}
+ .foot{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+ .stats,.gd,.tiers,.foot{grid-template-columns:minmax(0,1fr)}
+ .strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fi{grid-template-columns:44px minmax(0,1fr)}.fi .chip{grid-column:2}
+ .px{text-align:left}.chart{height:300px}
+ .nav .r .ghost{display:none}
+ .hide-s{display:none}
+}
+.phead{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;padding:clamp(28px,4vw,56px) clamp(16px,4vw,56px) 28px;border-bottom:1px solid var(--hair)}
+.phead .bul{margin-bottom:12px}
+.h1{font-size:clamp(34px,4.4vw,60px);line-height:1.02;font-weight:400;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.h1 span{color:var(--tx3)}
+.ctrls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.ttabs a{padding:16px 14px;font-size:14px;color:var(--tx2);border-bottom:1px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.ttabs a.on{color:var(--tx);border-color:var(--yx)}
+.golink tr{cursor:pointer}
+/* launch */
+.lg{display:grid;grid-template-columns:minmax(0,1fr) 400px}
+.lf{border-right:1px solid var(--hair)}
+.fs{display:grid;grid-template-columns:64px minmax(0,1fr);gap:16px;padding:28px clamp(16px,3vw,40px);border-bottom:1px solid var(--hair)}
+.fb{display:flex;flex-direction:column;gap:14px}
+.fb h3{margin:0;font-weight:400;font-size:22px}
+.f2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.fld{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--tx2)}
+.fld span{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.fld em{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--tx3)}
+.fld input,.fld textarea{background:var(--bg);border:1px solid var(--bd);color:var(--tx);font:16px var(--sans);padding:12px 14px;outline:0;resize:vertical}
+.fld input:focus,.fld textarea:focus{border-color:var(--yx)}
+.inp.sm{height:46px}.inp.sm input{font-size:16px}
+.drop{border:1px dashed var(--bd-x);padding:26px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;background:var(--d1);text-align:center}
+.drop b{width:40px;height:40px;border:1px solid var(--bd-x);display:grid;place-items:center;font-weight:400;font-size:20px}
+.drop em{font-style:normal;font-size:12px;color:var(--tx3)}
+.drop:hover{border-color:var(--yx)}
+.tsel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--bd-s);border:1px solid var(--bd-s)}
+.tsel button{background:var(--el);padding:18px;text-align:left;display:flex;flex-direction:column;gap:6px;outline-offset:-2px;position:relative}
+.tsel button b{font:400 32px var(--mono)}.tsel small{font-size:13px;color:var(--tx3)}
+.tsel button.on{background:var(--selt);box-shadow:inset 0 0 0 1px var(--y)}
+.tsel dl{display:grid;grid-template-columns:1fr auto;gap:4px 8px;margin:8px 0 0;font-size:12px}.tsel dt{color:var(--tx3)}.tsel dd{margin:0;font-family:var(--mono)}
+.trow{display:flex;justify-content:space-between;gap:16px;align-items:center;border:1px solid var(--bd-s);background:var(--el);padding:16px}
+.trow p{margin:4px 0 0;font-size:13px;color:var(--tx2)}.trow b{font-weight:400}
+.sw{width:52px;height:28px;border:1px solid var(--bd-x);position:relative;flex:none}
+.sw i{position:absolute;top:3px;left:3px;width:20px;height:20px;background:var(--tx3);transition:.15s}
+.sw[aria-checked=true]{border-color:var(--yx)}.sw[aria-checked=true] i{left:27px;background:var(--y)}
+.prev{padding:28px clamp(16px,2vw,28px);background:var(--d2)}
+.pv{border:1px solid var(--bd-s);background:var(--el);padding:22px;position:sticky;top:96px}
+.gl a{display:block;padding:10px 0;border-bottom:1px solid var(--bd-s);color:var(--tx2);font-size:14px}.gl a:hover{color:var(--tx)}
+/* leaderboard */
+.pod{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--bd-s);border:1px solid var(--bd-s)}
+.pod a{background:var(--el);padding:24px;display:flex;flex-direction:column;gap:18px;min-height:220px;justify-content:space-between}
+.pod a:first-child{background:linear-gradient(160deg,var(--gold1),var(--el) 60%)}
+.pod .rk{font:400 44px var(--mono);color:var(--tx3)}.pod a:first-child .rk{color:var(--yx)}
+.pod .v{font:400 22px var(--mono)}
+.rom{font-family:var(--mono);color:var(--tx3);width:56px}
+/* portfolio */
+.pgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;padding:clamp(24px,4vw,48px) clamp(16px,4vw,56px) 0}
+.empty{border:1px solid var(--bd-s);background:var(--el);padding:20px}
+.eb{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:36px 12px 24px}
+.eb svg{width:72px;height:72px;margin-bottom:8px}.eb h3{margin:0;font-weight:400;font-size:20px}.eb p{margin:0 0 8px;color:var(--tx2);font-size:14px}
+/* rewards */
+.rp{display:none}.rp.on{display:block}
+.rw{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:24px;padding:clamp(24px,4vw,56px)}
+.rbig{border:1px solid var(--bd-s);background:var(--el);padding:clamp(20px,3vw,40px)}
+.mega{font:400 clamp(64px,9vw,128px)/1 var(--mono);letter-spacing:-.03em;margin:16px 0}.mega span{font-size:.4em;color:var(--tx3)}
+.chip2{display:inline-block;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--yx);border:1px solid #ffc72c55;padding:6px 10px}
+.rlook{border:1px solid var(--bd-s);padding:24px;display:flex;flex-direction:column;gap:8px}.rlook h3{margin:0;font-weight:400;font-size:22px}.rlook p{margin:0 0 8px}
+/* open book */
+.live{display:inline-block;width:8px;height:8px;background:var(--pos);margin-right:8px;animation:pl 1.6s infinite}
+@keyframes pl{50%{opacity:.3}}
+.obg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid var(--hair)}
+.obg>div{padding:26px clamp(16px,3vw,40px);border-right:1px solid var(--bd-s);border-bottom:1px solid var(--bd-s)}
+.obg>div:nth-child(3n){border-right:0}
+.obg .v{font:400 clamp(28px,3vw,40px) var(--mono);margin:10px 0 6px;white-space:nowrap}.obg small{font-family:var(--mono);font-size:12px;color:var(--tx3)}
+.split{display:flex;gap:2px;margin-top:24px;height:84px}
+.split div{background:var(--el);border:1px solid var(--bd);padding:12px;display:flex;flex-direction:column;justify-content:space-between}
+.split div.pf{background:var(--y);color:var(--on-y);border-color:var(--yx)}
+.split b{font-weight:400;font-size:13px}.split span{font-family:var(--mono);font-size:20px}
+/* guides */
+.feat-g{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:32px;align-items:center;border:1px solid var(--bd-s);background:var(--el);padding:clamp(20px,3vw,40px);margin-bottom:28px}
+.feat-g svg{width:100%;height:auto}
+.glist{border-top:1px solid var(--bd)}
+.glist a{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:16px;padding:18px 0;border-bottom:1px solid var(--bd-s);align-items:baseline}
+.glist a:hover h4{color:var(--yx)}
+.glist h4{margin:0;font-weight:400;font-size:18px;line-height:1.35;transition:color .15s}
+/* settings */
+.setl{border-top:1px solid var(--bd);max-width:1100px}
+.sr{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;padding:24px 0;border-bottom:1px solid var(--bd)}
+.sr b{font-weight:400;font-size:18px}.sr p{margin:4px 0 0;color:var(--tx2);font-size:14px}
+@media(max-width:1000px){.lg,.rw,.pgrid,.feat-g{grid-template-columns:minmax(0,1fr)}.lf{border-right:0}.pv{position:static}.obg{grid-template-columns:repeat(2,minmax(0,1fr))}.obg>div:nth-child(3n){border-right:1px solid var(--bd-s)}
+ .nav .in{height:auto;padding:12px 16px;row-gap:8px}.nav .l{display:flex;order:3;grid-column:1/-1;flex-wrap:nowrap;overflow-x:auto;margin:0 -16px;padding:0 8px}.nav .l a{white-space:nowrap}}
+@media(max-width:600px){.f2,.f3,.tsel,.pod{grid-template-columns:minmax(0,1fr)}.fs{grid-template-columns:minmax(0,1fr)}.obg{grid-template-columns:minmax(0,1fr)}.glist a{grid-template-columns:minmax(0,1fr)}.glist a>span:last-child{display:none}.split{height:auto;flex-direction:column}.split div{flex:none!important}}
+
+
+/* tables v2: fit width, no scroll */
+table{table-layout:fixed}
+th,td{overflow:hidden;text-overflow:ellipsis}
+td{padding:16px;height:68px}
+.w1{width:72px}.w2{width:104px}.w3{width:128px}.w4{width:160px}.w5{width:200px}
+.tk small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.av{background:var(--avbg,var(--sf))}
+tbody tr td:first-child{box-shadow:inset 0 0 0 transparent;transition:box-shadow .15s}
+tbody tr:hover td:first-child{box-shadow:inset 2px 0 0 var(--y)}
+tbody tr:hover{background:var(--hov)}
+.tw.flat{border:0;background:none}
+.tw.flat th:first-child,.tw.flat td:first-child{padding-left:clamp(16px,3vw,32px)}
+.rb{display:inline-flex;align-items:center;height:34px;padding:0 16px;border:1px solid var(--bd);font-size:13px;color:var(--tx2);transition:.15s;white-space:nowrap}
+tr:hover .rb{background:var(--y);border-color:var(--yx);color:var(--on-y)}
+.prog .bar{flex:1;max-width:120px;height:6px;background:repeating-linear-gradient(90deg,var(--sf) 0 5px,transparent 5px 7px)}
+.prog .bar i{background:repeating-linear-gradient(90deg,var(--y) 0 5px,transparent 5px 7px);min-width:5px}
+.empty-row{text-align:center;height:120px}
+.ttabs,.nav .l{scrollbar-width:none}.ttabs::-webkit-scrollbar,.nav .l::-webkit-scrollbar{display:none}
+@media(max-width:1200px){.h-md{display:none}}
+@media(max-width:900px){.h-sm{display:none}}
+/* obfix: all-tokens table must fit beside sidebar */
+#ob-tokens .w1{width:48px}#ob-tokens .w3{width:104px}#ob-tokens .w4{width:120px}#ob-tokens td,#ob-tokens th{padding-left:12px;padding-right:12px}
+@media(max-width:1560px){#ob-tokens .h-sm{display:none}}
+@media(max-width:1280px){#ob-tokens .h-md{display:none}}
+@media(max-width:700px){
+ .tw table,.tw tbody{display:block}.tw thead{display:none}
+ .tw tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;padding:16px;border-bottom:1px solid var(--bd-s)}
+ .tw td{border:0;padding:0;height:auto;text-align:left;white-space:normal}
+ .tw td.h-md,.tw td.h-sm{display:block}
+ .tw td::before{content:attr(data-l);display:block;font:11px var(--mono);color:var(--tx3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+ .tw td.tkc{grid-column:1/-1}.tw td.tkc::before,.tw td:empty,.tw td.empty-row::before{display:none}
+ .tw td.act{grid-column:1/-1}.tw td.act::before{display:none}.tw td.act .rb{width:100%;justify-content:center;height:44px}
+ .tw td.empty-row{grid-column:1/-1;text-align:center}
+ .tw.flat tr{padding-inline:16px}
+}
+:root[data-theme=light] .sol{filter:invert(1)}
+.sol{display:inline-block;width:1em;height:.8em;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20397.7%20311.7%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%22360.9%22%20y1%3D%22351.5%22%20x2%3D%22141.2%22%20y2%3D%22-69.3%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%2300FFA3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23DC1FFF%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Cg%20fill%3D%22%23fff%22%3E%3Cpath%20d%3D%22M64.6%20237.9c2.4-2.4%205.7-3.8%209.2-3.8h317.4c5.8%200%208.7%207%204.6%2011.1l-62.7%2062.7c-2.4%202.4-5.7%203.8-9.2%203.8H6.5c-5.8%200-8.7-7-4.6-11.1l62.7-62.7z%22%2F%3E%3Cpath%20d%3D%22M64.6%203.8C67.1%201.4%2070.4%200%2073.8%200h317.4c5.8%200%208.7%207%204.6%2011.1l-62.7%2062.7c-2.4%202.4-5.7%203.8-9.2%203.8H6.5c-5.8%200-8.7-7-4.6-11.1L64.6%203.8z%22%2F%3E%3Cpath%20d%3D%22M333.1%20120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8%200-8.7%207-4.6%2011.1l62.7%2062.7c2.4%202.4%205.7%203.8%209.2%203.8h317.4c5.8%200%208.7-7%204.6-11.1l-62.7-62.7z%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") center/contain no-repeat;vertical-align:-.04em;margin-right:.3em;flex:none}
+/* hero protocol activity */
+.pa{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,.8fr) minmax(0,1.15fr);border-top:1px solid var(--hair);background:var(--d1)}
+.pa-c{padding:20px clamp(16px,2vw,28px);border-right:1px solid var(--bd-s);display:flex;flex-direction:column;gap:12px}
+.pa-h{display:flex;justify-content:space-between;gap:8px}
+.pa-cnt{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pa-cnt b{display:block;font:400 24px var(--mono)}.pa-cnt span{font-size:12px;color:var(--tx3)}
+.pa-cnt b.bump{animation:bump .6s}
+@keyframes bump{0%{color:var(--yx);transform:translateY(-3px)}100%{color:var(--tx)}}
+.feed{display:grid;grid-template-columns:repeat(30,1fr);gap:3px;margin:0}
+.feed i{aspect-ratio:1;background:var(--d3);transition:background .6s}
+.feed i.l{background:var(--y)}.feed i.t{background:var(--pos)}.feed i.b{background:var(--neg)}.feed i.m{background:#9b8cff}
+.feed i.new{animation:pop .6s}
+@keyframes pop{0%{transform:scale(1.8)}100%{transform:scale(1)}}
+.pa-lg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--tx3)}.pa-lg i{display:inline-block;width:8px;height:8px;margin-right:6px}
+.pa-log ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;height:172px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 65%,transparent);mask-image:linear-gradient(#000 65%,transparent)}
+.pa-log li{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px;padding:7px 0;border-bottom:1px solid var(--bd-s);animation:slide .45s ease-out}
+.pa-log li b{font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pa-log li em{font-style:normal;font-family:var(--mono);font-size:12px;color:var(--tx2);white-space:nowrap;display:flex;align-items:center}
+.ev{font-family:var(--mono);font-size:10px;padding:2px 6px;text-transform:uppercase;text-align:center}
+.ev.l{background:#ffc72c22;color:var(--yx)}.ev.t{background:#70d6af1f;color:var(--pos)}.ev.b,.ev.s{background:#e8695e1f;color:var(--neg)}
+@keyframes slide{from{opacity:0;transform:translateY(-14px)}}
+.pa-gauge{align-items:center;text-align:center}
+.pa-gauge svg{width:100%;max-width:200px}
+.gv b{display:block;font:400 28px var(--mono);margin-top:-30px}.gv span{font-size:12px;color:var(--tx3)}
+.pa-stats{display:grid;grid-template-columns:1fr 1fr}
+.pa-stats>div{padding:16px clamp(12px,1.6vw,20px);border-bottom:1px solid var(--bd-s);border-right:1px solid var(--bd-s);display:flex;flex-direction:column;gap:6px}
+.pa-stats>div:nth-child(2n){border-right:0}.pa-stats>div:nth-child(n+3){border-bottom:0}
+.pa-stats b{font:400 22px var(--mono);display:flex;align-items:center;white-space:nowrap}.pa-stats em{font-style:normal}
+.spk{width:100%;height:22px;fill:none;stroke:var(--y);stroke-width:1.2;opacity:.85}
+.spk path{stroke-dasharray:200;stroke-dashoffset:200;animation:draw 2s .3s forwards}
+.spk path.flat{stroke:var(--tx3);stroke-dasharray:3 4;stroke-dashoffset:0;animation:none}
+@keyframes draw{to{stroke-dashoffset:0}}
+@media(max-width:1200px){.pa{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.pa-c:nth-child(2){border-right:0}.pa-c{border-bottom:1px solid var(--bd-s)}}
+@media(max-width:600px){.pa{grid-template-columns:minmax(0,1fr)}.pa-c{border-right:0}.feed{grid-template-columns:repeat(21,1fr)}}
+@media(prefers-reduced-motion:reduce){.pa-log li,.feed i.new,.pa-cnt b.bump{animation:none}.spk path{animation:none;stroke-dashoffset:0}}
+
+/* illustrations */
+.art{position:relative;overflow:hidden;background:#0b0907}
+.art>.sc,.cta>.sc{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover}
+.art>.ov{position:relative}
+.arena{border-bottom:1px solid var(--hair);min-height:clamp(320px,38vw,520px);display:flex;align-items:flex-end}
+.arena .ov{padding:clamp(24px,4vw,56px);display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;width:100%;background:linear-gradient(0deg,var(--bg) 0%,var(--bg-0) 100%)}
+.arena h2{font-size:clamp(34px,5vw,72px);line-height:1;font-weight:400;letter-spacing:-.02em;margin:0;text-wrap:balance;text-shadow:0 2px 40px #000}
+.arena p{margin:10px 0 0;color:#e9dcc0;max-width:34em;text-shadow:0 1px 20px #000}
+.cover{height:150px;border-bottom:1px solid var(--hair)}
+.cover::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--bg-c),var(--bg-0) 40%,var(--bg-c))}
+.pod a{position:relative;overflow:hidden}
+.cta{position:relative;overflow:hidden}
+.cta>.sc{opacity:.8}
+.cta::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,var(--bg-9),var(--bg-f) 80%)}
+.cta>*:not(.sc){position:relative;z-index:1}
+.av{background-size:cover;background-position:center;text-shadow:0 1px 4px #000a;color:#fff;font-weight:500}
+.pv .ph{height:120px;margin:-22px -22px 18px;border-bottom:1px solid var(--bd-s)}
+.gcard{position:relative;overflow:hidden}
+.feat-g svg.gi{border:1px solid var(--bd-s)}
+.gthumb{width:96px;height:64px;flex:none;border:1px solid var(--bd-s);display:block}
+.glist a{grid-template-columns:96px 110px minmax(0,1fr) auto}
+@media(max-width:700px){.glist a{grid-template-columns:72px minmax(0,1fr)}.glist a>span:nth-child(2),.glist a>span:last-child{display:none}.gthumb{width:72px;height:52px}}
+.eb svg{width:150px!important;height:100px!important}
+
+.bom{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.mlogo{height:18px;width:auto;aspect-ratio:1038/240;color:var(--tx);display:block}
+.bom:hover .mlogo{color:var(--yx)}
+.hero .bom{margin-top:4px}
+.pa-gauge .pa-h{flex-wrap:wrap;gap:6px 10px}.pa-gauge .bom{margin-top:0;font-size:10px;gap:8px}.pa-gauge .mlogo{height:15px}
+
+.ghost.ic{width:36px;padding:0;justify-content:center}
+.ghost.ic svg{width:18px;height:18px}
+.i-moon{display:none}
+:root[data-theme=light] .i-sun{display:none}:root[data-theme=light] .i-moon{display:block}
+body,.nav,.tw,.st,.kv,.side,.tick{transition:background-color .25s,color .25s,border-color .25s}
+/* docs */
+.dg{display:grid;grid-template-columns:240px minmax(0,1fr) 220px}
+.dnav,.dtoc{padding:28px clamp(16px,2vw,28px);display:flex;flex-direction:column;gap:2px;position:sticky;top:var(--nav);align-self:start;max-height:calc(100vh - var(--nav));overflow:auto;scrollbar-width:none}
+.dnav{border-right:1px solid var(--hair)}.dtoc{border-left:1px solid var(--hair)}
+.dnav .lbl,.dtoc .lbl{margin:18px 0 8px}.dnav .lbl:first-child,.dtoc .lbl:first-child{margin-top:0}
+.dnav a,.dtoc a{padding:8px 10px;font-size:14px;color:var(--tx2);cursor:pointer;border-left:1px solid var(--bd)}
+.dnav a:hover,.dtoc a:hover{color:var(--tx)}
+.dnav a.on{color:var(--tx);border-left-color:var(--y);background:var(--tint)}
+.dbody{padding:clamp(24px,4vw,56px);max-width:860px;display:flex;flex-direction:column;gap:48px}
+.dbody h2{font-weight:400;font-size:clamp(26px,3vw,36px);letter-spacing:-.015em;margin:0 0 14px;line-height:1.1}
+.dbody p{color:var(--tx2);margin:0 0 14px;max-width:62ch}
+.dbody code{font-family:var(--mono);font-size:.9em;background:var(--tint);padding:2px 6px;border:1px solid var(--bd-s)}
+.dbody section{scroll-margin-top:90px}
+.ul{color:var(--tx);border-bottom:1px solid var(--y)}.ul:hover{background:var(--yt)}
+.callout{border:1px solid var(--bd);border-left:2px solid var(--y);background:var(--el);padding:14px 16px;margin:0 0 16px;font-size:14px;color:var(--tx2)}
+.callout b{color:var(--tx);font-weight:500}
+.dcards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--bd-s);border:1px solid var(--bd-s);margin-top:18px}
+.dcards a{background:var(--el);padding:18px;display:flex;flex-direction:column;gap:10px;min-height:150px;font-size:14px;transition:background .15s}
+.dcards a:hover{background:var(--hov)}.dcards b{font-weight:400;font-size:18px}
+.steps{margin:0;padding:0;list-style:none;counter-reset:s;border-top:1px solid var(--bd)}
+.steps li{counter-increment:s;position:relative;padding:16px 0 16px 56px;border-bottom:1px solid var(--bd);color:var(--tx2)}
+.steps li::before{content:"{0" counter(s) "}";position:absolute;left:0;top:18px;font-family:var(--mono);font-size:13px;color:var(--tx3)}
+.steps b{color:var(--tx);font-weight:500}
+.code{position:relative;border:1px solid var(--bd);background:var(--d0)}
+.code pre{margin:0;padding:18px;overflow-x:auto}.code code{background:none;border:0;padding:0;font-size:13px;color:var(--tx)}
+.cp-btn{position:absolute;top:8px;right:8px;height:30px;padding:0 12px;border:1px solid var(--bd);font:12px var(--mono);color:var(--tx2);background:var(--el)}
+.cp-btn:hover{color:var(--tx);border-color:var(--bd-x)}
+.dbody .tw{margin-bottom:14px}
+@media(max-width:1200px){.dg{grid-template-columns:220px minmax(0,1fr)}.dtoc{display:none}}
+@media(max-width:800px){.dg{grid-template-columns:minmax(0,1fr)}.dnav{position:static;max-height:none;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--hair);gap:6px}.dnav .lbl{display:none}.dnav a{border:1px solid var(--bd)}.dcards{grid-template-columns:minmax(0,1fr)}}
+
+.logo img.lg{height:28px;width:auto;display:block}
+.logo img.lt{display:none}
+:root[data-theme=light] .logo img.dk{display:none}:root[data-theme=light] .logo img.lt{display:block}
+.foot .logo img.lg{height:34px}
+
+/* ===== SaaS dashboard shell ===== */
+.app{display:grid;grid-template-columns:252px minmax(0,1fr);min-height:100vh}
+.sidenav{position:sticky;top:0;height:100vh;border-right:1px solid var(--hair);background:var(--d1);display:flex;flex-direction:column;padding:18px 12px 14px;overflow:auto;scrollbar-width:none;z-index:40}
+.sidenav::-webkit-scrollbar{display:none}
+.sidenav .logo{padding:6px 10px 14px}
+.sidenav .logo img.lg{height:30px}
+.sn{display:flex;flex-direction:column;gap:2px;flex:1}
+.sg{margin:16px 10px 6px}
+.ni{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid transparent;color:var(--tx2);font-size:14px;transition:.15s;position:relative}
+.ni svg{width:18px;height:18px;flex:none}
+.ni:hover{color:var(--tx);background:var(--tint)}
+.ni.on{color:var(--tx);background:var(--tint);border-color:var(--bd)}
+.ni.on::before{content:"";position:absolute;left:-1px;top:-1px;bottom:-1px;width:2px;background:var(--y)}
+.ni.on svg{color:var(--yx)}
+.ni .nw{margin-left:auto;font:10px var(--mono);font-style:normal;color:var(--on-y);background:var(--y);padding:1px 6px}
+.sbot{display:flex;align-items:center;justify-content:space-between;gap:10px}.xl{display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--bd-x);color:var(--tx2);transition:.15s;flex:none}.xl svg{width:15px;height:15px}.xl:hover{color:var(--tx);border-color:var(--tx);background:var(--tint)}
+.sbot{padding:14px 10px 4px;border-top:1px solid var(--bd-s);margin-top:12px}
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:30;height:var(--nav);display:flex;align-items:center;gap:16px;padding:0 24px;background:var(--bg-a);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
+.tbt{font-size:18px;letter-spacing:-.01em;white-space:nowrap}
+.tbs{flex:1;max-width:460px;margin-left:auto;display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border:1px solid var(--bd);background:var(--d0);color:var(--tx3)}
+.tbs svg{width:16px;height:16px;flex:none}
+.tbs input{flex:1;background:none;border:0;outline:0;color:var(--tx);font:14px var(--sans);min-width:0}
+.tbs:focus-within{border-color:var(--y)}
+.tbs kbd{font:11px var(--mono);border:1px solid var(--bd);padding:2px 6px;color:var(--tx3)}
+.tbr{display:flex;align-items:center;gap:8px}
+.mb,.scrim{display:none}
+.frame{border-inline:0;max-width:none}
+/* dashboard home */
+.dtop{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;padding:24px clamp(16px,2.4vw,32px) 16px}
+.dtop .arena{min-height:340px;border:1px solid var(--bd-s)}
+.dtop .arena h2{font-size:clamp(32px,3.6vw,52px)}
+.dtop .arena .ov{align-items:flex-end}
+.cv{border:1px solid var(--bd-s);background:var(--el);padding:16px;display:flex;flex-direction:column;gap:12px}
+.ph2{display:flex;justify-content:space-between}
+.cv .fig{position:relative;flex:1;min-height:260px}
+.cv svg{position:absolute;inset:0;width:100%;height:100%}
+.cv .fig{min-height:300px}
+.cvl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--bd-s);border:1px solid var(--bd-s)}.cvl>div{background:var(--bg);padding:10px 12px;display:flex;flex-direction:column;gap:3px;min-width:0}.cvl b{font:400 15px var(--mono)}.cvl>div:nth-child(n+2) b{color:var(--yx)}.cvl>div{transition:background .3s}.cvl>div.hit{background:var(--selt)}.cvl>div.hit b{color:var(--y)}
+.cvl small{font:11px var(--mono);color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.qa{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;padding:0 clamp(16px,2.4vw,32px) 16px}
+.qa>a,.qa>.slot{border:1px solid var(--bd-s);background:var(--el);padding:16px;display:flex;flex-direction:column;gap:6px;min-height:118px;transition:.15s}
+.qa>a:hover{border-color:var(--bd-x);background:var(--hov)}
+.qa b{font-weight:400;font-size:17px}
+.qa .muted{font-size:13px}
+.qa .slot{border-style:dashed;border-color:var(--bd-x);background:transparent}
+.qa .slot b{color:var(--yx)}
+.dpa{padding:0 clamp(16px,2.4vw,32px) 24px}
+.dpa .pa{border:1px solid var(--bd-s);grid-column:auto}
+.dpa .pa-c:last-of-type{border-right:0}
+.dfoot{display:flex;gap:20px;flex-wrap:wrap;align-items:center;padding:22px clamp(16px,2.4vw,32px);border-top:1px solid var(--hair);font-size:13px;color:var(--tx2);margin-top:auto}
+.dfoot a:hover{color:var(--tx)}.dfoot span{margin-left:auto}
+.crumb{padding-block:16px}
+@media(max-width:1400px){.qa{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1100px){.dtop{grid-template-columns:minmax(0,1fr)}.tbs kbd{display:none}}
+@media(max-width:900px){
+ .app{grid-template-columns:minmax(0,1fr)}
+ .sidenav{position:fixed;left:0;top:0;bottom:0;width:280px;max-width:86vw;height:100dvh;transform:translateX(-102%);transition:transform .2s;box-shadow:0 0 40px #0008;z-index:60;background:var(--d1)}
+ .sidenav.open{transform:none}
+ .sidenav{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;padding:12px 10px 10px}
+ .sidenav .logo{padding:2px 10px 8px}.sidenav .ni{padding:8px 12px}.sidenav .sg{margin:10px 10px 4px}
+ .scrim{position:fixed;inset:0;background:#000a;z-index:55;display:block;opacity:0;pointer-events:none;transition:.2s}
+ .scrim.on{opacity:1;pointer-events:auto}
+ .mb{display:inline-flex}
+ .topbar{padding:0 14px;gap:10px}.tbs{display:none}.tbr{margin-left:auto}
+ .qa{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){.qa{grid-template-columns:minmax(0,1fr)}.tbt{font-size:16px}.dtop .arena{min-height:300px}.dfoot span{margin-left:0}}
+@media(prefers-reduced-motion:reduce){.sidenav,.scrim{transition:none}}
+
+/* open book v2 */
+.obg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid var(--hair)}
+.wgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--bd-s);border:1px solid var(--bd-s);margin-top:24px}
+.wc{background:var(--el);padding:18px;display:flex;flex-direction:column;gap:10px}
+.wh{display:flex;flex-direction:column;gap:2px}.wh b{font-weight:400;font-size:17px}.wh span{font-size:12px}
+.wc p{margin:0;font-size:12px}.wc .tier{align-self:flex-start}
+.wv{font:400 28px var(--mono);display:flex;align-items:center;gap:2px;white-space:nowrap;margin:4px 0}
+.wv em{font:11px var(--mono);font-style:normal;color:var(--pos);border:1px solid var(--bd);padding:1px 6px;margin-left:10px}
+.wr{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--tx3);border-top:1px solid var(--bd-s);padding-top:8px}.wr b{font-weight:400;color:var(--tx2)}
+.pss{list-style:none;margin:8px 0 0;padding:0;counter-reset:q}.pss li{counter-increment:q;position:relative;padding:10px 0 10px 34px;border-bottom:1px solid var(--bd);font-size:14px;color:var(--tx3);transition:.2s}.pss li::before{content:counter(q);position:absolute;left:0;top:9px;width:22px;height:22px;border:1px solid var(--bd-x);font:12px var(--mono);display:grid;place-items:center}.pss li.on{color:var(--tx)}.pss li.on::before{border-color:#ffc72c;color:var(--yx)}.pss li.done{color:var(--tx2)}.pss li.done::before{content:"✓";background:#ffc72c;border-color:#ffc72c;color:#000}
+.cards a{background:var(--el);padding:18px 20px;display:block}.cards a:hover{background:var(--hov)}.nb{font:11px var(--mono);margin-left:auto;background:#ffc72c;color:#000;padding:1px 6px;font-weight:400}
+.modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:20px clamp(16px,4vw,56px) 0}.modes button{text-align:left;border:1px solid var(--bd-s);background:var(--el);padding:16px 18px;display:flex;flex-direction:column;gap:6px}.modes button b{font-weight:400;font-size:16px;display:flex;gap:8px;align-items:center}.modes button span{font-size:13px;color:var(--tx2)}.modes button.on{border-color:#ffc72c}
+.pflow{margin:12px clamp(16px,4vw,56px) 0;border:1px solid #ffc72c55;background:var(--el);padding:18px 20px;display:flex;flex-direction:column;gap:14px}.pfs{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;counter-reset:z}.pfs li{counter-increment:z;display:flex;flex-direction:column;gap:4px}.pfs li::before{content:"0" counter(z);font:12px var(--mono);color:var(--yx)}.pfs b{font-weight:400}.pfs span{font-size:13px;color:var(--tx2)}.pflow .btn{align-self:flex-start}
+#v-home .sec{padding-left:clamp(16px,2.4vw,32px);padding-right:clamp(16px,2.4vw,32px)}
+.sk{overflow-x:auto}
+@media(max-width:700px){
+.obg{grid-template-columns:repeat(2,minmax(0,1fr))}.obg>div:nth-child(3n){border-right:1px solid var(--bd-s)}.obg>div:nth-child(2n){border-right:0}.obg>div{padding:18px 16px}.obg .v{font-size:22px}
+.qa{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.qa>a,.qa>.slot{min-height:92px;padding:12px}.qa .slot{grid-column:1/-1;min-height:72px}
+.seg,.ttabs{flex-wrap:nowrap;overflow-x:auto;max-width:100%}.seg button{flex:none}
+.pbn{padding:18px}.pbr{width:100%}
+.strip{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.topbar .btn{white-space:nowrap}.topbar .btn.y b{display:none}.topbar .btn.y i{padding:0 4px}.tbt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dtop{gap:12px!important;padding:14px 12px 12px!important}.qa,.dpa{padding-left:12px!important;padding-right:12px!important}.pbn{margin-left:12px!important;margin-right:12px!important}
+.arena .ov{padding:20px 18px;gap:18px}.arena .lbl{margin-bottom:12px}.arena h2{line-height:1.05}.arena p{margin:14px 0 20px;line-height:1.5}.arena .btn{margin:0 6px 12px 0}
+.dtop .arena{min-height:380px}
+.pbn{gap:18px}.pbn h3{font-size:20px;line-height:1.25;margin:12px 0 10px}.pbn p{line-height:1.5}.pbr{gap:12px}.pbr .btn{margin:0}
+.phead{padding:26px 16px 22px;gap:16px}.phead .bul{margin-bottom:14px}.phead h1{line-height:1.1}.phead p{line-height:1.55;margin-top:14px!important}
+.sec{padding:36px 16px}
+.ttabs button{padding:14px 12px}
+.kv>div{padding:11px 0}.trow{gap:16px;padding:14px 0}.trow p{line-height:1.5}
+.fs{padding:22px 0}.fb h3{margin-bottom:14px}
+.qa>a,.qa>.slot{gap:8px}.qa b{line-height:1.3}
+.cards>div,.cards>a{padding:16px}
+.pa-c{padding:20px 16px}
+.sk::after{content:"Swipe to see the full flow →";display:block;font:11px var(--mono);color:var(--tx3);padding:8px 0}
+}
+.pbn{margin:0 clamp(16px,2.4vw,32px) 16px;border:1px solid #ffc72c55;background:linear-gradient(100deg,#ffc72c14,transparent 60%),var(--el);padding:22px 26px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}.pbn h3{margin:8px 0 4px;font-weight:400;font-size:24px}.pbn p{margin:0;font-size:14px}.pbr{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:700px){.modes,.pfs{grid-template-columns:minmax(0,1fr)}}
+.pvc{margin-left:8px;vertical-align:middle}.pvbox{border:1px solid var(--bd-s);background:var(--el);padding:16px 18px;margin-top:14px;display:flex;flex-direction:column;gap:8px}.pvbox b{font-family:var(--mono);font-weight:400;font-size:16px}.pvbox p{margin:0;font-size:13px;color:var(--tx2)}.pvbox .bar{height:4px}.pvbox.on{border-color:#ffc72c66}.pvbox.on b{color:var(--yx)}.pv-hide .st .v,.pv-hide .wv{filter:blur(8px)}
+.chip{font-family:var(--mono);font-size:11px;color:var(--yx);border:1px solid #ffc72c55;padding:2px 6px;white-space:nowrap;font-weight:400}
+.pn{padding:clamp(20px,3vw,40px) clamp(16px,4vw,56px)}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--bd-s);border:1px solid var(--bd-s)}.cards>div{background:var(--el);padding:18px 20px}.cards .v{font-family:var(--mono);font-size:20px;margin-top:8px}.cards small{display:block;margin-top:4px;font-size:12px}
+.kvl>div{display:flex;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--bd);font-size:14px}.kvl span{color:var(--tx2)}.kvl b{font-weight:400;font-family:var(--mono)}.pos{color:var(--pos)}
+.pnl{min-width:0}
+.sk{margin-top:24px;position:relative}.sk svg{display:block;width:100%}.sk .lk{transition:opacity .2s}.sk:hover .lk{opacity:.5}.sk .lk:hover{opacity:1!important}.sk .nd text{pointer-events:none}.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:24px;height:520px}
+.fc{display:flex;flex-direction:column;gap:6px;min-height:0}
+.fc .lbl{height:18px}
+.fn{position:relative}.fn::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,199,44,.16) 50%,transparent 70%);transform:translateX(-120%);animation:fsw 3.6s ease-in-out infinite;pointer-events:none}
+.fc:nth-child(2) .fn::after{animation-delay:.6s}.fc:nth-child(3) .fn::after{animation-delay:1.2s}.fc:nth-child(4) .fn::after{animation-delay:1.8s}
+.fn:nth-child(odd)::after{animation-delay:calc(var(--d,0s) + .25s)}
+@keyframes fsw{0%{transform:translateX(-120%)}55%,100%{transform:translateX(120%)}}
+@media(prefers-reduced-motion:reduce){.fn::after{animation:none}}
+.fn{border:1px solid var(--bd-s);background:var(--el);padding:4px 12px;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:10px;min-height:26px;border-left-width:3px;overflow:hidden}
+.fn.y{border-left-color:var(--y)}.fn.p{border-left-color:#9b8cff}.fn.g{border-left-color:var(--bd-x)}.fn.n{border-left-color:var(--tx)}
+.fn span{font-size:13px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fn span em{font-style:normal;font-family:var(--mono);color:var(--tx3);margin-left:4px}
+.fn b{font:400 14px var(--mono);display:flex;align-items:center;flex:none}.fn small{display:none}.fn small{font-size:11px;color:var(--tx3)}
+.flowlg{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0;font-size:12px;color:var(--tx3)}.flowlg i{display:inline-block;width:10px;height:10px;margin-right:6px}.flowlg i.y{background:var(--y)}.flowlg i.p{background:#9b8cff}.flowlg i.g{background:var(--bd-x)}
+.mgrid{display:grid;gap:1px;background:var(--bd-s);border:1px solid var(--bd-s);margin-top:18px}
+.mgrid.six{grid-template-columns:repeat(6,minmax(0,1fr))}.mgrid.five{grid-template-columns:repeat(5,minmax(0,1fr))}
+.mgrid>div{background:var(--el);padding:18px}
+.mgrid .v{font:400 24px var(--mono);margin:8px 0 4px;display:flex;align-items:center;white-space:nowrap}.mgrid small{font:12px var(--mono);color:var(--tx3)}
+.meth p{color:var(--tx2);margin:0 0 14px;max-width:70ch}
+.ttabs button{padding:16px 14px;font-size:14px;color:var(--tx2);border-bottom:1px solid transparent;margin-bottom:-1px;white-space:nowrap}
+@media(max-width:1200px){.wgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.mgrid.six,.mgrid.five{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:800px){.flow{grid-template-columns:minmax(0,1fr);height:auto}.fc{flex-direction:column}.fn{flex:none!important;min-height:44px}}
+@media(max-width:600px){.wgrid,.mgrid.six,.mgrid.five{grid-template-columns:minmax(0,1fr)}}
+
+/* guides v2 */
+.glist{border-top:0!important;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.gc{display:flex!important;flex-direction:column;align-items:stretch!important;padding:0!important;border:1px solid var(--bd-s)!important;background:var(--el);transition:.15s;grid-template-columns:none!important}
+.gc:hover{border-color:var(--bd-x)!important;background:var(--hov)}
+.gt{position:relative;aspect-ratio:16/8;overflow:hidden;border-bottom:1px solid var(--bd-s)}
+.gt img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scale(1.35);transition:transform .4s}
+.gc:hover .gt img{transform:scale(1.45)}
+.gt .tier{position:absolute;left:12px;top:12px;background:var(--bg);z-index:1}
+.gb{padding:16px;display:flex;flex-direction:column;gap:10px;flex:1;justify-content:space-between}
+.gb h4{margin:0;font-weight:400;font-size:18px;line-height:1.3}
+.gc:hover h4{color:var(--yx)}
+.feat-g{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)!important;padding:0!important;gap:0!important;align-items:stretch!important;overflow:hidden}
+.fgt{padding:clamp(20px,3vw,40px);display:flex;flex-direction:column;gap:14px;justify-content:center}
+.fgt h2{margin:0;font-weight:400;font-size:clamp(24px,2.6vw,36px);line-height:1.12;letter-spacing:-.015em}
+.fgt p{margin:0;max-width:44ch}
+.fgi{position:relative;min-height:240px;border-left:1px solid var(--bd-s)}
+.fgi img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+@media(max-width:1200px){.glist{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:800px){.feat-g{grid-template-columns:minmax(0,1fr)!important}.fgi{border-left:0;border-top:1px solid var(--bd-s);min-height:180px}}
+@media(max-width:600px){.glist{grid-template-columns:minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.tick .tr{animation:none}#dot{display:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="mlogo" viewBox="0 0 1038 240"><path d="M979.158 193.314C972.154 193.314 965.846 192.067 960.234 189.573C954.669 187.03 950.256 183.289 946.994 178.348C943.78 173.407 942.173 167.315 942.173 160.071C942.173 153.835 943.325 148.679 945.627 144.601C947.93 140.524 951.072 137.262 955.053 134.815C959.035 132.369 963.52 130.522 968.509 129.275C973.545 127.98 978.75 127.044 984.123 126.469C990.599 125.797 995.851 125.197 999.881 124.67C1003.91 124.094 1006.84 123.231 1008.66 122.079C1010.53 120.88 1011.47 119.033 1011.47 116.539V116.107C1011.47 110.687 1009.86 106.489 1006.64 103.515C1003.43 100.541 998.801 99.0539 992.757 99.0539C986.377 99.0539 981.317 100.445 977.575 103.227C973.881 106.01 971.387 109.295 970.092 113.085L945.771 109.631C947.69 102.915 950.856 97.303 955.269 92.7939C959.682 88.2368 965.079 84.8309 971.459 82.5764C977.839 80.2738 984.89 79.1226 992.613 79.1226C997.938 79.1226 1003.24 79.7462 1008.52 80.9934C1013.79 82.2406 1018.61 84.3033 1022.98 87.1814C1027.34 90.0117 1030.85 93.8732 1033.48 98.7661C1036.17 103.659 1037.51 109.775 1037.51 117.114V191.084H1012.47V175.901H1011.61C1010.03 178.971 1007.8 181.85 1004.92 184.536C1002.09 187.174 998.514 189.309 994.196 190.94C989.927 192.523 984.914 193.314 979.158 193.314ZM985.922 174.174C991.15 174.174 995.683 173.143 999.521 171.08C1003.36 168.97 1006.31 166.187 1008.37 162.734C1010.48 159.28 1011.54 155.514 1011.54 151.437V138.413C1010.72 139.085 1009.33 139.708 1007.36 140.284C1005.45 140.859 1003.29 141.363 1000.89 141.795C998.49 142.227 996.115 142.61 993.765 142.946C991.414 143.282 989.375 143.57 987.649 143.81C983.763 144.337 980.285 145.201 977.215 146.4C974.145 147.599 971.723 149.278 969.948 151.437C968.173 153.547 967.285 156.282 967.285 159.64C967.285 164.437 969.036 168.058 972.538 170.505C976.04 172.951 980.501 174.174 985.922 174.174Z" fill="currentColor"/><path d="M874.714 191.082V80.56H899.97V98.9804H901.121C903.136 92.6004 906.59 87.6835 911.483 84.2297C916.424 80.7279 922.06 78.9771 928.392 78.9771C929.831 78.9771 931.438 79.049 933.213 79.1929C935.036 79.2889 936.547 79.4567 937.746 79.6966V103.657C936.643 103.274 934.892 102.938 932.494 102.65C930.143 102.314 927.864 102.146 925.658 102.146C920.909 102.146 916.64 103.178 912.85 105.24C909.108 107.255 906.158 110.061 904 113.659C901.841 117.257 900.762 121.406 900.762 126.107V191.082H874.714Z" fill="currentColor"/><path d="M805.367 193.242C794.574 193.242 785.219 190.868 777.304 186.119C769.389 181.37 763.249 174.726 758.884 166.187C754.567 157.649 752.408 147.671 752.408 136.254C752.408 124.838 754.567 114.836 758.884 106.249C763.249 97.6628 769.389 90.995 777.304 86.246C785.219 81.4971 794.574 79.1226 805.367 79.1226C816.16 79.1226 825.514 81.4971 833.429 86.246C841.344 90.995 847.46 97.6628 851.777 106.249C856.142 114.836 858.325 124.838 858.325 136.254C858.325 147.671 856.142 157.649 851.777 166.187C847.46 174.726 841.344 181.37 833.429 186.119C825.514 190.868 816.16 193.242 805.367 193.242ZM805.511 172.376C811.363 172.376 816.256 170.769 820.189 167.555C824.123 164.293 827.049 159.927 828.968 154.459C830.934 148.99 831.918 142.898 831.918 136.182C831.918 129.419 830.934 123.303 828.968 117.834C827.049 112.318 824.123 107.928 820.189 104.666C816.256 101.404 811.363 99.7735 805.511 99.7735C799.514 99.7735 794.526 101.404 790.544 104.666C786.611 107.928 783.66 112.318 781.694 117.834C779.775 123.303 778.815 129.419 778.815 136.182C778.815 142.898 779.775 148.99 781.694 154.459C783.66 159.927 786.611 164.293 790.544 167.555C794.526 170.769 799.514 172.376 805.511 172.376Z" fill="currentColor"/><path d="M691.695 193.242C680.614 193.242 671.044 190.94 662.985 186.335C654.974 181.682 648.81 175.11 644.493 166.619C640.176 158.081 638.017 148.031 638.017 136.47C638.017 125.101 640.176 115.124 644.493 106.537C648.858 97.9027 654.95 91.1869 662.769 86.39C670.588 81.545 679.775 79.1226 690.328 79.1226C697.14 79.1226 703.568 80.2259 709.612 82.4325C715.704 84.5911 721.076 87.949 725.73 92.5061C730.431 97.0632 734.124 102.868 736.811 109.919C739.497 116.923 740.84 125.269 740.84 134.959V142.946H650.249V125.389H715.872C715.824 120.4 714.744 115.963 712.634 112.078C710.523 108.144 707.573 105.05 703.783 102.796C700.042 100.541 695.677 99.4137 690.688 99.4137C685.363 99.4137 680.686 100.709 676.657 103.299C672.627 105.842 669.485 109.2 667.231 113.373C665.024 117.498 663.897 122.031 663.849 126.972V142.299C663.849 148.726 665.024 154.243 667.374 158.848C669.725 163.405 673.011 166.907 677.232 169.353C681.454 171.752 686.394 172.951 692.055 172.951C695.844 172.951 699.274 172.423 702.344 171.368C705.414 170.265 708.077 168.658 710.331 166.547C712.586 164.437 714.289 161.822 715.44 158.704L739.761 161.438C738.226 167.866 735.3 173.479 730.982 178.276C726.713 183.025 721.244 186.718 714.577 189.357C707.909 191.947 700.282 193.242 691.695 193.242Z" fill="currentColor"/><path d="M627.888 80.5618V100.709H564.352V80.5618H627.888ZM580.038 54.0825H606.086V157.841C606.086 161.343 606.613 164.029 607.669 165.9C608.772 167.723 610.211 168.97 611.986 169.641C613.761 170.313 615.728 170.649 617.886 170.649C619.517 170.649 621.004 170.529 622.347 170.289C623.738 170.049 624.794 169.833 625.513 169.641L629.903 190.004C628.511 190.484 626.521 191.012 623.93 191.587C621.388 192.163 618.27 192.499 614.576 192.595C608.052 192.787 602.176 191.803 596.947 189.645C591.719 187.438 587.569 184.032 584.499 179.427C581.477 174.822 579.99 169.066 580.038 162.158V54.0825Z" fill="currentColor"/><path d="M507.237 193.242C496.156 193.242 486.586 190.94 478.527 186.335C470.516 181.682 464.352 175.11 460.035 166.619C455.717 158.081 453.559 148.031 453.559 136.47C453.559 125.101 455.717 115.124 460.035 106.537C464.4 97.9027 470.492 91.1869 478.311 86.39C486.13 81.545 495.316 79.1226 505.87 79.1226C512.681 79.1226 519.109 80.2259 525.153 82.4325C531.246 84.5911 536.618 87.949 541.271 92.5061C545.972 97.0632 549.666 102.868 552.352 109.919C555.038 116.923 556.382 125.269 556.382 134.959V142.946H465.791V125.389H531.413C531.365 120.4 530.286 115.963 528.175 112.078C526.065 108.144 523.115 105.05 519.325 102.796C515.583 100.541 511.218 99.4137 506.229 99.4137C500.905 99.4137 496.228 100.709 492.198 103.299C488.169 105.842 485.027 109.2 482.772 113.373C480.566 117.498 479.438 122.031 479.39 126.972V142.299C479.39 148.726 480.566 154.243 482.916 158.848C485.267 163.405 488.553 166.907 492.774 169.353C496.995 171.752 501.936 172.951 507.597 172.951C511.386 172.951 514.816 172.423 517.886 171.368C520.956 170.265 523.618 168.658 525.873 166.547C528.128 164.437 529.83 161.822 530.982 158.704L555.302 161.438C553.767 167.866 550.841 173.479 546.524 178.276C542.255 183.025 536.786 186.718 530.118 189.357C523.45 191.947 515.823 193.242 507.237 193.242Z" fill="currentColor"/><path d="M281.55 43.7202H314.217L357.966 150.501H359.693L403.441 43.7202H436.108V191.083H410.492V89.843H409.125L368.399 190.651H349.259L308.533 89.6272H307.166V191.083H281.55V43.7202Z" fill="currentColor"/><path d="M183.537 54.9648C187.594 50.9079 193.879 51.1467 196.477 55.4424C199.288 60.0563 201.409 65.0418 202.921 70.2656C203.769 73.2354 202.788 76.7088 200.322 79.1748L120.851 158.646C116.052 163.446 110.085 166.76 103.748 168.112L97.1454 169.519C90.8345 170.897 84.8149 174.211 80.0419 178.984L19.0263 240C16.4276 229.977 15.288 223.215 23.4286 215.074L183.537 54.9648ZM200.749 89.2041C203.401 86.5525 207.484 88.0906 207.219 91.5908C205.575 113.016 195.366 135.582 177.176 153.772C163.307 168.967 124.169 192.195 96.1933 207.761C90.4657 210.943 85.7986 204.154 90.4921 199.461L200.749 89.2041ZM164.181 22.832C166.7 20.313 170.411 19.7823 172.957 21.5322C178.26 25.1385 183.219 30.3628 185.765 36.6738C186.719 39.1133 185.897 42.1093 183.803 44.2041L98.206 129.801C93.4065 134.6 87.44 137.915 81.1025 139.268L74.4999 140.673C68.189 142.052 62.1694 145.367 57.3964 150.14L4.6015 202.935C2.00287 192.911 3.24917 183.763 11.3896 175.622L42.2021 144.81L164.181 22.832ZM127.903 7.61326C132.676 2.84029 139.518 0.984135 145.14 3.10545C148.666 4.45777 152.06 6.10241 155.268 8.03806C159.511 10.5837 159.723 16.7881 155.746 20.7656L77.4687 99.0439C72.9873 103.525 66.8883 105.912 61.0546 105.487C54.9292 105.036 48.4857 107.556 43.7392 112.303L0.861261 155.18C-1.73724 145.156 1.63083 133.887 9.77142 125.746L23.6659 111.852L127.903 7.61326ZM115.364 0.000953693C119.129 -0.0520198 120.588 4.42913 117.725 7.29295L77.0742 47.9433L43.1318 81.8847L34.5146 90.5029C34.4881 90.5294 34.4872 90.5293 34.4872 90.5293L21.3886 103.629L21.3085 103.708C18.5508 106.466 14.4681 103.974 16.0058 100.474L28.8398 71.3047C29.5557 69.5281 30.3515 67.7251 31.2265 65.8955L31.3056 65.7099C38.7038 50.0385 50.6096 33.4118 61.7997 22.2217C79.7517 4.26974 95.8743 0.186572 115.364 0.000953693Z" fill="currentColor"/></symbol></svg>
+<div class="app">
+<div class="scrim" id="scrim"></div>
+<aside class="sidenav" id="sidenav" aria-label="Main navigation">
+ <a class="logo" href="#home" aria-label="highbar home"><img class="lg dk" src="img/sidebar-logo.png" alt="highbar"><img class="lg lt" src="img/sidebar-logo-light.png" alt="highbar"></a>
+ <div id="navl" class="sn">
+  <div class="lbl sg">Platform</div>
+  <a class="ni" href="#home" data-v="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg><span>Dashboard</span></a><a class="ni" href="#launch" data-v="launch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M12 3c3 2 5 5 5 9l-2 3H9l-2-3c0-4 2-7 5-9zM9 15l-2 4M15 15l2 4"/><circle cx="12" cy="10" r="1.5"/></svg><span>Launch</span></a><a class="ni" href="#leaderboard" data-v="leaderboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M8 4h8v5a4 4 0 0 1-8 0zM6 5H3v2a3 3 0 0 0 3 3M18 5h3v2a3 3 0 0 1-3 3M12 13v4M8 20h8"/></svg><span>Leaderboard</span></a><a class="ni" href="#locks" data-v="locks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><rect x="5" y="11" width="14" height="9"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locks</span></a>
+  <div class="lbl sg">Account</div>
+  <a class="ni" href="#portfolio" data-v="portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M3 7h16a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2zM3 7l12-3v3M16 13h2"/></svg><span>Portfolio</span></a><a class="ni" href="#rewards" data-v="rewards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M4 9h16v4H4zM6 13v7h12v-7M12 9v11M12 9c-3 0-5-1-4-3s4 0 4 3zM12 9c3 0 5-1 4-3s-4 0-4 3z"/></svg><span>Rewards</span></a><a class="ni" href="#private" data-v="private"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M6 11V8a6 6 0 0 1 12 0v3M5 11h14v9H5zM12 15v2"/></svg><span>Private send</span><b class="nb">New</b></a>
+  <div class="lbl sg">Transparency</div>
+  <a class="ni" href="#open-book" data-v="open-book"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z"/></svg><span>Open Book</span><em class="nw">New</em></a><a class="ni" href="#guides" data-v="guides"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M5 4h4v16H5zM11 4h4v16h-4zM17 6l3 1-3 13-3-1z"/></svg><span>Guides</span></a><a class="ni" href="#docs" data-v="docs" id="navdocs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6"/></svg><span>Docs</span></a>
+  <div class="lbl sg">System</div>
+  <a class="ni" href="#settings" data-v="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>Settings</span></a>
+ </div>
+ <div class="sbot">
+  <a class="bom" href="#home" aria-label="Built on Meteora">Built on <svg class="mlogo" viewBox="0 0 1038 240"><use href="#mlogo"/></svg></a>
+  <a class="xl" href="https://x.com" target="_blank" rel="noopener" aria-label="highbar on X" title="X"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+ </div>
+</aside>
+<div class="main">
+<header class="topbar">
+ <button class="ghost ic mb" id="menu" type="button" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+ <div class="tbt" id="tbt">Dashboard</div>
+ <label class="tbs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg><input placeholder="Search coins and users…" aria-label="Search"><kbd>Ctrl K</kbd></label>
+ <div class="tbr"><button class="ghost ic" id="theme" type="button" aria-label="Toggle light and dark mode" title="Light / dark"><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg></button>
+ <a class="ghost hide-s" href="#portfolio">Connect wallet</a><a class="btn y sm" href="#launch"><b>Launch token</b><i>+</i></a></div>
+</header>
+
+<!-- ============ HOME ============ -->
+<main class="view" id="v-home"><div class="frame">
+ <section class="dtop">
+  <div class="arena art" aria-label="The arena"><div class="sc" data-art="arena"></div><div class="ov">
+   <div><div class="lbl" style="color:#e9dcc0">Meteora launchpad on Solana</div><h2>Rise above the bar.</h2><p>Tiered curves, dev locks and migrations to locked DAMM v2 liquidity.</p></div>
+   <div class="row"><a class="btn y" href="#launch"><b>Launch token</b><i>+</i></a><a class="btn" href="#leaderboard"><b>See the champions</b><i>→</i></a></div></div></div>
+  <div class="cv"><div class="ph2"><span class="lbl">Bonding curve</span><span class="lbl">Demo</span></div><div class="fig"><svg id="curve" aria-label="Bonding curve with three graduation tiers"></svg></div><div class="cvl"><div><span class="lbl">Standard</span><b>85 SOL</b><small>0.4% to creator</small></div><div><span class="lbl">Higher</span><b>150 SOL</b><small>0.5% to creator</small></div><div><span class="lbl">Max</span><b>250 SOL</b><small>0.6% to creator</small></div></div></div>
+ </section>
+ <section class="qa">
+  <a href="#launch"><span class="lbl">Create</span><b>Launch a token</b><span class="muted">Name it, pick a tier, go live.</span></a>
+  <a href="#portfolio"><span class="lbl">Earn</span><b>Claim creator fees</b><span class="muted">Fees from your tokens, in one click.</span></a>
+  <a href="#rewards"><span class="lbl">Rewards</span><b>Check cashback</b><span class="muted">0.05% of volume, accrued daily.</span></a>
+  <a href="#open-book"><span class="lbl">Verify</span><b>Open Book</b><span class="muted">Every fee, reconciled against chain.</span></a>
+  <div class="slot"><span class="lbl">Module slot</span><b>+ Add your next feature</b><span class="muted">Reserved space in the grid.</span></div>
+ </section>
+ <section class="pbn"><div><span class="lbl">New · Private launch</span><h3>Launch without carrying your wallet.</h3><p class="muted">Pay privately, launch from a one-time wallet and claim fees to stealth addresses.</p></div><div class="pbr"><a class="btn y" href="#launch" id="pbgo"><b>Launch privately</b><i>→</i></a><a class="btn" href="#private"><b>Private send</b><i>→</i></a></div></section>
+ <section class="dpa">
+  <div class="pa">
+   <div class="pa-c pa-grid">
+    <div class="pa-h"><span class="lbl"><i class="live"></i>Protocol activity</span><span class="lbl">Last 30 min</span></div>
+    <div class="pa-cnt"><div><b id="c-l">0</b><span>Launches</span></div><div><b id="c-b">0</b><span>Burns</span></div><div><b id="c-m">0</b><span>Migrations</span></div><div><b id="c-t">0</b><span>Trades</span></div></div>
+    <div class="feed" id="feed" aria-hidden="true"></div>
+    <div class="pa-lg"><span><i style="background:var(--y)"></i>Launch</span><span><i style="background:var(--neg)"></i>Burn</span><span><i style="background:#9b8cff"></i>Migrated</span><span><i style="background:var(--pos)"></i>Trade</span></div>
+   </div>
+   <div class="pa-c pa-log"><div class="pa-h"><span class="lbl">Live feed</span><span class="lbl">demo</span></div><ul id="palog"></ul></div>
+   <div class="pa-c pa-gauge"><div class="pa-h" style="width:100%"><span class="lbl">Migration</span><a class="bom" href="#home" aria-label="Built on Meteora">Built on <svg class="mlogo" viewBox="0 0 1038 240"><use href="#mlogo"/></svg></a></div><svg viewBox="0 0 200 120" id="gauge" aria-label="0% migrated"></svg><div class="gv"><b>0%</b><span>0 of 21 tokens migrated</span></div></div>
+   <div class="pa-stats">
+    <div><span class="lbl">Total volume</span><b><i class="sol"></i><em data-to="41" data-d="0">0</em></b><svg class="spk" viewBox="0 0 100 24" preserveAspectRatio="none"><path d="M0 20 L12 18 L24 19 L36 12 L48 14 L60 8 L72 11 L84 5 L100 7"/></svg></div>
+    <div><span class="lbl">Fees to creators</span><b><i class="sol"></i><em data-to="0.2" data-d="1">0</em></b><svg class="spk" viewBox="0 0 100 24" preserveAspectRatio="none"><path d="M0 22 L15 21 L30 18 L45 19 L60 14 L75 12 L100 9"/></svg></div>
+    <div><span class="lbl">$HIGHER burned</span><b class="yl">Soon</b><svg class="spk" viewBox="0 0 100 24" preserveAspectRatio="none"><path class="flat" d="M0 12 L100 12"/></svg></div>
+    <div><span class="lbl">Active traders 24h</span><b><em data-to="0" data-d="0">0</em></b><svg class="spk" viewBox="0 0 100 24" preserveAspectRatio="none"><path d="M0 18 L20 16 L40 20 L60 15 L80 17 L100 14"/></svg></div>
+   </div>
+  </div>
+ </section>
+
+ 
+ <div class="tick"><div class="tr" id="tick"></div></div>
+
+
+ <section class="sec">
+  <div class="head">
+   <div><div class="bul">New <b>tokens</b></div><h2 class="h2">On the curve <span>right now.</span></h2></div>
+   <div class="tabs" id="ftabs"><button class="on">All<span>17</span></button><button>Bonding<span>17</span></button><button>Almost there<span>0</span></button><button>Migrated<span>0</span></button></div>
+  </div>
+  <div class="tw brk"><span class="c1"></span><span class="c2"></span>
+   <table><thead><tr><th>Token</th><th class="w3">Tier</th><th class="r w3">Market cap</th><th class="w5 h-sm">Bonding</th><th class="r w3 h-md">Vol 24h</th><th class="r w1 h-md">Age</th><th class="w3 h-md">Creator</th><th class="w2 r"></th></tr></thead><tbody id="rows"></tbody></table>
+   <div class="pg"><span>Showing 1–8 of 17</span><div><button>Prev</button><button class="on">1</button><button>2</button><button>Next</button></div></div>
+  </div>
+ </section>
+
+ <section class="sec feat">
+  <div>
+   <div class="bul">What a <b>higher bar</b> looks like</div>
+   <h2 class="h2">A launchpad built on Meteora, <span>with guardrails.</span></h2>
+   <p class="muted" style="max-width:34em">Every token trades on a Dynamic Bonding Curve, then graduates into a DAMM v2 pool with locked liquidity. Pick the bar you want to clear.</p>
+   <div class="tiers"><div><div class="lbl">Standard</div><div class="v">85</div><div class="dim mono" style="font-size:12px">SOL to graduate</div></div><div><div class="lbl yl">Higher</div><div class="v">150</div><div class="dim mono" style="font-size:12px">SOL to graduate</div></div><div><div class="lbl yl">Max</div><div class="v yl">250</div><div class="dim mono" style="font-size:12px">SOL to graduate</div></div></div>
+  </div>
+  <div class="fl" id="feats"></div>
+ </section>
+
+ <section class="sec">
+  <div class="head"><div><div class="bul">Guides</div><h2 class="h2">Know the curve <span>before you climb.</span></h2></div><a class="btn sm" href="#guides"><b>All guides</b><i>→</i></a></div>
+  <div class="gd" id="guides"></div>
+ </section>
+
+ 
+ <footer class="dfoot"><a href="#docs">Docs</a><a href="#guides">Guides</a><a href="#docs">API</a><a href="#home">Terms</a><a href="#home">Privacy</a><a href="#home">Cookie settings</a><span class="dim mono">highbar · Solana launchpad</span></footer>
+ <div class="note">Mockup only · token names and figures are sample data based on the live site.</div>
+</div></main>
+
+<!-- ============ TOKEN ============ -->
+<main class="view" id="v-token"><div class="frame">
+ <div class="cover art"><div class="sc" data-art="arena" data-s="7"></div></div>
+ <div class="crumb">
+  <div class="th"><div class="av">SC</div><div>
+   <a href="#home" class="dim mono" style="font-size:12px">← All tokens</a>
+   <h1>Scooby doooooooo <span class="dim mono" style="font-size:.5em">$SCOOBY</span></h1>
+   <div class="meta"><span class="tier">Standard</span><span>HB 11</span><span>ABuHj…2high ⧉</span></div>
+  </div></div>
+  <div class="px"><div class="v"><i class="sol"></i>0.0<sub>7</sub>2735</div><div class="mono" style="font-size:12px;margin-top:8px"><span class="dim">$0.0<sub>5</sub>4102</span> <span class="neg">−5.6%</span> <span class="dim">24h</span></div></div>
+ </div>
+ <div class="strip">
+  <div><div class="lbl">Market cap</div><div class="v">$4.0k</div></div>
+  <div><div class="lbl">Volume 24h</div><div class="v"><i class="sol"></i>0.0</div></div>
+  <div><div class="lbl">Holders</div><div class="v">1</div></div>
+  <div><div class="lbl">Age</div><div class="v">26d</div></div>
+  <div><div class="lbl">Creator</div><div class="v">GMGN…knJK</div></div>
+  <div><div class="lbl">Bonding</div><div class="v">0.0%</div></div>
+ </div>
+ <div class="tg">
+  <div class="cp">
+   <div class="top"><div class="mono"><i class="sol"></i>0.00000002735 <span class="dim" style="font-size:12px">0.0%</span></div><div class="tf" id="tf"><button>1m</button><button>5m</button><button class="on">15m</button><button>1h</button><button>4h</button><button>1d</button></div></div>
+   <div class="chart brk"><span class="c1"></span><span class="c2"></span><svg id="pc" aria-label="Price chart"></svg></div>
+  </div>
+  <aside class="side">
+   <div class="bs" id="bs"><button class="b on">Buy</button><button class="s">Sell</button></div>
+   <div class="inp"><input id="amt" inputmode="decimal" value="0.5" aria-label="Amount in SOL"><span class="dim mono" style="font-size:13px"><i class="sol"></i>SOL</span></div>
+   <div class="qk" id="qk"><button>0.1</button><button class="on">0.5</button><button>1</button><button>Max</button></div>
+   <div class="kv">
+    <div><span>Slippage</span><b>Auto 1%</b></div>
+    <div><span>Est. received</span><b id="est">18,136,314 $SCOOBY</b></div>
+    <div><span>Price impact</span><b>1.72%</b></div>
+    <div><span>Fee (1.00%)</span><b id="fee"><i class="sol"></i>0.005000</b></div>
+   </div>
+   <button class="go" id="go">Buy $SCOOBY</button>
+   <div class="bond"><div style="display:flex;justify-content:space-between"><span>Bonding progress</span><span class="mono dim" style="font-size:13px">0.0 of <i class="sol"></i>85</span></div><div class="bar"><i style="width:1%"></i></div><div class="dim mono" style="font-size:12px">Graduates to DAMM v2 at 85 SOL</div></div>
+  </aside>
+ </div>
+ <div class="ttabs" id="tt"><button class="on">Trades</button><button>Holders 1</button><button>Score</button><button>Fees</button><button>Dev lock</button><button>Open Book</button><button>Info</button></div>
+ <div class="tw flat"><table><thead><tr><th class="w3">Time</th><th class="w2">Type</th><th class="r">SOL</th><th class="r">$SCOOBY</th><th class="w4 h-sm">Wallet</th></tr></thead><tbody id="trades"></tbody></table></div>
+ <div class="note">Mockup only · chart and trades are sample data.</div>
+</div></main>
+
+<!-- ============ LAUNCH ============ -->
+<main class="view" id="v-launch"><div class="frame">
+ <div class="phead"><div><div class="bul">Launch a <b>token</b></div><h1 class="h1">Set your bar, <span>then launch.</span></h1></div><div class="lbl">Block 0 dev buy</div><a class="bom" href="#home" aria-label="Built on Meteora">Built on <svg class="mlogo" viewBox="0 0 1038 240"><use href="#mlogo"/></svg></a></div>
+ <div class="modes" id="lmode"><button type="button" class="on" data-m="0"><b>Public launch</b><span>Your wallet is the creator, like every launch today.</span></button><button type="button" data-m="1"><b>Private launch <i class="chip">New</i></b><span>Hidden creator wallet, private payment, stealth fee claims.</span></button></div>
+ <div class="pflow" id="pflow" style="display:none"><div class="lbl">How a private launch works</div><ol class="pfs"><li><b>Fund privately</b><span>SOL moves through the shielded pool to a fresh one-time wallet.</span></li><li><b>Launch from it</b><span>The token is created by that wallet. Your main wallet is not on the token.</span></li><li><b>Claim to stealth</b><span>Creator fees go to a new address each time.</span></li></ol><a class="btn sm" href="#private"><b>Open Private send</b><i>→</i></a></div>
+ <div class="lg">
+  <form class="lf" id="lform">
+   <div class="fs"><div class="idx">{01}</div><div class="fb">
+    <h3>Identity</h3>
+    <div class="f2">
+     <label class="fld"><span>Name <em id="nb">0 of 32 bytes</em></span><input id="ln" maxlength="32" placeholder="Arena Bull"></label>
+     <label class="fld"><span>Ticker <em id="tb">0 of 10 bytes</em></span><input id="lt" maxlength="10" placeholder="ABULL"></label>
+    </div>
+    <label class="drop"><input type="file" accept="image/*" hidden><b>+</b><span>Drop image or click to upload</span><em>PNG, JPG, WEBP or GIF, up to 2 MB.</em></label>
+    <label class="fld"><span>Description</span><textarea id="ld" rows="3" placeholder="What is this token about?"></textarea></label>
+    <div class="f3"><label class="fld"><span>Website</span><input placeholder="https://"></label><label class="fld"><span>Twitter</span><input placeholder="x.com/…"></label><label class="fld"><span>Telegram</span><input placeholder="t.me/…"></label></div>
+   </div></div>
+   <div class="fs"><div class="idx">{02}</div><div class="fb">
+    <h3>Tier</h3>
+    <div class="tsel" id="tsel">
+     <button type="button" class="on" data-i="0"><span class="lbl">Standard</span><b>85 <small>SOL</small></b><dl><dt>Mcap at migration</dt><dd>~420.75 SOL</dd><dt>Creator fee</dt><dd>0.4%</dd><dt>After migration</dt><dd>0.6%</dd></dl></button>
+     <button type="button" data-i="1"><span class="lbl yl">Higher</span><b>150 <small>SOL</small></b><dl><dt>Mcap at migration</dt><dd>~742.5 SOL</dd><dt>Creator fee</dt><dd>0.5%</dd><dt>After migration</dt><dd>0.65%</dd></dl></button>
+     <button type="button" data-i="2"><span class="lbl yl">Max</span><b>250 <small>SOL</small></b><dl><dt>Mcap at migration</dt><dd>~1,250 SOL</dd><dt>Creator fee</dt><dd>0.6%</dd><dt>After migration</dt><dd>0.7%</dd></dl></button>
+    </div>
+    <p class="dim" style="font-size:13px;margin:10px 0 0">Max is open to every creator until $HIGHER launches.</p>
+   </div></div>
+   <div class="fs"><div class="idx">{03}</div><div class="fb">
+    <h3>Protection</h3>
+    <div class="trow"><div><b>Anti-sniper</b><p id="asd">Off: early bots pay the normal 1% fee. Turn on to tax first-minute buys up to 25%.</p></div><button type="button" class="sw" id="as" role="switch" aria-checked="false"><i></i></button></div>
+    <label class="fld"><span>Dev buy (optional) <em>Bought in Block 0, so nobody can buy before you.</em></span><div class="inp sm"><input inputmode="decimal" placeholder="0.0"><span class="dim mono" style="font-size:13px"><i class="sol"></i>SOL</span></div></label>
+   </div></div>
+   <div class="fs"><div class="idx">{04}</div><div class="fb">
+    <h3>Privacy <span class="chip pvc">Concept</span></h3>
+    <div class="trow"><div><b>Hide creator wallet</b><p>The token launches from a fresh one-time wallet. Your main wallet never appears on the token page or on-chain as the creator.</p></div><button type="button" class="sw" data-pv="wallet" role="switch" aria-checked="false"><i></i></button></div>
+    <div class="trow"><div><b>Pay launch costs privately</b><p>Fund the launch wallet through a shielded transfer, so the payment is not linked to your wallet. <a href="#private" class="yl">Open Private send →</a></p></div><button type="button" class="sw" data-pv="pay" role="switch" aria-checked="false"><i></i></button></div>
+    <div class="trow"><div><b>Stealth fee claims</b><p>Creator fees are claimed to a new address each time, so claims cannot be tied back to you.</p></div><button type="button" class="sw" data-pv="claim" role="switch" aria-checked="false"><i></i></button></div>
+    <div class="pvbox" id="pvbox"><span class="lbl">Privacy level</span><b id="pvl">Public</b><div class="bar"><i id="pvb" style="width:0%"></i></div><p id="pvd">Your wallet is shown as the creator, like every launch today.</p></div>
+   </div></div>
+   <div class="fs"><div class="idx">{05}</div><div class="fb">
+    <h3>Fees</h3>
+    <div class="kv" id="fees"></div>
+    <button class="go" type="submit" style="margin-top:16px">Launch</button>
+   </div></div>
+  </form>
+  <aside class="prev"><div class="brk pv"><span class="c1"></span><span class="c2"></span>
+   <div class="ph art"><div class="sc" data-art="arena" data-s="3"></div></div>
+   <div class="lbl" style="margin-bottom:16px">Preview</div>
+   <div class="tk"><div class="av" style="width:56px;height:56px;background:var(--inv);color:var(--bg)" id="pa">??</div><div><b id="pn" style="font-size:20px">Token name</b><small id="pt">$TICKER</small></div></div>
+   <p class="muted" id="pd" style="font-size:14px;margin:16px 0">Description shows here.</p>
+   <div class="prog" style="justify-content:space-between"><span>Bonding</span><span id="pp">0 of 85 SOL</span></div>
+   <div class="bar" style="height:6px;margin:8px 0 16px"><i style="width:1%"></i></div>
+   <div class="kv" style="margin:0 0 14px"><div><span>Creator</span><b id="pcr">7Hb2…Qx91</b></div></div><div style="display:flex;justify-content:space-between;align-items:center"><span class="tier" id="ptier">Standard</span><span class="mono dim" style="font-size:13px">$0 mcap</span></div>
+  </div>
+  <ol class="pss" id="plrun" style="display:none"><li>Shield funds</li><li>Create one-time wallet</li><li>Launch token</li><li>Set stealth claim address</li></ol><div class="pvbox" id="plres" style="display:none"><span class="lbl">Done</span><b>Launched privately</b><p class="mono">Creator: hidden · mint ABuHj…2high</p></div><div class="gl"><div class="lbl" style="margin:24px 0 8px">Before you launch</div><a href="#guides">How to launch a Solana memecoin →</a><a href="#guides">How creator fees work →</a><a href="#guides">Anti-sniper fees explained →</a></div>
+  </aside>
+ </div>
+</div></main>
+
+<!-- ============ LEADERBOARD ============ -->
+<main class="view" id="v-leaderboard"><div class="frame">
+ <div class="phead"><div><div class="bul">Leaderboard</div><h1 class="h1">Champions. <span>The arena's best.</span></h1></div>
+  <div class="ctrls"><div class="tabs seg"><button class="on">Volume</button><button>Mcap</button><button>Progress</button></div><div class="tabs seg"><button>24h</button><button>7d</button><button class="on">This week</button><button>All</button></div></div></div>
+ <div class="ttabs seg"><button class="on">Tokens</button><button>highbar Creators</button><button>Traders</button><button>Migrations</button><button>Survivors</button></div>
+ <div class="sec" style="border:0;padding-bottom:0"><div class="pod" id="pod"></div></div>
+ <div class="sec"><div class="tw"><table><thead><tr><th class="w1">Rank</th><th>Token</th><th class="w3">Tier</th><th class="r w3">Volume</th><th class="r w3">Mcap</th><th class="w5 h-sm">Progress</th></tr></thead><tbody id="lbrows" class="golink"></tbody></table></div>
+ <p class="dim mono" style="font-size:12px;margin:14px 0 0">Weeks run Monday to Sunday, UTC.</p></div>
+</div></main>
+
+<!-- ============ LOCKS ============ -->
+<main class="view" id="v-locks"><div class="frame">
+ <div class="phead"><div><div class="bul">Dev <b>token locks</b></div><h1 class="h1">Locked in public. <span>Unlocks on the record.</span></h1></div><div class="lbl">Permanent locks via Jupiter Lock</div></div>
+ <div class="strip" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div><div class="lbl">Active locks</div><div class="v">6</div></div><div><div class="lbl">Avg % of supply</div><div class="v">7.4%</div></div><div><div class="lbl">Next unlock</div><div class="v">Dec 14</div></div><div><div class="lbl">Permanent</div><div class="v yl">2</div></div>
+ </div>
+ <div class="sec"><div class="head"><h2 class="h2" style="font-size:28px">All locks</h2><div class="tabs seg"><button class="on">All</button><button>Vesting</button><button>Permanent</button><button>Unlocked</button></div></div>
+ <div class="tw brk"><span class="c1"></span><span class="c2"></span><table><thead><tr><th>Token</th><th class="r w4 h-md">Amount</th><th class="r w2">% supply</th><th class="w2 h-md">Locked</th><th class="w4">Unlocks</th><th class="w5 h-sm">Vesting</th><th class="w3 h-md">Creator</th><th class="w4 r h-sm"></th></tr></thead><tbody id="lkrows"></tbody></table></div></div>
+ <div class="note">Mockup only · lock rows are sample data.</div>
+</div></main>
+
+<!-- ============ PORTFOLIO ============ -->
+<main class="view" id="v-portfolio"><div class="frame">
+ <div class="phead"><div><div class="bul">Portfolio</div><h1 class="h1 mono" style="font-size:clamp(26px,3vw,40px)">7Hb2Lq…Qx91 <span style="font-size:.5em">⧉</span></h1></div><div class="tabs seg"><button class="on">Overview</button><button>Claim fees</button></div></div>
+ <div class="stats" style="border-inline:0;border-top:0">
+  <div class="st"><div class="lbl">SOL balance</div><div class="v"><i class="sol"></i>1.681</div><small>≈ $252</small></div>
+  <div class="st"><div class="lbl">Holdings value</div><div class="v"><i class="sol"></i>0.000</div><small>0 tokens</small></div>
+  <div class="st"><div class="lbl">Tokens created</div><div class="v">0</div><small>all tiers</small></div>
+  <div class="st"><div class="lbl">Creator fees (est.)</div><div class="v yl"><i class="sol"></i>0.0000</div><small>claimable</small></div>
+  <div class="st"><div class="lbl">Cashback</div><div class="v"><i class="sol"></i>0.0000</div><small>payouts soon</small></div>
+ </div>
+ <div class="pgrid">
+  <section class="empty brk"><span class="c1"></span><span class="c2"></span><div class="lbl">Holdings</div><div class="eb"><svg viewBox="0 0 80 80" fill="none" stroke="var(--bd)"><rect x="10" y="10" width="60" height="60"/><path d="M10 40h60M40 10v60" stroke-dasharray="2 4"/><rect x="34" y="34" width="12" height="12" stroke="#ffc72c"/></svg><h3>No highbar tokens</h3><p>Tokens you buy on highbar show up here.</p><a class="btn sm" href="#home"><b>Browse tokens</b><i>→</i></a></div></section>
+  <section class="empty brk"><span class="c1"></span><span class="c2"></span><div class="lbl">Created tokens</div><div class="eb"><svg viewBox="0 0 80 80" fill="none" stroke="var(--bd)"><path d="M10 70h60M18 70V36M32 70V36M48 70V36M62 70V36M10 30l30-18 30 18z"/><path d="M40 12v-4" stroke="#ffc72c"/></svg><h3>You haven't launched a token yet</h3><p>Creator fees from your tokens are claimed here.</p><a class="btn sm y" href="#launch"><b>Launch one</b><i>+</i></a></div></section>
+ </div>
+ <div class="sec"><div class="bul">Recent <b>trades</b></div><div class="tw"><table><thead><tr><th class="w3">Time</th><th>Token</th><th class="w2">Type</th><th class="r w3">SOL</th><th class="r w4">Amount</th></tr></thead><tbody><tr><td colspan="5" class="dim empty-row" style="text-align:center;padding:40px">No trades yet</td></tr></tbody></table></div></div>
+ <div class="note">Mockup only · wallet address is a placeholder.</div>
+</div></main>
+
+<!-- ============ REWARDS ============ -->
+<main class="view" id="v-rewards"><div class="frame">
+ <div class="phead"><div><div class="bul">Rewards</div><h1 class="h1">Trade, refer, climb. <span>Get paid back.</span></h1><p class="muted" style="margin:10px 0 0;max-width:40em">Cashback, referrals, creator milestones, $HIGHER holder perks and the public buyback and burn record.</p></div></div>
+ <div class="ttabs" id="rtabs"><button class="on" data-p="0">Cashback</button><button data-p="1">Referral</button><button data-p="2">Milestones</button><button data-p="3">$HIGHER perks</button><button data-p="4">Burn</button></div>
+ <div class="rp on">
+  <div class="rw">
+   <div class="rbig brk"><span class="c1"></span><span class="c2"></span><div class="lbl">Cashback rate</div><div class="mega">0.05<span>%</span></div><p class="muted">of your trading volume, accrued per UTC day. Minimum payout 0.001 SOL.</p><div class="chip2">Payouts coming soon · cashback starts from zero when payouts begin</div></div>
+   <div class="rlook"><div class="lbl">Look up</div><h3>Check accrued cashback</h3><p class="muted">Connect a wallet, or paste an address.</p><div class="inp sm"><input placeholder="Wallet address" aria-label="Wallet address"></div><div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><a class="btn sm y" href="#rewards"><b>Connect a wallet</b><i>+</i></a><a class="btn sm" href="#rewards"><b>Look up</b><i>→</i></a></div></div>
+  </div>
+ </div>
+ <div class="rp"><div class="rw"><div class="rbig brk"><span class="c1"></span><span class="c2"></span><div class="lbl">Referral</div><div class="mega">Soon</div><p class="muted">Share your highbar link and earn a share of the fees your referrals pay.</p></div><div class="rlook"><div class="lbl">Your link</div><div class="inp sm"><input readonly value="highbar.capital/r/—" aria-label="Referral link"></div></div></div></div>
+ <div class="rp"><div class="sec" style="border:0"><div class="fl" id="miles"></div></div></div>
+ <div class="rp"><div class="rw"><div class="rbig brk"><span class="c1"></span><span class="c2"></span><div class="lbl">$HIGHER perks</div><div class="mega">Soon</div><p class="muted">Holder perks unlock when $HIGHER launches. $HIGHER is not an investment and promises no returns.</p></div></div></div>
+ <div class="rp"><div class="rw"><div class="rbig brk"><span class="c1"></span><span class="c2"></span><div class="lbl">$HIGHER burned</div><div class="mega yl">0</div><p class="muted">Part of platform fees will buy back and burn $HIGHER. Every burn is recorded in the Open Book.</p><a class="btn sm" href="#open-book"><b>Open Book</b><i>→</i></a></div></div></div>
+ <div class="note">Mockup only · Referral, Milestones and perks copy are placeholders.</div>
+</div></main>
+
+<!-- ============ OPEN BOOK ============ -->
+<main class="view" id="v-open-book"><div class="frame">
+ <div class="phead"><div><div class="bul">Open <b>Book</b></div><h1 class="h1">Every fee, <span>reconciled against chain.</span></h1><p class="muted" style="margin:10px 0 0;max-width:44em">Every fee, tip and treasury movement across all highbar tokens, reconciled against chain. Click any number to verify it.</p></div>
+  <div class="ctrls"><span class="lbl"><i class="live"></i>Indexed to slot 469,842,632 · Synced 3h ago</span><div class="tabs seg"><button class="on">All time</button><button>30d</button><button>7d</button><button>24h</button></div></div></div>
+ <div class="ttabs" id="obt"><button class="on" data-t="ob-totals">Overview</button><button data-t="ob-treasury">Treasury</button><button data-t="ob-flow">Fee flow</button><button data-t="ob-tokens">All tokens</button><button data-t="methodology">Methodology</button></div>
+ <div class="obg" id="ob-totals"><div><div class="lbl">Tokens launched</div><div class="v ">21</div><small>0 migrated to DAMM v2</small></div><div><div class="lbl">Total volume</div><div class="v "><i class="sol"></i>41.24</div><small>114 txs</small></div><div><div class="lbl">Total fees paid</div><div class="v "><i class="sol"></i>0.6103</div><small>1.48% of volume, all-in</small></div><div><div class="lbl">DBC fees</div><div class="v "><i class="sol"></i>0.4145</div><small>1.01% of volume</small></div><div><div class="lbl">Creators earned</div><div class="v yl"><i class="sol"></i>0.2107</div><small>across 18 creators</small></div><div><div class="lbl">Tips paid by traders</div><div class="v "><i class="sol"></i>0.1254</div><small>78.0% from sniper wallets</small></div></div>
+ <section class="sec" id="ob-treasury"><div class="bul">Treasury <b>wallets</b></div><h2 class="h2" style="font-size:30px">Live balances, <span>read from chain.</span></h2><div class="wgrid"><div class="wc"><div class="wh"><b>Platform wallet</b><span class="mono dim">48UK…high</span></div><span class="tier">Fee claimer · Platform</span>
+<div class="wv"><i class="sol"></i>0.0262<em>exact</em></div>
+<div class="wr"><span>Net change 24h</span><b>—</b></div><div class="wr"><span>Read at slot</span><b class="mono">474,555,265</b></div></div><div class="wc"><div class="wh"><b>Referral wallet</b><span class="mono dim">4khg…high</span></div><span class="tier">Referral</span>
+<div class="wv"><i class="sol"></i>0.0000</div><div class="wr"><span>Wrapped SOL</span><b class="mono"><i class="sol"></i>0.0000</b></div>
+<div class="wr"><span>Net change 24h</span><b>—</b></div><div class="wr"><span>Read at slot</span><b class="mono">474,555,265</b></div></div><div class="wc"><div class="wh"><b>Lock-tip wallet</b><span class="mono dim">DN6H…high</span></div><p class="dim">Receives the flat lock tip paid with each Dev Lock transaction.</p><span class="tier">Lock tips</span>
+<div class="wv"><i class="sol"></i>0.0150<em>exact</em></div>
+<div class="wr"><span>Net change 24h</span><b>—</b></div><div class="wr"><span>Read at slot</span><b class="mono">474,555,265</b></div></div><div class="wc"><div class="wh"><b>Treasury wallet</b><span class="mono dim">HWnL…high</span></div><span class="tier">Leftover receiver · Treasury</span>
+<div class="wv"><i class="sol"></i>0.0000</div>
+<div class="wr"><span>Net change 24h</span><b>—</b></div><div class="wr"><span>Read at slot</span><b class="mono">474,555,265</b></div></div></div></section>
+ <section class="sec" id="ob-flow"><div class="bul">Fee <b>flow</b></div><h2 class="h2" style="font-size:30px">Where every lamport <span>traders paid ended up.</span></h2><div class="sk" id="sk"></div>
+<div class="flowlg"><span><i class="y"></i>On-platform (DBC)</span><span><i class="p"></i>Off-platform (block engines)</span><span><i class="g"></i>Network</span><span class="dim">derived</span></div>
+<div class="callout"><b>Buyback and burn: Soon.</b> Starts when $HIGHER launches. Platform share is 19.8% of total fees paid, 20.6% leaves highbar as tips.</div></section>
+ <section class="sec"><div class="bul">Platform use, <b>closed periods</b></div><div class="mgrid six"><div><div class="lbl">Periods closed</div><div class="v">0</div></div><div><div class="lbl">Gross platform share</div><div class="v"><i class="sol"></i>0.0000</div></div><div><div class="lbl">Buyback</div><div class="v"><i class="sol"></i>0.0000</div></div><div><div class="lbl">Ops</div><div class="v"><i class="sol"></i>0.0000</div></div><div><div class="lbl">Treasury</div><div class="v"><i class="sol"></i>0.0000</div></div><div><div class="lbl">LP rebate and cashback</div><div class="v"><i class="sol"></i>0.0000</div></div></div>
+  <div class="bul" style="margin-top:40px">Fee <b>claims</b></div><div class="mgrid five"><div><div class="lbl">DBC trading fees</div><div class="v"><i class="sol"></i>0.0000</div><small>0 claims</small></div><div><div class="lbl">DBC migration fees</div><div class="v"><i class="sol"></i>0.0000</div><small>0 claims</small></div><div><div class="lbl">DBC surplus</div><div class="v"><i class="sol"></i>0.0000</div><small>0 claims</small></div><div><div class="lbl">DAMM v2 LP fees</div><div class="v"><i class="sol"></i>0.0000</div><small>0 claims</small></div><div><div class="lbl">Cashback paid to traders</div><div class="v"><i class="sol"></i>0.0000</div><small>0 payouts to 0 wallets</small></div></div></section>
+ <section class="sec" id="ob-tokens"><div class="head"><div><div class="bul">All <b>tokens</b></div><h2 class="h2" style="font-size:30px">17 tokens, <span>sorted by volume.</span></h2></div><div class="tabs seg"><button class="on">All</button><button>Bonding</button><button>Migrated</button></div></div>
+  <div class="tw brk"><span class="c1"></span><span class="c2"></span><table><thead><tr><th class="w1">#</th><th>Token</th><th class="w3">Tier</th><th class="r w3">Volume</th><th class="r w3 h-md">DBC fees</th><th class="r w4 h-md">Creator earned</th><th class="r w3 h-md">Tips paid</th><th class="r w4 h-sm">Sniper share of tips</th><th class="w4">Status</th><th class="w3 r"></th></tr></thead><tbody><tr><td class="num dim">1</td><td><div class="tk"><div class="av">SC</div><div><b>Scooby doooooooo</b><small>$SCOOBY</small></div></div></td><td><span class="tier Standard">Standard</span></td><td class="r num"><i class="sol"></i>9.94</td><td class="r num"><i class="sol"></i>0.10</td><td class="r num"><i class="sol"></i>0.04</td><td class="r num"><i class="sol"></i>0.03</td><td class="r num">80.8%</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">2</td><td><div class="tk"><div class="av">SP</div><div><b>SpaceX staff wearing banana</b><small>$SSWB</small></div></div></td><td><span class="tier Higher">Higher</span></td><td class="r num"><i class="sol"></i>2.01</td><td class="r num"><i class="sol"></i>0.02</td><td class="r num"><i class="sol"></i>0.01</td><td class="r num"><i class="sol"></i>0.001</td><td class="r num">0.5%</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">3</td><td><div class="tk"><div class="av">TH</div><div><b>THERE IS AN IMAEG OF THEIR COIN</b><small>$TIAIOTC</small></div></div></td><td><span class="tier Higher">Higher</span></td><td class="r num"><i class="sol"></i>1.12</td><td class="r num"><i class="sol"></i>0.01</td><td class="r num"><i class="sol"></i>0.0056</td><td class="r num"><i class="sol"></i>0.001</td><td class="r num">1.0%</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">4</td><td><div class="tk"><div class="av">WH</div><div><b>When Trump loses the election</b><small>$WTLTE</small></div></div></td><td><span class="tier Higher">Higher</span></td><td class="r num"><i class="sol"></i>0.51</td><td class="r num"><i class="sol"></i>0.0052</td><td class="r num"><i class="sol"></i>0.0026</td><td class="r num"><i class="sol"></i>0.00004</td><td class="r num">50.0%</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">5</td><td><div class="tk"><div class="av">MA</div><div><b>Maxxmas</b><small>$MAXXMAS</small></div></div></td><td><span class="tier Higher">Higher</span></td><td class="r num"><i class="sol"></i>0.40</td><td class="r num"><i class="sol"></i>0.004</td><td class="r num"><i class="sol"></i>0.002</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num">—</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">6</td><td><div class="tk"><div class="av">TH</div><div><b>THE BIGGEST EVER MOVEMENT</b><small>$TBEM</small></div></div></td><td><span class="tier Standard">Standard</span></td><td class="r num"><i class="sol"></i>0.22</td><td class="r num"><i class="sol"></i>0.0022</td><td class="r num"><i class="sol"></i>0.00088</td><td class="r num"><i class="sol"></i>0.00003</td><td class="r num">50.0%</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">7</td><td><div class="tk"><div class="av">GM</div><div><b>GM</b><small>$GM</small></div></div></td><td><span class="tier Higher">Higher</span></td><td class="r num"><i class="sol"></i>0.22</td><td class="r num"><i class="sol"></i>0.0022</td><td class="r num"><i class="sol"></i>0.0011</td><td class="r num"><i class="sol"></i>0.00001</td><td class="r num">50.0%</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">8</td><td><div class="tk"><div class="av">KO</div><div><b>Kongo Mbeli</b><small>$KONGO</small></div></div></td><td><span class="tier Standard">Standard</span></td><td class="r num"><i class="sol"></i>0.20</td><td class="r num"><i class="sol"></i>0.002</td><td class="r num"><i class="sol"></i>0.00081</td><td class="r num"><i class="sol"></i>0.00001</td><td class="r num">50.0%</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">9</td><td><div class="tk"><div class="av">WH</div><div><b>WHITE</b><small>$GLIDEN</small></div></div></td><td><span class="tier Max">Max</span></td><td class="r num"><i class="sol"></i>0.20</td><td class="r num"><i class="sol"></i>0.002</td><td class="r num"><i class="sol"></i>0.0012</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num">—</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">10</td><td><div class="tk"><div class="av">AI</div><div><b>AI Signal (SOL)</b><small>$MAXXMAS</small></div></div></td><td><span class="tier Standard">Standard</span></td><td class="r num"><i class="sol"></i>0.06</td><td class="r num"><i class="sol"></i>0.0006</td><td class="r num"><i class="sol"></i>0.00024</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num">—</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">11</td><td><div class="tk"><div class="av">BR</div><div><b>BREAKING: FBI confirms North</b><small>$BFCN</small></div></div></td><td><span class="tier Standard">Standard</span></td><td class="r num"><i class="sol"></i>0.05</td><td class="r num"><i class="sol"></i>0.0005</td><td class="r num"><i class="sol"></i>0.0002</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num">—</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">12</td><td><div class="tk"><div class="av">BI</div><div><b>Big News</b><small>$BIG</small></div></div></td><td><span class="tier Standard">Standard</span></td><td class="r num"><i class="sol"></i>0.04</td><td class="r num"><i class="sol"></i>0.0004</td><td class="r num"><i class="sol"></i>0.00016</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num">—</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">13</td><td><div class="tk"><div class="av">BE</div><div><b>Being a super intelligent</b><small>$BASI</small></div></div></td><td><span class="tier Standard">Standard</span></td><td class="r num"><i class="sol"></i>0.02</td><td class="r num"><i class="sol"></i>0.0002</td><td class="r num"><i class="sol"></i>0.00008</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num">—</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">14</td><td><div class="tk"><div class="av">3X</div><div><b>3X2xbBx6ShSVkhP2RoHGZbrQWZpxx5md</b><small>$JEFF</small></div></div></td><td><span class="tier Standard">Standard</span></td><td class="r num"><i class="sol"></i>0.01</td><td class="r num"><i class="sol"></i>0.0001</td><td class="r num"><i class="sol"></i>0.00004</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num">—</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px"><0.1%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">15</td><td><div class="tk"><div class="av">CO</div><div><b>Compute Campus</b><small>$CAMPUS</small></div></div></td><td><span class="tier Higher">Higher</span></td><td class="r num"><i class="sol"></i>0.00</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num">—</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px">0.0%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">16</td><td><div class="tk"><div class="av">BL</div><div><b>Blob Swap is live</b><small>$BLOB</small></div></div></td><td><span class="tier Higher">Higher</span></td><td class="r num"><i class="sol"></i>0.00</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num">—</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px">0.0%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr><tr><td class="num dim">17</td><td><div class="tk"><div class="av">GO</div><div><b>Google AI Pro (5 TB) Zero Cost</b><small>$GAP5TZC</small></div></div></td><td><span class="tier Standard">Standard</span></td><td class="r num"><i class="sol"></i>0.00</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num"><i class="sol"></i>0.00</td><td class="r num">—</td><td><span class="badge buy">Bonding</span> <span class="dim mono" style="font-size:11px">0.0%</span></td><td class="r"><a class="rb" href="#token">Open ↗</a></td></tr></tbody></table>
+  <div class="pg"><span>Showing 1–17 of 17, amounts in SOL</span><div><button>Prev</button><button class="on">1</button><button>Next</button></div></div></div></section>
+ <section class="sec feat" id="methodology"><div><div class="bul">Methodology</div><h2 class="h2" style="font-size:32px">How every figure <span>on this page is computed.</span></h2></div>
+  <div class="meth"><p>Exact figures are read from transaction meta: balance changes, fees and tips as they landed on chain. Derived figures are computed from the pool config, such as the DBC fee split between Meteora, the creator, the platform and referrers.</p>
+  <p>The DBC trading fee is split by the pool config. Meteora takes its protocol share first, a referral share of that comes back to referrers on trades made through the highbar UI, and the creator and the platform split the rest by tier. Totals are summed per transaction, so these cards link here instead of a single Solscan page.</p>
+  <p>The platform share is used 40% for buyback and burn, 50% for operations and 10% for the treasury. Buckets are pooled per closed period, operations and treasury stay in the fee receiver wallet. LP fees after migration come from a permanently locked DAMM v2 position.</p>
+  <p>Tips go to block engines, not highbar. Sniper wallets are those landing a buy within two slots of the pool being created. Network fees are split between validators and the burned part of the base fee. Windows are calendar days in UTC.</p></div></section>
+ <div class="note">Mockup only · figures copied from the live Open Book at the time of design; the “Open” links go to the sample token page.</div>
+</div></main>
+
+<!-- ============ GUIDES ============ -->
+<main class="view" id="v-guides"><div class="frame">
+ <div class="phead"><div><div class="bul">Library</div><h1 class="h1">Guides to launching <span>and trading on highbar.</span></h1><p class="muted" style="margin:10px 0 0">Shorter pages for the questions people bring to a Solana launchpad.</p></div>
+  <div class="inp sm" style="width:min(340px,100%)"><input id="gq" placeholder="Search guides" aria-label="Search guides"><span class="dim mono" style="font-size:12px">⌘K</span></div></div>
+ <div class="ttabs seg" id="gcat"><button class="on">All</button><button>Launching</button><button>Trading</button><button>Compare</button><button>Safety</button></div>
+ <div class="sec"><a class="feat-g brk" href="#guides"><span class="c1"></span><span class="c2"></span><div class="fgt"><span class="tier Higher">Featured</span><span class="mono dim" style="font-size:12px">Nov 18 · Launching</span><h2>Bonding curve graduation targets: choosing 85, 150 or 250 SOL.</h2><p class="muted">How the three tiers differ, what each one costs you, and which graduation target fits your launch.</p><span class="mono dim" style="font-size:12px">Read guide →</span></div><div class="fgi"><img src="img/arena-bg-c.webp" alt="" style="object-position:60% 40%"></div></a>
+ <div class="glist" id="glist"></div></div>
+</div></main>
+
+<!-- ============ DOCS ============ -->
+<main class="view" id="v-docs"><div class="frame">
+ <div class="phead"><div><div class="bul">Documentation</div><h1 class="h1">Docs. <span>Everything about the bar.</span></h1></div>
+  <div class="inp sm" style="width:min(340px,100%)"><input placeholder="Search docs" aria-label="Search docs"><span class="dim mono" style="font-size:12px">⌘K</span></div></div>
+ <div class="dg">
+  <aside class="dnav" aria-label="Docs navigation">
+   <div class="lbl">Getting started</div>
+   <a class="on" data-t="d-overview">Overview</a><a data-t="d-launch">Launching a token</a>
+   <div class="lbl">Protocol</div>
+   <a data-t="d-curve">Curve &amp; tiers</a><a data-t="d-fees">Fees</a><a data-t="d-sniper">Anti-sniper</a><a data-t="d-lock">Dev lock</a><a data-t="d-privacy">Private launch</a><a data-t="d-migrate">Migration</a>
+   <div class="lbl">More</div>
+   <a data-t="d-rewards">Rewards &amp; $HIGHER</a><a data-t="d-api">API</a>
+  </aside>
+  <article class="dbody">
+   <section id="d-overview"><h2>Overview</h2>
+    <p>highbar is a Solana token launchpad built on Meteora. Tokens trade on a Dynamic Bonding Curve (DBC), then graduate into a DAMM v2 pool with locked liquidity.</p>
+    <div class="callout"><b>Not an investment.</b> $HIGHER is not an investment and promises no returns.</div>
+    <div class="dcards">
+     <a href="#launch"><span class="idx">{01}</span><b>Launch a token</b><span class="muted">Name it, pick a tier, go live.</span></a>
+     <a href="#open-book"><span class="idx">{02}</span><b>Open Book</b><span class="muted">Every fee, reconciled against chain.</span></a>
+     <a href="#guides"><span class="idx">{03}</span><b>Guides</b><span class="muted">Short answers to common questions.</span></a>
+    </div></section>
+   <section id="d-launch"><h2>Launching a token</h2>
+    <ol class="steps"><li><b>Identity.</b> Name (up to 32 bytes), ticker (A to Z and 0 to 9, up to 10 bytes), image up to 2 MB, plus optional links.</li><li><b>Tier.</b> Standard, Higher or Max. This sets the graduation target and creator fee.</li><li><b>Protection.</b> Optionally switch on anti-sniper and make a dev buy in Block 0.</li><li><b>Launch.</b> Review the fee summary, then confirm in your wallet.</li></ol></section>
+   <section id="d-curve"><h2>Curve &amp; tiers</h2>
+    <div class="tw"><table><thead><tr><th>Tier</th><th class="r">Graduates at</th><th class="r">Mcap at migration</th><th class="r">Creator fee</th></tr></thead><tbody>
+     <tr><td>Standard</td><td class="r num">85 SOL</td><td class="r num">~420.75 SOL</td><td class="r num">0.4%</td></tr>
+     <tr><td>Higher</td><td class="r num">150 SOL</td><td class="r num">~742.5 SOL</td><td class="r num">0.5%</td></tr>
+     <tr><td>Max</td><td class="r num">250 SOL</td><td class="r num">~1,250 SOL</td><td class="r num">0.6%</td></tr></tbody></table></div>
+    <p>Vanity mints end in <code>high</code>. Max is open to every creator until $HIGHER launches.</p></section>
+   <section id="d-fees"><h2>Fees</h2>
+    <div class="tw"><table><thead><tr><th>Stage</th><th class="r">Total</th><th>Split (creator, platform, Meteora)</th></tr></thead><tbody>
+     <tr><td>On the curve</td><td class="r num">1%</td><td class="num">0.4%, 0.4%, 0.2%</td></tr>
+     <tr><td>After migration</td><td class="r num">1%</td><td class="num">0.6%, 0.2%, 0.2%</td></tr>
+     <tr><td>Migration fee</td><td class="r num">1%</td><td class="num">creator share 0%</td></tr></tbody></table></div>
+    <p>Creator fees are claimed from the Portfolio page. Cashback accrues at 0.05% of volume per UTC day, minimum payout 0.001 SOL.</p></section>
+   <section id="d-sniper"><h2>Anti-sniper</h2>
+    <p>When enabled, the fee starts at 25% and decays to about 1% within 60 seconds, so early bots pay for speed. When off, every buyer pays the normal 1% fee.</p></section>
+   <section id="d-lock"><h2>Dev lock</h2>
+    <p>Creators can lock their tokens with Jupiter Lock. Locks and unlock dates are public on the <a class="ul" href="#locks">Locks</a> page.</p></section>
+   <section id="d-privacy"><h2>Private launch</h2>
+    <p>Private launch separates the person from the token. It is optional and off by default. Each option works on its own.</p>
+    <ol class="steps"><li><b>Hidden creator wallet.</b> The token is created from a fresh one-time wallet, so the creator shown on-chain is not your main wallet.</li><li><b>Private payment.</b> The launch wallet is funded through a shielded transfer, so the funding cannot be traced back to you.</li><li><b>Stealth fee claims.</b> Creator fees are paid out to a new address on each claim.</li></ol>
+    <p class="dim">Dev lock and the Open Book still work. Locks and fee totals stay public, only the link to your identity is hidden.</p>
+   </section>
+   <section id="d-migrate"><h2>Migration</h2>
+    <p>When a token reaches its tier target it migrates from the DBC to a Meteora DAMM v2 pool. Liquidity is locked, and LP fees continue to flow to the creator, platform and Meteora.</p></section>
+   <section id="d-rewards"><h2>Rewards &amp; $HIGHER</h2>
+    <p>Cashback, referrals, creator milestones and $HIGHER holder perks live under <a class="ul" href="#rewards">Rewards</a>. Part of platform fees will buy back and burn $HIGHER, with every burn recorded in the <a class="ul" href="#open-book">Open Book</a>.</p></section>
+   <section id="d-api"><h2>API</h2>
+    <div class="callout"><b>Mockup placeholder.</b> The request below is illustrative only. See the live API docs for real endpoints.</div>
+    <div class="code"><button class="cp-btn" type="button">Copy</button><pre><code>curl https://highbar.capital/api/tokens?sort=volume&amp;limit=10</code></pre></div></section>
+  </article>
+  <aside class="dtoc"><div class="lbl">On this page</div><a data-t="d-curve">Curve &amp; tiers</a><a data-t="d-fees">Fees</a><a data-t="d-sniper">Anti-sniper</a><a data-t="d-lock">Dev lock</a><a data-t="d-privacy">Private launch</a><a data-t="d-migrate">Migration</a><a data-t="d-api">API</a></aside>
+ </div>
+ <div class="note">Mockup only · docs copy summarises the live site; API sample is a placeholder.</div>
+</div></main>
+
+<!-- ============ SETTINGS ============ -->
+<main class="view" id="v-private"><div class="frame">
+ <div class="phead"><div><div class="bul">Private <b>send</b></div><h1 class="h1">Send SOL. <span>Leave no trail.</span></h1><p class="muted" style="margin:10px 0 0;max-width:42em">Move funds through a shielded pool so the sender and the recipient cannot be linked on-chain. Use it to fund a launch wallet, receive creator fees, or pay out cashback.</p></div><span class="chip">Concept</span></div>
+ <div class="strip" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div><div class="lbl">Anonymity set</div><div class="v">1,284</div></div><div><div class="lbl">Shielded now</div><div class="v"><i class="sol"></i>8,420</div></div><div><div class="lbl">Avg. delay</div><div class="v">14 min</div></div><div><div class="lbl">Privacy fee</div><div class="v">0.30%</div></div>
+ </div>
+ <div class="lg">
+  <form class="lf" id="psf" style="padding:clamp(20px,3vw,40px)">
+   <div class="fs"><div class="idx">{01}</div><div class="fb">
+    <h3>Amount</h3>
+    <div class="inp"><input id="psa" inputmode="decimal" value="1.0" aria-label="Amount in SOL"><span class="dim mono" style="font-size:13px"><i class="sol"></i>SOL</span></div>
+    <div class="qk" id="psq" style="margin-top:10px"><button type="button">0.5</button><button type="button" class="on">1</button><button type="button">5</button><button type="button">10</button></div>
+   </div></div>
+   <div class="fs"><div class="idx">{02}</div><div class="fb">
+    <h3>Recipient</h3>
+    <label class="fld"><span>Wallet address <em>Any Solana address, including a fresh one.</em></span><input id="psr" placeholder="Paste address" value="Fa3kQ…9QdL"></label>
+   </div></div>
+   <div class="fs"><div class="idx">{03}</div><div class="fb">
+    <h3>Delay</h3>
+    <div class="tabs seg" id="psd"><button type="button">Instant</button><button type="button" class="on">~15 min</button><button type="button">~1 hour</button><button type="button">Random</button></div>
+    <p class="dim" style="font-size:13px;margin:10px 0 0">A longer delay mixes your transfer with more deposits, so it is harder to match.</p>
+    <div class="trow" style="margin-top:14px"><div><b>Split into parts</b><p>Send in several smaller amounts at different times.</p></div><button type="button" class="sw" id="pss" role="switch" aria-checked="true"><i></i></button></div>
+   </div></div>
+   <div class="fs"><div class="idx">{04}</div><div class="fb">
+    <h3>Summary</h3>
+    <div class="kv"><div><span>You send</span><b id="ps1"></b></div><div><span>Privacy fee (0.30%)</span><b id="ps2"></b></div><div><span>Network fee</span><b><i class="sol"></i>0.00012</b></div><div><span>Recipient gets</span><b id="ps3" class="yl"></b></div><div><span>Est. arrival</span><b id="ps4"></b></div></div>
+    <button class="go" type="submit" id="psgo" style="margin-top:16px">Send privately</button>
+   </div></div>
+  </form>
+  <aside class="prev">
+   <div class="brk pv"><span class="c1"></span><span class="c2"></span>
+    <div class="lbl" style="margin-bottom:12px">Route</div>
+    <svg id="psv" viewBox="0 0 320 150" style="width:100%;display:block" aria-label="Private route: your wallet to shielded pool to recipient">
+     <path id="pp1" d="M40 75C90 75 100 75 140 75" fill="none" stroke="var(--bd-x)" stroke-dasharray="3 5"/>
+     <path id="pp2" d="M180 75C220 40 240 30 280 30" fill="none" stroke="var(--bd-x)" stroke-dasharray="3 5"/>
+     <path id="pp3" d="M180 75L280 75" fill="none" stroke="var(--bd-x)" stroke-dasharray="3 5"/>
+     <path id="pp4" d="M180 75C220 110 240 120 280 120" fill="none" stroke="var(--bd-x)" stroke-dasharray="3 5"/>
+     <rect x="8" y="58" width="64" height="34" fill="var(--el)" stroke="var(--bd-s)"/><text x="40" y="79" text-anchor="middle" fill="var(--tx)" font-size="11" font-family="Geist Mono,monospace">You</text>
+     <rect x="128" y="50" width="64" height="50" fill="var(--el)" stroke="#ffc72c"/><text x="160" y="72" text-anchor="middle" fill="var(--yx)" font-size="11" font-family="Geist Mono,monospace">Shielded</text><text x="160" y="87" text-anchor="middle" fill="var(--yx)" font-size="11" font-family="Geist Mono,monospace">pool</text>
+     <rect x="248" y="58" width="64" height="34" fill="var(--el)" stroke="var(--bd-s)"/><text x="280" y="79" text-anchor="middle" fill="var(--tx)" font-size="11" font-family="Geist Mono,monospace">Recipient</text>
+     <g id="psp"></g>
+    </svg>
+    <ol class="pss" id="pst">
+     <li>Deposit to the shielded pool</li><li>Mix with other deposits</li><li>Split into parts</li><li>Withdraw to the recipient</li>
+    </ol>
+    <div class="pvbox" id="psres" style="display:none"><span class="lbl">Done</span><b>Sent privately</b><p class="mono">tx 5Kd9…v3Qm · sender and recipient are not linked on-chain</p></div>
+   </div>
+  </aside>
+ </div>
+ <div class="sec"><div class="bul">Use it <b>for</b></div><div class="cards" style="margin-top:20px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+  <a href="#launch"><div class="lbl">Launch</div><b style="display:block;margin:8px 0">Fund a launch wallet</b><span class="muted" style="font-size:13px">Pair with a hidden creator wallet.</span></a>
+  <a href="#portfolio"><div class="lbl">Earn</div><b style="display:block;margin:8px 0">Claim fees privately</b><span class="muted" style="font-size:13px">Creator fees go to a fresh address.</span></a>
+  <a href="#rewards"><div class="lbl">Rewards</div><b style="display:block;margin:8px 0">Private cashback</b><span class="muted" style="font-size:13px">Receive payouts without a trail.</span></a>
+ </div></div>
+ <div class="note">Mockup only · no funds move. A real version needs a shielded-pool protocol and a compliance review.</div>
+</div></main>
+<main class="view" id="v-settings"><div class="frame">
+ <div class="phead"><div><div class="bul">Settings</div><h1 class="h1">Preferences.</h1></div><div class="tabs seg"><button class="on">Preferences</button><button>About</button></div></div>
+ <div class="sec"><div class="setl">
+  <div class="sr"><div><b>Theme</b><p>Light, dark, or follow the system.</p></div><div class="tabs seg"><button>Light</button><button class="on">Dark</button><button>System</button></div></div>
+  <div class="sr"><div><b>Default slippage</b><p>Used as the default in the trade panel.</p></div><div class="tabs seg"><button>0.5%</button><button class="on">1%</button><button>2%</button><button>5%</button><button>Custom</button></div></div>
+  <div class="sr"><div><b>Priority fee</b><p>Extra fee so transactions land faster.</p></div><div class="tabs seg"><button class="on">None</button><button>Low</button><button>High</button></div></div>
+  <div class="sr"><div><b>Explorer</b><p>Transaction and address links open here.</p></div><div class="tabs seg"><button class="on">Solscan</button><button>Solana Explorer</button><button>SolanaFM</button></div></div>
+  <div class="sr"><div><b>Network</b><p>highbar currently runs on mainnet.</p></div><span class="mono" style="font-size:14px"><i class="live"></i>Solana Mainnet</span></div>
+  <div class="sr"><div><b>Hide balances</b><p>Mask SOL balance and holdings value across the app.</p></div><button type="button" class="sw" data-pv="hide" role="switch" aria-checked="false"><i></i></button></div>
+  <div class="sr"><div><b>Mask wallet address</b><p>Show a short alias instead of your address.</p></div><button type="button" class="sw" data-pv="mask" role="switch" aria-checked="false"><i></i></button></div>
+  <div class="sr"><div><b>Default claim address</b><p>Where creator fees and cashback are sent.</p></div><div class="tabs seg"><button class="on">Main wallet</button><button>New each time</button></div></div>
+  <div class="sr"><div><b>Reset</b><p>Restore every preference above.</p></div><button class="ghost" type="button">Reset to defaults</button></div>
+ </div></div>
+</div></main>
+
+
+</div></div>
+<script>
+{
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toks=[
+ ['Scooby doooooooo','SCOOBY','Standard','4.0k',0,85,'26d','GMGN…knJK'],
+ ['Kongo Mbeli','KONGO','Standard','4.0k',0,85,'26d','EAJC…zzzz'],
+ ['WHITE','WHITE','Max','11.7k',1,250,'25d','EAJC…zzzz'],
+ ['Blob Swap is live','BLOB','Higher','7.1k',0,150,'25d','EAJC…zzzz'],
+ ['BREAKING: FBI confirms North','FBI','Standard','4.0k',0,85,'24d','EAJC…zzzz'],
+ ['Arena Bull','ABULL','Higher','7.1k',0,150,'23d','9xQe…Lk2a'],
+ ['Gladius','GLAD','Max','11.7k',0,250,'22d','HbR4…m91P'],
+ ['Colosseum Cat','CCAT','Standard','4.0k',0,85,'21d','3vNp…aQ7s']];
+document.getElementById('rows').innerHTML=toks.map(t=>`<tr><td><div class="tk"><div class="av">${esc(t[1].slice(0,2))}</div><div><b>${esc(t[0])}</b><small>$${esc(t[1])}</small></div></div></td><td><span class="tier ${t[2]}">${t[2]}</span></td><td class="r num">$${t[3]}</td><td><div class="prog"><div class="bar"><i style="width:${Math.max(t[4],1)}%"></i></div>${t[4]}% · ${t[5]}</div></td><td class="r num"><i class="sol"></i>0.0</td><td class="r num dim">${t[6]}</td><td class="num dim">${esc(t[7])}</td><td class="r"><a class="rb" href="#token">Buy</a></td></tr>`).join('');
+const tk=toks.map((t,i)=>{const c=[-5.6,2.1,0,8.4,-1.2,3.3,-0.7,12.5][i];return `<span><b>$${esc(t[1])}</b><span class="${c>0?'pos':c<0?'neg':'dim'}">${c>0?'+':''}${c.toFixed(1)}%</span></span>`}).join('');
+document.getElementById('tick').innerHTML=tk+tk+tk+tk;
+const feats=[
+ ['Meteora DBC → DAMM v2','Tokens trade on a Dynamic Bonding Curve, then migrate to a DAMM v2 pool with locked liquidity.',''],
+ ['Three tiers','Standard, Higher and Max graduate at 85, 150 and 250 SOL. Vanity mints end in “high”.',''],
+ ['Anti-sniper fee','When enabled, the fee starts at 25% and decays to about 1% within 60 seconds.',''],
+ ['Dev Lock','Creators lock their tokens with Jupiter Lock. Locks and unlock dates are public.',''],
+ ['Private launch','Launch from a hidden creator wallet, pay privately and claim fees to stealth addresses.','New'],
+ ['$HIGHER buyback & burn','Part of platform fees buys and burns $HIGHER. Not an investment.','Soon']];
+document.getElementById('feats').innerHTML=feats.map((f,i)=>`<div class="fi"><div class="idx">{0${i+1}}</div><div><h3>${f[0]}</h3><p>${f[1]}</p></div>${f[2]?`<span class="chip">${f[2]}</span>`:'<span></span>'}</div>`).join('');
+const gds=['How to launch a Solana memecoin: a step-by-step guide','Meteora Dynamic Bonding Curve explained for traders and creators','How to check a Solana token before buying','Pump.fun alternatives: how to compare Solana launchpads'];
+document.getElementById('guides').innerHTML=gds.map((g,i)=>`<a href="#guides"><span class="idx">{0${i+1}}</span><h4>${g}</h4><span class="dim mono" style="font-size:12px">Read guide →</span></a>`).join('');
+const trades=[['26d ago','Sell','0.83997459','30,715,055.098','43hp…Zz7k'],['26d ago','Sell','0.953442328','32,795,331.014','5gwC…P7Jp'],['26d ago','Buy','1.000000000','36,272,628.112','5gwC…P7Jp'],['26d ago','Buy','0.850000000','31,208,447.903','43hp…Zz7k'],['26d ago','Buy','0.500000000','18,912,001.554','GMGN…knJK']];
+document.getElementById('trades').innerHTML=trades.map(t=>`<tr><td class="num dim">${t[0]}</td><td><span class="badge ${t[1].toLowerCase()}">${t[1]}</span></td><td class="r num">${t[2]}</td><td class="r num">${t[3]}</td><td class="num dim">${t[4]} ↗</td></tr>`).join('');
+
+/* hero protocol activity animation (demo events) */
+const RM=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fd=document.getElementById('feed');fd.innerHTML=Array.from({length:210},()=>'<i></i>').join('');
+const cells=[...fd.children];const cnt={l:0,b:0,m:0,t:0};
+const names=toks.map(t=>t[1]);const wal=['43hp…Zz7k','5gwC…P7Jp','GMGN…knJK','9xQe…Lk2a','HbR4…m91P','3vNp…aQ7s'];
+const plog=document.getElementById('palog');
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const addEv=()=>{const r=Math.random();const k=r<.12?'l':r<.18?'b':'t';const tk=pick(names);
+ cnt[k]++;const el=document.getElementById('c-'+k);el.textContent=cnt[k];el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');
+ const c=cells.shift();c.className=k+' new';fd.appendChild(c);cells.push(c);
+ const sell=k==='t'&&Math.random()<.4;const amt=(Math.random()*1.4+.05).toFixed(2);
+ const li=document.createElement('li');
+ li.innerHTML=`<span class="ev ${sell?'s':k}">${k==='l'?'Launch':k==='b'?'Burn':sell?'Sell':'Buy'}</span><b>$${esc(tk)} <span class="dim mono" style="font-size:11px">${esc(pick(wal))}</span></b><em>${k==='l'?'new':'<i class="sol"></i>'+amt}</em>`;
+ plog.prepend(li);while(plog.children.length>7)plog.removeChild(plog.lastElementChild)};
+cells.forEach(c=>{const r=Math.random();const k=r<.09?'l':r<.14?'b':r<.9?'t':'';if(k){c.className=k;cnt[k]++}});
+['l','b','m','t'].forEach(k=>{const el=document.getElementById('c-'+k);if(el)el.textContent=cnt[k]});
+for(let i=0;i<5;i++)addEv();
+if(!RM)setInterval(addEv,1700);
+const gs=document.getElementById('gauge');
+let gticks='';for(let i=0;i<=20;i++){const a=Math.PI*(1-i/20),r1=88,r2=i%5?93:97;gticks+=`<line x1="${(100+r1*Math.cos(a)).toFixed(1)}" y1="${(105-r1*Math.sin(a)).toFixed(1)}" x2="${(100+r2*Math.cos(a)).toFixed(1)}" y2="${(105-r2*Math.sin(a)).toFixed(1)}" stroke="var(--bd)"/>`}
+gs.innerHTML=`${gticks}<path d="M20 105 A80 80 0 0 1 180 105" fill="none" stroke="var(--d3)" stroke-width="10"/><g id="gneedle"><line x1="100" y1="105" x2="100" y2="38" stroke="#ffc72c" stroke-width="1.5"/><circle cx="100" cy="105" r="4" fill="#ffc72c"/></g>`;
+const gn=document.getElementById('gneedle');let gt=0;
+if(!RM){(function sw(){gt+=.03;const p=Math.abs(Math.sin(gt))*.05;gn.setAttribute('transform',`rotate(${-90+p*180} 100 105)`);requestAnimationFrame(sw)})()}else gn.setAttribute('transform','rotate(-90 100 105)');
+document.querySelectorAll('.pa-stats em').forEach(e=>{const to=+e.dataset.to,d=+e.dataset.d;if(RM||!to){e.textContent=to.toFixed(d);return}const t0=performance.now();(function f(n){const k=Math.min(1,Math.max(0,(n-t0)/1400)),v=to*(1-Math.pow(1-k,3));e.textContent=v.toFixed(d);if(k<1)requestAnimationFrame(f)})(t0)});
+
+
+/* ---- original arena illustrations (SVG, generated) ---- */
+const rnd=seed=>{let x=seed*9301+49297;return()=>{x=(x*9301+49297)%233280;return x/233280}};
+
+const IMG={1:['arena-bg-c.webp','50% 40%'],3:['welcome-hero.webp','50% 35%'],5:['arena-bg-c.webp','50% 60%'],7:['arena-bg-c.webp','70% 30%']};
+document.querySelectorAll('[data-art=arena]').forEach(el=>{const k=IMG[+(el.dataset.s||1)]||IMG[1];el.outerHTML=`<img class="sc" src="img/${k[0]}" alt="" style="object-position:${k[1]}" loading="eager">`});
+/* podium cards: laurel + pillars */
+
+/* token avatars: generated art */
+const avArt=t=>{let n=0;for(const ch of t)n=(n*31+ch.charCodeAt(0))%9973;const R=rnd(n+3),h=[44,36,28,50,18,58,24][n%7];const sh=Array.from({length:3},()=>{const k=Math.floor(R()*3),x=R()*64,y=R()*64,r=10+R()*22;return k===0?`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(0)}"`:k===1?`<rect x="${x.toFixed(0)}" y="${y.toFixed(0)}" width="${(r*1.6).toFixed(0)}" height="${(r*1.6).toFixed(0)}" transform="rotate(${(R()*60).toFixed(0)} ${x.toFixed(0)} ${y.toFixed(0)})"`:`<polygon points="${x.toFixed(0)},${(y-r).toFixed(0)} ${(x+r).toFixed(0)},${(y+r).toFixed(0)} ${(x-r).toFixed(0)},${(y+r).toFixed(0)}"`}).map((e,j)=>e+` fill="hsl(${h+j*12} ${70-j*10}% ${58-j*12}%)" opacity=".8"/>`).join('');
+ const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="hsl(${h} 55% 16%)"/>${sh}</svg>`;return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`};
+document.querySelectorAll('.av').forEach(a=>{if(a.closest('.th'))return;a.style.backgroundImage=avArt(a.textContent+a.closest('tr,a,.tk,.pv')?.textContent.length)});
+
+/* hero blueprint: bonding curve (launch simulation) */
+const cv=document.getElementById('curve');let curveRun=0;
+const drawCurve=()=>{const W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
+ const run=++curveRun,NS='http://www.w3.org/2000/svg';
+ const L=14,R=14,T=36,B=40,x0=L,x1=W-R,y0=H-B,y1=T,pw=x1-x0,ph=y0-y1,small=W<460;
+ const X=q=>x0+pw*q/250,f=q=>y0-ph*(.03+.97*Math.pow(q/250,2.1));
+ let d='';for(let k=0;k<=120;k++){const q=250*k/120;d+=(k?'L':'M')+X(q).toFixed(1)+' '+f(q).toFixed(1)}
+ const tiers=[[85,'Standard','var(--tx2)'],[150,'Higher','var(--yx)'],[250,'Max','var(--y)']];
+ const mono='font-family="Geist Mono,monospace"';
+ let zones='',zs=[0,85,150,250],zo=[.03,.06,.1];
+ for(let k=0;k<3;k++)zones+=`<rect x="${X(zs[k])}" y="${y1}" width="${X(zs[k+1])-X(zs[k])}" height="${ph}" fill="#ffc72c" opacity="${zo[k]}"/>`;
+ let grid='';for(let k=1;k<4;k++){const gy=y1+ph*k/4;grid+=`<line x1="${x0}" y1="${gy}" x2="${x1}" y2="${gy}" stroke="var(--bd-s)"/>`}
+ let mk='';tiers.forEach(([q,n,c],k)=>{const x=X(q),y=f(q),lab=small?`${q}`:`${n} · ${q}`;
+  mk+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${y0}" stroke="${c}" stroke-dasharray="3 4" opacity=".6"/><rect id="mk${k}" x="${x-5}" y="${y-5}" width="10" height="10" fill="var(--bg)" stroke="${c}" stroke-width="1.5"/><text id="ml${k}" x="${x-11}" y="${y-12}" text-anchor="end" fill="${c}" font-size="11" ${mono}>${lab}</text>`;
+  mk+=`<text x="${k==2?x1:x}" y="${y0+18}" text-anchor="${k==2?'end':'middle'}" fill="var(--tx3)" font-size="11" ${mono}>${q}${k==2?' SOL':''}</text>`});
+ cv.innerHTML=`<defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc72c" stop-opacity=".34"/><stop offset="1" stop-color="#ffc72c" stop-opacity="0"/></linearGradient>
+ <radialGradient id="hg"><stop offset="0" stop-color="#ffd65e" stop-opacity=".95"/><stop offset="1" stop-color="#ffc72c" stop-opacity="0"/></radialGradient>
+ <clipPath id="cclip"><rect id="cclipr" x="${x0}" y="0" width="0" height="${H}"/></clipPath></defs>
+ ${zones}${grid}
+ <path d="${d}" fill="none" stroke="var(--bd-x)" stroke-width="1" stroke-dasharray="2 5" opacity=".55"/>
+ <g clip-path="url(#cclip)"><path d="${d} L${x1} ${y0} L${x0} ${y0}Z" fill="url(#cg)"/><path d="${d}" fill="none" stroke="#ffc72c" stroke-width="2.2" stroke-linejoin="round"/></g>
+ ${mk}
+ <line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}" stroke="var(--tx2)"/><line x1="${x0}" y1="${y1}" x2="${x0}" y2="${y0}" stroke="var(--bd-x)"/>
+ <text x="${x0}" y="${y0+18}" fill="var(--tx3)" font-size="11" ${mono}>0</text>
+ <text x="${x0+8}" y="${y1-12}" fill="var(--tx3)" font-size="11" letter-spacing=".5" ${mono}>PRICE ↑</text>
+ <g id="rp"></g><g id="sp"></g>
+ <g id="dot"><circle r="18" fill="url(#hg)"/><circle r="5" fill="#fff6d6"/><circle r="2.6" fill="#ffc72c"/></g>
+ <g id="npill"><rect x="-32" y="-34" width="64" height="20" fill="var(--bg)" stroke="#ffc72c"/><text id="ntx" x="0" y="-20" text-anchor="middle" fill="var(--yx)" font-size="11" ${mono}>0 SOL</text></g>
+ <g id="gb" opacity="0"><rect x="${x0+10}" y="${y1+10}" width="${small?118:176}" height="26" fill="var(--bg)" stroke="#ffc72c"/><text x="${x0+22}" y="${y1+27}" fill="var(--yx)" font-size="11" letter-spacing=".5" ${mono}>${small?'GRADUATED':'GRADUATED · DAMM v2'}</text></g>`;
+ const $=id=>document.getElementById(id),dot=$('dot'),np=$('npill'),tx=$('ntx'),clip=$('cclipr'),gb=$('gb'),sp=$('sp'),rp=$('rp'),leg=[...document.querySelectorAll('.cvl>div')];
+ const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ let hit=[false,false,false],parts=[],rips=[],burst=false,prevT=0;
+ const mkHit=k=>{const m=$('mk'+k);if(m)m.setAttribute('fill','#ffc72c');if(leg[k])leg[k].classList.add('hit')};
+ const reset=()=>{hit=[false,false,false];burst=false;parts.forEach(a=>a.el.remove());rips.forEach(a=>a.el.remove());parts=[];rips=[];[0,1,2].forEach(k=>{const m=$('mk'+k);if(m)m.setAttribute('fill','var(--bg)');if(leg[k])leg[k].classList.remove('hit')});gb.setAttribute('opacity',0)};
+ const spawn=(x,y,vx,vy,life,r,g)=>{if(parts.length>140)return;const el=document.createElementNS(NS,'circle');el.setAttribute('r',r);el.setAttribute('fill',Math.random()<.3?'#fff6d6':'#ffc72c');sp.appendChild(el);parts.push({el,x,y,vx,vy,l:life,ml:life,g})};
+ const ripple=(x,y,max)=>{const el=document.createElementNS(NS,'circle');el.setAttribute('fill','none');el.setAttribute('stroke','#ffc72c');rp.appendChild(el);rips.push({el,x,y,t:0,d:.9,max})};
+ const place=(p)=>{const q=p*250,px=X(q),py=f(q);clip.setAttribute('width',Math.max(0,px-x0));dot.setAttribute('transform',`translate(${px},${py})`);const cx=Math.min(x1-32,Math.max(x0+32,px));np.setAttribute('transform',`translate(${cx},${py})`);tx.textContent=Math.round(q)+' SOL';const l2=$('ml2');if(l2)l2.setAttribute('opacity',p>.84?0:1);return[px,py]};
+ const pOf=t=>{const e=u=>1-Math.pow(1-u,2.2),io=u=>u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
+  if(t<2.6)return .34*e(t/2.6);if(t<3.1)return .34;if(t<5.4)return .34+.26*io((t-3.1)/2.3);if(t<5.9)return .6;if(t<9)return .6+.4*io((t-5.9)/3.1);return 1};
+ if(reduce){const[,]=place(.6);hit=[true,true,false];mkHit(0);mkHit(1);return}
+ const t0=performance.now();let last=t0;
+ const step=n=>{if(run!==curveRun||!dot.isConnected)return;const dt=Math.min(.05,(n-last)/1000);last=n;const tt=((n-t0)/1000)%12.6;
+  if(tt<prevT)reset();prevT=tt;
+  const p=pOf(tt),[px,py]=place(p);
+  [85,150,250].forEach((q,k)=>{if(!hit[k]&&p>=q/250-.002){hit[k]=true;mkHit(k);ripple(X(q),f(q),k==2?60:34);for(let a=0;a<(k==2?0:16);a++){const an=Math.random()*6.283,sv=40+Math.random()*90;spawn(X(q),f(q),Math.cos(an)*sv,Math.sin(an)*sv,.7+Math.random()*.5,1.6,0)}}});
+  if(p>0&&p<1&&tt<9){const mv=(tt>2.6&&tt<3.1)||(tt>5.4&&tt<5.9)?0:1;if(mv)for(let a=0;a<2;a++)spawn(px+(Math.random()-.5)*4,py+(Math.random()-.5)*4,-(20+Math.random()*50),(Math.random()-.3)*40,.5+Math.random()*.6,1.2+Math.random()*1.2,0)}
+  if(tt>=9&&!burst){burst=true;ripple(px,py,90);ripple(px,py,50);for(let a=0;a<46;a++){const an=Math.random()*6.283,sv=50+Math.random()*170;spawn(px,py,Math.cos(an)*sv,Math.sin(an)*sv-30,1+Math.random()*.9,1.4+Math.random()*1.8,90)}}
+  if(tt>=9){const bt=tt-9;gb.setAttribute('opacity',Math.min(1,bt*3)*(tt>11.6?Math.max(0,(12.6-tt)):1))}
+  parts=parts.filter(a=>{a.l-=dt;if(a.l<=0){a.el.remove();return false}a.vy+=a.g*dt;a.x+=a.vx*dt;a.y+=a.vy*dt;a.el.setAttribute('cx',a.x.toFixed(1));a.el.setAttribute('cy',a.y.toFixed(1));a.el.setAttribute('opacity',(a.l/a.ml).toFixed(2));return true});
+  rips=rips.filter(a=>{a.t+=dt;if(a.t>=a.d){a.el.remove();return false}const u=a.t/a.d;a.el.setAttribute('cx',a.x);a.el.setAttribute('cy',a.y);a.el.setAttribute('r',(a.max*u).toFixed(1));a.el.setAttribute('opacity',(1-u).toFixed(2));a.el.setAttribute('stroke-width',(2.2*(1-u)+.4).toFixed(1));return true});
+  requestAnimationFrame(step)};
+ requestAnimationFrame(step)};
+const ro1=new ResizeObserver(()=>requestAnimationFrame(drawCurve));ro1.observe(cv);
+
+/* price chart */
+const pc=document.getElementById('pc');
+const series=Array.from({length:90},(_,i)=>2735+Math.sin(i/7)*18+Math.sin(i/2.3)*7+(i>60?-(i-60)*1.4:0)+(i>20&&i<40?(i-20)*1.2:0));
+const drawPc=()=>{const W=pc.clientWidth,H=pc.clientHeight;if(!W)return;
+ const pr=W<520?14:92,pl=14,pt=18,pb=28,mn=Math.min(...series)-6,mx=Math.max(...series)+6;
+ const X=i=>pl+(W-pl-pr)*i/(series.length-1),Y=v=>pt+(H-pt-pb)*(1-(v-mn)/(mx-mn));
+ const d=series.map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join('');
+ let g='';for(let k=0;k<=5;k++){const v=mn+(mx-mn)*k/5,y=Y(v);g+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="var(--d3)"/>`+(W<520?'':`<text x="${W-pr+10}" y="${y+4}" fill="var(--tx3)" font-family="Geist Mono,monospace" font-size="11">0.0₇${Math.round(v)}</text>`)}
+ const lx=X(series.length-1),ly=Y(series[series.length-1]);
+ const days=['24','25','26','27'];g+=days.map((t,i)=>`<text x="${pl+(W-pl-pr)*(i+.5)/4}" y="${H-9}" text-anchor="middle" fill="var(--tx3)" font-family="Geist Mono,monospace" font-size="11">Nov ${t}</text>`).join('');
+ pc.innerHTML=`<defs><linearGradient id="gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc72c" stop-opacity=".22"/><stop offset="1" stop-color="#ffc72c" stop-opacity="0"/></linearGradient></defs>${g}
+ <path d="${d}L${lx} ${H-pb}L${pl} ${H-pb}Z" fill="url(#gf)"/><path d="${d}" fill="none" stroke="#ffc72c" stroke-width="1.5"/>
+ <line x1="${pl}" x2="${W-pr}" y1="${ly}" y2="${ly}" stroke="#ffc72c" stroke-dasharray="2 4" opacity=".6"/><rect x="${lx-3}" y="${ly-3}" width="6" height="6" fill="#ffc72c"/>`};
+const ro2=new ResizeObserver(()=>requestAnimationFrame(drawPc));ro2.observe(pc);
+if(!matchMedia('(prefers-reduced-motion: reduce)').matches)setInterval(()=>{if(!pc.clientWidth)return;const l=series[series.length-1];series.push(l+(Math.random()-.48)*9);series.shift();drawPc()},1100);
+
+
+/* fee flow sankey */
+const sk=document.getElementById('sk');
+const SKN=[
+ [['T','Traders',.6103,'n']],
+ [['D','DBC fees',.4145,'y'],['P','Tips to providers',.1254,'p'],['N','Network base and priority',.0704,'g']],
+ [['M','Meteora protocol',.0829,'y','20.0%'],['C','Creators',.2107,'y','50.8%'],['L','Platform',.1209,'y','29.2%'],['h','Helius Sender',.0411,'p'],['u','Lunar Lander',.0300,'p'],['k','Unknown tip account',.0298,'p'],['o','Others',.0246,'p'],['v','Validators',.0700,'g'],['b','Burned base fee',.0004,'g']],
+ [['B','Buyback and burn',.0484,'y','40%'],['O','Operations',.0605,'y','50%'],['R','Treasury',.0121,'y','10%']]
+];
+const SKL=[['T','D'],['T','P'],['T','N'],['D','M'],['D','C'],['D','L'],['P','h'],['P','u'],['P','k'],['P','o'],['N','v'],['N','b'],['L','B'],['L','O'],['L','R']];
+const SKC={n:'var(--tx2)',y:'#ffc72c',p:'#9b8cff',g:'#8a8a8a'};
+const calm=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const drawSk=()=>{const cw=sk.clientWidth;if(!cw)return;const W=Math.max(cw,820);
+ const small=W<700,H=small?560:540,nw=small?Math.round(W*.27):Math.min(236,Math.round(W*.22)),gap=(W-4*nw)/3,top=26,gp=7,minH=small?24:26;
+ const byId={},vals={};SKN.flat().forEach(n=>vals[n[0]]=n[2]);
+ // node values: use value; scale from tallest column
+ const avail=H-top-8;let sc=1e9;
+ SKN.forEach(c=>{const tot=c.reduce((a,n)=>a+n[2],0);const k=c.length;sc=Math.min(sc,(avail-gp*(k-1)-c.reduce((a,n)=>a+Math.max(0,minH-0),0)*0)/tot)});
+ sc*=.8;
+ SKN.forEach((c,ci)=>{const hs=c.map(n=>Math.max(minH,n[2]*sc));const tot=hs.reduce((a,b)=>a+b,0)+gp*(c.length-1);let y=top+(avail-tot)/2;
+  c.forEach((n,i)=>{byId[n[0]]={id:n[0],name:n[1],v:n[2],col:n[3],pct:n[4],x:ci*(nw+gap),y,h:hs[i],ci,out:0,inn:0};y+=hs[i]+gp})});
+ // link thickness: proportional; stack within nodes
+ const outs={},ins={};
+ SKL.forEach(([a,b])=>{(outs[a]=outs[a]||[]).push(b);(ins[b]=ins[b]||[]).push(a)});
+ const lv=(a,b)=>byId[b].v;
+ let rib='',parts='',nodes='',lab='';
+ const outC={},inC={};
+ Object.keys(byId).forEach(id=>{const n=byId[id];const to=(outs[id]||[]).reduce((a,b)=>a+lv(id,b)*sc,0);outC[id]=n.y+(n.h-to)/2;inC[id]=n.y+(n.h-lv(0,id)*sc)/2});
+ SKL.forEach(([a,b],i)=>{const A=byId[a],B=byId[b],t=Math.max(1.2,B.v*sc);
+  const y0=outC[a],y1=inC[b];outC[a]+=B.v*sc;inC[b]+=B.v*sc;
+  const x0=A.x+nw,x1=B.x,m=(x0+x1)/2,c0=y0+t/2,c1=y1+t/2;
+  const col=SKC[B.col];
+  rib+=`<g class="lk"><path d="M${x0} ${y0}C${m} ${y0} ${m} ${y1} ${x1} ${y1}L${x1} ${y1+t}C${m} ${y1+t} ${m} ${y0+t} ${x0} ${y0+t}Z" fill="${col}" opacity=".22"><title>${A.name} → ${B.name}: ${B.v.toFixed(4)} SOL</title></path>`;
+  const pid='sp'+i;
+  rib+=`<path id="${pid}" d="M${x0} ${c0}C${m} ${c0} ${m} ${c1} ${x1} ${c1}" fill="none" stroke="${col}" stroke-width="1" opacity=".55" ${calm?'':'stroke-dasharray="3 7"'}>${calm?'':`<animate attributeName="stroke-dashoffset" from="20" to="0" dur="${(1.4+ (i%4)*.25).toFixed(2)}s" repeatCount="indefinite"/>`}</path></g>`;
+  if(!calm){const k=Math.max(1,Math.min(5,Math.round(B.v*sc/9)));for(let j=0;j<k;j++){const dur=(4.2+(i%5)*.5).toFixed(2);parts+=`<circle r="${t>10?2.6:2}" fill="${col}"><animateMotion dur="${dur}s" begin="-${(j*dur/k+i*.37).toFixed(2)}s" repeatCount="indefinite"><mpath href="#${pid}"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.88;1" dur="${dur}s" begin="-${(j*dur/k+i*.37).toFixed(2)}s" repeatCount="indefinite"/></circle>`}}
+ });
+ const mc=Math.max(10,Math.floor((nw-74)/6.6));const heads=['Paid by','Fee type','Recipient','Platform use'];
+ heads.forEach((h,i)=>lab+=`<text x="${i*(nw+gap)}" y="14" fill="var(--tx3)" font-family="Geist Mono,monospace" font-size="11" letter-spacing=".5">${h.toUpperCase()}</text>`);
+ Object.values(byId).forEach(n=>{const col=SKC[n.col];const val=n.ci==3?'':n.v.toFixed(4);const nm=n.name+(n.pct&&!small?'  '+n.pct:'');
+  nodes+=`<g class="nd"><rect x="${n.x}" y="${n.y}" width="${nw}" height="${n.h}" fill="var(--el)" stroke="var(--bd-s)"/><rect x="${n.x}" y="${n.y}" width="3" height="${n.h}" fill="${col}"/>
+  <text x="${n.x+11}" y="${n.y+n.h/2+4}" fill="var(--tx)" font-size="${small?11:13}" font-family="Geist,sans-serif">${nm.length>mc?nm.slice(0,mc-1)+'…':nm}</text>
+  ${val?`<text x="${n.x+nw-9}" y="${n.y+n.h/2+4}" text-anchor="end" fill="var(--tx2)" font-size="${small?10:12}" font-family="Geist Mono,monospace">${small?val.slice(0,6):val}</text>`:n.pct&&small?`<text x="${n.x+nw-9}" y="${n.y+n.h/2+4}" text-anchor="end" fill="var(--tx2)" font-size="10" font-family="Geist Mono,monospace">${n.pct}</text>`:''}</g>`});
+ sk.innerHTML=`<svg viewBox="0 0 ${W} ${H}" height="${H}" ${cw<820?`width="${W}" style="width:${W}px;max-width:none"`:""} role="img" aria-label="Fee flow from traders to recipients">${lab}${rib}${nodes}${parts}</svg>`;
+};
+new ResizeObserver(()=>requestAnimationFrame(drawSk)).observe(sk);
+
+/* interactions */
+const one=(id,cb)=>{const el=document.getElementById(id);el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...el.children].forEach(x=>x.classList.toggle('on',x===b));cb&&cb(b)})};
+const amt=document.getElementById('amt'),go=document.getElementById('go');let side='b';
+const calc=()=>{const a=parseFloat(amt.value)||0;document.getElementById('est').textContent=(a*36272628).toLocaleString('en-US',{maximumFractionDigits:0})+' $SCOOBY';document.getElementById('fee').innerHTML='<i class="sol"></i>'+(a*.01).toFixed(6)};
+amt.addEventListener('input',calc);
+document.getElementById('rows').addEventListener('click',()=>{location.hash='token'});one('ftabs');one('tf');one('tt');
+one('qk',b=>{amt.value=b.textContent==='Max'?'2.4':b.textContent;calc()});
+one('bs',b=>{side=b.classList.contains('b')?'b':'s';go.textContent=(side==='b'?'Buy':'Sell')+' $SCOOBY';go.classList.toggle('sell',side==='s')});
+const views=[...document.querySelectorAll('.view')].map(v=>v.id.slice(2));
+const route=()=>{const h=location.hash.slice(1);const v=views.includes(h)?h:'home';document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));document.querySelectorAll('#navl a').forEach(a=>a.classList.toggle('on',a.dataset.v===(v==='token'?'home':v)));document.getElementById('tbt').textContent=TITLES[v]||'Dashboard';window.scrollTo(0,0);drawCurve();drawPc()};
+/* ---- extra pages ---- */
+const lb=[['WHITE','GLIDEN','Max','11.7k',31],['Maxxmas','MAXXMAS','Higher','7.1k',21],['SpaceX staff wearing banana','SSWB','Higher','7.1k',20],['THERE IS AN IMAEG OF THEIR COIN','TIAIOTC','Higher','7.1k',20],['When Trump loses the election','WTLTE','Higher','7.1k',20],['Compute Campus','CAMPUS','Higher','7.1k',20],['Blob Swap is live','BLOB','Higher','7.1k',20],['Scooby doooooooo','SCOOBY','Standard','4.0k',11],['THE BIGGEST EVER MOVEMENT','TBEM','Standard','4.0k',10],['Kongo Mbeli','KONGO','Standard','4.0k',10],['BREAKING: FBI confirms North','BFCN','Standard','4.0k',11],['Big News','BIG','Standard','4.0k',10]];
+const R=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+document.getElementById('pod').innerHTML=lb.slice(0,3).map((t,i)=>`<a href="#token"><div style="display:flex;justify-content:space-between;align-items:start"><span class="rk">${R[i]}</span><span class="tier ${t[2]}">${t[2]}</span></div><div class="tk"><div class="av">${esc(t[1].slice(0,2))}</div><div><b>${esc(t[0])}</b><small>$${esc(t[1])} · HB ${t[4]}</small></div></div><div style="display:flex;justify-content:space-between"><div><div class="lbl">Volume</div><div class="v"><i class="sol"></i>0.000</div></div><div style="text-align:right"><div class="lbl">Mcap</div><div class="v">$${t[3]}</div></div></div></a>`).join('');
+document.getElementById('lbrows').innerHTML=lb.slice(3).map((t,i)=>`<tr><td class="rom">${R[i+3]}</td><td><div class="tk"><div class="av">${esc(t[1].slice(0,2))}</div><div><b>${esc(t[0])}</b><small>$${esc(t[1])} · HB ${t[4]}</small></div></div></td><td><span class="tier ${t[2]}">${t[2]}</span></td><td class="r num"><i class="sol"></i>0.000</td><td class="r num">$${t[3]}</td><td><div class="prog"><div class="bar"><i style="width:1%"></i></div>0%</div></td></tr>`).join('');
+const lk=[['WHITE','GLIDEN','42,000,000','4.2%','Nov 02','Permanent',100],['Maxxmas','MAXXMAS','80,000,000','8.0%','Nov 06','Dec 14, 2026',62],['Compute Campus','CAMPUS','50,000,000','5.0%','Nov 07','Jan 07, 2027',41],['Blob Swap is live','BLOB','120,000,000','12.0%','Nov 08','Feb 08, 2027',27],['Scooby doooooooo','SCOOBY','100,000,000','10.0%','Nov 01','Permanent',100],['Big News','BIG','45,000,000','4.5%','Nov 10','Mar 10, 2027',15]];
+document.getElementById('lkrows').innerHTML=lk.map(t=>`<tr><td><div class="tk"><div class="av">${esc(t[1].slice(0,2))}</div><div><b>${esc(t[0])}</b><small>$${esc(t[1])}</small></div></div></td><td class="r num">${t[2]}</td><td class="r num">${t[3]}</td><td class="num dim">${t[4]}</td><td class="num ${t[5]==='Permanent'?'yl':''}">${t[5]}</td><td><div class="prog"><div class="bar"><i style="width:${t[6]}%"></i></div>${t[5]==='Permanent'?'locked':t[6]+'%'}</div></td><td class="num dim">EAJC…zzzz</td><td class="r"><a class="rb" href="#locks">View lock ↗</a></td></tr>`).join('');
+document.getElementById('miles').innerHTML=[['First trade','A token gets its first buy from another wallet.'],['25% bonded','A quarter of the way to graduation.'],['50% bonded','Halfway up the curve.'],['Graduated','Migrated to DAMM v2 with locked liquidity.']].map((m,i)=>`<div class="fi"><div class="idx">{0${i+1}}</div><div><h3>${m[0]}</h3><p>${m[1]}</p></div><span class="chip">Soon</span></div>`).join('');
+const gl=[['Nov 23','Burner wallet for Solana memecoin trading: how to set one up','Safety'],['Nov 23','Jupiter Lock explained: locks, cliffs and vesting for dev locks','Launching'],['Nov 23','What percentage of Solana memecoins graduate?','Trading'],['Nov 19','Priority fees, Jito tips and slippage: what you actually pay','Trading'],['Nov 19','How to verify a Solana token contract address before you buy','Safety'],['Nov 19','How much does it cost to launch a memecoin on Solana?','Launching'],['Nov 18','Dev buy explained: what a creator\'s first buy means','Launching'],['Nov 18','Mint authority and freeze authority on Solana','Safety'],['Nov 16','Highbar vs Bonk.fun: fees, graduation and creator rewards','Compare'],['Nov 12','Highbar vs Pump.fun: fees, graduation and anti-sniper compared','Compare'],['Nov 10','Meteora DBC explained for traders and creators','Trading'],['Nov 10','How to launch a Solana memecoin: a step-by-step guide','Launching'],['Nov 10','Anti-sniper fees on Solana launches: how a decaying fee works','Launching'],['Nov 10','How to check a Solana token before buying','Safety']];
+let gcat='All';const gq=document.getElementById('gq');
+const gpos=['10% 30%','90% 40%','50% 20%','75% 60%','30% 50%','60% 30%'];
+const gimg=i=>i%3===1?'welcome-hero.webp':'arena-bg-c.webp';
+const drawG=()=>{const q=gq.value.toLowerCase();const rows=gl.filter(g=>(gcat==='All'||g[2]===gcat)&&g[1].toLowerCase().includes(q));document.getElementById('glist').innerHTML=rows.length?rows.map((g,i)=>`<a class="gc" href="#guides"><div class="gt"><img src="img/${gimg(i)}" alt="" loading="lazy" style="object-position:${gpos[i%gpos.length]}"><span class="tier">${esc(g[2])}</span></div><div class="gb"><span class="mono dim" style="font-size:12px">${esc(g[0])}</span><h4>${esc(g[1])}</h4><span class="mono dim" style="font-size:12px">Read guide →</span></div></a>`).join(''):'<p class="dim" style="padding:28px 0;grid-column:1/-1">No guides match that search.</p>'};
+gq.addEventListener('input',drawG);drawG();
+document.querySelectorAll('.seg').forEach(el=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...el.children].forEach(x=>x.classList.toggle('on',x===b));if(el.id==='gcat'){gcat=b.textContent;drawG()}}));
+document.querySelectorAll('.golink').forEach(el=>el.addEventListener('click',()=>{location.hash='token'}));
+const rt=document.getElementById('rtabs'),rps=[...document.querySelectorAll('#v-rewards .rp')];
+rt.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...rt.children].forEach(x=>x.classList.toggle('on',x===b));rps.forEach((p,i)=>p.classList.toggle('on',i==b.dataset.p))});
+/* launch form */
+const T=[['Standard',85,'0.4%, 0.4%, 0.2%','~420.75 SOL'],['Higher',150,'0.5%, 0.3%, 0.2%','~742.5 SOL'],['Max',250,'0.6%, 0.2%, 0.2%','~1,250 SOL']];let ti=0;
+const ln=document.getElementById('ln'),lt=document.getElementById('lt'),ld=document.getElementById('ld'),as=document.getElementById('as');
+const by=s=>new TextEncoder().encode(s).length;
+const upd=()=>{lt.value=lt.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+ document.getElementById('nb').textContent=by(ln.value)+' of 32 bytes';document.getElementById('tb').textContent=by(lt.value)+' of 10 bytes';
+ document.getElementById('pn').textContent=ln.value||'Token name';document.getElementById('pt').textContent='$'+(lt.value||'TICKER');
+ document.getElementById('pa').textContent=(lt.value||'??').slice(0,2);document.getElementById('pd').textContent=ld.value||'Description shows here.';
+ const t=T[ti];document.getElementById('pp').textContent='0 of '+t[1]+' SOL';const pt=document.getElementById('ptier');pt.textContent=t[0];pt.className='tier '+t[0];
+ document.getElementById('fees').innerHTML=`<div><span>Curve fee</span><b>1%</b></div><div><span>Creator, platform and Meteora</span><b>${t[2]}</b></div><div><span>After migration (1% pool fee)</span><b>0.6%, 0.2%, 0.2%</b></div><div><span>Migration fee (creator share)</span><b>1% (0%)</b></div><div><span>Anti-sniper</span><b>${as.getAttribute('aria-checked')==='true'?'25% → 1% in 60s':'Off'}</b></div><div><span>Migrates at</span><b>${t[1]} SOL (${t[3]} mcap)</b></div>`};
+[ln,lt,ld].forEach(x=>x.addEventListener('input',upd));
+document.getElementById('tsel').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ti=+b.dataset.i;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));upd()});
+as.addEventListener('click',()=>{const on=as.getAttribute('aria-checked')!=='true';as.setAttribute('aria-checked',on);document.getElementById('asd').textContent=on?'On: first-minute buys pay up to 25%, decaying to about 1% within 60 seconds.':'Off: early bots pay the normal 1% fee. Turn on to tax first-minute buys up to 25%.';upd()});
+document.getElementById('lform').addEventListener('submit',e=>e.preventDefault());
+upd();
+
+
+/* table helper: copy header classes + labels to cells, tint avatars */
+const hues=[44,32,20,52,8,60,28];
+document.querySelectorAll('table').forEach(tb=>{const hs=[...tb.tHead.rows[0].cells];[...tb.tBodies[0].rows].forEach(tr=>{[...tr.cells].forEach((c,i)=>{const h=hs[i];if(!h||c.colSpan>1)return;c.dataset.l=h.textContent;['h-md','h-sm'].forEach(k=>h.classList.contains(k)&&c.classList.add(k));if(c.querySelector('.tk'))c.classList.add('tkc');if(c.querySelector('.rb'))c.classList.add('act')})})});
+
+/* theme toggle */
+const root=document.documentElement;
+try{const sv=localStorage.getItem('hb-theme');if(sv)root.dataset.theme=sv}catch(e){}
+document.getElementById('theme').addEventListener('click',()=>{const n=root.dataset.theme==='light'?'dark':'light';root.dataset.theme=n;try{localStorage.setItem('hb-theme',n)}catch(e){}});
+/* docs: tabs + copy */
+document.querySelectorAll('#v-docs .dnav a').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();const t=document.getElementById(a.dataset.t);if(t)t.scrollIntoView({behavior:'smooth',block:'start'});document.querySelectorAll('#v-docs .dnav a').forEach(x=>x.classList.toggle('on',x===a))}));
+document.querySelectorAll('#v-docs .cp-btn').forEach(b=>b.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(b.parentNode.querySelector('code').textContent);b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1400)}catch(e){b.textContent='Select + copy'}}));
+
+/* shell: titles + mobile menu */
+const TITLES={home:'Dashboard',launch:'Launch a token',leaderboard:'Leaderboard',locks:'Dev token locks',portfolio:'Portfolio',rewards:'Rewards',private:'Private send','open-book':'Open Book',guides:'Guides',docs:'Documentation',settings:'Settings',token:'Token'};
+const sn=document.getElementById('sidenav'),scr=document.getElementById('scrim');
+const lockB=v=>{document.documentElement.style.overflow=v?'hidden':'';document.body.style.overflow=v?'hidden':''};const closeM=()=>{sn.classList.remove('open');scr.classList.remove('on');lockB(false)};
+document.getElementById('menu').addEventListener('click',()=>{sn.classList.add('open');scr.classList.add('on');lockB(true)});
+scr.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+scr.addEventListener('click',closeM);sn.addEventListener('click',e=>{if(e.target.closest('a'))closeM()});
+
+/* open book: tab scroll */
+document.querySelectorAll('#obt button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#obt button').forEach(x=>x.classList.toggle('on',x===b));const t=document.getElementById(b.dataset.t);if(t)t.scrollIntoView({behavior:'smooth',block:'start'})}));
+/* ---- tab content ---- */
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const avt=(s)=>`<div class="av">${esc(s.slice(0,2))}</div>`;
+const tkc=(n,s,x='')=>`<div class="tk">${avt(s)}<div><b>${esc(n)}</b><small>$${esc(s)}${x}</small></div></div>`;
+const solv=v=>`<i class="sol"></i>${v}`;
+const emptyRow=(n,m)=>`<tr><td colspan="${n}" class="dim empty-row" style="text-align:center;padding:36px">${m}</td></tr>`;
+const tabsOf=(el,fn)=>el&&el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...el.children].forEach(x=>x.classList.toggle('on',x===b));fn(b,[...el.children].indexOf(b))});
+const tbl=(h,rows)=>`<div class="tw"><table><thead><tr>${h.map(x=>`<th class="${x[1]||''}">${x[0]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+const bar=p=>`<div class="prog"><div class="bar"><i style="width:${p}%"></i></div>${p}%</div>`;
+
+/* token page tabs */
+(()=>{const tw=$('#v-token .tw.flat'),tt=$('#tt');if(!tw||!tt)return;
+ const px=document.createElement('div');px.id='tpx';tw.after(px);
+ const wal=['GMGN…knJK','5gwC…P7Jp','43hp…Zz7k','EAJC…zzzz','9xQe…Lk2a'];
+ const P=[
+  null,
+  ()=>tbl([['#','w1'],['Wallet'],['% supply','r w3'],['Tokens','r w4'],['Tag','w3 h-sm']],[['GMGN…knJK',10.0,'100,000,000','Creator · locked'],['5gwC…P7Jp',3.2,'32,795,331','Trader'],['43hp…Zz7k',2.1,'21,208,447','Trader'],['EAJC…zzzz',1.4,'14,002,119','Trader'],['9xQe…Lk2a',0.9,'9,011,654','Trader']].map((r,i)=>`<tr><td class="num dim">${i+1}</td><td class="num">${r[0]} ↗</td><td class="r num">${r[1].toFixed(1)}%</td><td class="r num">${r[2]}</td><td class="h-sm dim">${r[3]}</td></tr>`).join('')),
+  ()=>`<div class="pn"><div class="cards"><div><div class="lbl">Token score</div><div class="v mega" style="font-size:44px">82<span style="font-size:.4em;color:var(--tx3)">/100</span></div><div class="bar" style="margin-top:12px"><i style="width:82%"></i></div></div><div><div class="lbl">Top 10 holders</div><div class="v">38%</div><small class="dim">of circulating supply</small></div><div><div class="lbl">Snipers detected</div><div class="v">0</div><small class="dim">first 60 seconds</small></div><div><div class="lbl">Creator holds</div><div class="v">10.0%</div><small class="dim">locked</small></div></div>
+   <div class="kvl" style="margin-top:24px">${[['Mint authority revoked','Pass'],['Freeze authority revoked','Pass'],['Dev tokens locked (Jupiter Lock)','Pass'],['Anti-sniper fee enabled','Pass'],['Top 10 holders under 30%','Warn'],['Liquidity locked after migration','Pending']].map(c=>`<div><span>${c[0]}</span><b class="${c[1]=='Pass'?'pos':c[1]=='Warn'?'yl':'dim'}">${c[1]}</b></div>`).join('')}</div><p class="dim mono" style="font-size:12px;margin-top:16px">Sample score for the mockup.</p></div>`,
+  ()=>`<div class="pn"><div class="cards"><div><div class="lbl">Fees paid (all time)</div><div class="v">${solv('0.0214')}</div></div><div><div class="lbl">To creator (0.4%)</div><div class="v">${solv('0.0086')}</div></div><div><div class="lbl">To platform (0.4%)</div><div class="v">${solv('0.0086')}</div></div><div><div class="lbl">To Meteora (0.2%)</div><div class="v">${solv('0.0042')}</div></div></div>
+   <div class="kvl" style="margin-top:24px"><div><span>Trade fee on the curve</span><b>1.00%</b></div><div><span>Anti-sniper fee (first 60 s)</span><b>25% → 1%</b></div><div><span>Fee after migration</span><b>0.25% to LPs</b></div><div><span>Creator fees claimable</span><b class="yl">${solv('0.0086')}</b></div></div></div>`,
+  ()=>`<div class="pn"><div class="cards"><div><div class="lbl">Locked</div><div class="v">100,000,000</div><small class="dim">10.0% of supply</small></div><div><div class="lbl">Type</div><div class="v yl">Permanent</div></div><div><div class="lbl">Locked on</div><div class="v">Nov 01</div></div><div><div class="lbl">Provider</div><div class="v">Jupiter Lock</div></div></div>
+   <div class="kvl" style="margin-top:24px"><div><span>Lock account</span><b class="mono">LockQ…7xPa ↗</b></div><div><span>Beneficiary</span><b class="mono">GMGN…knJK</b></div><div><span>Unlock date</span><b>Never (permanent)</b></div><div><span>Status</span><b class="pos">Active</b></div></div></div>`,
+  ()=>`<div class="pn"><div class="cards"><div><div class="lbl">Fees reconciled</div><div class="v">${solv('0.0214')}</div></div><div><div class="lbl">Claims</div><div class="v">0</div></div><div><div class="lbl">Sniper share of tips</div><div class="v">0%</div></div><div><div class="lbl">Status</div><div class="v pos">Reconciled</div></div></div><p class="muted" style="margin:24px 0 16px">Every fee this token paid is checked against on-chain transfers in the Open Book.</p><a class="btn sm" href="#open-book"><b>View in Open Book</b><i>→</i></a></div>`,
+  ()=>`<div class="pn"><p class="muted" style="max-width:48em;margin:0 0 24px">Scooby doooooooo is a Standard tier token on a Meteora Dynamic Bonding Curve. It graduates to a DAMM v2 pool at 85 SOL.</p><div class="kvl"><div><span>Mint</span><b class="mono">ABuHj…2high ⧉</b></div><div><span>Tier</span><b>Standard · 85 SOL</b></div><div><span>Supply</span><b>1,000,000,000</b></div><div><span>Created</span><b>26 days ago</b></div><div><span>Creator</span><b class="mono">GMGN…knJK</b></div><div><span>Links</span><b class="dim">Website · X · Telegram</b></div></div></div>`
+ ];
+ tt.querySelectorAll('button').forEach((b,i)=>{if(b.textContent.startsWith('Holders'))b.textContent='Holders 5'});
+ tabsOf(tt,(b,i)=>{tw.style.display=i?'none':'';px.innerHTML=i?P[i]():''});
+})();
+
+/* leaderboard tabs */
+(()=>{const v=$('#v-leaderboard');if(!v)return;const tabs=v.querySelectorAll('.ttabs.seg')[0],pod=$('#pod').parentElement,wrap=v.querySelector('.tw');
+ const sortBtns=v.querySelectorAll('.ctrls .seg');let sortIdx=0;
+ const vol=lb.map((t,i)=>({t,i,vol:+(12-i*.8+(i*7%5)*.3).toFixed(3),mc:+(parseFloat(t[3])+(i%3)*.4).toFixed(1),pr:Math.max(1,(40-i*3)%38)}));
+ const tokTable=()=>{const k=['vol','mc','pr'][sortIdx];const rows=[...vol].sort((a,b)=>b[k]-a[k]);
+  wrap.innerHTML=`<table><thead><tr><th class="w1">Rank</th><th>Token</th><th class="w3">Tier</th><th class="r w3">Volume</th><th class="r w3">Mcap</th><th class="w5 h-sm">Progress</th></tr></thead><tbody class="golink">${rows.slice(3).map((r,i)=>`<tr><td class="rom">${R[i+3]}</td><td>${tkc(r.t[0],r.t[1],' · HB '+r.t[4])}</td><td><span class="tier ${r.t[2]}">${r.t[2]}</span></td><td class="r num">${solv(r.vol.toFixed(3))}</td><td class="r num">$${r.mc}k</td><td>${bar(r.pr)}</td></tr>`).join('')}</tbody></table>`;
+  wrap.querySelector('.golink').addEventListener('click',()=>{location.hash='token'});
+  $('#pod').innerHTML=rows.slice(0,3).map((r,i)=>`<a href="#token"><div style="display:flex;justify-content:space-between;align-items:start"><span class="rk">${R[i]}</span><span class="tier ${r.t[2]}">${r.t[2]}</span></div><div class="tk"><div class="av">${esc(r.t[1].slice(0,2))}</div><div><b>${esc(r.t[0])}</b><small>$${esc(r.t[1])} · HB ${r.t[4]}</small></div></div><div style="display:flex;justify-content:space-between"><div><div class="lbl">Volume</div><div class="v">${solv(r.vol.toFixed(3))}</div></div><div style="text-align:right"><div class="lbl">Mcap</div><div class="v">$${r.mc}k</div></div></div></a>`).join('')};
+ tokTable();
+ const alt={
+  1:[[['Rank','w1'],['Creator'],['Tokens','r w3'],['Total volume','r w4'],['Best tier','w3 h-sm']],[['EAJC…zzzz',9,41.2,'Max'],['GMGN…knJK',3,18.9,'Higher'],['9xQe…Lk2a',2,11.4,'Higher'],['HbR4…m91P',2,7.8,'Max'],['3vNp…aQ7s',1,4.1,'Standard'],['7Hb2…Qx91',1,2.2,'Standard']].map((r,i)=>`<tr><td class="rom">${R[i]}</td><td class="num">${r[0]}</td><td class="r num">${r[1]}</td><td class="r num">${solv(r[2])}</td><td class="h-sm"><span class="tier ${r[3]}">${r[3]}</span></td></tr>`).join('')],
+  2:[[['Rank','w1'],['Trader'],['Trades','r w3'],['Volume','r w4'],['Cashback','r w4 h-sm']],[['5gwC…P7Jp',212,38.4,0.019],['43hp…Zz7k',160,26.1,0.013],['EAJC…zzzz',98,19.7,0.010],['Fa3k…9QdL',77,12.5,0.006],['Tz8m…2KpW',41,6.0,0.003]].map((r,i)=>`<tr><td class="rom">${R[i]}</td><td class="num">${r[0]}</td><td class="r num">${r[1]}</td><td class="r num">${solv(r[2])}</td><td class="r num h-sm">${solv(r[3].toFixed(3))}</td></tr>`).join('')],
+  3:[[['Rank','w1'],['Token'],['Tier','w3'],['Progress','w5']],[[lb[0],92],[lb[1],81],[lb[2],74],[lb[6],63],[lb[7],55]].map((r,i)=>`<tr><td class="rom">${R[i]}</td><td>${tkc(r[0][0],r[0][1])}</td><td><span class="tier ${r[0][2]}">${r[0][2]}</span></td><td>${bar(r[1])}</td></tr>`).join('')+`<tr><td colspan="4" class="dim empty-row" style="text-align:center;padding:24px">0 tokens migrated so far · closest to graduation shown above</td></tr>`],
+  4:[[['Rank','w1'],['Token'],['Age','r w2'],['Mcap','r w3'],['Tier','w3 h-sm']],[[lb[7],'26d'],[lb[9],'26d'],[lb[6],'25d'],[lb[10],'24d'],[lb[8],'23d']].map((r,i)=>`<tr><td class="rom">${R[i]}</td><td>${tkc(r[0][0],r[0][1])}</td><td class="r num">${r[1]}</td><td class="r num">$${r[0][3]}</td><td class="h-sm"><span class="tier ${r[0][2]}">${r[0][2]}</span></td></tr>`).join('')]};
+ let cur=0;const show=i=>{cur=i;pod.style.display=i?'none':'';if(!i)tokTable();else wrap.innerHTML=tbl(alt[i][0],alt[i][1])};
+ tabsOf(tabs,(b,i)=>show(i));
+ tabsOf(sortBtns[0],(b,i)=>{sortIdx=i;if(!cur)tokTable()});
+ tabsOf(sortBtns[1],()=>{if(!cur){vol.forEach(x=>x.vol=+(x.vol*(.7+Math.random()*.6)).toFixed(3));tokTable()}});
+})();
+
+/* locks filter */
+(()=>{const h=$('#v-locks .head .seg');if(!h)return;const body=$('#lkrows');const full=body.innerHTML;const rows=[...body.children];
+ tabsOf(h,(b,i)=>{if(i===0){body.innerHTML=full;return}const want=i===1?r=>!/Permanent/.test(r.textContent):i===2?r=>/Permanent/.test(r.cells[4].textContent):()=>false;const m=rows.filter(want);body.innerHTML='';m.length?m.forEach(r=>body.appendChild(r.cloneNode(true))):body.innerHTML=emptyRow(8,'No unlocked locks yet')})})();
+
+/* portfolio */
+(()=>{const v=$('#v-portfolio');if(!v)return;const pg=v.querySelector('.pgrid'),tr=[...v.querySelectorAll(':scope>.frame>.sec')].pop(),tabs=v.querySelector('.phead .seg'),st=v.querySelector('.stats');
+ const vals=['1.681','2.184','2','0.0412','0.0031'],subs=['≈ $252','3 tokens','all tiers','claimable','accrued'];
+ v.querySelectorAll('.st').forEach((s,i)=>{s.querySelector('.v').innerHTML=(i==2?'':'<i class="sol"></i>')+vals[i];s.querySelector('small').textContent=subs[i]});
+ pg.innerHTML=`<section class="pnl"><div class="lbl" style="margin-bottom:14px">Holdings</div>${tbl([['Token'],['Amount','r w4 h-sm'],['Value','r w3']],[['WHITE','GLIDEN','18,200,000','1.204'],['Blob Swap is live','BLOB','9,400,000','0.611'],['Colosseum Cat','CCAT','4,100,000','0.369']].map(r=>`<tr><td>${tkc(r[0],r[1])}</td><td class="r num h-sm">${r[2]}</td><td class="r num">${solv(r[3])}</td></tr>`).join(''))}</section>
+ <section class="pnl"><div class="lbl" style="margin-bottom:14px">Created tokens</div>${tbl([['Token'],['Tier','w3 h-sm'],['Claimable','r w3']],[['Arena Bull','ABULL','Higher','0.0310'],['Gladius','GLAD','Max','0.0102']].map(r=>`<tr><td>${tkc(r[0],r[1])}</td><td class="h-sm"><span class="tier ${r[2]}">${r[2]}</span></td><td class="r num yl">${solv(r[3])}</td></tr>`).join(''))}</section>`;
+ const trs=[['2m ago','Buy','0.500','9,411,204','WHITE'],['14m ago','Sell','0.210','3,820,100','CCAT'],['1h ago','Buy','0.300','5,600,000','BLOB'],['3h ago','Buy','1.000','18,200,000','WHITE']];
+ tr.querySelector('tbody').innerHTML=trs.map(t=>`<tr><td class="num dim">${t[0]}</td><td><b>$${t[4]}</b></td><td><span class="badge ${t[1].toLowerCase()}">${t[1]}</span></td><td class="r num">${t[2]}</td><td class="r num">${t[3]}</td></tr>`).join('');
+ const cl=document.createElement('div');cl.className='sec';cl.style.display='none';cl.innerHTML=`<div class="bul">Claim <b>creator fees</b></div><h2 class="h2" style="font-size:30px;margin-bottom:24px">Your fees, <span>one click.</span></h2>${tbl([['Token'],['DBC fees','r w3'],['Migration','r w3 h-sm'],['Total','r w3'],['','r w3']],[['Arena Bull','ABULL','0.0310','0.0000'],['Gladius','GLAD','0.0102','0.0000']].map(r=>`<tr><td>${tkc(r[0],r[1])}</td><td class="r num">${solv(r[2])}</td><td class="r num h-sm">${solv(r[3])}</td><td class="r num yl">${solv(r[2])}</td><td class="r"><button class="btn sm y" type="button"><b>Claim</b></button></td></tr>`).join(''))}<div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;flex-wrap:wrap;gap:12px"><span class="mono dim" style="font-size:13px">Total claimable ${solv('0.0412')}</span><button class="btn y" type="button"><b>Claim all</b><i>→</i></button></div>`;
+ st.after(cl);
+ tabsOf(tabs,(b,i)=>{pg.style.display=tr.style.display=i?'none':'';cl.style.display=i?'':'none'});
+})();
+
+/* settings */
+(()=>{const v=$('#v-settings');if(!v)return;const tabs=v.querySelector('.phead .seg'),pref=v.querySelector('.sec');
+ const ab=document.createElement('div');ab.className='sec';ab.style.display='none';ab.innerHTML=`<div class="setl"><div class="sr"><div><b>Version</b><p>Design mockup build.</p></div><span class="mono">v0.1 mockup</span></div><div class="sr"><div><b>Built on</b><p>Dynamic Bonding Curve and DAMM v2.</p></div><span class="mono" style="display:flex;align-items:center;gap:8px">Meteora <svg class="mlogo" style="width:18px;height:18px"><use href="#mlogo"/></svg></span></div><div class="sr"><div><b>Open Book</b><p>Every fee, reconciled against chain.</p></div><a class="btn sm" href="#open-book"><b>Open</b><i>→</i></a></div><div class="sr"><div><b>Docs</b><p>How tiers, fees, locks and migration work.</p></div><a class="btn sm" href="#docs"><b>Read</b><i>→</i></a></div><div class="sr"><div><b>Terms and risk</b><p>Memecoins are volatile. Nothing here is financial advice.</p></div><span class="dim mono">Placeholder</span></div></div>`;
+ pref.after(ab);tabsOf(tabs,(b,i)=>{pref.style.display=i?'none':'';ab.style.display=i?'':'none'});
+ const th=pref.querySelector('.sr .seg'),root=document.documentElement;const sync=()=>[...th.children].forEach((x,i)=>x.classList.toggle('on',i===(root.dataset.theme==='light'?0:1)));sync();
+ new MutationObserver(sync).observe(root,{attributes:true,attributeFilter:['data-theme']});
+ tabsOf(th,(b,i)=>{const n=i==0?'light':i==1?'dark':(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');root.dataset.theme=n;try{localStorage.setItem('hb-theme',n)}catch(e){}});
+})();
+
+/* rewards panels */
+(()=>{const ps=$$('#v-rewards .rp');if(ps.length<5)return;
+ ps[1].insertAdjacentHTML('beforeend',`<div class="sec" style="border-top:1px solid var(--hair)"><div class="bul">How <b>referrals work</b></div><div class="fl">${[['Share your link','Every wallet has a personal highbar link.'],['They trade','Referred wallets pay the normal 1% fee.'],['You earn','A share of that fee is credited to you daily.']].map((m,i)=>`<div class="fi"><div class="idx">{0${i+1}}</div><div><h3>${m[0]}</h3><p>${m[1]}</p></div><span class="chip">Soon</span></div>`).join('')}</div><div class="cards" style="margin-top:24px"><div><div class="lbl">Referrals</div><div class="v">0</div></div><div><div class="lbl">Volume referred</div><div class="v">${solv('0.00')}</div></div><div><div class="lbl">Earned</div><div class="v">${solv('0.0000')}</div></div></div></div>`);
+ ps[3].insertAdjacentHTML('beforeend',`<div class="sec" style="border-top:1px solid var(--hair)"><div class="bul">Planned <b>perks</b></div><div class="fl">${[['Fee discount','Lower trading fees for $HIGHER holders.'],['Priority launch slots','Early access to featured launches.'],['Boosted cashback','Higher cashback rate by holding tier.'],['Governance signal','Vote on which features ship next.']].map((m,i)=>`<div class="fi"><div class="idx">{0${i+1}}</div><div><h3>${m[0]}</h3><p>${m[1]}</p></div><span class="chip">Soon</span></div>`).join('')}</div></div>`);
+ ps[4].insertAdjacentHTML('beforeend',`<div class="sec" style="border-top:1px solid var(--hair)"><div class="bul">Burn <b>history</b></div>${tbl([['Date','w3'],['SOL spent','r w3'],['$HIGHER burned','r w4'],['Transaction','w4 h-sm']],emptyRow(4,'No burns yet · starts when $HIGHER launches'))}</div>`);
+})();
+
+
+/* privacy toggles */
+(()=>{const L=[['Public','Your wallet is shown as the creator, like every launch today.'],['Partial','One layer of privacy is on. Turn on more to hide more.'],['Strong','Two layers on. Linking this token to you is much harder.'],['Maximum','Wallet, payment and claims are all private.']];
+ const upd=()=>{const n=document.querySelectorAll('#lform .sw[data-pv][aria-checked=true]').length;const b=document.getElementById('pvbox');if(!b)return;b.classList.toggle('on',n>0);document.getElementById('pvl').textContent=L[n][0];document.getElementById('pvd').textContent=L[n][1];document.getElementById('pvb').style.width=(n*33.4)+'%';
+  const pt=document.getElementById('ptier');if(pt){let c=document.getElementById('pvchip');if(n&&!c){c=document.createElement('span');c.id='pvchip';c.className='chip';c.textContent='Private';pt.after(c)}if(!n&&c)c.remove()}};
+ document.querySelectorAll('.sw[data-pv]').forEach(b=>b.addEventListener('click',()=>{b.setAttribute('aria-checked',b.getAttribute('aria-checked')!=='true');const k=b.dataset.pv;if(k==='hide')document.body.classList.toggle('pv-hide',b.getAttribute('aria-checked')==='true');if(k==='mask'){const h=document.querySelector('#v-portfolio .h1');if(h){h.firstChild.textContent=b.getAttribute('aria-checked')==='true'?'anon-4f2a ':'7Hb2Lq…Qx91 '}}upd()}))})();
+
+/* private send */
+(()=>{const f=document.getElementById('psf');if(!f)return;const a=document.getElementById('psa'),fx=x=>x.toFixed(4);
+ const sum=()=>{const v=parseFloat(a.value)||0,fee=v*.003;document.getElementById('ps1').innerHTML=solv(fx(v));document.getElementById('ps2').innerHTML=solv(fx(fee));document.getElementById('ps3').innerHTML=solv(fx(Math.max(0,v-fee-.00012)));
+  const d=[...document.getElementById('psd').children].findIndex(x=>x.classList.contains('on'));document.getElementById('ps4').textContent=['~1 min','~15 min','~1 hour','up to 6 hours'][d]};
+ a.addEventListener('input',sum);
+ tabsOf(document.getElementById('psq'),b=>{a.value=b.textContent;sum()});tabsOf(document.getElementById('psd'),sum);
+ document.getElementById('pss').addEventListener('click',e=>{const b=e.currentTarget;b.setAttribute('aria-checked',b.getAttribute('aria-checked')!=='true')});
+ sum();let run=0;
+ f.addEventListener('submit',e=>{e.preventDefault();if(run)return;run=1;const li=[...document.querySelectorAll('#pst li')],res=document.getElementById('psres'),g=document.getElementById('psp'),btn=document.getElementById('psgo');
+  res.style.display='none';li.forEach(x=>x.className='');btn.textContent='Sending…';g.innerHTML='';
+  const paths=['pp1','pp2','pp3','pp4'].map(i=>document.getElementById(i));
+  const dot=(pa,delay)=>{const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('r',3);c.setAttribute('fill','#ffc72c');g.appendChild(c);const L=pa.getTotalLength(),t0=performance.now()+delay;const st=n=>{const t=(n-t0)/1400;if(t<0){requestAnimationFrame(st);return}if(t>1){c.remove();return}const pt=pa.getPointAtLength(L*t);c.setAttribute('cx',pt.x);c.setAttribute('cy',pt.y);requestAnimationFrame(st)};requestAnimationFrame(st)};
+  const T=[0,1500,3000,4500];
+  li.forEach((x,i)=>setTimeout(()=>{if(i)li[i-1].className='done';x.className='on';if(i==0)for(let k=0;k<3;k++)dot(paths[0],k*250);if(i==2)paths.slice(1).forEach((p,k)=>dot(p,k*200));if(i==3)paths.slice(1).forEach((p,k)=>dot(p,k*200))},T[i]));
+  setTimeout(()=>{li.forEach(x=>x.className='done');res.style.display='';btn.textContent='Send privately';run=0},6200)})})();
+
+/* private launch mode */
+(()=>{const lm=document.getElementById('lmode');if(!lm)return;const fl=document.getElementById('pflow'),sws=[...document.querySelectorAll('#lform .sw[data-pv]')];
+ const setMode=m=>{[...lm.children].forEach((x,i)=>x.classList.toggle('on',i===m));fl.style.display=m?'':'none';sws.forEach(b=>{if(b.getAttribute('aria-checked')!==String(!!m))b.click()});document.getElementById('pcr').textContent=m?'Hidden':'7Hb2…Qx91';document.querySelector('#lform .go').textContent=m?'Launch privately':'Launch'};
+ lm.addEventListener('click',e=>{const b=e.target.closest('button');if(b)setMode(+b.dataset.m)});
+ const pg=document.getElementById('pbgo');if(pg)pg.addEventListener('click',()=>setTimeout(()=>setMode(1),50));
+ sws.forEach(b=>b.addEventListener('click',()=>{if(!b.dataset.pv||b.dataset.pv==='hide'||b.dataset.pv==='mask')return;const n=sws.filter(x=>x.getAttribute('aria-checked')==='true').length;document.getElementById('pcr').textContent=sws[0].getAttribute('aria-checked')==='true'?'Hidden':'7Hb2…Qx91'}));
+ document.getElementById('lform').addEventListener('submit',e=>{if(!fl||fl.style.display==='none')return;e.preventDefault();const li=[...document.querySelectorAll('#plrun li')],r=document.getElementById('plres'),run=document.getElementById('plrun');run.style.display='';r.style.display='none';li.forEach(x=>x.className='');
+  li.forEach((x,i)=>setTimeout(()=>{if(i)li[i-1].className='done';x.className='on'},i*1200));setTimeout(()=>{li.forEach(x=>x.className='done');r.style.display=''},4800)})})();
+addEventListener('hashchange',route);route();
+}
+</script>
+</body>
+</html>
