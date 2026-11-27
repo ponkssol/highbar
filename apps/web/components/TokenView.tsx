@@ -28,6 +28,7 @@ import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 import { pushHistory } from "@/lib/searchHistory";
 import { OpenBookTab } from "./openbook/OpenBookTab";
 import { NewBadge } from "./openbook/ObUi";
+import { Crosshairs } from "./ui/Jtx";
 
 export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
@@ -56,7 +57,7 @@ function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
           <TokenLogo src={t.image} name={t.ticker} size={48} radius={0} />
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
-              <h1 className="truncate text-xl font-semibold tracking-tight md:text-2xl">{t.name}</h1>
+              <h1 className="truncate text-2xl leading-none tracking-[-0.035em] md:text-[34px]">{t.name}</h1>
               <span className="num shrink-0 text-sm text-ink-3">${t.ticker}</span>
               <OfficialBadge official={t.official} size="md" />
             </div>
@@ -70,7 +71,7 @@ function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
           </div>
         </div>
         <div className="flex flex-col items-start gap-1 sm:items-end">
-          <div data-testid="token-price" className="flex items-baseline gap-1.5"><span title="Last trade price" className="num text-2xl font-semibold leading-none tracking-tight md:text-3xl"><SolAmt><Price v={t.priceSol} /></SolAmt></span></div>
+          <div data-testid="token-price" className="flex items-baseline gap-1.5"><span title="Last trade price" className="num text-2xl font-light leading-none tracking-[-0.03em] md:text-[34px]"><SolAmt><Price v={t.priceSol} /></SolAmt></span></div>
           <div className="flex items-center gap-2">
             {t.priceUsd != null && <span data-testid="token-price-usd" className="num text-xs text-ink-3"><Price v={t.priceUsd} prefix="$" /></span>}
             <DeltaPill v={t.change24h} />
@@ -106,14 +107,15 @@ function StatRow({ t, holders }: { t: TokenViewData; holders: number }) {
     ["Holders", holders.toLocaleString("en-US")],
     ["Age", t.createdAt ? fmtAge(t.createdAt, t.now) : NA],
     ["Creator", t.creator ? shortAddr(t.creator) : NA],
-    ["Bonding", <><span key="v">{t.isMigrated ? "Migrated" : `${(p * 100).toFixed(1)}%`}</span><span key="b" className="mt-1.5 block h-1 rounded-full bg-border"><span className="block h-1 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></span></>],
+    ["Bonding", <><span key="v">{t.isMigrated ? "Migrated" : `${(p * 100).toFixed(1)}%`}</span><span key="b" className="mt-1.5 block h-1 bg-border"><span className="block h-1 bg-gold" style={{ width: `${p * 100}%` }} /></span></>],
   ];
   return (
-    <dl data-testid="token-stats" className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-6">
-      {cells.map(([k, v]) => (
-        <div key={k} className="min-w-0 bg-surface px-3 py-2.5 md:px-4 md:py-3">
-          <dt className="text-xs text-ink-3">{k}</dt>
-          <dd className="num mt-0.5 truncate text-sm font-medium">{v}</dd>
+    <dl data-testid="token-stats" className="relative grid grid-cols-3 gap-px border border-border bg-border md:grid-cols-6">
+      <Crosshairs />
+      {cells.map(([k, v], i) => (
+        <div key={k} className="min-w-0 bg-surface px-3 py-2.5 md:px-4 md:py-3.5">
+          <dt className="hb-label truncate"><span className="mr-1">({String(i + 1).padStart(2, "0")})</span>{k}</dt>
+          <dd className="num mt-1.5 truncate text-[15px]">{v}</dd>
         </div>
       ))}
     </dl>
@@ -123,23 +125,24 @@ function StatRow({ t, holders }: { t: TokenViewData; holders: number }) {
 function BondingCard({ t }: { t: TokenViewData }) {
   const { target, p } = bondingOf(t);
   return (
-    <div data-testid="bonding-card" className="rounded-lg border border-border bg-surface p-4">
+    <div data-testid="bonding-card" className="border border-border bg-surface p-4">
       <div className="flex items-center justify-between text-sm">
-        <span className="flex items-center gap-1.5 font-medium">Bonding progress
+        <span className="hb-label flex items-center gap-1.5">Bonding curve
           <InfoTip label="About bonding">{t.isMigrated ? "Migrated to Meteora DAMM v2." : p >= 1 ? "Target reached: migrates to Meteora DAMM v2." : `Migrates to Meteora DAMM v2 at ${target} SOL.`}</InfoTip>
         </span>
         <span className="num text-ink-3">{t.isMigrated ? "100%, migrated" : <span className="inline-flex items-center gap-1">{t.raisedSol.toFixed(1)} of <SolAmt>{target}</SolAmt></span>}</span>
       </div>
-      <div className="mt-3 h-1.5 rounded-full bg-border"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></div>
+      <div className="mt-3 h-2 bg-border"><div className="h-2 bg-gold" style={{ width: `${p * 100}%` }} /></div>
+      <div className="num mt-1.5 text-right text-xs text-ink-2">{(p * 100).toFixed(1)}%</div>
     </div>
   );
 }
 
 function SideChip({ side }: { side: "buy" | "sell" }) {
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize text-on-ink ${side === "buy" ? "bg-buy" : "bg-sell"}`}>{side}</span>;
+  return <span className={`num px-1.5 py-0.5 text-[11px] uppercase tracking-[.05em] ${side === "buy" ? "bg-buy-soft text-buy" : "bg-sell-soft text-sell"}`}>{side}</span>;
 }
 function DevChip() {
-  return <span title="Creator buy in the launch transaction (Block 0)" className="ml-1.5 rounded-full border border-ink px-2 py-0.5 text-xs font-medium">Dev</span>;
+  return <span title="Creator buy in the launch transaction (Block 0)" className="num ml-1.5 border border-border-strong px-1.5 py-0.5 text-[11px] uppercase tracking-[.05em]">Dev</span>;
 }
 
 function holderRows(trades: TokenViewData["trades"]) {
@@ -173,12 +176,12 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
         </Stacked>
         <TableScroll className="hidden sm:block" label="Trades">
           <table className="w-full text-sm">
-            <thead><tr className="h-10 whitespace-nowrap text-xs text-ink-3">
+            <thead><tr className="h-10 whitespace-nowrap">
               <th className="pl-0 pr-4 text-left font-medium">Time</th><th className="px-4 text-left font-medium">Type</th><th className="px-4 text-right font-medium"><SolHead>SOL</SolHead></th>
               <th className="px-4 text-right font-medium">${t.ticker}</th><th className="px-4 text-left font-medium">Wallet</th><th className="px-4"><span className="sr-only">Transaction</span></th></tr></thead>
             <tbody>
               {t.trades.map((tr) => (
-                <tr key={tr.sig} className="h-11 border-t border-border hover:bg-muted">
+                <tr key={tr.sig} className="h-11 border-t border-border hover:bg-raised">
                   <td className="num whitespace-nowrap pl-0 pr-4 text-ink-3">{fmtAge(tr.ts, t.now)} ago</td>
                   <td className="whitespace-nowrap px-4"><SideChip side={tr.side} />{tr.devBuy && <DevChip />}</td>
                   <td className="num px-4 text-right">{tr.sol}</td>
@@ -194,7 +197,7 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
     );
     if (k === "holders") return (
       <div>
-        <div data-testid="holders-head" className="flex items-baseline justify-between pb-2 text-xs text-ink-3"><span className="flex items-center gap-1.5">Holders{partial && <InfoTip label="About this list">Top holders from recent trades.</InfoTip>}</span><span className="num">{t.holders.toLocaleString("en-US")} holder{t.holders === 1 ? "" : "s"}</span></div>
+        <div data-testid="holders-head" className="hb-label flex items-baseline justify-between pb-2"><span className="flex items-center gap-1.5">Holders{partial && <InfoTip label="About this list">Top holders from recent trades.</InfoTip>}</span><span className="num">{t.holders.toLocaleString("en-US")} holder{t.holders === 1 ? "" : "s"}</span></div>
         {holders.length === 0 ? <p className="px-4 py-6 text-sm text-ink-3">No holders yet.</p> : (
           <table className="w-full text-sm"><tbody>
             {holders.map((h, i) => (
@@ -251,14 +254,14 @@ export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered 
       {/* docked to the bottom nav as one surface: one row, one hairline, the creator's Dev Lock as an icon instead of a second row */}
       <div data-testid="trade-dock" className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex gap-2 border-t border-border bg-surface px-3 pb-1 pt-2 md:hidden">
         <DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} badge={false} compact />
-        <button type="button" onClick={() => setSheet("buy")} className="h-10 flex-1 rounded bg-buy text-sm font-semibold text-on-ink transition-opacity hover:opacity-90">Buy</button>
-        <button type="button" onClick={() => setSheet("sell")} className="h-10 flex-1 rounded bg-sell text-sm font-semibold text-on-ink transition-opacity hover:opacity-90">Sell</button>
+        <button type="button" onClick={() => setSheet("buy")} className="h-10 flex-1 bg-buy-fill text-sm font-medium text-white transition-opacity hover:opacity-90">Buy</button>
+        <button type="button" onClick={() => setSheet("sell")} className="h-10 flex-1 bg-sell-fill text-sm font-medium text-white transition-opacity hover:opacity-90">Sell</button>
       </div>
       {sheet && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="hb-scrim absolute inset-0" onClick={() => setSheet(null)} />
           <div className="absolute inset-x-0 bottom-0 hb-sheet max-h-[85vh] overflow-y-auto rounded-none border-t border-border bg-surface p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
+            <div className="mx-auto mb-3 h-1 w-10 bg-border-strong" />
             {panel(sheet, true)}
           </div>
         </div>

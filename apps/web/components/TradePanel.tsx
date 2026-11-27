@@ -105,20 +105,20 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
   const setMaxSell = () => sellMax != null && setAmount(String(floorTo(sellMax, 6)));
 
   return (
-    <div data-testid="trade-panel" className={`flex flex-col gap-4 ${bare ? "" : "rounded-lg border border-border bg-surface p-4"}`}>
+    <div data-testid="trade-panel" className={`flex flex-col gap-4 ${bare ? "" : "border border-border bg-panel p-4"}`}>
       <Segmented label="Trade side" tone="trade" value={side} onChange={pick} options={[{ id: "buy", label: "Buy" }, { id: "sell", label: "Sell" }]}
-        fill itemClassName="h-9 text-sm" />
+        fill itemClassName="!h-10 !text-[12px]" />
       {sniperActive && (
-        <div className="rounded-md border border-border bg-muted p-3 text-sm">
+        <div className="border border-border bg-muted p-3 text-sm">
           <div className="flex items-center justify-between font-medium"><span className="flex items-center gap-2"><ShieldCheck size={16} strokeWidth={1.5} />Current fee <span className="num">{(feeBps / 100).toFixed(2)}%</span></span><span className="num text-xs text-ink-3">{sniper.remaining}s</span></div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full border border-ink">
+          <div className="mt-2 h-2 overflow-hidden border border-border-strong">
             <div className="h-full bg-hatch transition-[width] duration-1000 ease-linear" style={{ width: `${(1 - sniper.elapsed / sniper.duration) * 100}%` }} />
           </div>
           <div className="num mt-1 flex justify-between text-[11px] text-ink-3"><span>{(sniper.startFeeBps / 100).toFixed(0)}%</span><span>{(sniper.endFeeBps / 100).toFixed(0)}%</span></div>
         </div>
       )}
       <div>
-        <label className={`flex h-12 items-center gap-2 rounded border bg-surface px-3 transition-colors focus-within:border-ink ${overSell || overSol ? "border-sell" : "border-border"}`}>
+        <label className={`flex h-12 items-center gap-2 border bg-bg px-3 transition-colors focus-within:border-ink ${overSell || overSol ? "border-sell" : "border-border"}`}>
           <input data-testid="trade-amount" aria-label={side === "buy" ? "Amount to spend in SOL" : `Amount of $${ticker} to sell`} aria-invalid={overSell || overSol || undefined}
             value={amount} placeholder="0.0" onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} inputMode="decimal" className="num w-full bg-transparent text-lg outline-none" />
           <span className="num whitespace-nowrap text-sm text-ink-3">{side === "buy" ? <SolHead>SOL</SolHead> : unit}</span>
@@ -136,15 +136,15 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
             onPick={(id) => { if (id === "max") setMaxSell(); else if (balance) setAmount(String(Math.floor((balance * Number(id)) / 100))); }}
             options={[...(publicKey && !!balance ? ["25", "50"].map((p) => ({ id: p, label: `${p}%` })) : []), { id: "max", label: "Max", disabled: !sellMax, testId: "trade-max" }]} />}
       <div className="flex items-center justify-between text-sm">
-        <span className="text-ink-3">Slippage</span>
+        <span className="hb-label">Slippage</span>
         <span role="group" aria-label="Slippage" className={PILL.track}>
           <button type="button" onClick={() => setSlipAuto(true)} aria-pressed={slipAuto} className={`${PILL.item} !h-7 !px-2.5 !text-xs ${slipAuto ? PILL.on : PILL.off}`}>Auto 1%</button>
-          <label className={`num flex h-7 w-16 items-center rounded-full px-2.5 text-xs transition-colors ${slipAuto ? "text-ink-3 hover:text-ink-2" : "bg-seg-on text-seg-on-ink"}`}>
+          <label className={`num flex h-7 w-16 items-center border-l border-seg-line px-2.5 text-xs transition-colors ${slipAuto ? "text-ink-3 hover:text-ink-2" : "bg-seg-on text-seg-on-ink"}`}>
             <input aria-label="Custom slippage in percent" value={slip} onFocus={() => setSlipAuto(false)} onChange={(e) => { setSlipAuto(false); setSlip(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0.")); }} className="num w-full bg-transparent outline-none" />%
           </label>
         </span>
       </div>
-      <dl className="space-y-1.5 rounded border border-border p-3 text-sm" data-testid="trade-quote">
+      <dl className="space-y-1.5 border border-border p-3 text-sm [&_dt]:font-mono [&_dt]:text-[11px] [&_dt]:uppercase [&_dt]:tracking-[.05em]" data-testid="trade-quote">
         <div className="flex justify-between"><dt className="text-ink-3">{overCap || overSell ? "Received at max" : "Est. received"}</dt><dd className="num inline-flex items-center gap-1">{amt ? <>{q ? "" : "≈ "}{side === "buy" ? `${fmtTok(Math.max(0, received))} $${ticker}` : <SolAmt>{Math.max(0, received).toFixed(6)}</SolAmt>}</> : NA}</dd></div>
         <div className="flex justify-between"><dt className="text-ink-3">Price impact</dt><dd data-testid="trade-impact" className={`num ${impact != null && impact > 5 ? "text-sell" : ""}`}>{!amt ? "0.00%" : impact == null ? NA : `${impact.toFixed(2)}%`}</dd></div>
         <div className="flex justify-between"><dt className="text-ink-3">Fee ({(feeBps / 100).toFixed(2)}%)</dt><dd className="num"><SolAmt>{feeSol.toFixed(6)}</SolAmt></dd></div>
@@ -160,7 +160,7 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
       {overSell && sellMax != null && <p role="alert" data-testid="trade-sell-limit" className="-mt-1 text-xs text-sell">{publicKey ? `You can sell up to ${fmtTok(sellMax)} $${ticker}.` : `Only ${fmtTok(sellMax)} $${ticker} have been bought on the curve, so that is the most anyone can sell.`}</p>}
       {noTokens && <p role="status" className="-mt-1 text-xs text-ink-3">This wallet holds no ${ticker}.</p>}
       <button type="button" disabled={!amt || busy || blocked} onClick={submit}
-        className={`h-12 w-full rounded text-sm font-semibold text-on-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${side === "buy" ? "bg-buy" : "bg-sell"}`}>
+        className={`h-12 w-full text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${side === "buy" ? "bg-buy-fill" : "bg-sell-fill"}`}>
         {busy ? "Preparing…" : side === "buy" ? `Buy $${ticker}` : `Sell $${ticker}`}
       </button>
       {msg && <div className="text-xs text-ink-3" role="status">{msg}</div>}

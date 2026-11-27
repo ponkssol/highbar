@@ -7,6 +7,7 @@ import type { IChartApi, ISeriesApi, MouseEventParams, UTCTimestamp } from "ligh
 import { apiBase } from "@/lib/api";
 import { DeltaPill } from "./StatsPanel";
 import { Segmented } from "./TabBar";
+import { Crosshairs } from "./ui/Jtx";
 
 export const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 type TF = (typeof TIMEFRAMES)[number];
@@ -66,7 +67,8 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
       if (disposed || !box.current) return;
       const opts = (t: ReturnType<typeof theme>) => ({
         layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: t.ink3, fontFamily: t.font, fontSize: 11 },
-        grid: { vertLines: { color: t.grid }, horzLines: { color: t.grid } },
+        // The faint grid is drawn in CSS behind the canvas (.hb-grid-bg), so the chart's own grid stays off.
+        grid: { vertLines: { visible: false }, horzLines: { visible: false } },
         rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, rightOffset: 4 },
         localization: CHART_LOCALIZATION, // month first crosshair dates, never the browser locale
@@ -80,7 +82,7 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
       const ch = createChart(box.current, { autoSize: true, ...opts(th) });
       const areaOpts = (t: ReturnType<typeof theme>) => ({
         lineColor: t.line, topColor: t.top, bottomColor: t.bottom, priceLineColor: withAlpha(t.line, 0.55),
-        crosshairMarkerBorderColor: t.line, crosshairMarkerBackgroundColor: t.dark ? "#15130F" : "#FFFDF8",
+        crosshairMarkerBorderColor: t.line, crosshairMarkerBackgroundColor: t.dark ? "#1c1c1c" : "#FFFDF8",
       });
       const a = ch.addAreaSeries({ ...areaOpts(th), lineWidth: 2, priceLineStyle: LineStyle.Dotted, crosshairMarkerRadius: 4, lastValueVisible: false, // no axis tag: it covered a tick label; the readout above shows the last close and the dotted line marks it
         priceFormat: { type: "custom", ...axisFormat(0) },
@@ -139,22 +141,24 @@ export function PriceChart({ mint, className = "" }: { mint: string; className?:
   const shown = hover ?? readout?.price ?? null;
   return (
     // isolate: the chart's canvases carry their own z-index, keep them in this card's stacking context so overlays and modals stay above.
-    <div data-testid="price-chart" className={`relative isolate flex flex-col rounded-lg border border-border bg-surface p-4 ${className}`}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <div data-testid="price-chart" className={`relative isolate flex flex-col border border-border bg-surface ${className}`}>
+      <Crosshairs />
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div data-testid="chart-readout" className="num flex min-w-0 items-baseline gap-2.5">
           {shown != null ? (<>
             <span title={hover != null ? "Candle close" : "Last candle close"} className="text-lg font-semibold leading-none tracking-tight text-ink md:text-xl"><SolAmt>{fmtP(shown)}</SolAmt></span>
             {hover == null && <span className="sr-only">last candle close</span>}
+            <span className="hb-label">Price &middot; SOL</span>
             {hover == null && readout?.change != null && (
               <span title={`Change over the visible ${tf} range`}><DeltaPill v={readout.change} /></span>
             )}
           </>) : <span className="text-[11px] text-ink-3">Price in SOL</span>}
         </div>
         <Segmented label="Timeframe" value={tf} onChange={setTf} options={TIMEFRAMES.map((t) => ({ id: t, label: t }))}
-          fade="surface" outerClassName="max-w-full" itemClassName="px-3" />
+          fade="surface" outerClassName="max-w-full" itemClassName="px-3 normal-case" />
       </div>
-      <div className="relative min-h-0 flex-1">
-        <div ref={box} className="absolute inset-0" />
+      <div className="hb-grid-bg relative min-h-0 flex-1">
+        <div ref={box} className="absolute inset-2 md:inset-3" />
         {state !== "ready" && (
           <div data-testid="chart-state" className="absolute inset-0 flex items-center justify-center bg-surface text-sm text-ink-3">
             {state === "loading" ? "Loading chart…" : state === "empty" ? "No trades yet" : "Chart unavailable. Retrying…"}
