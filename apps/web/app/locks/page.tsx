@@ -1,8 +1,6 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Lock } from "lucide-react";
-import { TopBlock } from "@/components/TopBar";
 import { Pagination } from "@/components/Pagination";
 import { fetchLockList, fmtLockDate, type LockView } from "@/lib/lockData";
 import { fmtPct } from "@/components/LockDonut";
@@ -24,11 +22,11 @@ export default function LocksPage() {
   }, [page]);
   const th = "px-4 py-3 text-xs font-medium text-ink-3";
   return (
-    <div className="flex flex-col gap-4">
-      <TopBlock title="Dev token locks" />
+    <div className="jtx">
+      <div className="phead"><div><div className="bul">Dev <b>token locks</b></div><h1 className="h1">Locked in public. <span>Unlocks on the record.</span></h1></div><div className="lbl">Permanent locks via Jupiter Lock</div></div>
       <div className="rounded-lg border border-border bg-surface shadow-card">
         <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
-          <h2 className="flex items-center gap-2 text-lg font-semibold"><Lock size={16} strokeWidth={1.5} />All locks</h2>
+          <h2 className="h2">All locks</h2>
           <span className="text-sm text-ink-3 max-md:hidden">Permanent locks via Jupiter Lock</span>
         </div>
         <ul className="flex flex-col gap-3 p-3 md:hidden" data-testid="lock-cards">
