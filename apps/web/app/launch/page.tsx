@@ -24,7 +24,7 @@ const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm 
 /** Label row (label, optional info icon with the static helper text, optional aside such as the byte counter), the control, then the inline
  *  validation error or live note. Static help lives in the InfoTip (id `${id}-help`, kept in the DOM for aria-describedby). */
 const Field = ({ label, children, aside, note, error, id, htmlFor, help }: { label: string; children: React.ReactNode; aside?: React.ReactNode; note?: string; error?: string; id?: string; htmlFor?: string; help?: React.ReactNode }) => (
-  <div className="min-w-0">
+  <div className="fld min-w-0">
     <div className="mb-1.5 flex min-h-[18px] items-center justify-between gap-2 text-[13px] text-ink-2">
       <span className="flex min-w-0 items-center gap-1.5">
         {htmlFor ? <label htmlFor={htmlFor} className="truncate">{label}</label> : <span className="truncate">{label}</span>}
@@ -40,7 +40,7 @@ const Field = ({ label, children, aside, note, error, id, htmlFor, help }: { lab
 /** Same rounding as the lock page (whole tokens, en-US grouping). */
 const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 const Counter = ({ used, max }: { used: number; max: number }) => (
-  <span aria-live="polite" className={`num text-xs ${used > max ? "text-sell" : "text-ink-3"}`}>{used} of {max} bytes</span>
+  <em aria-live="polite" className={used > max ? "neg" : ""}>{used} of {max} bytes</em>
 );
 
 export default function LaunchPage() {
@@ -144,8 +144,8 @@ export default function LaunchPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <TopBlock title="Launch a token" />
+    <div className="jtx">
+      <div className="phead"><div><div className="bul">Launch a <b>token</b></div><h1 className="h1">Set your bar, <span>then launch.</span></h1></div><div className="lbl">Block 0 dev buy</div></div>
       <div className="flex flex-col items-start gap-6 lg:flex-row">
         <Card className="w-full min-w-0 flex-1 space-y-5 p-4 sm:p-6">
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -178,20 +178,21 @@ export default function LaunchPage() {
           </div>
           <div>
             <span id="launch-tier-label" className="mb-1.5 block text-[13px] text-ink-2">Tier</span>
-            <div role="radiogroup" aria-labelledby="launch-tier-label" className="grid grid-cols-3 gap-1 rounded-[14px] border border-seg-line bg-seg p-1">
+            <div role="radiogroup" aria-labelledby="launch-tier-label" className="tsel">
               {(Object.keys(TIERS) as TierId[]).map((id) => {
                 const s = feeSplitPct(id); const sel = tier === id; const locked = id === "max" && maxLocked; const tipId = `launch-tier-${id}-help`;
                 return (
                   // The info icon is a sibling of the radio (not inside it), so tapping it never selects the tier. InfoTip also stops propagation.
                   <div key={id} className="relative min-w-0">
                     <button type="button" role="radio" aria-checked={sel} aria-disabled={locked} aria-describedby={tipId} title={locked ? maxNeed : undefined} onClick={() => !locked && setTier(id)}
-                      className={`flex h-full w-full flex-col items-start gap-2.5 rounded-[10px] px-2.5 pb-3 pt-2.5 text-left transition-colors duration-200 sm:px-3.5 sm:pb-3.5 sm:pt-3 ${sel ? "bg-seg-on text-seg-on-ink" : `text-ink-2 ${locked ? "" : "hover:bg-control-hover hover:text-ink"}`} ${locked ? "cursor-not-allowed opacity-60" : ""}`}>
-                      <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium leading-none sm:text-sm">
+                      className={sel ? "on" : undefined}>
+                      <span className="lbl flex min-w-0 items-center gap-1.5">
                         <TierDot tier={id} /><span className="truncate">{TIERS[id].label}</span>{locked && <Lock size={11} className="shrink-0 text-ink-3" aria-hidden />}
                       </span>
-                      <span className="num flex items-center gap-1.5 pr-5 text-lg font-semibold leading-none sm:text-xl">
-                        <SolanaMark />{thresholdSolFor(id, NETWORK)}<span className="sr-only"> SOL</span>
-                      </span>
+                      <b className="num flex items-center gap-1.5">
+                        <SolanaMark />{thresholdSolFor(id, NETWORK)}<small>SOL</small>
+                      </b>
+                      <dl><dt>Mcap at migration</dt><dd>~{migrationMcapSol(id, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })} SOL</dd><dt>Creator fee</dt><dd>{s.creator}%</dd><dt>After migration</dt><dd>{postMigrationPct(id).creator}%</dd></dl>
                     </button>
                     {locked && maxBlocked && <span data-testid="soon-chip" className="num pointer-events-none absolute -top-2 right-2 inline-flex h-5 items-center rounded-full border border-gold-line bg-gold-soft px-2 text-[10px] font-medium uppercase tracking-[0.16em] text-gold-text">Soon</span>}
                     <InfoTip id={tipId} label={`${TIERS[id].label} tier details`} className="absolute bottom-2.5 right-2 sm:bottom-3.5 sm:right-3">
@@ -245,7 +246,7 @@ export default function LaunchPage() {
                 {lowBalance && <div className="text-sell">Not enough SOL: about {needSol.toFixed(3)} SOL needed including launch rent and fees.</div>}
               </div>
             )}
-          </div>          <dl className="space-y-1.5 rounded border border-border bg-muted p-3 text-sm">
+          </div>          <dl className="kv">
             <div className="flex justify-between"><dt className="text-ink-3">Curve fee</dt><dd className="num">{f.total}%</dd></div>
             <div className="flex justify-between"><dt className="text-ink-3">Creator, platform and Meteora</dt><dd className="num">{f.creator}%, {f.platform}%, {f.meteora}%</dd></div>
             <div className="flex justify-between"><dt className="text-ink-3">After migration (1% pool fee)</dt><dd className="num">{postMigrationPct(tier).creator}%, {postMigrationPct(tier).platform}%, {postMigrationPct(tier).protocol}%</dd></div>
