@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { DevLockedBadge } from "./DevLockedBadge";
 import { buildClaimLockTx, buildLockTx, toUi, TOKEN_DECIMALS, type LocksResp } from "@/lib/lock";
 import { NETWORK } from "@/lib/settings";
+import { hrefInCurrentUi } from "@/lib/uiVersion";
 import { shortAddr } from "@/lib/format";
 import { buttonClass, inputClass } from "./ui";
 import { PillGroup } from "./TabBar";
@@ -136,7 +137,7 @@ export function DevLock({ mint, ticker, creator, data, reload, mode = "full", on
       setMsg(`Locked. Tx ${sig.slice(0, 8)}`); setOpen(mode === "form"); setAgree(false); reload();
       // Close the modal and open the new lock's detail page (/locks/[escrow]). The page keeps retrying if the escrow is not readable yet.
       onDone?.();
-      router.push(`/locks/${r.escrow}`);
+      router.push(hrefInCurrentUi(`/locks/${r.escrow}`));
     } catch (e) { setMsg(`Lock failed: ${(e as Error).message}`); } finally { setBusy(false); }
   };
   const claim = async () => {
