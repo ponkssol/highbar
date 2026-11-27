@@ -1,5 +1,17 @@
 # Highbar UI Redesign: Full Specification (handoff for implementing agents)
 
+## 0. FIDELITY RULE (read first, non-negotiable)
+
+The result MUST look identical to the mockup `index.html`. The mockup is the source of truth, not this text and not your own taste.
+
+1. Open the mockup in a browser and keep it beside the app while you work. Compare every page at 1440px, 900px and 390px, in dark AND light mode.
+2. Copy CSS values (colors, sizes, spacing, radius, fonts, z-index) from the mockup. Never "improve", re-space, recolor, rename or restyle anything.
+3. Do not swap components, icons, copy text, images or animations for something you consider better. If something looks wrong or impossible to build, STOP and ask the owner instead of deviating.
+4. Do not add, remove or reorder sections, tabs, columns or sidebar items.
+5. Port page by page. After each page, take screenshots of the app and of the mockup at the same width and compare them. Fix every visible difference before moving on.
+6. Demo data may be replaced with real data, but layout, truncation, empty states and animations must stay the same.
+7. A page is done only when the owner says it matches the mockup.
+
 Status: design mockup only. No backend, no real data, no deploy.
 Reference implementation: `index.html` in this folder (single file, plain HTML/CSS/JS, no build step) plus `img/`.
 Live preview (owner-private artifact): https://claude.ai/artifact/Tt8aFSExCh8VFbouoDipBu
