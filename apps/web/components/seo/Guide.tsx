@@ -40,7 +40,7 @@ export function Guide({ path, eyebrow, toc, faqs, lede, cta, children }: {
     return extra ? { path: p, ...extra } : null;
   }).filter((x): x is { path: string; h1: string; description: string } => !!x && isListedPath(x.path));
   return (
-    <div className="flex flex-col gap-4 pb-8">
+    <div className="jtx">
       <TopBar />
       <nav aria-label="Breadcrumb" className="text-[13px] text-ink-3">
         <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">

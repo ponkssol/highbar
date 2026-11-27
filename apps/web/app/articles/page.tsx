@@ -30,7 +30,7 @@ export default function ArticlesIndex() {
     breadcrumbJsonLd([["Home", "/"], ["Guides", "/articles"]]),
   ];
   return (
-    <div className="flex flex-col gap-4 pb-8">
+    <div className="jtx">
       <TopBar />
       <nav aria-label="Breadcrumb" className="text-[13px] text-ink-3">
         <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">

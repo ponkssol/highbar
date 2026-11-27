@@ -29,7 +29,7 @@ export function DocsToc({ items, title = "On this page" }: { items: TocItem[]; t
       <li key={i.id}>
         <a href={`#${i.id}`} aria-current={on ? "true" : undefined}
           onClick={() => { setActive(i.id); if (mobile && details.current) details.current.open = false; }}
-          className={`block border-l py-1.5 pl-3 text-[13px] leading-snug transition-colors ${on ? "border-gold-line text-ink" : "border-transparent text-ink-3 hover:text-ink"}`}>
+          className={on ? "on" : ""}>
           {i.label}
         </a>
       </li>

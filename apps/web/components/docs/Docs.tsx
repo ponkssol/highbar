@@ -2,7 +2,6 @@ import Link from "next/link";
 import { isListedPath } from "@/lib/articles";
 import { TableScroll } from "../ui/Scroll";
 import type { ReactNode } from "react";
-import { TopBar } from "@/components/TopBar";
 import { DocsToc, type TocItem } from "./DocsToc";
 
 /** Shared pieces of the /docs pages (arena theme): Cinzel only on headings (global h1 to h3), body copy in the sans face,
@@ -10,29 +9,25 @@ import { DocsToc, type TocItem } from "./DocsToc";
 
 export function DocsHero({ eyebrow, title, children }: { eyebrow: string; title: string; children?: ReactNode }) {
   return (
-    <section data-testid="docs-hero" className="hb-hero rounded-lg border border-border">
-      <div aria-hidden className="hb-stone" />
-      <div aria-hidden className="hb-arcade" />
-      <div aria-hidden className="hb-hero-veil" />
-      <div aria-hidden className="hb-frame" />
-      <div className="relative min-w-0 px-5 py-6 md:px-8 md:py-8">
-        <div className="hb-eyebrow">{eyebrow}</div>
-        <h1 className="mt-2.5 text-xl font-semibold leading-tight md:text-[34px]">{title}</h1>
-        {children && <div className="mt-3 max-w-2xl text-[14px] leading-relaxed text-ink-2 md:text-[15px]">{children}</div>}
+    <div data-testid="docs-hero" className="phead">
+      <div>
+        <div className="bul">{eyebrow}</div>
+        <h1 className="h1">{title}</h1>
+        {children && <div className="muted" style={{ margin: "10px 0 0", maxWidth: "46em" }}>{children}</div>}
       </div>
-    </section>
+    </div>
   );
 }
 
 /** Page frame: top bar, hero, then a sticky table of contents next to the sections (stacked on small screens). */
 export function DocsPage({ hero, toc, children }: { hero: ReactNode; toc: TocItem[]; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-4 pb-8">
-      <TopBar />
+    <div className="jtx">
       {hero}
-      <div className="grid gap-4 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-8">
-        <div><DocsToc items={toc} /></div>
-        <div className="flex min-w-0 flex-col gap-4">{children}</div>
+      <div className="dg">
+        <DocsToc items={toc} />
+        <article className="dbody">{children}</article>
+        <aside className="dtoc" aria-label="On this page"><div className="lbl">On this page</div></aside>
       </div>
     </div>
   );
@@ -40,10 +35,10 @@ export function DocsPage({ hero, toc, children }: { hero: ReactNode; toc: TocIte
 
 export function DocSection({ id, eyebrow, title, children }: { id: string; eyebrow?: string; title: string; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-4 rounded-lg border border-border bg-surface p-5 shadow-card md:p-7">
-      {eyebrow && <div className="hb-eyebrow mb-2">{eyebrow}</div>}
-      <h2 id={`${id}-title`} className="text-lg font-semibold leading-snug md:text-xl">{title}</h2>
-      <div className="mt-3 flex max-w-3xl flex-col gap-3 text-[14px] leading-relaxed text-ink-2 md:text-[15px]">{children}</div>
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-4">
+      {eyebrow && <div className="lbl">{eyebrow}</div>}
+      <h2 id={`${id}-title`}>{title}</h2>
+      <div>{children}</div>
     </section>
   );
 }
