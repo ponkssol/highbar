@@ -151,6 +151,7 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .tbs kbd{font:11px var(--mono);border:1px solid var(--bd);padding:2px 6px;color:var(--tx3)}
 .tbr{display:flex;align-items:center;gap:8px}
 .topbar .ghost{height:36px;padding:0 14px;border:1px solid var(--bd);font-size:13px;color:var(--tx2);display:inline-flex;align-items:center;gap:8px;background:transparent;cursor:pointer}
+.topbar .ghost.hide-s:not(:disabled){color:var(--tx)}
 .topbar .ghost:hover{color:var(--tx);border-color:var(--bd-x)}
 .topbar .ghost:disabled{opacity:.5;cursor:not-allowed}
 .topbar .ghost.ic{width:36px;padding:0;justify-content:center}
@@ -286,12 +287,15 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .home .brk::after{top:-1px;right:-1px;border-top-width:1px;border-right-width:1px}
 .home .brk>.c1{bottom:-1px;left:-1px;border-bottom-width:1px;border-left-width:1px}
 .home .brk>.c2{bottom:-1px;right:-1px;border-bottom-width:1px;border-right-width:1px}
-.home .pa-log li{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px;padding:7px 0;border-bottom:1px solid var(--bd-s)}
+.home .pa-log li{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px;padding:7px 0;border-bottom:1px solid var(--bd-s)}
 .home .pa-log li b{font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .home .pa-log li em{font-style:normal;font-family:var(--mono);font-size:12px;color:var(--tx2);white-space:nowrap}
 .home .pos{color:var(--pos)}.home .neg{color:var(--neg)}
 .home .pa-log .empty{color:var(--tx3);font-size:13px}
 .home .pa-gauge{align-items:center;text-align:center}
+.home .pa-gauge .pa-h{flex-direction:column;align-items:flex-start;gap:6px}
+.home .pa-gauge .bom{margin-top:0;font-size:10px;gap:8px}
+.home .pa-gauge .mlogo{height:14px}
 .home .pa-gauge svg{width:100%;max-width:200px;position:static;height:auto}
 .home .gv b{display:block;font:400 28px var(--mono);margin-top:-30px}
 .home .gv span{font-size:12px;color:var(--tx3)}
@@ -310,7 +314,8 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .home .tabs button:last-child{border-right:0}
 .home .tabs button.on{background:var(--inv);color:var(--bg)}
 .home .tabs button span{font-family:var(--mono);opacity:.7;margin-left:6px}
-.home .tw{border:1px solid var(--bd-s);background:var(--el)}
+.home .tw{border:1px solid var(--bd-s);background:var(--el);width:100%}
+.home .tw table{width:100%;table-layout:fixed;border-collapse:collapse}
 :root[data-theme=light] .home .tw{background:var(--el)}
 .home th{font-family:var(--mono);font-weight:400;font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:14px 16px;border-bottom:1px solid var(--bd);white-space:nowrap}
 .home td{padding:16px;border-bottom:1px solid var(--bd-s);height:68px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -329,7 +334,10 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .home .prog .bar i{position:absolute;inset:0 auto 0 0;background:repeating-linear-gradient(90deg,var(--y) 0 5px,transparent 5px 7px);min-width:5px}
 .home .rb{display:inline-flex;align-items:center;height:34px;padding:0 16px;border:1px solid var(--bd);font-size:13px;color:var(--tx2);transition:.15s;white-space:nowrap;text-decoration:none}
 .home tr:hover .rb{background:var(--y);border-color:var(--yx);color:var(--on-y)}
-:root[data-theme=light] .home tbody tr:hover{background:var(--hov)}
+.home tbody tr td:first-child{box-shadow:inset 0 0 0 transparent;transition:box-shadow .15s}
+.home tbody tr:hover td:first-child{box-shadow:inset 2px 0 0 var(--y)}
+.home tbody tr:hover{background:var(--hov)}
+.home .empty-row{text-align:center;height:120px}
 .home .pg{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;font-family:var(--mono);font-size:12px;color:var(--tx3);flex-wrap:wrap;gap:10px}
 .home .pg div{display:flex;gap:4px}
 .home .pg button{min-width:34px;height:34px;border:1px solid var(--bd);font-family:var(--mono);font-size:12px;color:var(--tx2);background:transparent;cursor:pointer}
@@ -378,3 +386,12 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 }
 @media(max-width:600px){.home .pa{grid-template-columns:minmax(0,1fr)}.home .pa-c{border-right:0}.home .feed{grid-template-columns:repeat(21,1fr)}.home .feat,.home .tiers,.home .gd{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.home .tick .tr{animation:none}.home .live{animation:none}}
+
+/* Underline tabs and segments, copied for the later pages. Dashboard segments already use .tabs. */
+.ttabs{display:flex;gap:0;border-bottom:1px solid var(--hair);overflow-x:auto;padding:0 clamp(16px,3vw,32px);scrollbar-width:none}
+.ttabs::-webkit-scrollbar{display:none}
+.ttabs button,.ttabs a{padding:16px 14px;font-size:14px;color:var(--tx2);border-bottom:1px solid transparent;margin-bottom:-1px;white-space:nowrap;background:none;text-decoration:none}
+.ttabs button.on,.ttabs a.on{color:var(--tx);border-bottom-color:var(--yx)}
+.seg{flex-wrap:nowrap;overflow-x:auto;max-width:100%}
+.seg button{flex:none}
+@media(max-width:700px){.ttabs button,.ttabs a{padding:14px 12px}}

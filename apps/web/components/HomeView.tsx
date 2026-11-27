@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { TIERS, curveFeeSplit, type TierId } from "@hb/shared";
 import { useActivity, type ActivityType } from "@/lib/activity";
 import type { ApiStats, ApiToken } from "@/lib/api";
@@ -34,7 +34,7 @@ const FEATS: [string, string, string][] = [
   ["$HIGHER buyback & burn", "Part of platform fees buys and burns $HIGHER. Not an investment.", "Soon"],
 ];
 
-function CurveCard() {
+const CurveCard = memo(function CurveCard() {
   const ref = useRef<SVGSVGElement>(null);
   useEffect(() => {
     const cv = ref.current;
@@ -46,7 +46,7 @@ function CurveCard() {
       cancelAnimationFrame(frame);
       const W = cv.clientWidth, H = cv.clientHeight;
       if (!W || !H) return;
-      const L = 14, R = 14, T = 36, B = 40, x0 = L, x1 = W - R, y0 = H - B, y1 = T, pw = x1 - x0, ph = y0 - y1, small = W < 460;
+      const L = 14, R = 14, T = 36, B = 40, x0 = L, x1 = W - R, y0 = H - B, y1 = T, pw = x1 - x0, ph = y0 - y1;
       const X = (q: number) => x0 + pw * q / 250;
       const f = (q: number) => y0 - ph * (0.03 + 0.97 * Math.pow(q / 250, 2.1));
       let d = "";
@@ -59,13 +59,12 @@ function CurveCard() {
       let grid = "";
       for (let k = 1; k < 4; k++) { const gy = y1 + ph * k / 4; grid += `<line x1="${x0}" y1="${gy}" x2="${x1}" y2="${gy}" stroke="var(--bd-s)"/>`; }
       let mk = "";
-      tiers.forEach(([q, n, c], k) => {
-        const x = X(q), y = f(q), lab = small ? `${q}` : `${n} · ${q}`;
+      tiers.forEach(([q, , c], k) => {
+        const x = X(q), y = f(q), lab = `${q}`;
         mk += `<line x1="${x}" y1="${y}" x2="${x}" y2="${y0}" stroke="${c}" stroke-dasharray="3 4" opacity=".6"/><rect id="mk${k}" x="${x - 5}" y="${y - 5}" width="10" height="10" fill="var(--bg)" stroke="${c}" stroke-width="1.5"/><text id="ml${k}" x="${x - 11}" y="${y - 12}" text-anchor="end" fill="${c}" font-size="11" ${mono}>${lab}</text>`;
         mk += `<text x="${k === 2 ? x1 : x}" y="${y0 + 18}" text-anchor="${k === 2 ? "end" : "middle"}" fill="var(--tx3)" font-size="11" ${mono}>${q}${k === 2 ? " SOL" : ""}</text>`;
       });
-      const grad = small ? "GRADUATED" : "GRADUATED · DAMM v2";
-      cv.innerHTML = `<defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc72c" stop-opacity=".34"/><stop offset="1" stop-color="#ffc72c" stop-opacity="0"/></linearGradient><radialGradient id="hg"><stop offset="0" stop-color="#ffd65e" stop-opacity=".95"/><stop offset="1" stop-color="#ffc72c" stop-opacity="0"/></radialGradient><clipPath id="cclip"><rect id="cclipr" x="${x0}" y="0" width="0" height="${H}"/></clipPath></defs>${zones}${grid}<path d="${d}" fill="none" stroke="var(--bd-x)" stroke-width="1" stroke-dasharray="2 5" opacity=".55"/><g clip-path="url(#cclip)"><path d="${d} L${x1} ${y0} L${x0} ${y0}Z" fill="url(#cg)"/><path d="${d}" fill="none" stroke="#ffc72c" stroke-width="2.2" stroke-linejoin="round"/></g>${mk}<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}" stroke="var(--tx2)"/><line x1="${x0}" y1="${y1}" x2="${x0}" y2="${y0}" stroke="var(--bd-x)"/><text x="${x0}" y="${y0 + 18}" fill="var(--tx3)" font-size="11" ${mono}>0</text><text x="${x0 + 8}" y="${y1 - 12}" fill="var(--tx3)" font-size="11" ${mono}>PRICE ↑</text><g id="rp"></g><g id="sp"></g><g id="cdot"><circle r="18" fill="url(#hg)"/><circle r="5" fill="#fff6d6"/><circle r="2.6" fill="#ffc72c"/></g><g id="npill"><rect x="-32" y="-34" width="64" height="20" fill="var(--bg)" stroke="#ffc72c"/><text id="ntx" x="0" y="-20" text-anchor="middle" fill="var(--yx)" font-size="11" ${mono}>0 SOL</text></g><g id="gb" opacity="0"><rect x="${x0 + 10}" y="${y1 + 10}" width="${small ? 118 : 176}" height="26" fill="var(--bg)" stroke="#ffc72c"/><text x="${x0 + 22}" y="${y1 + 27}" fill="var(--yx)" font-size="11" ${mono}>${grad}</text></g>`;
+      cv.innerHTML = `<defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc72c" stop-opacity=".34"/><stop offset="1" stop-color="#ffc72c" stop-opacity="0"/></linearGradient><radialGradient id="hg"><stop offset="0" stop-color="#ffd65e" stop-opacity=".95"/><stop offset="1" stop-color="#ffc72c" stop-opacity="0"/></radialGradient><clipPath id="cclip"><rect id="cclipr" x="${x0}" y="0" width="0" height="${H}"/></clipPath></defs>${zones}${grid}<path d="${d}" fill="none" stroke="var(--bd-x)" stroke-width="1" stroke-dasharray="2 5" opacity=".55"/><g clip-path="url(#cclip)"><path d="${d} L${x1} ${y0} L${x0} ${y0}Z" fill="url(#cg)"/><path d="${d}" fill="none" stroke="#ffc72c" stroke-width="2.2" stroke-linejoin="round"/></g>${mk}<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}" stroke="var(--tx2)"/><line x1="${x0}" y1="${y1}" x2="${x0}" y2="${y0}" stroke="var(--bd-x)"/><text x="${x0}" y="${y0 + 18}" fill="var(--tx3)" font-size="11" ${mono}>0</text><text x="${x0 + 8}" y="${y1 - 12}" fill="var(--tx3)" font-size="11" ${mono}>PRICE ↑</text><g id="rp"></g><g id="sp"></g><g id="cdot"><circle r="18" fill="url(#hg)"/><circle r="5" fill="#fff6d6"/><circle r="2.6" fill="#ffc72c"/></g><g id="npill"><rect x="-32" y="-34" width="64" height="20" fill="var(--bg)" stroke="#ffc72c"/><text id="ntx" x="0" y="-20" text-anchor="middle" fill="var(--yx)" font-size="11" ${mono}>0 SOL</text></g>`;
       const NS = "http://www.w3.org/2000/svg";
       const $ = (sel: string) => cv.querySelector(sel);
       const clip = $("rect#cclipr") as SVGRectElement | null;
@@ -202,7 +201,7 @@ function CurveCard() {
       </div>
     </div>
   );
-}
+});
 
 function needle(pct: number) {
   const ticks = Array.from({ length: 21 }, (_, i) => {
@@ -215,14 +214,39 @@ function needle(pct: number) {
 
 const FEED_CLASS: Record<ActivityType, string> = { launch: "l", burn: "b", graduate: "m", trade: "t" };
 
+function demoGrid() {
+  let s = 17;
+  const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const cells: string[] = [];
+  const cnt = { l: 0, b: 0, t: 0 };
+  for (let i = 0; i < 210; i++) {
+    const r = rnd();
+    const k = r < 0.09 ? "l" : r < 0.14 ? "b" : r < 0.9 ? "t" : "";
+    cells.push(k);
+    if (k === "l" || k === "b" || k === "t") cnt[k]++;
+  }
+  return { cells, cnt };
+}
+const DEMO_GRID = demoGrid();
+const DEMO_LOG = [
+  { kind: "l", label: "Launch" },
+  { kind: "t", label: "Buy" },
+  { kind: "s", label: "Sell" },
+  { kind: "b", label: "Burn" },
+  { kind: "t", label: "Buy" },
+];
+
 function Activity({ pct, graduated, total, volume, fees, burned, launched, traders }: { pct: number; graduated: number; total: number; volume: number; fees: number; burned: number; launched?: boolean; traders: number }) {
   const { events, source } = useActivity();
   const real = source === "api" ? events : [];
   const since = Date.now() - 30 * 60_000;
   const recent = real.filter((e) => e.ts >= since);
-  const count = (t: ActivityType) => recent.filter((e) => e.type === t).length;
+  const demo = recent.length === 0;
+  const count = (t: ActivityType) => demo
+    ? (t === "launch" ? DEMO_GRID.cnt.l : t === "burn" ? DEMO_GRID.cnt.b : t === "trade" ? DEMO_GRID.cnt.t : 0)
+    : recent.filter((e) => e.type === t).length;
   const shown = recent.slice(-210);
-  const cells = Array.from({ length: 210 }, (_, i) => {
+  const cells = demo ? DEMO_GRID.cells : Array.from({ length: 210 }, (_, i) => {
     const e = shown[i - (210 - shown.length)];
     return e ? FEED_CLASS[e.type] : "";
   });
@@ -242,12 +266,14 @@ function Activity({ pct, graduated, total, volume, fees, burned, launched, trade
           <div className="pa-lg"><span><i style={{ background: "var(--y)" }} />Launch</span><span><i style={{ background: "var(--neg)" }} />Burn</span><span><i style={{ background: "#9b8cff" }} />Migrated</span><span><i style={{ background: "var(--pos)" }} />Trade</span></div>
         </div>
         <div className="pa-c pa-log">
-          <div className="pa-h"><span className="lbl">Live feed</span></div>
+          <div className="pa-h"><span className="lbl">Live feed</span>{demo && <span className="lbl">Demo</span>}</div>
           <ul>
-            {log.map((e) => {
+            {demo ? DEMO_LOG.map((e, i) => (
+              <li key={i}><span className={`ev ${e.kind}`}>{e.label}</span><b>—</b><em>—</em></li>
+            )) : log.map((e) => {
               const kind = e.type === "launch" ? "l" : e.type === "burn" ? "b" : e.side === "sell" ? "s" : "t";
               const label = e.type === "launch" ? "Launch" : e.type === "burn" ? "Burn" : e.type === "graduate" ? "Migrated" : e.side === "sell" ? "Sell" : "Buy";
-              return <li key={e.id}><span className={`ev ${kind}`}>{label}</span><b>{e.symbol ? `$${e.symbol}` : "Token"}</b><em>{e.amount != null ? e.amount : fmtAge(e.ts)}</em></li>;
+              return <li key={e.id}><span className={`ev ${kind}`}>{label}</span><b>{e.symbol ? `$${e.symbol}` : "—"}</b><em>{e.amount != null ? e.amount : "—"}</em></li>;
             })}
           </ul>
         </div>
