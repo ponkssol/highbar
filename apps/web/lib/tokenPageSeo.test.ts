@@ -60,9 +60,9 @@ test("hidden test mints are the token pages that get noindex, follow", () => {
 });
 
 test("nav and footer expose a plain /articles anchor", () => {
-  assert.match(read("components/nav.ts"), /href: "\/articles", label: "Guides"/);
+  assert.match(read("components/nav.tsx"), /href: "\/articles", label: "Guides"/);
   assert.match(read("components/PageShell.tsx"), /<a href="\/articles"/);
-  assert.match(read("components/Sidebar.tsx"), /<a key=\{href\} href=\{href\}/);
+  assert.match(read("components/Sidebar.tsx"), /item\.href === "\/articles"/);
   assert.match(read("app/page.tsx"), /GuidesSection/);
   assert.match(read("app/launch/layout.tsx"), /GuidesSection/);
   assert.match(read("app/docs/page.tsx"), /pickPublished\(GUIDE_PICKS\.docs\)/);
