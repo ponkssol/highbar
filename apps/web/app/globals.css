@@ -576,3 +576,46 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .jtx th{padding:14px 16px}
 @media(max-width:1000px){.jtx .lg,.jtx .rw,.jtx .pgrid,.jtx .dg{grid-template-columns:minmax(0,1fr)}.jtx .lf{border-right:0}.jtx .obg{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.jtx .f2,.jtx .f3,.jtx .tsel{grid-template-columns:minmax(0,1fr)}.jtx .fs{grid-template-columns:minmax(0,1fr)}.jtx .obg,.jtx .glist,.jtx .stats{grid-template-columns:minmax(0,1fr)}}
+
+/* Mockup table, tier chip, progress and podium (leaderboard and other list pages). */
+.jtx .tw{border:1px solid var(--bd-s);background:var(--el)}
+.jtx .tw table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
+.jtx .tw th{text-align:left;padding:14px 16px;border-bottom:1px solid var(--bd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jtx .tw td{padding:16px;height:68px;border-bottom:1px solid var(--bd-s);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jtx .tw tbody tr:hover{background:var(--hov)}
+.jtx .tw tbody tr:hover td:first-child{box-shadow:inset 2px 0 0 var(--y)}
+.jtx .tw tbody tr:last-child td{border-bottom:0}
+.jtx .tw .r{text-align:right}
+.jtx .tw .num,.jtx .pod .num{font-family:var(--mono)}
+.jtx .tw .dim,.jtx .dim{color:var(--tx3)}
+.jtx .tw .w1{width:72px}.jtx .tw .w2{width:104px}.jtx .tw .w3{width:128px}.jtx .tw .w4{width:160px}.jtx .tw .w5{width:200px}
+.jtx .tk>div:not(.av){min-width:0;flex:1}
+.jtx .tk b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jtx .tk small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jtx .tier{font-family:var(--mono);font-size:12px;padding:3px 8px;border:1px solid var(--bd);text-transform:capitalize}
+.jtx .tier.higher{border-color:#ffc72c66;color:var(--yx)}
+.jtx .tier.max{background:var(--y);color:var(--on-y);border-color:var(--yx)}
+.jtx .prog{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--tx3)}
+.jtx .prog .bar{flex:1;max-width:120px;height:6px;background:repeating-linear-gradient(90deg,var(--sf) 0 5px,transparent 5px 7px);position:relative}
+.jtx .prog .bar i{position:absolute;inset:0 auto 0 0;background:repeating-linear-gradient(90deg,var(--y) 0 5px,transparent 5px 7px);min-width:5px}
+.jtx .rom{font-family:var(--mono);color:var(--tx3)}
+.jtx .tw td.rom{width:56px}
+.jtx .pod{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--bd-s);border:1px solid var(--bd-s)}
+.jtx .pod>a{background:var(--el);padding:24px;display:flex;flex-direction:column;gap:18px;min-height:220px;justify-content:space-between;position:relative;overflow:hidden;color:inherit;text-decoration:none}
+.jtx .pod>a:first-child{background:linear-gradient(160deg,var(--gold1),var(--el) 60%)}
+.jtx .pod .rk{font:400 44px var(--mono);color:var(--tx3)}
+.jtx .pod>a:first-child .rk{color:var(--yx)}
+.jtx .pod .v{font:400 22px var(--mono)}
+.jtx .pod .lbl{font-family:var(--mono);font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:.04em}
+@media(max-width:700px){
+ .jtx .tw table,.jtx .tw tbody{display:block}.jtx .tw thead{display:none}
+ .jtx .tw tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;padding:16px;border-bottom:1px solid var(--bd-s)}
+ .jtx .tw td{border:0;padding:0;height:auto;text-align:left;white-space:normal;overflow:visible}
+ .jtx .tw td::before{content:attr(data-l);display:block;font:11px var(--mono);color:var(--tx3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+ .jtx .tw td.tkc{grid-column:1/-1}.jtx .tw td.tkc::before,.jtx .tw td.rom::before{display:none}
+}
+@media(max-width:600px){.jtx .pod{grid-template-columns:minmax(0,1fr)}}
+.jtx .sec.msec{padding:clamp(40px,6vw,88px) clamp(16px,4vw,56px);border-bottom:1px solid var(--hair)}
+@media(max-width:1200px){.jtx .h-md{display:none}}
+@media(max-width:900px){.jtx .h-sm{display:none}}
+@media(max-width:700px){.jtx .tw td.h-md,.jtx .tw td.h-sm{display:block}}
