@@ -619,3 +619,6 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 @media(max-width:1200px){.jtx .h-md{display:none}}
 @media(max-width:900px){.jtx .h-sm{display:none}}
 @media(max-width:700px){.jtx .tw td.h-md,.jtx .tw td.h-sm{display:block}}
+
+/* The mockup uses Geist only: retire the old serif and display faces everywhere. */
+.font-serif,.font-display{font-family:var(--sans)!important;font-style:normal!important;font-weight:400!important;letter-spacing:normal!important}
