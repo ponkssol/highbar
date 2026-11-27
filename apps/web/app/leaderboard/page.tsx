@@ -2,20 +2,20 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { normalizeLeaderboard, type LbCreatorRow, type LbMigrationRow, type LbScoreRow, type LbSurvivorRow, type LbTokenBase, type LbTokenRow, type LbTraderRow, type LeaderboardKind } from "@hb/shared";
-import { TopBlock } from "@/components/TopBar";
 import { NA, ProgressBar, TierBadge } from "@/components/ui";
 import { InfoTip } from "@/components/InfoTip";
 import { SolAmt } from "@/components/Sol";
 import { TableCard } from "@/components/ui/TableCard";
 import { TableScroll } from "@/components/ui/Scroll";
 import { Stacked, StackedItem } from "@/components/ui/Stacked";
-import { Empty, Loading, OfflineNote, Tabs, TD, TH } from "@/components/PageStates";
+import { Empty, Loading, OfflineNote, TD, TH } from "@/components/PageStates";
 import { DevLockedBadge } from "@/components/DevLockedBadge";
 import { OfficialBadge } from "@/components/OfficialBadge";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useApiData } from "@/lib/pagesData";
-import { Segmented, TabPanels, useUrlTab } from "@/components/TabBar";
-import { ChampionsHeader, RomanRank } from "@/components/arena";
+import { TabPanels, useUrlTab } from "@/components/TabBar";
+import { JtxSeg } from "@/components/JtxSeg";
+import { RomanRank } from "@/components/arena";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 // Row shapes + normalizer live in @hb/shared (leaderboard.ts) next to the API contract; normalizeLeaderboard turns any payload
@@ -113,20 +113,18 @@ export default function LeaderboardPage() {
   const label = KIND_LABEL[kind];
 
   return (
-    <div className="flex flex-col gap-4">
-      <TopBlock>
-        <ChampionsHeader><p className="mt-1.5 max-w-xl font-serif text-[15px] leading-snug text-ink-2 md:mt-2 md:text-[17px]">The arena&apos;s best tokens, creators and traders.</p></ChampionsHeader>
-        <div className="mt-3 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-3">
-          <Segmented label="Leaderboard" value={kind} onChange={setKind} options={KINDS.map((k) => ({ id: k, label: KIND_LABEL[k] }))}
-            outerClassName="-mx-[14px] md:mx-0 md:max-w-full" innerClassName="px-[14px] md:px-0" />
-          <div className="flex flex-wrap items-center gap-2">
-            {kind === "tokens" && <Tabs label="Sort by" value={sortTok} onChange={setSortTok} options={[{ id: "volumeSol", label: "Volume" }, { id: "mcapUsd", label: "Mcap" }, { id: "progress", label: "Progress" }]} />}
-            <Tabs label="Time window" value={win} onChange={setWin} options={[{ id: "24h", label: "24h" }, { id: "7d", label: "7d" }, { id: "week", label: "This week" }, { id: "all", label: "All" }]} />
-            {/* Kept in the row (just hidden) for the other windows, so the right aligned tabs do not slide when it comes and goes. */}
-            <span className={win === "week" ? "inline-flex" : "invisible inline-flex"} aria-hidden={win !== "week" || undefined}><InfoTip label="About the weekly window">Weeks run Monday to Sunday, UTC.</InfoTip></span>
-          </div>
+    <div className="jtx">
+      <div className="phead">
+        <div>
+          <div className="bul">Leaderboard</div>
+          <h1 className="h1">Champions. <span>The arena&apos;s best.</span></h1>
         </div>
-      </TopBlock>
+        <div className="ctrls">
+          {kind === "tokens" && <JtxSeg label="Sort by" value={sortTok} onChange={setSortTok} options={[{ id: "volumeSol", label: "Volume" }, { id: "mcapUsd", label: "Mcap" }, { id: "progress", label: "Progress" }]} />}
+          <JtxSeg label="Time window" value={win} onChange={setWin} options={[{ id: "24h", label: "24h" }, { id: "7d", label: "7d" }, { id: "week", label: "This week" }, { id: "all", label: "All" }]} />
+        </div>
+      </div>
+      <JtxSeg line label="Leaderboard" value={kind} onChange={setKind} options={KINDS.map((k) => ({ id: k, label: KIND_LABEL[k] }))} />
       <OfflineNote error={error} />
       <TableCard title={label} info={<InfoTip label={`About ${label}`}>{HINT[kind]}</InfoTip>} testId="leaderboard-card">
         <TabPanels k={`${kind}:${win}`}>
