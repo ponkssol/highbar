@@ -1,11 +1,11 @@
 ﻿/** Subtle loading placeholders matching the card style (no heavy borders). */
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div aria-hidden className={`animate-pulse rounded-md bg-border ${className}`} />;
+  return <div aria-hidden className={`animate-pulse bg-border ${className}`} />;
 }
 
 export function ChartSkeleton({ className = "h-[300px] md:h-[420px]" }: { className?: string }) {
   return (
-    <div role="status" aria-label="Loading chart" className={`flex flex-col gap-3 rounded-lg bg-surface p-3 shadow-card md:p-4 ${className}`}>
+    <div role="status" aria-label="Loading chart" className={`flex flex-col gap-3 border border-border bg-surface p-3 md:p-4 ${className}`}>
       <div className="flex items-center gap-2"><Skeleton className="h-4 w-20" /><Skeleton className="h-4 w-12" /><Skeleton className="ml-auto h-4 w-24" /></div>
       <Skeleton className="w-full flex-1" />
     </div>
@@ -14,7 +14,7 @@ export function ChartSkeleton({ className = "h-[300px] md:h-[420px]" }: { classN
 
 export function TokenTableSkeleton({ rows = 8 }: { rows?: number }) {
   return (
-    <div role="status" aria-label="Loading tokens" className="rounded-lg bg-surface p-3 shadow-card md:p-4">
+    <div role="status" aria-label="Loading tokens" className="border border-border bg-surface p-3 md:p-4">
       <div className="mb-3 flex gap-2"><Skeleton className="h-7 w-16" /><Skeleton className="h-7 w-20" /><Skeleton className="h-7 w-20" /></div>
       <div className="flex flex-col gap-2.5">
         {Array.from({ length: rows }, (_, i) => (
@@ -31,9 +31,9 @@ export function TokenTableSkeleton({ rows = 8 }: { rows?: number }) {
   );
 }
 
-export function StatsSkeleton({ bare = false }: { bare?: boolean }) {
+export function StatsSkeleton({ bare = false, row = false }: { bare?: boolean; row?: boolean }) {
   return (
-    <div role="status" aria-label="Loading stats" className={`grid grid-cols-2 gap-4 p-4 md:p-5 ${bare ? "" : "rounded-lg bg-surface shadow-card"}`}>
+    <div role="status" aria-label="Loading stats" className={`grid grid-cols-2 gap-4 p-4 md:p-5 ${row ? "lg:grid-cols-4" : ""} ${bare ? "" : "border border-border bg-surface"}`}>
       {Array.from({ length: 4 }, (_, i) => (
         <div key={i} className="flex flex-col gap-2"><Skeleton className="h-6 w-20 md:h-7" /><Skeleton className="h-3 w-24" /><Skeleton className="h-3 w-12" /></div>
       ))}

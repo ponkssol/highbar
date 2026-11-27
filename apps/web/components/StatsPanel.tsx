@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BurnBadge } from "./ui";
 import { Segmented } from "./TabBar";
+import { Crosshairs, IndexLabel } from "./ui/Jtx";
 
 function seeded(n: number, base: number, spread: number, seed: number) {
   let s = seed;
@@ -13,7 +14,7 @@ function seeded(n: number, base: number, spread: number, seed: number) {
 export function DeltaPill({ v }: { v: number }) {
   const r = Math.round(v * 10) / 10, flat = r === 0 || !Number.isFinite(r);
   return (
-    <span className={`num inline-flex h-[18px] shrink-0 items-center whitespace-nowrap rounded-full px-1.5 text-[10px] font-medium leading-none md:text-[11px] bg-[color-mix(in_srgb,var(--hb-ink)_6%,transparent)] ${flat ? "text-ink-3" : r > 0 ? "text-buy" : "text-sell"}`}>
+    <span className={`num inline-flex h-[18px] shrink-0 items-center whitespace-nowrap px-1 text-[10px] font-medium leading-none md:text-[11px] ${flat ? "text-ink-3" : r > 0 ? "text-buy" : "text-sell"}`}>
       {flat ? "0.0" : `${r > 0 ? "+" : "\u2212"}${Math.abs(r).toFixed(1)}`}%
     </span>
   );
@@ -80,25 +81,30 @@ export function LaunchChart() {
   );
 }
 
-export function KpiCell({ label, value, unit, delta, spark, href, badge, className = "" }: { label: string; value: string; unit?: string; delta: number; spark: number[]; href: string; badge?: React.ReactNode; className?: string }) {
+export function KpiCell({ n, label, value, unit, delta, spark, href, badge, className = "" }: { n?: number; label: string; value: string; unit?: string; delta: number; spark: number[]; href: string; badge?: React.ReactNode; className?: string }) {
   return (
-    <Link href={href} className={`flex min-w-0 flex-col justify-between gap-2 p-3 transition-colors md:gap-3 md:p-5 hover:bg-muted ${className}`}>
-      <div className="flex min-w-0 items-start justify-between gap-1.5 text-[12px] text-ink-3 md:text-[13px]"><span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1"><span className="min-w-0 leading-tight [overflow-wrap:anywhere]">{label}</span>{badge && <span className="hidden md:inline-flex">{badge}</span>}</span><DeltaPill v={delta} /></div>
+    <Link href={href} className={`flex min-w-0 flex-col justify-between gap-3 p-3 transition-colors md:gap-6 md:p-5 hover:bg-muted ${className}`}>
+      <div className="flex min-w-0 items-start justify-between gap-1.5"><span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1"><IndexLabel n={n} className="min-w-0 [overflow-wrap:anywhere]">{label}</IndexLabel>{badge && <span className="hidden md:inline-flex">{badge}</span>}</span><DeltaPill v={delta} /></div>
       <div className="flex min-w-0 items-end justify-between gap-2">
-        <div className="flex items-baseline gap-1"><span className="num text-2xl font-semibold tracking-tight">{unit === "SOL" ? <SolAmt>{value}</SolAmt> : value}</span>{unit && unit !== "SOL" && <span className="text-xs text-ink-3">{unit}</span>}</div>
+        <div className="flex items-baseline gap-1"><span className="text-[26px] font-light leading-none tracking-[-0.03em] md:text-[34px] [font-variant-numeric:tabular-nums]">{unit === "SOL" ? <SolAmt>{value}</SolAmt> : value}</span>{unit && unit !== "SOL" && <span className="text-xs text-ink-3">{unit}</span>}</div>
         <span className="hidden min-[400px]:block md:block"><Sparkline values={spark} /></span><span className="min-[400px]:hidden md:hidden"><Sparkline values={spark} w={48} h={20} /></span>
       </div>
     </Link>
   );
 }
 
-export function KpiGrid({ stats, className = "", bare = false }: { stats: { totalVolumeSol: number; volumeDelta: number; creatorFeesSol: number; creatorDelta: number; barBurned: number; burnDelta: number; activeTraders24h?: number; barLaunched?: boolean }; className?: string; bare?: boolean }) {
+/** Four numbered stat cells. `row`: one bordered row of four on lg (2x2 below) with "+" marks at the corners (home page). */
+export function KpiGrid({ stats, className = "", bare = false, row = false }: { stats: { totalVolumeSol: number; volumeDelta: number; creatorFeesSol: number; creatorDelta: number; barBurned: number; burnDelta: number; activeTraders24h?: number; barLaunched?: boolean }; className?: string; bare?: boolean; row?: boolean }) {
+  const layout = row
+    ? "relative border border-border bg-surface lg:grid-cols-4 [&>a]:border-border max-lg:[&>a:nth-of-type(-n+2)]:border-b max-lg:[&>a:nth-of-type(odd)]:border-r lg:[&>a:not(:last-of-type)]:border-r"
+    : `overflow-hidden ${bare ? "" : "border border-border bg-surface"} [&>*]:border-border [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(odd)]:border-r`;
   return (
-    <div className={`grid min-w-0 grid-cols-2 overflow-hidden ${bare ? "" : "rounded-lg border border-border bg-surface"} [&>*]:border-border [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(odd)]:border-r ${className}`}>
-      <KpiCell label="Total volume" value={stats.totalVolumeSol.toLocaleString("en-US", { maximumFractionDigits: 0 })} unit="SOL" delta={stats.volumeDelta} spark={seeded(14, 50, 40, 3)} href="/" />
-      <KpiCell label="Fees to creators" value={stats.creatorFeesSol.toFixed(1)} unit="SOL" delta={stats.creatorDelta} spark={seeded(14, 50, 40, 5)} href="/leaderboard" />
-      <KpiCell label="$HIGHER burned" value={stats.barLaunched === false ? "Soon" : `${(stats.barBurned / 1e6).toFixed(2)}M`} delta={stats.burnDelta} spark={seeded(14, 50, 40, 11)} href="/rewards?tab=burn" badge={<BurnBadge />} />
-      <KpiCell label="Active traders 24h" value={(stats.activeTraders24h ?? 0).toLocaleString("en-US")} delta={0} spark={seeded(14, 50, 40, 17)} href="/leaderboard" />
+    <div data-testid="kpi-grid" className={`grid min-w-0 grid-cols-2 ${layout} ${className}`}>
+      {row && <Crosshairs />}
+      <KpiCell n={1} label="Total volume" value={stats.totalVolumeSol.toLocaleString("en-US", { maximumFractionDigits: 0 })} unit="SOL" delta={stats.volumeDelta} spark={seeded(14, 50, 40, 3)} href="/" />
+      <KpiCell n={2} label="Fees to creators" value={stats.creatorFeesSol.toFixed(1)} unit="SOL" delta={stats.creatorDelta} spark={seeded(14, 50, 40, 5)} href="/leaderboard" />
+      <KpiCell n={3} label="$HIGHER burned" value={stats.barLaunched === false ? "Soon" : `${(stats.barBurned / 1e6).toFixed(2)}M`} delta={stats.burnDelta} spark={seeded(14, 50, 40, 11)} href="/rewards?tab=burn" badge={<BurnBadge />} />
+      <KpiCell n={4} label="Active traders 24h" value={(stats.activeTraders24h ?? 0).toLocaleString("en-US")} delta={0} spark={seeded(14, 50, 40, 17)} href="/leaderboard" />
     </div>
   );
 }

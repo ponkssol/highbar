@@ -15,6 +15,7 @@ import { Avatar, ProgressBar, TierBadge } from "./ui";
 import { Pagination } from "./Pagination";
 import { DevLockedBadge } from "./DevLockedBadge";
 import { OfficialBadge } from "./OfficialBadge";
+import { Crosshairs } from "./ui/Jtx";
 
 const progressOf = (t: TokenRow) => progressAt(t, NETWORK);
 
@@ -68,7 +69,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
   const pageRows = rows.slice(start, start + pageSize);
 
   const Th = ({ k, children, right }: { k?: SortKey; children: React.ReactNode; right?: boolean }) => (
-    <th className={`px-4 py-3 text-xs font-medium text-ink-3 ${right ? "text-right" : "text-left"}`}>
+    <th className={`px-4 py-3 ${right ? "text-right" : "text-left"}`}>
       {k ? (
         <button onClick={() => setSort((s) => ({ k, dir: s.k === k ? (s.dir === 1 ? -1 : 1) : -1 }))}
           className={`inline-flex items-center gap-1 hover:text-ink ${sort.k === k ? "text-ink" : ""}`}>
@@ -80,9 +81,10 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
   );
 
   return (
-    <div className="rounded-lg border border-border bg-surface shadow-card">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3">
-        <h2 className="text-lg font-semibold">New tokens</h2>
+    <div className="relative border border-border bg-surface">
+      <Crosshairs />
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3.5">
+        <h2 className="flex items-baseline gap-2.5 text-[22px] leading-none tracking-[-0.03em]"><span className="hb-label">(05)</span>New tokens</h2>
         <div className="lg:hidden"><ListControls small /></div>
         <Segmented label="Token status" value={filter} onChange={setFilter} fade="surface" outerClassName="max-w-full" itemClassName="max-sm:!px-2.5" testId="status-filter"
           options={FILTERS.map((f) => ({ id: f.id, label: <>{f.label}<TabCount n={base.filter(f.test).length} /></> }))} />
@@ -92,7 +94,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
           const p = progressOf(t);
           return (
             <li key={t.mint}>
-              <Link href={`/token/${t.mint}`} className="block rounded-none border border-border p-3 active:bg-muted">
+              <Link href={`/token/${t.mint}`} className="block border border-border p-3 active:bg-muted">
                 <div className="flex items-center gap-3">
                   <TokenLogo src={t.image} name={t.name} />
                   <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.name}</span><span className="flex items-center gap-1.5"><span className="num text-xs text-ink-3">${t.ticker}</span><OfficialBadge official={t.official} /><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></span></span>
@@ -109,7 +111,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
       </ul>
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[960px] text-sm">
-          <thead className="border-b border-border">
+          <thead className="border-b border-border bg-panel">
             <tr>
               <Th k="name">Token</Th><Th k="tier">Tier</Th><Th k="mcap" right>Market cap</Th>
               <Th k="progress">Bonding progress</Th><Th k="volume" right>Volume 24h</Th><Th k="age" right>Age</Th>
@@ -121,7 +123,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
               const p = progressOf(t);
               return (
                 <tr key={t.mint} onClick={() => router.push(`/token/${t.mint}`)}
-                  className="cursor-pointer border-b border-border last:border-0 transition-colors hover:bg-muted">
+                  className="cursor-pointer border-b border-border-subtle last:border-0 transition-colors hover:bg-raised">
                   <td className="px-4 py-3">
                     <Link href={`/token/${t.mint}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                       <TokenLogo src={t.image} name={t.name} />
@@ -143,7 +145,7 @@ export function TokenTable({ tokens, search = "", pageSize = PAGE_SIZE }: { toke
                   <td className="px-2 py-3">{t.antiSniper && <span title="Anti-sniper on"><ShieldCheck size={16} strokeWidth={1.5} className="text-ink-2" /></span>}</td>
                   <td className="px-4 py-3 text-right">
                     <Link href={`/token/${t.mint}`} onClick={(e) => e.stopPropagation()}
-                      className="inline-flex h-8 items-center rounded-sm bg-ink px-4 text-sm font-medium text-on-ink hover:opacity-90">Buy</Link>
+                      className="inline-flex h-8 items-center border border-border-strong px-4 font-mono text-[11.5px] uppercase tracking-[.05em] text-ink transition-colors hover:border-gold hover:bg-gold hover:text-gold-ink">Buy</Link>
                   </td>
                 </tr>
               );
