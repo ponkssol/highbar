@@ -5,7 +5,7 @@ import AboutSection from "@/components/sections/about";
 
 export function SettingsHub() {
   return (
-    <HubTabs title="Settings"
+    <HubTabs title="Settings" headline="Preferences."
       tabs={[
         { id: "preferences", label: "Preferences", component: PreferencesSection },
         { id: "about", label: "About", component: AboutSection },
