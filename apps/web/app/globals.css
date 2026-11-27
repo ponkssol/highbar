@@ -622,3 +622,33 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 
 /* The mockup uses Geist only: retire the old serif and display faces everywhere. */
 .font-serif,.font-display{font-family:var(--sans)!important;font-style:normal!important;font-weight:400!important;letter-spacing:normal!important}
+
+/* Launch page extras from the mockup. */
+.jtx .brk{position:relative}
+.jtx .brk::before,.jtx .brk::after,.jtx .brk>.c1,.jtx .brk>.c2{content:"";position:absolute;width:12px;height:12px;border:0 solid var(--bd-x);pointer-events:none;z-index:1}
+.jtx .brk::before{top:-1px;left:-1px;border-top-width:1px;border-left-width:1px}
+.jtx .brk::after{top:-1px;right:-1px;border-top-width:1px;border-right-width:1px}
+.jtx .brk>.c1{bottom:-1px;left:-1px;border-bottom-width:1px;border-left-width:1px}
+.jtx .brk>.c2{bottom:-1px;right:-1px;border-bottom-width:1px;border-right-width:1px}
+.jtx .pflow{margin:12px clamp(16px,4vw,56px) 0;border:1px solid #ffc72c55;background:var(--el);padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.jtx .pfs{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;counter-reset:z}
+.jtx .pfs li{counter-increment:z;display:flex;flex-direction:column;gap:4px}
+.jtx .pfs li::before{content:"0" counter(z);font:12px var(--mono);color:var(--yx)}
+.jtx .pfs b{font-weight:400}.jtx .pfs span{font-size:13px;color:var(--tx2)}
+.jtx .pflow .sm{align-self:flex-start;height:36px;padding:0 14px;border:1px solid var(--bd);display:inline-flex;align-items:center;gap:8px;font-size:13px}
+.jtx .pvbox{border:1px solid var(--bd-s);background:var(--el);padding:16px 18px;margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.jtx .pvbox b{font-family:var(--mono);font-weight:400}
+.jtx .pvbox .bar{height:6px;background:var(--sf);position:relative}.jtx .pvbox .bar i{position:absolute;inset:0 auto 0 0;background:var(--y)}
+.jtx .pvbox p{margin:0;font-size:13px;color:var(--tx2)}
+.jtx .pvc{margin-left:8px;vertical-align:middle}
+.jtx .pv .ph{height:120px;margin:-22px -22px 18px;border-bottom:1px solid var(--bd-s);background:var(--d1) center/cover no-repeat}
+.jtx .gl a{display:block;padding:10px 0;border-bottom:1px solid var(--bd-s);color:var(--tx2);font-size:14px;text-decoration:none}
+.jtx .gl a:hover{color:var(--tx)}
+.jtx .inp{display:flex;align-items:center;border:1px solid var(--bd);background:var(--bg);height:46px;padding:0 14px}
+.jtx .inp input{flex:1;background:none;border:0;color:var(--tx);font:16px var(--mono);outline:0;width:100%;padding:0}
+.jtx .inp:focus-within{border-color:var(--yx)}
+.jtx .bom{display:inline-flex;align-items:center;gap:8px;font:12px var(--mono);color:var(--tx3);text-transform:uppercase;letter-spacing:.04em}
+.jtx .fs .fld>span{color:var(--tx2)}
+@media(max-width:700px){.jtx .pfs{grid-template-columns:minmax(0,1fr)}}
+.jtx input::placeholder,.jtx textarea::placeholder{color:#757575;opacity:1}
+@media(max-width:700px){.jtx .modes{grid-template-columns:minmax(0,1fr)}}
