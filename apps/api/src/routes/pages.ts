@@ -1,3 +1,4 @@
+import { mcapUsdOf, quoteIdOf } from "../quote.js";
 import type { FastifyInstance } from "fastify";
 import { store } from "../store.js";
 import { officialMint } from "../services/officialToken.js";
@@ -25,7 +26,7 @@ export function registerPages(app: FastifyInstance) {
     const devLocks = await store.devLocks(tokens.map((t) => t.mint));
     const om = officialMint();
     const base = (t: (typeof tokens)[number]) => ({
-      mint: t.mint, name: t.name, symbol: t.symbol, tier: t.tier, mcapUsd: t.mcapSol * SOL_USD, progress: t.progress, isMigrated: t.isMigrated,
+      mint: t.mint, name: t.name, symbol: t.symbol, tier: t.tier, mcapUsd: mcapUsdOf(t, SOL_USD), quote: quoteIdOf(t), progress: t.progress, isMigrated: t.isMigrated,
       score: sc(t.mint), devLocked: devLocks.has(t.mint), unlockAt: devLocks.get(t.mint) ?? null, official: !!om && t.mint === om,
     });
 
@@ -95,6 +96,6 @@ export function registerPages(app: FastifyInstance) {
   app.get("/wallet/:address/created", async (req) => {
     const { address } = req.params as { address: string };
     return (await store.tokensByCreator(address))
-      .map((t) => ({ ...t, mcapUsd: t.mcapSol * SOL_USD }));
+      .map((t) => ({ ...t, mcapUsd: mcapUsdOf(t, SOL_USD), quote: quoteIdOf(t) }));
   });
 }
