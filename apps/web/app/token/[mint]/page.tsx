@@ -91,7 +91,7 @@ export default async function TokenPage({ params, searchParams }: Params) {
     <>
       <JsonLd data={ld} />
       <TokenView about={<TokenAbout t={live} holders={d.holders} summary={summary} related={related} guides={guides} />} t={{
-        mint: live.mint, pool: live.pool || undefined, name, ticker, image: live.image ?? null, tier: live.tier, antiSniper: live.antiSniper,
+        mint: live.mint, pool: live.pool || undefined, quote: live.quote, name, ticker, image: live.image ?? null, tier: live.tier, antiSniper: live.antiSniper,
         creator: live.creator, createdAt: live.createdAt, mcapUsd: live.mcapUsd, raisedSol: live.quoteReserveSol, thresholdSol: live.thresholdSol || undefined, volume24hSol: live.volume24hSol,
         priceSol: shownPrice, priceUsd: live.mcapSol > 0 ? (shownPrice * live.mcapUsd) / live.mcapSol : undefined, change24h: prevPrice ? ((shownPrice - prevPrice) / prevPrice) * 100 : 0,
         holders: d.holders, now: Date.now(), devLocked: !!live.devLocked, unlockAt: live.unlockAt ?? null, official: !!live.official, isMigrated: !!live.isMigrated, links: live.links ?? {}, score: live.score ?? null,

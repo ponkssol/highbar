@@ -10,7 +10,7 @@ export const apiHeaders = (): Record<string, string> =>
 export interface ApiToken {
   mint: string; pool: string; config: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
   quoteReserveSol: number; thresholdSol: number; progress: number; isMigrated: boolean; priceSol: number; mcapSol: number; mcapUsd: number;
-  name: string; symbol: string; uri: string; image?: string | null; devLocked?: boolean; unlockAt?: number | null; official?: boolean; score?: number | null; scoreLabel?: string | null;
+  quote?: "SOL" | "USDC"; name: string; symbol: string; uri: string; image?: string | null; devLocked?: boolean; unlockAt?: number | null; official?: boolean; score?: number | null; scoreLabel?: string | null;
   /** GET /tokens/:mint only: http(s) social links from the token metadata; absent keys = not set. */
   links?: { website?: string; twitter?: string; telegram?: string };
   /** GET /tokens/:mint only: true for a hidden test token (left out of every list, the page is noindex). */

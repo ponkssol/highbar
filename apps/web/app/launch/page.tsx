@@ -55,6 +55,7 @@ export default function LaunchPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [devBuy, setDevBuy] = useState("0");
+  const [pair, setPair] = useState<"SOL" | "USDC">("SOL"); // non-SOL pairs are offered on devnet only
   const [q, setQ] = useState<DevBuyQuote | null>(null);
   const [qErr, setQErr] = useState("");
   const [launched, setLaunched] = useState<{ mint: string; signature: string } | null>(null);
@@ -85,7 +86,7 @@ export default function LaunchPage() {
   const shown = (k: "name" | "ticker") => (touched[k] || tried ? errs[k] : "");
   const invalid = !!(errs.name || errs.ticker || imgErr);
   const balance = useSolBalance(wallet.publicKey, wallet.connection);
-  const devSol = Number(devBuy) || 0;
+  const devSol = pair !== "SOL" ? 0 : Number(devBuy) || 0;
   const LAUNCH_COST_SOL = 0.03; // rent for mint, pool, vaults, metadata + network fees (simulated ~0.021)
   const needSol = devSol + LAUNCH_COST_SOL;
   const lowBalance = balance !== null && balance < needSol;
@@ -130,7 +131,7 @@ export default function LaunchPage() {
       if (lowBalance) { setMsg(`Not enough SOL: you need about ${needSol.toFixed(3)} SOL for the dev buy plus launch rent and fees.`); return; }
       if (tier === "max" && maxLocked) { setMsg(`${maxNeed}.`); return; }
       const steps: Record<LaunchStep, string> = { metadata: "Uploading metadata…", mint: "Preparing your token address…", sign: "Approve the launch in your wallet…", cosign: "Finalizing your …high address…", send: "Sending…", confirm: "Confirming on Solana…" };
-      const r = await launchToken({ name: cleanLabel(name), ticker: cleanLabel(ticker), description: desc, image, ...socials, tier, antiSniper: anti, devBuySol: devSol }, wallet.publicKey.toBase58(),
+      const r = await launchToken({ name: cleanLabel(name), ticker: cleanLabel(ticker), description: desc, image, ...socials, tier, antiSniper: anti, devBuySol: devSol, quote: pair }, wallet.publicKey.toBase58(),
         { sign: (tx) => wallet.signTransaction(tx), connection: wallet.connection }, (s) => setMsg(steps[s]));
       setLaunched({ mint: r.mint, signature: r.signature });
       setMsg(`Launched ${devSol > 0 ? `with a ${devSol} SOL dev buy ` : ""}(tx ${r.signature.slice(0, 8)})${r.vanity ? "" : " with a standard (non-…high) address"}. Opening the token page…`);
@@ -219,7 +220,19 @@ export default function LaunchPage() {
               <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface transition-all ${anti ? "left-[18px]" : "left-0.5"}`} />
             </button>
           </div>
-          <div className="rounded border border-border p-3">
+          {NETWORK !== "mainnet" && (
+            <div className="rounded border border-border p-3" data-testid="launch-pair">
+              <div className="text-sm font-medium">Pair (devnet only)</div>
+              <div className="mt-2 flex gap-2" role="group" aria-label="Quote asset">
+                {(["SOL", "USDC"] as const).map((x) => (
+                  <button key={x} type="button" aria-pressed={pair === x} onClick={() => setPair(x)}
+                    className={`h-9 rounded border px-4 text-sm ${pair === x ? "border-ink bg-ink text-bg" : "border-border text-ink-3"}`}>{x}</button>
+                ))}
+              </div>
+              {pair !== "SOL" && <p className="mt-2 text-xs text-ink-3">Trades settle in {pair}. Dev buy is off for non-SOL pairs.</p>}
+            </div>
+          )}
+          <div className={`rounded border border-border p-3${pair !== "SOL" ? " hidden" : ""}`}>
             <div className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-1.5 text-sm font-medium">
                 <label htmlFor="launch-devbuy">Dev buy (optional)</label>

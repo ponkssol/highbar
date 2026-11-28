@@ -33,6 +33,8 @@ export interface TokenViewData {
   mint: string; name: string; ticker: string; tier: TierId; antiSniper: boolean; creator: string; createdAt: number;
   /** DBC pool address: the trade panel reads the pool's activation point from it for the anti-sniper timer. */
   pool?: string;
+  /** Quote asset of the pair; missing = SOL. Non-SOL (devnet only): amounts are in that asset, no on-chain curve read. */
+  quote?: "SOL" | "USDC";
   /** Migration target in SOL from the live pool config; missing -> thresholdSolFor(tier, NETWORK). */
   thresholdSol?: number;
   /** Pool migrated to DAMM v2: bonding shows 100% / Migrated. */
@@ -229,7 +231,7 @@ export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered 
   const locks = useLocks(t.mint);
   // Search modal "Recently viewed": remember this token (localStorage only).
   useEffect(() => { pushHistory("viewed", { mint: t.mint, name: t.name, symbol: t.ticker, image: t.image ?? null, marketCapSol: null, marketCapUsd: t.mcapUsd, createdAt: t.createdAt }); }, [t.mint]); // eslint-disable-line react-hooks/exhaustive-deps
-  const panel = (side: "buy" | "sell" = "buy", bare = false) => <TradePanel mint={t.mint} ticker={t.ticker} tier={t.tier} antiSniper={t.antiSniper} priceSol={t.priceSol} initialSide={side} bare={bare} pool={t.pool} createdAt={t.createdAt} isMigrated={!!t.isMigrated} thresholdSol={targetSol(t)} quoteReserveSol={t.raisedSol} />;
+  const panel = (side: "buy" | "sell" = "buy", bare = false) => <TradePanel mint={t.mint} ticker={t.ticker} tier={t.tier} antiSniper={t.antiSniper} priceSol={t.priceSol} initialSide={side} bare={bare} pool={t.quote && t.quote !== "SOL" ? null : t.pool} quote={t.quote} createdAt={t.createdAt} isMigrated={!!t.isMigrated} thresholdSol={targetSol(t)} quoteReserveSol={t.raisedSol} />;
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-0">
       <TopBar />
@@ -265,4 +267,4 @@ export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered 
       )}
     </div>
   );
-}
+}

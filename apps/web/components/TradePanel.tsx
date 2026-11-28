@@ -22,7 +22,8 @@ const fmtSolAmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigi
 /** Round down so a "max" amount never ends above the limit. */
 const floorTo = (v: number, d: number) => Math.floor(v * 10 ** d) / 10 ** d;
 
-export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSide = "buy", bare = false, pool, createdAt, isMigrated = false, thresholdSol, quoteReserveSol }: {
+export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSide = "buy", bare = false, pool, createdAt, isMigrated = false, thresholdSol, quoteReserveSol, quote = "SOL" }: {
+  /** Pair quote asset; non-SOL skips the SOL-balance cap and shows its symbol. */ quote?: "SOL" | "USDC";
   mint: string; ticker: string; tier: TierId; antiSniper: boolean; priceSol: number; initialSide?: "buy" | "sell"; bare?: boolean; pool?: string | null;
   /** API launch time (ms), fallback when the pool's on-chain activation point can't be read */ createdAt?: number | null; isMigrated?: boolean;
   /** API curve numbers, used for the graduation cap only when the pool account can't be read */ thresholdSol?: number; quoteReserveSol?: number;
@@ -75,7 +76,7 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
   const solSpendable = solBalance == null ? null : Math.max(0, solBalance - SOL_RESERVE);
 
   const overCap = side === "buy" && maxBuy != null && amt > maxBuy;
-  const overSol = side === "buy" && !!publicKey && solSpendable != null && Math.min(amt, maxBuy ?? amt) > solSpendable;
+  const overSol = quote === "SOL" && side === "buy" && !!publicKey && solSpendable != null && Math.min(amt, maxBuy ?? amt) > solSpendable;
   const overSell = side === "sell" && sellMax != null && amt > sellMax;
   const noTokens = side === "sell" && !!publicKey && balance === 0;
   // Quote: exact curve math when the pool was read, otherwise a spot-price estimate (marked ≈, no impact figure).
@@ -101,7 +102,7 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
       setMsg(`Failed: ${(e as Error).message}`);
     } finally { setBusy(false); }
   };
-  const unit = side === "buy" ? "SOL" : `$${ticker}`;
+  const unit = side === "buy" ? quote : `$${ticker}`;
   const setMaxSell = () => sellMax != null && setAmount(String(floorTo(sellMax, 6)));
 
   return (
@@ -119,9 +120,9 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
       )}
       <div>
         <label className={`flex h-12 items-center gap-2 rounded border bg-surface px-3 transition-colors focus-within:border-ink ${overSell || overSol ? "border-sell" : "border-border"}`}>
-          <input data-testid="trade-amount" aria-label={side === "buy" ? "Amount to spend in SOL" : `Amount of $${ticker} to sell`} aria-invalid={overSell || overSol || undefined}
+          <input data-testid="trade-amount" aria-label={side === "buy" ? `Amount to spend in ${quote}` : `Amount of $${ticker} to sell`} aria-invalid={overSell || overSol || undefined}
             value={amount} placeholder="0.0" onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} inputMode="decimal" className="num w-full bg-transparent text-lg outline-none" />
-          <span className="num whitespace-nowrap text-sm text-ink-3">{side === "buy" ? <SolHead>SOL</SolHead> : unit}</span>
+          <span className="num whitespace-nowrap text-sm text-ink-3">{side === "buy" ? (quote === "SOL" ? <SolHead>SOL</SolHead> : quote) : unit}</span>
         </label>
         {publicKey && (
           <div className="num mt-1.5 text-right text-xs text-ink-3" data-testid="trade-balance">

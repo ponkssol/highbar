@@ -8,6 +8,8 @@ export interface LaunchInput {
   website?: string; twitter?: string; telegram?: string; tier: TierId; antiSniper: boolean;
   /** Optional creator buy, executed in the same transaction as pool creation (Block 0). */
   devBuySol?: number; slippageBps?: number;
+  /** Pair quote asset; omitted = SOL. Non-SOL is devnet only (the API rejects it elsewhere). */
+  quote?: "SOL" | "USDC";
 }
 export interface DevBuyQuote { devBuySol: number; estTokens: number; minTokens: number; supplyPct: number; feeSol: number; feePct: number; minFeeApplied: boolean; thresholdSol: number; maxDevBuySol: number }
 /** Wallet half of the launch: sign only (the API co-signs with the vanity mint afterwards). The fully signed bytes are then
@@ -47,7 +49,7 @@ export async function launchToken(input: LaunchInput, creator: string, wallet: L
   onStep?.("mint");
   const r = await post<{ tx: string; mint: string; pool: string; vanity?: boolean; mintSource?: MintSource }>("/tx/launch", {
     creator, name: input.name, symbol: input.ticker, uri: meta.uri, tier: input.tier, antiSniper: input.antiSniper,
-    devBuySol: input.devBuySol ?? 0, slippageBps: input.slippageBps ?? 100,
+    devBuySol: input.devBuySol ?? 0, quote: input.quote, slippageBps: input.slippageBps ?? 100,
   });
   const vanity = r.vanity !== false && (r.mintSource ?? "pool") === "pool";
   if (!vanity) {
