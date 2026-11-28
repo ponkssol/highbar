@@ -16,7 +16,7 @@
 import bs58 from "bs58";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { Keypair } from "@solana/web3.js";
-import { getConnection, indexableConfigSet, keypairFromSeed, launchpadSigner, loadConfigs, network, VANITY_SUFFIX, hasVanitySuffix, referralAta, wipeKeypair } from "@hb/onchain";
+import { getConnection, quoteConfigEntries, indexableConfigSet, keypairFromSeed, launchpadSigner, loadConfigs, network, VANITY_SUFFIX, hasVanitySuffix, referralAta, wipeKeypair } from "@hb/onchain";
 import { encKeyFromEnv, openSeed, sealSeed } from "./secretBox.js";
 import * as store from "./store.js";
 import type { Sql } from "./store.js";
@@ -45,9 +45,10 @@ export class MintPoolError extends Error {
  *  must also be in configs.mainnet.json itself (indexableConfigSet), so a stray env override can never get a mint signed. */
 export function launchConfigs(): string[] {
   const tier = Object.entries(loadConfigs()).filter(([k]) => /^(standard|higher|max)_(on|off)$/.test(k)).map(([, v]) => v);
-  if (network() !== "mainnet") return tier;
+  const other = quoteConfigEntries().map((c) => c.address); // reviewed non-SOL quotes (empty on mainnet)
+  if (network() !== "mainnet") return [...tier, ...other];
   const file = indexableConfigSet("mainnet");
-  return tier.filter((c) => file.has(c));
+  return [...tier.filter((c) => file.has(c)), ...other];
 }
 
 export async function reserveMint(q: Sql, creator: string): Promise<store.Reservation> {

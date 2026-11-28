@@ -1,4 +1,4 @@
-import { mcapUsdOf, quoteIdOf } from "./quote.js";
+import { mcapUsdOf, quoteAssetOf, quoteIdOf } from "./quote.js";
 import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
@@ -177,10 +177,14 @@ app.post("/tx/swap", async (req, reply) => {
     const amt = Number(b.amount);
     if (!Number.isFinite(amt) || amt <= 0) return reply.code(400).send({ error: "amount must be a positive number" });
     if (b.side !== "buy" && b.side !== "sell") return reply.code(400).send({ error: "side must be buy or sell" });
-    const amountIn = new BN(Math.floor(amt * (sell ? 1e6 : 1e9)).toString());
-    const q = await quote({ pool, amountIn, sell, slippageBps });
+    // the pool's quote decides the unit of a buy amount (1e9 for SOL, 10 ** decimals otherwise) and whether the platform referral
+    // (a WSOL token account) can ride along: it can not on non-SOL quotes
+    const quoteAsset = quoteAssetOf(await store.getToken(pool.toBase58()));
+    const isSol = quoteAsset.id === "SOL";
+    const amountIn = new BN(Math.floor(amt * (sell ? 1e6 : 10 ** quoteAsset.decimals)).toString());
+    const q = await quote({ pool, amountIn, sell, slippageBps, hasReferral: isSol });
     const minimumAmountOut = q.minimumAmountOut ?? new BN(0);
-    const tx = await getClient().pool.swap2({ owner, pool, swapBaseForQuote: sell, referralTokenAccount: await usableReferralAta(), swapMode: SwapMode.ExactIn, amountIn, minimumAmountOut });
+    const tx = await getClient().pool.swap2({ owner, pool, swapBaseForQuote: sell, referralTokenAccount: isSol ? await usableReferralAta() : null, swapMode: SwapMode.ExactIn, amountIn, minimumAmountOut });
     return { tx: ser(await finalize(tx, owner)), minimumAmountOut: minimumAmountOut.toString() };
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
 });
@@ -195,7 +199,8 @@ app.post("/tx/launch", async (req, reply) => {
     const mainnet = process.env.NETWORK === "mainnet" || process.env.NETWORK === "mainnet-beta";
     if (uri && !(mainnet ? /^(https|ipfs|ar):\/\//.test(uri) : /^(https?|ipfs|ar):\/\//.test(uri))) throw new BadRequest(`uri must be ${mainnet ? "https" : "http(s)"}://, ipfs:// or ar://`);
     b = { creator: address(raw.creator, "creator"), name: label(raw.name, "name", 32), symbol: label(raw.symbol, "symbol", 10), uri, tier: String(raw.tier), antiSniper: raw.antiSniper === true || (raw.antiSniper as unknown) === "true",
-      devBuySol: raw.devBuySol === undefined ? 0 : Number(raw.devBuySol), slippageBps: raw.slippageBps === undefined ? 100 : Number(raw.slippageBps) };
+      devBuySol: raw.devBuySol === undefined ? 0 : Number(raw.devBuySol), slippageBps: raw.slippageBps === undefined ? 100 : Number(raw.slippageBps),
+      quote: raw.quote === undefined || raw.quote === "SOL" ? "SOL" : raw.quote === "USDC" ? "USDC" : (() => { throw new BadRequest("quote must be SOL or USDC"); })() };
     if (Buffer.byteLength(b.name) > 32 || Buffer.byteLength(b.symbol) > 10) throw new BadRequest("name max 32 bytes, symbol max 10 bytes");
   } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
   const fake = impersonationBlock(b.symbol, b.creator, officialConfig()); // HIGHER is reserved for the official dev wallet

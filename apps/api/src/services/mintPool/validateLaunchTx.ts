@@ -31,6 +31,7 @@ import { PublicKey, SystemProgram, Transaction, VersionedTransaction, type Trans
 import { ASSOCIATED_TOKEN_PROGRAM_ID, NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { deriveDbcPoolAddress, DYNAMIC_BONDING_CURVE_PROGRAM_ID, DynamicBondingCurveIdl } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { extFeeLamports } from "@hb/shared";
+import { allowedQuote, network } from "@hb/onchain";
 
 export class LaunchTxRejected extends Error {
   constructor(msg: string) { super(`launch tx rejected: ${msg}`); this.name = "LaunchTxRejected"; }
@@ -155,9 +156,11 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
   if (!configs.has(config.toBase58())) reject("config is not one of the highbar tier configs");
   if (!same(a("base_mint"), mint)) reject("base mint is not the reserved mint");
   if (!same(a("creator"), creator) || !same(a("payer"), creator)) reject("creator / payer must be the reserving wallet");
-  if (!same(a("quote_mint"), NATIVE_MINT)) reject("quote mint must be WSOL");
-  const pool = deriveDbcPoolAddress(NATIVE_MINT, mint, config);
-  if (!same(a("pool"), pool)) reject("pool is not the DBC pool PDA of (WSOL, mint, config)");
+  const quoteMint = a("quote_mint");
+  if (!allowedQuote(quoteMint, network())) reject("quote mint is not an enabled highbar quote"); // WSOL everywhere; reviewed non-SOL quotes only where enabled (devnet)
+  const solQuote = same(quoteMint, NATIVE_MINT);
+  const pool = deriveDbcPoolAddress(quoteMint, mint, config);
+  if (!same(a("pool"), pool)) reject("pool is not the DBC pool PDA of (quote, mint, config)");
   allowedMintRefs.add(`${i}:${def.idx.base_mint}`);
   i++;
 
@@ -166,6 +169,7 @@ export function validateLaunchTx(raw: string | Uint8Array, exp: LaunchTxExpect):
   const isTransfer = (ix: TransactionInstruction | undefined) => !!ix && same(ix.programId, SystemProgram.programId) && ix.data.length === 12 && ix.data.readUInt32LE(0) === 2;
   // a lone trailing transfer after the init (no dev buy) is a would-be fee: refused below with its own reason
   if (i < ixs.length && !(feeReceiver && i === ixs.length - 1 && isTransfer(ixs[i]))) {
+    if (!solQuote) reject("a dev buy is not supported for non-SOL quotes yet"); // wrap / referral / fee handling below is SOL-only
     devBuy = true;
     const wsolAta = getAssociatedTokenAddressSync(NATIVE_MINT, creator, true, TOKEN_PROGRAM_ID);
     const baseAta = getAssociatedTokenAddressSync(mint, creator, true, tokenProgram);

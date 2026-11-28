@@ -125,8 +125,13 @@ export function loadPlatformKeypair(): Keypair {
   return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(path.resolve(kpPath), "utf8"))));
 }
 
-export function configPubkey(tier: string, antiSniper: boolean): PublicKey {
+export function configPubkey(tier: string, antiSniper: boolean, quote: QuoteId = "SOL"): PublicKey {
   const key = `${tier}_${antiSniper ? "on" : "off"}`;
+  if (quote !== "SOL") { // reviewed non-SOL quotes only, from configs.<network>.<quote>.json (empty on mainnet until a quote is enabled there)
+    const hit = quoteConfigEntries().find((c) => c.quote === quote && c.key === key);
+    if (!hit) throw new Error(`no ${quote} config for ${key} on ${network()}`);
+    return new PublicKey(hit.address);
+  }
   const v = loadConfigs()[key];
   if (!v) throw new Error(`config ${key} not set (${CONFIG_ENV[key] ?? key} or configs.${network()}.json)`);
   return new PublicKey(v);

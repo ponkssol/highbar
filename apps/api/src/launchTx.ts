@@ -1,7 +1,7 @@
 import BN from "bn.js";
 import { Keypair, PublicKey, type Transaction } from "@solana/web3.js";
 import { deriveDbcPoolAddress, getCurrentPoint, SwapMode, type PoolConfig } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { addLaunchpadSigner, configPubkey, devBuyReferral, getClient, getConnection, launchpadSigner, usableReferralAta } from "@hb/onchain";
+import { addLaunchpadSigner, configPubkey, QUOTES, type QuoteId, devBuyReferral, getClient, getConnection, launchpadSigner, usableReferralAta } from "@hb/onchain";
 
 const WSOL = new PublicKey("So11111111111111111111111111111111111111112");
 export const DEV_BUY_MAX_SOL = 20;
@@ -21,10 +21,11 @@ async function poolConfig(config: PublicKey): Promise<PoolConfig> {
  * and on-chain it must sit in the same tx as initialize_pool (validated via the instructions sysvar, error 6057
  * FirstSwapValidationFailed). Otherwise the normal fee scheduler applies (anti-sniper configs start at the cliff fee).
  */
-export async function quoteDevBuy(tier: string, antiSniper: boolean, devBuySol: number, slippageBps = 100) {
-  const config = configPubkey(tier, antiSniper);
+export async function quoteDevBuy(tier: string, antiSniper: boolean, devBuySol: number, slippageBps = 100, quote: QuoteId = "SOL") {
+  if (quote !== "SOL" && devBuySol > 0) throw new Error(`a dev buy is not supported for ${quote} pairs yet`); // the dev buy, its fee and the referral are SOL-only
+  const config = configPubkey(tier, antiSniper, quote);
   const cfg = await poolConfig(config);
-  const thresholdSol = Number(cfg.migrationQuoteThreshold.toString()) / LAMPORTS;
+  const thresholdSol = Number(cfg.migrationQuoteThreshold.toString()) / 10 ** QUOTES[quote].decimals; // in the quote's own units
   const minFeeEligible = cfg.enableFirstSwapWithMinFee === 1;
   const ref = await devBuyReferral(cfg.enableFirstSwapWithMinFee, usableReferralAta); // keep platform referral unless it would forfeit the min fee (or the account is missing)
   const hasReferral = !!ref;
@@ -55,7 +56,7 @@ export async function quoteDevBuy(tier: string, antiSniper: boolean, devBuySol: 
   };
 }
 
-export interface LaunchReq { creator: string; name: string; symbol: string; uri?: string; tier: string; antiSniper: boolean; devBuySol?: number; slippageBps?: number }
+export interface LaunchReq { creator: string; name: string; symbol: string; uri?: string; tier: string; antiSniper: boolean; devBuySol?: number; slippageBps?: number; /** quote asset, default SOL */ quote?: QuoteId }
 
 /**
  * DBC create(+first buy) tx.
@@ -75,14 +76,14 @@ export async function buildLaunchTx(b: LaunchReq, mintIn: PublicKey | Keypair, l
   const devBuySol = Number(b.devBuySol ?? 0), slippageBps = b.slippageBps ?? 100;
   if (!Number.isFinite(devBuySol) || devBuySol < 0) throw new Error("devBuySol must be >= 0");
   if (!Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps > 5000) throw new Error("slippageBps must be an integer between 0 and 5000");
-  const q = await quoteDevBuy(b.tier, !!b.antiSniper, devBuySol, slippageBps);
+  const q = await quoteDevBuy(b.tier, !!b.antiSniper, devBuySol, slippageBps, b.quote ?? "SOL");
   if (devBuySol > Math.min(q.thresholdSol, DEV_BUY_MAX_SOL)) throw new Error(`devBuySol must be <= ${Math.min(q.thresholdSol, DEV_BUY_MAX_SOL)} SOL`);
   const tx: Transaction = await getClient().creator.createPoolWithFirstBuy({
     createPoolParam: { name: b.name, symbol: b.symbol, uri: b.uri ?? "", payer: creator, poolCreator: creator, config: q.config, baseMint: mint },
     firstBuyParam: devBuySol > 0 ? { buyer: creator, receiver: creator, buyAmount: q.amountIn, minimumAmountOut: q.minOut, referralTokenAccount: q.hasReferral ? await usableReferralAta() : null } : undefined,
   });
   const bytes = finishLaunchTx(tx, { creator, blockhash: (await getConnection().getLatestBlockhash("confirmed")).blockhash, mintSigner: signer, launchpad });
-  const pool = deriveDbcPoolAddress(WSOL, mint, q.config);
+  const pool = deriveDbcPoolAddress(q.cfg.quoteMint, mint, q.config);
   return {
     tx: bytes.toString("base64"), size: bytes.length, mint: mint.toBase58(), pool: pool.toBase58(),
     /** swap amount_in (lamports, decimal string), "0" without a dev buy: the base of the extension fee (extFee.ts) */

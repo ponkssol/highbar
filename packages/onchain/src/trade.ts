@@ -4,6 +4,7 @@ import { SwapMode, getCurrentPoint, type SwapQuote2Result } from "@meteora-ag/dy
 import { arg, getClient, getConnection, isMain, loadPlatformKeypair, usableReferralAta, sendTx } from "./client.js";
 
 export interface QuoteParams {
+  /** false when the swap carries no referral account (non-SOL quotes); default true */ hasReferral?: boolean;
   pool: PublicKey;
   amountIn: BN;
   /** true = sell tokens for SOL */
@@ -22,7 +23,7 @@ export async function quote(q: QuoteParams): Promise<SwapQuote2Result> {
     virtualPool,
     config,
     swapBaseForQuote: q.sell,
-    hasReferral: true,
+    hasReferral: q.hasReferral ?? true,
     eligibleForFirstSwapWithMinFee: false,
     currentPoint,
     slippageBps: q.slippageBps ?? 100,
