@@ -10,15 +10,34 @@ import { TIERS, ANTI_SNIPER, CURVE_FEE_BPS, DAMM_V2_POOL_FEE_BPS, thresholdSolFo
 
 const WSOL = new PublicKey("So11111111111111111111111111111111111111112");
 
+/** Quote assets a config can be priced in. Allowlist only: an arbitrary quote mint is a trap for traders (freeze or mint authority),
+ *  so each entry is reviewed. Non-SOL quotes are DEVNET ONLY until the indexer, API accounting and UI support them. */
+export type QuoteId = "SOL" | "USDC";
+export interface QuoteAsset { id: QuoteId; mint: PublicKey; decimals: number; networks: Network[] }
+export const QUOTES: Record<QuoteId, QuoteAsset> = {
+  SOL: { id: "SOL", mint: WSOL, decimals: 9, networks: ["devnet", "mainnet"] },
+  USDC: { id: "USDC", mint: new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"), decimals: 6, networks: ["devnet"] }, // Circle devnet USDC
+};
+
+/** Migration threshold in the quote token. SOL: unchanged. Other quotes: the SOL threshold converted at an explicit SOL/quote price
+ *  supplied by the operator (no oracle, so a wrong price is the operator's call and is printed before anything is sent). */
+export function thresholdForQuote(tierId: TierId, network: Network, quote: QuoteAsset, solPriceInQuote?: number): number {
+  const sol = thresholdSolFor(tierId, network);
+  if (quote.id === "SOL") return sol;
+  if (!solPriceInQuote || !(solPriceInQuote > 0)) throw new Error(`a SOL price in ${quote.id} (--sol-price) is required for a ${quote.id} quote`);
+  return Math.round(sol * solPriceInQuote);
+}
+
 /** Migration threshold = thresholdSolFor(tier, network): mainnet (default) 85/150/250 SOL, devnet 40/80/100 SOL.
  *  `thresholdSolOverride` is only for devnet test configs (e.g. the 1 SOL migration test). */
-export function buildTierConfig(tierId: TierId, antiSniper: boolean, thresholdSolOverride?: number, network: Network = "mainnet") {
+export function buildTierConfig(tierId: TierId, antiSniper: boolean, thresholdSolOverride?: number, network: Network = "mainnet", quote: QuoteAsset = QUOTES.SOL, solPriceInQuote?: number) {
   const tier = TIERS[tierId];
+  if (!quote.networks.includes(network)) throw new Error(`${quote.id} is not enabled on ${network}`);
   return buildCurve({
     token: {
       tokenType: TokenType.SPLToken,
       tokenBaseDecimal: TokenDecimal.SIX,
-      tokenQuoteDecimal: 9,
+      tokenQuoteDecimal: quote.decimals,
       tokenAuthorityOption: 1, // Immutable
       totalTokenSupply: 1_000_000_000,
       leftover: 0,
@@ -51,7 +70,7 @@ export function buildTierConfig(tierId: TierId, antiSniper: boolean, thresholdSo
     lockedVesting: { totalLockedVestingAmount: 0, numberOfVestingPeriod: 0, cliffUnlockAmount: 0, totalVestingDuration: 0, cliffDurationFromMigrationTime: 0 },
     activationType: ActivationType.Timestamp,
     percentageSupplyOnMigration: 20,
-    migrationQuoteThreshold: thresholdSolOverride ?? thresholdSolFor(tierId, network),
+    migrationQuoteThreshold: thresholdSolOverride ?? thresholdForQuote(tierId, network, quote, solPriceInQuote),
   });
 }
 
@@ -85,6 +104,11 @@ async function main() {
   if (net !== "devnet" && net !== "mainnet") throw new Error("--network must be devnet or mainnet");
   const mode: Mode = has("--send") ? "send" : has("--print") ? "print" : "simulate";
   const onlyOn = has("--only-on");
+  const quoteId = (argOf("quote") ?? "SOL").toUpperCase() as QuoteId;
+  if (!QUOTES[quoteId]) throw new Error(`--quote must be one of ${Object.keys(QUOTES).join(", ")}`);
+  const quote = QUOTES[quoteId];
+  if (!quote.networks.includes(net)) throw new Error(`--quote ${quote.id} is not enabled on ${net}`);
+  const solPrice = argOf("sol-price") ? Number(argOf("sol-price")) : undefined;
   const rpc = process.env.RPC_URL || (net === "devnet" ? process.env.DEVNET_RPC || "https://api.devnet.solana.com" : "https://api.mainnet-beta.solana.com");
   const kpPath = process.env.PLATFORM_KEYPAIR_PATH ?? (net === "devnet" ? "./keys/devnet.keypair.json" : "");
   const payerPub = pk(process.env.PAYER_PUBKEY, "PAYER_PUBKEY") ?? (kpPath ? pubkeyOfKeypairFile(path.resolve(kpPath)) : undefined);
@@ -123,7 +147,7 @@ async function main() {
   for (const tierId of Object.keys(TIERS) as TierId[]) for (const on of onlyOn ? [true] : [false, true]) keys.push([`${tierId}_${on ? "on" : "off"}` as ConfigKey, tierId, on]);
   for (const [key, tierId, on] of keys) {
     const t = TIERS[tierId];
-    console.log(key, JSON.stringify({ thresholdSol: thresholdSolFor(tierId, net), creatorTradingFeePct: t.creatorTradingFeePercentage, migrationFeePct: t.migrationFeePercentage, creatorMigrationFeePct: t.creatorMigrationFeePercentage,
+    console.log(key, JSON.stringify({ quote: quote.id, threshold: thresholdForQuote(tierId, net, quote, solPrice), creatorTradingFeePct: t.creatorTradingFeePercentage, migrationFeePct: t.migrationFeePercentage, creatorMigrationFeePct: t.creatorMigrationFeePercentage,
       lpPlatformPct: t.lpPlatformPercentage, lpCreatorPct: t.lpCreatorPercentage, baseFee: on ? `${ANTI_SNIPER.startFeeBps}->${ANTI_SNIPER.endFeeBps} bps over ${ANTI_SNIPER.decaySeconds}s` : `${CURVE_FEE_BPS} bps flat`, migration: "DAMM v2", poolFeeBps: DAMM_V2_POOL_FEE_BPS }));
   }
   if (mode === "print") { console.log("print only: nothing built on-chain"); return; }
@@ -135,9 +159,9 @@ async function main() {
   const payer = mode === "send" ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(path.resolve(kpPath), "utf8")))) : null;
   const out: Partial<Record<ConfigKey, string>> = {};
   for (const [key, tierId, on] of keys) {
-    const params = buildTierConfig(tierId, on, undefined, net);
+    const params = buildTierConfig(tierId, on, undefined, net, quote, solPrice);
     const config = Keypair.generate();
-    const tx = await client.partner.createConfig({ ...params, config: config.publicKey, feeClaimer: feeClaimer!, leftoverReceiver: leftoverReceiver!, quoteMint: WSOL, payer: payerPub! });
+    const tx = await client.partner.createConfig({ ...params, config: config.publicKey, feeClaimer: feeClaimer!, leftoverReceiver: leftoverReceiver!, quoteMint: quote.mint, payer: payerPub! });
     if (mode === "simulate") {
       tx.feePayer = payerPub!;
       tx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
@@ -151,12 +175,12 @@ async function main() {
     console.log(key, out[key], sig);
   }
   if (mode === "send") {
-    const file = path.resolve(`configs.${net}.json`);
+    const file = path.resolve(quote.id === "SOL" ? `configs.${net}.json` : `configs.${net}.${quote.id.toLowerCase()}.json`);
     const prev = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "")) : {};
     const legacy: { key: string; address: string }[] = Array.isArray(prev.legacy) ? prev.legacy : [];
     for (const [k, v] of Object.entries(out)) if (typeof prev[k] === "string" && prev[k] !== v) legacy.push({ key: k, address: prev[k] });
     fs.writeFileSync(file, JSON.stringify({ ...prev, ...out, ...(net === "mainnet" ? { feeClaimer: feeClaimer!.toBase58(), leftoverReceiver: leftoverReceiver!.toBase58() } : {}), legacy }, null, 2));
-    console.log(`Saved configs.${net}.json; copy into the CONFIG_* env vars of the API, keeper and jobs`);
+    console.log(`Saved ${path.basename(file)}; copy into the CONFIG_* env vars of the API, keeper and jobs`);
   }
 }
 
