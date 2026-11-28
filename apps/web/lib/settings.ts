@@ -20,6 +20,7 @@ export function applyTheme(theme: Theme) {
   if (typeof window === "undefined") return;
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark", dark);
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
   try { localStorage.setItem("hb-theme", theme === "system" ? (dark ? "dark" : "light") : theme); } catch {}
 }
 

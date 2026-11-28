@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { InfoTip } from "@/components/InfoTip";
-import { TopBar } from "@/components/TopBar";
 import { JsonLd } from "@/components/JsonLd";
 import { OpenBookPlatform } from "@/components/openbook/OpenBookPlatform";
 import { getOpenBook, getOpenBookTokens } from "@/lib/seoData";
@@ -28,13 +26,8 @@ export default async function OpenBookPage({ searchParams }: Props) {
     breadcrumbJsonLd([["Home", "/"], ["Open Book", "/open-book"]]),
   ];
   return (
-    <div className="flex min-w-0 flex-col gap-5">
+    <div className="jtx">
       <JsonLd data={ld} />
-      <section>
-        <TopBar />
-        <h1 className="mt-0 font-display text-[24px] font-semibold tracking-wide md:mt-2 md:text-[30px]">Open Book</h1>
-        <p className="mt-1 flex max-w-2xl items-center gap-1.5 text-sm text-ink-3">Every fee, tip and treasury movement across all highbar tokens, reconciled against chain.<InfoTip label="How to verify">Click any number to verify it.</InfoTip></p>
-      </section>
       <OpenBookPlatform ob={ob} tokens={tokens} window={w} q={q} />
     </div>
   );

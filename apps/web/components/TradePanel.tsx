@@ -22,8 +22,8 @@ const fmtSolAmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigi
 /** Round down so a "max" amount never ends above the limit. */
 const floorTo = (v: number, d: number) => Math.floor(v * 10 ** d) / 10 ** d;
 
-export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSide = "buy", bare = false, pool, createdAt, isMigrated = false, thresholdSol, quoteReserveSol }: {
-  mint: string; ticker: string; tier: TierId; antiSniper: boolean; priceSol: number; initialSide?: "buy" | "sell"; bare?: boolean; pool?: string | null;
+export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSide = "buy", bare = false, pool, createdAt, isMigrated = false, thresholdSol, quoteReserveSol, skin }: {
+  mint: string; ticker: string; tier: TierId; antiSniper: boolean; priceSol: number; initialSide?: "buy" | "sell"; bare?: boolean; pool?: string | null; skin?: "jtx";
   /** API launch time (ms), fallback when the pool's on-chain activation point can't be read */ createdAt?: number | null; isMigrated?: boolean;
   /** API curve numbers, used for the graduation cap only when the pool account can't be read */ thresholdSol?: number; quoteReserveSol?: number;
 }) {
@@ -104,10 +104,11 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
   const unit = side === "buy" ? "SOL" : `$${ticker}`;
   const setMaxSell = () => sellMax != null && setAmount(String(floorTo(sellMax, 6)));
 
+  const jtx = skin === "jtx";
   return (
-    <div data-testid="trade-panel" className={`flex flex-col gap-4 ${bare ? "" : "rounded-lg border border-border bg-surface p-4"}`}>
+    <div data-testid="trade-panel" data-side={side} className={jtx ? "jtx-trade" : `flex flex-col gap-4 ${bare ? "" : "rounded-lg border border-border bg-surface p-4"}`}>
       <Segmented label="Trade side" tone="trade" value={side} onChange={pick} options={[{ id: "buy", label: "Buy" }, { id: "sell", label: "Sell" }]}
-        fill itemClassName="h-9 text-sm" />
+        fill className={jtx ? "bs" : ""} itemClassName={jtx ? "bs-btn" : "h-9 text-sm"} />
       {sniperActive && (
         <div className="rounded-md border border-border bg-muted p-3 text-sm">
           <div className="flex items-center justify-between font-medium"><span className="flex items-center gap-2"><ShieldCheck size={16} strokeWidth={1.5} />Current fee <span className="num">{(feeBps / 100).toFixed(2)}%</span></span><span className="num text-xs text-ink-3">{sniper.remaining}s</span></div>
@@ -160,7 +161,7 @@ export function TradePanel({ mint, ticker, tier, antiSniper, priceSol, initialSi
       {overSell && sellMax != null && <p role="alert" data-testid="trade-sell-limit" className="-mt-1 text-xs text-sell">{publicKey ? `You can sell up to ${fmtTok(sellMax)} $${ticker}.` : `Only ${fmtTok(sellMax)} $${ticker} have been bought on the curve, so that is the most anyone can sell.`}</p>}
       {noTokens && <p role="status" className="-mt-1 text-xs text-ink-3">This wallet holds no ${ticker}.</p>}
       <button type="button" disabled={!amt || busy || blocked} onClick={submit}
-        className={`h-12 w-full rounded text-sm font-semibold text-on-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${side === "buy" ? "bg-buy" : "bg-sell"}`}>
+        className={jtx ? `go${side === "sell" ? " sell" : ""}` : `h-12 w-full rounded text-sm font-semibold text-on-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${side === "buy" ? "bg-buy" : "bg-sell"}`}>
         {busy ? "Preparing…" : side === "buy" ? `Buy $${ticker}` : `Sell $${ticker}`}
       </button>
       {msg && <div className="text-xs text-ink-3" role="status">{msg}</div>}

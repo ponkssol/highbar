@@ -1,20 +1,19 @@
 import type { Metadata } from "next";
-import { Cinzel, EB_Garamond, Inter, JetBrains_Mono } from "next/font/google";
+import { Cinzel, EB_Garamond, Geist, Geist_Mono } from "next/font/google";
 import { HOME_TITLE, ICON_V, SHORT_NAME, SITE_NAME, siteUrl } from "@/lib/seo";
 import "./globals.css";
 import { Providers } from "./providers";
-import { Sidebar } from "@/components/Sidebar";
+import { AppShell } from "@/components/AppShell";
 import { PageShell } from "@/components/PageShell";
-import { BottomNav } from "@/components/BottomNav";
-import { MobileHeader } from "@/components/MobileHeader";
 import { ReferralCapture } from "@/components/ReferralCapture";
 import { SearchLauncher } from "@/components/search/SearchLauncher";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
-// Arena display face (SIL OFL 1.1), self-hosted by next/font at build time: Cinzel for headings and rank numerals only.
+// Geist and Geist Mono are the mockup stand-ins for Aeonik and JTXCommitMono. The CSS variables keep the names
+// existing components already read (--font-inter, --font-mono).
+const sans = Geist({ subsets: ["latin"], weight: ["300", "400", "500"], variable: "--font-inter" });
+const mono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
+// Still loaded for pages that have not been reskinned (rank numerals, banner intros).
 const display = Cinzel({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-display" });
-// Lead text face (SIL OFL 1.1): EB Garamond for banner intros only. Numbers, prices and addresses stay in Inter or JetBrains Mono.
 const serif = EB_Garamond({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-serif" });
 
 /** Favicon set, all served from public/ on the root domain (app/ icon files would override them, so there are none). */
@@ -37,15 +36,13 @@ export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable} ${display.variable} ${serif.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${sans.variable} ${mono.variable} ${display.variable} ${serif.variable}`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("hb-theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark")}catch(e){}` }} />
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("hb-theme");var dark=t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=dark?"dark":"light";if(dark)document.documentElement.classList.add("dark")}catch(e){}` }} />
       </head>
       <body>
         <Providers reownProjectId={process.env.REOWN_PROJECT_ID} rpcUrl={process.env.RPC_URL} network={process.env.NETWORK}>
-          <Sidebar />
-          <main className="min-h-screen p-[14px] pb-[calc(80px+env(safe-area-inset-bottom))] md:ml-sidebar md:p-4 md:pb-4"><PageShell><MobileHeader />{children}</PageShell></main>
-          <BottomNav />
+          <AppShell><PageShell>{children}</PageShell></AppShell>
           <ReferralCapture />
           <SearchLauncher />
         </Providers>

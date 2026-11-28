@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { DocLink, DocSection, DocsHero } from "@/components/docs/Docs";
+import { GuidesView, type GuideItem } from "@/components/GuidesView";
 import { JsonLd } from "@/components/JsonLd";
 import { TopBar } from "@/components/TopBar";
 import { articlePath, listPublishedArticles } from "@/lib/articles";
@@ -29,36 +28,22 @@ export default function ArticlesIndex() {
     },
     breadcrumbJsonLd([["Home", "/"], ["Guides", "/articles"]]),
   ];
+  const cat = (a: (typeof articles)[number]) => {
+    const t = `${a.title} ${a.primaryKeyword}`.toLowerCase();
+    if (/\bvs\b|alternative|compare|best /.test(t)) return "Compare";
+    if (/sniper|lock|safe|rug|scam|security/.test(t)) return "Safety";
+    if (/trad|swap|buy|sell/.test(t)) return "Trading";
+    return "Launching";
+  };
+  const items: GuideItem[] = articles.map((a) => ({ href: articlePath(a), title: a.title, description: a.metaDescription, date: new Date(publishTimeMs(a)).toISOString().slice(0, 10), category: cat(a) }));
   return (
-    <div className="flex flex-col gap-4 pb-8">
+    <div className="jtx">
       <TopBar />
-      <nav aria-label="Breadcrumb" className="text-[13px] text-ink-3">
-        <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <li><Link href="/" className="hover:text-ink">Home</Link></li>
-          <li aria-hidden>/</li>
-          <li><span className="text-ink-2" aria-current="page">Guides</span></li>
-        </ol>
-      </nav>
-      <DocsHero eyebrow="Library" title="Guides to launching and trading on highbar">
-        <p>Shorter pages for the questions people bring to a Solana launchpad. The long reference is the <DocLink href="/docs">docs</DocLink>. New guides are added as files and appear here at their publish time.</p>
-      </DocsHero>
       <JsonLd data={jsonLd} />
-      <DocSection id="articles" eyebrow="Published" title="Articles">
-        {articles.length === 0 ? <p>No guides are public yet. They show up here when their publish time is reached.</p> : (
-          <ul className="flex flex-col gap-3">
-            {articles.map((a) => (
-              <li key={a.slug}>
-                <Link href={articlePath(a)} className="block rounded-md border border-border px-4 py-3 transition-colors hover:border-gold-line">
-                  <time dateTime={new Date(publishTimeMs(a)).toISOString()} className="hb-eyebrow">{new Date(publishTimeMs(a)).toISOString().slice(0, 10)}</time>
-                  <h2 className="mt-2 text-[15px] font-semibold text-ink">{a.title}</h2>
-                  <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{a.metaDescription}</p>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p>There is also an <DocLink href="/rss.xml">RSS feed</DocLink> of the guides that are public.</p>
-      </DocSection>
+      <div className="frame">
+        <GuidesView items={items} />
+        <p className="dim" style={{ padding: "0 clamp(16px,4vw,56px) 40px", fontSize: 13 }}>There is also an <a href="/rss.xml" className="yl">RSS feed</a> of the guides that are public.</p>
+      </div>
     </div>
   );
 }

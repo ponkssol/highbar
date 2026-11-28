@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { HomeView } from "@/components/HomeView";
-import { HomeIntro } from "@/components/HomeIntro";
 import { GuidesSection } from "@/components/seo/GuidesSection";
 import { JsonLd } from "@/components/JsonLd";
 import { GUIDE_PICKS } from "@/lib/guidePicks";
@@ -20,7 +19,7 @@ export default async function Home() {
   return (
     <>
       <JsonLd data={siteJsonLd()} />
-      <HomeView initialStats={stats} initialTokens={tokens} intro={<><HomeIntro /><GuidesSection id="home-guides" slugs={GUIDE_PICKS.home} /></>} />
+      <HomeView initialStats={stats} initialTokens={tokens} intro={<GuidesSection id="home-guides" slugs={GUIDE_PICKS.home} variant="cards" />} />
     </>
   );
 }

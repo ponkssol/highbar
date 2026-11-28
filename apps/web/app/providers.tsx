@@ -31,10 +31,10 @@ export const useRpcUrl = () => useContext(RpcUrl);
 let modal: AppKit | undefined;
 const isDark = () => typeof document !== "undefined" && document.documentElement.classList.contains("dark");
 const themeVars = () => ({
-  "--w3m-accent": isDark() ? "#F2F2EC" : "#0E0E0E",
+  "--w3m-accent": isDark() ? "#f2f1ee" : "#101010",
   "--w3m-border-radius-master": "2px",
   "--w3m-font-size-master": "9px",
-  "--w3m-font-family": "var(--font-inter), Inter, system-ui, sans-serif",
+  "--w3m-font-family": "var(--font-inter), Geist, ui-sans-serif, system-ui, sans-serif",
 });
 
 /** Reown explorer wallet ids (checked against api.web3modal.org getWallets): Phantom, Solflare. Shown first in the connect modal. */
@@ -70,7 +70,7 @@ export function Providers({ children, reownProjectId, rpcUrl, network }: { child
 
   // Re-apply the saved theme after hydration (e.g. the 404 boundary re-renders <html> and drops the class set by the head script).
   useEffect(() => {
-    try { const t = localStorage.getItem("hb-theme"); const dark = t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.classList.toggle("dark", dark); } catch {}
+    try { const t = localStorage.getItem("hb-theme"); const dark = t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.classList.toggle("dark", dark); document.documentElement.dataset.theme = dark ? "dark" : "light"; } catch {}
   }, []);
   useEffect(() => {
     if (!ready) { console.warn("[highbar] REOWN_PROJECT_ID is not set; wallet connect disabled. Get one at https://cloud.reown.com"); return; }

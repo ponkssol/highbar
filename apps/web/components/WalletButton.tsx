@@ -13,11 +13,29 @@ export function AddrDot({ address, size = 16 }: { address: string; size?: number
 /** Compact single-line wallet pill. Custom button that opens the AppKit modal; never stacks or wraps.
  *  compact: mobile header variant (30px tall, address only). The hit area is padded to 40px via ::after. */
 /** size="lg": same height/radius/padding as the header "Launch token" button. */
-export function WalletButton({ full = false, compact = false, size: sz = "sm" }: { full?: boolean; compact?: boolean; size?: "sm" | "lg" }) {
+export function WalletButton({ full = false, compact = false, size: sz = "sm", shell = false }: { full?: boolean; compact?: boolean; size?: "sm" | "lg"; shell?: boolean }) {
   const { ready, address, publicKey, isConnected, connection } = useHbWallet();
   const bal = useSolBalance(publicKey, connection);
   const open = useWalletModal();
   const { status, signIn } = useAuth();
+  // Shell: the topbar ghost control. Same connect / account actions, mockup chrome.
+  if (shell) {
+    if (isConnected && address) {
+      const unverified = status !== "verified";
+      return (
+        <button type="button" data-testid="wallet-pill" onClick={() => open("Account")} aria-label={`Wallet ${shortAddr(address)}`} className="ghost hide-s">
+          <span className="mono">{shortAddr(address)}</span>
+          {unverified && <span role="button" aria-label="Sign in" title={status === "signing" ? "Signing in…" : "Not signed in, click to sign in"} onClick={(e) => { e.stopPropagation(); if (status !== "signing") void signIn(); }} className={`h-1.5 w-1.5 shrink-0 rounded-full ${status === "signing" ? "animate-pulse bg-ink-3" : "bg-burn"}`} />}
+          {bal != null && <span className="mono dim"><SolAmt>{bal.toFixed(2)}</SolAmt></span>}
+        </button>
+      );
+    }
+    return (
+      <button type="button" data-testid="wallet-pill" onClick={() => open("Connect")} disabled={!ready} title={ready ? undefined : "Set Reown project ID"} className="ghost hide-s">
+        Connect wallet
+      </button>
+    );
+  }
   // Header controls share one height (36px). The sm pill stays 32px for inline use.
   const size = compact ? "h-9 rounded-full px-3 text-[12px] gap-1.5" : sz === "lg" ? "h-9 rounded px-4 text-sm gap-2" : "h-8 rounded-full px-3 text-[13px] gap-2";
   const base = `relative inline-flex shrink-0 items-center whitespace-nowrap font-medium leading-none transition-opacity after:absolute after:inset-x-0 after:-inset-y-[6px] after:content-[''] ${size} ${full ? "w-full justify-center" : ""}`;

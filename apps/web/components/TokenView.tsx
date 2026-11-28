@@ -1,26 +1,20 @@
 "use client";
-import { TopBar } from "./TopBar";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowLeft, Check, Copy, ExternalLink, Globe, Send, ShieldCheck, X as XIcon } from "lucide-react";
+import { ExternalLink, Globe, Send, X as XIcon } from "lucide-react";
 import { TIERS, thresholdSolFor, type TierId } from "@hb/shared";
 import { FeeBreakdown } from "./FeeBreakdown";
 import dynamic from "next/dynamic";
 import { ChartSkeleton } from "./ui/Skeleton";
 const PriceChart = dynamic(() => import("./PriceChart").then((m) => m.PriceChart), { ssr: false, loading: () => <ChartSkeleton /> });
 import { TradePanel } from "./TradePanel";
-import { TokenLogo } from "./TokenLogo";
-import { NA, Price, TierBadge } from "./ui";
+import { Price } from "./ui";
 import { InfoTip } from "./InfoTip";
 import { SolAmt, SolHead } from "./Sol";
-import { TableScroll } from "./ui/Scroll";
 import { Stacked, StackedItem } from "./ui/Stacked";
-import { DeltaPill } from "./StatsPanel";
-import { DevLock, DevLockButton, LockedBadge } from "./DevLock";
-import { DevLockedBadge } from "./DevLockedBadge";
-import { TabBar, TabPanels, useUrlTab } from "./TabBar";
+import { DevLock, DevLockButton } from "./DevLock";
+import { TabPanels, useUrlTab } from "./TabBar";
 import { OfficialBadge } from "./OfficialBadge";
-import { ScoreBadge } from "./ScoreBadge";
 import { ScoreCard } from "./ScoreCard";
 import { NETWORK, explorerTx } from "@/lib/settings";
 import { useLocks, type LocksResp } from "@/lib/lock";
@@ -44,96 +38,8 @@ export interface TokenViewData {
 }
 
 
-/** Identity on the left (logo, name, ticker, badges, mint), price + 24h change on the right. No card chrome. */
-function Header({ t, locks }: { t: TokenViewData; locks: LocksResp | null }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => { navigator.clipboard?.writeText(t.mint); setCopied(true); setTimeout(() => setCopied(false), 1200); };
-  return (
-    <header data-testid="token-header">
-      <Link href="/" className="inline-flex items-center gap-1 text-[13px] text-ink-3 hover:text-ink"><ArrowLeft size={14} />All tokens</Link>
-      <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <TokenLogo src={t.image} name={t.ticker} size={48} radius={12} />
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-2">
-              <h1 className="truncate text-xl font-semibold tracking-tight md:text-2xl">{t.name}</h1>
-              <span className="num shrink-0 text-sm text-ink-3">${t.ticker}</span>
-              <OfficialBadge official={t.official} size="md" />
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-3">
-              <TierBadge tier={t.tier} />
-              {t.antiSniper && <span title="Anti-sniper" className="inline-flex items-center gap-1"><ShieldCheck size={12} strokeWidth={1.75} />anti-sniper</span>}
-              {t.devLocked ? <span data-testid="locked-badge"><DevLockedBadge devLocked unlockAt={t.unlockAt} /></span> : <LockedBadge data={locks} />}
-              <ScoreBadge score={t.score} />
-              <span className="flex items-center"><Addr t={t} copied={copied} copy={copy} /></span>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-col items-start gap-1 sm:items-end">
-          <div data-testid="token-price" className="flex items-baseline gap-1.5"><span title="Last trade price" className="num text-2xl font-semibold leading-none tracking-tight md:text-3xl"><SolAmt><Price v={t.priceSol} /></SolAmt></span></div>
-          <div className="flex items-center gap-2">
-            {t.priceUsd != null && <span data-testid="token-price-usd" className="num text-xs text-ink-3"><Price v={t.priceUsd} prefix="$" /></span>}
-            <DeltaPill v={t.change24h} />
-            <span className="text-[11px] text-ink-3">24h</span>
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function Addr({ t, copied, copy }: { t: TokenViewData; copied: boolean; copy: () => void }) {
-  return (
-    <>
-      <button type="button" onClick={copy} aria-label="Copy address" className="num inline-flex h-7 items-center gap-1 rounded-md pr-1.5 hover:bg-muted hover:text-ink">{shortAddr(t.mint, 5)}{copied ? <Check size={12} /> : <Copy size={12} />}</button>
-      {([[Globe, "Website", t.links?.website], [XIcon, "X", t.links?.twitter], [Send, "Telegram", t.links?.telegram]] as const)
-        .filter(([, , href]) => !!href && /^https?:\/\//i.test(href))
-        .map(([I, l, href]) => <a key={l} href={href} target="_blank" rel="noopener noreferrer nofollow" aria-label={l} title={l} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-3 hover:bg-muted hover:text-ink"><I size={13} strokeWidth={1.5} /></a>)}
-    </>
-  );
-}
-
 const targetSol = (t: TokenViewData) => t.thresholdSol || thresholdSolFor(t.tier, NETWORK);
 const bondingOf = (t: TokenViewData) => { const target = targetSol(t); return { target, p: t.isMigrated ? 1 : target > 0 ? Math.min(1, t.raisedSol / target) : 0 }; };
-const dash = (v: number | null | undefined, f: (n: number) => ReactNode) => (v == null || !Number.isFinite(v) ? NA : f(v));
-
-/** One compact six-stat row (3 columns on mobile). Missing values show a dash. */
-function StatRow({ t, holders }: { t: TokenViewData; holders: number }) {
-  const { p } = bondingOf(t);
-  const cells: [string, ReactNode][] = [
-    ["Market cap", dash(t.mcapUsd, fmtUsd)],
-    ["Volume 24h", dash(t.volume24hSol, (v) => <SolAmt>{fmtSol(v, 1)}</SolAmt>)],
-    ["Holders", holders.toLocaleString("en-US")],
-    ["Age", t.createdAt ? fmtAge(t.createdAt, t.now) : NA],
-    ["Creator", t.creator ? shortAddr(t.creator) : NA],
-    ["Bonding", <><span key="v">{t.isMigrated ? "Migrated" : `${(p * 100).toFixed(1)}%`}</span><span key="b" className="mt-1.5 block h-1 rounded-full bg-border"><span className="block h-1 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></span></>],
-  ];
-  return (
-    <dl data-testid="token-stats" className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-6">
-      {cells.map(([k, v]) => (
-        <div key={k} className="min-w-0 bg-surface px-3 py-2.5 md:px-4 md:py-3">
-          <dt className="text-xs text-ink-3">{k}</dt>
-          <dd className="num mt-0.5 truncate text-sm font-medium">{v}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function BondingCard({ t }: { t: TokenViewData }) {
-  const { target, p } = bondingOf(t);
-  return (
-    <div data-testid="bonding-card" className="rounded-lg border border-border bg-surface p-4">
-      <div className="flex items-center justify-between text-sm">
-        <span className="flex items-center gap-1.5 font-medium">Bonding progress
-          <InfoTip label="About bonding">{t.isMigrated ? "Migrated to Meteora DAMM v2." : p >= 1 ? "Target reached: migrates to Meteora DAMM v2." : `Migrates to Meteora DAMM v2 at ${target} SOL.`}</InfoTip>
-        </span>
-        <span className="num text-ink-3">{t.isMigrated ? "100%, migrated" : <span className="inline-flex items-center gap-1">{t.raisedSol.toFixed(1)} of <SolAmt>{target}</SolAmt></span>}</span>
-      </div>
-      <div className="mt-3 h-1.5 rounded-full bg-border"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${p * 100}%` }} /></div>
-    </div>
-  );
-}
 
 function SideChip({ side }: { side: "buy" | "sell" }) {
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize text-on-ink ${side === "buy" ? "bg-buy" : "bg-sell"}`}>{side}</span>;
@@ -171,25 +77,21 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
               meta={[shortAddr(tr.wallet), <a key="t" href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label={`${fmtAge(tr.ts, t.now)} ago, view transaction on Solscan`} className="inline-flex items-center gap-1 hover:text-ink">{fmtAge(tr.ts, t.now)} ago<ExternalLink size={12} aria-hidden /></a>]} />
           ))}
         </Stacked>
-        <TableScroll className="hidden sm:block" label="Trades">
-          <table className="w-full text-sm">
-            <thead><tr className="h-10 whitespace-nowrap text-xs text-ink-3">
-              <th className="pl-0 pr-4 text-left font-medium">Time</th><th className="px-4 text-left font-medium">Type</th><th className="px-4 text-right font-medium"><SolHead>SOL</SolHead></th>
-              <th className="px-4 text-right font-medium">${t.ticker}</th><th className="px-4 text-left font-medium">Wallet</th><th className="px-4"><span className="sr-only">Transaction</span></th></tr></thead>
-            <tbody>
-              {t.trades.map((tr) => (
-                <tr key={tr.sig} className="h-11 border-t border-border hover:bg-muted">
-                  <td className="num whitespace-nowrap pl-0 pr-4 text-ink-3">{fmtAge(tr.ts, t.now)} ago</td>
-                  <td className="whitespace-nowrap px-4"><SideChip side={tr.side} />{tr.devBuy && <DevChip />}</td>
-                  <td className="num px-4 text-right">{tr.sol}</td>
-                  <td className="num whitespace-nowrap px-4 text-right">{tr.tokens.toLocaleString("en-US")}</td>
-                  <td className="num px-4 text-ink-2">{shortAddr(tr.wallet)}</td>
-                  <td className="px-4 text-right"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label="View transaction on Solscan" className="text-ink-3 hover:text-ink"><ExternalLink size={14} aria-hidden /></a></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
+        <div className="tw flat hidden sm:block"><table>
+          <thead><tr><th className="w3">Time</th><th className="w2">Type</th><th className="r">SOL</th><th className="r">${t.ticker}</th><th className="w4 h-sm">Wallet</th><th className="w1"><span className="sr-only">Transaction</span></th></tr></thead>
+          <tbody>
+            {t.trades.map((tr) => (
+              <tr key={tr.sig}>
+                <td className="num dim">{fmtAge(tr.ts, t.now)} ago</td>
+                <td><span className={tr.side === "buy" ? "pos" : "neg"}>{tr.side === "buy" ? "Buy" : "Sell"}</span>{tr.devBuy && <span className="tier" style={{ marginLeft: 8 }}>Dev</span>}</td>
+                <td className="r num">{tr.sol}</td>
+                <td className="r num">{tr.tokens.toLocaleString("en-US")}</td>
+                <td className="num dim h-sm">{shortAddr(tr.wallet)}</td>
+                <td className="r"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label="View transaction on Solscan" className="dim"><ExternalLink size={14} aria-hidden /></a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
       </>
     );
     if (k === "holders") return (
@@ -217,9 +119,18 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
   };
   return (
     <section data-testid="token-tabs">
-      <TabBar label="Token details" value={tab} onSelect={setTab}
-          items={TAB_IDS.map((k) => ({ id: k, label: k === "holders" ? <>{TAB_LABEL[k]}<span data-testid="holders-tab-count" className="num ml-1.5 text-xs text-ink-3">{t.holders.toLocaleString("en-US")}</span></> : k === "openbook" ? <>{TAB_LABEL[k]}<NewBadge className="ml-1.5" /></> : TAB_LABEL[k] }))} />
-      <TabPanels k={tab} className="pt-3">{panel(tab)}</TabPanels>
+      <div className="ttabs" role="tablist" aria-label="Token details">
+        {TAB_IDS.map((k) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
+            {TAB_LABEL[k]}
+            {k === "holders" && <span data-testid="holders-tab-count" className="num" style={{ marginLeft: 6, color: "var(--tx3)" }}>{t.holders.toLocaleString("en-US")}</span>}
+            {k === "openbook" && <NewBadge className="ml-1.5" />}
+          </button>
+        ))}
+      </div>
+      <div style={{ padding: tab === "trades" ? "0 0 28px" : "8px clamp(16px,3vw,32px) 28px" }}>
+        <TabPanels k={tab}>{panel(tab)}</TabPanels>
+      </div>
     </section>
   );
 }
@@ -229,27 +140,66 @@ export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered 
   const locks = useLocks(t.mint);
   // Search modal "Recently viewed": remember this token (localStorage only).
   useEffect(() => { pushHistory("viewed", { mint: t.mint, name: t.name, symbol: t.ticker, image: t.image ?? null, marketCapSol: null, marketCapUsd: t.mcapUsd, createdAt: t.createdAt }); }, [t.mint]); // eslint-disable-line react-hooks/exhaustive-deps
-  const panel = (side: "buy" | "sell" = "buy", bare = false) => <TradePanel mint={t.mint} ticker={t.ticker} tier={t.tier} antiSniper={t.antiSniper} priceSol={t.priceSol} initialSide={side} bare={bare} pool={t.pool} createdAt={t.createdAt} isMigrated={!!t.isMigrated} thresholdSol={targetSol(t)} quoteReserveSol={t.raisedSol} />;
+  const panel = (side: "buy" | "sell" = "buy", bare = false) => <TradePanel skin="jtx" mint={t.mint} ticker={t.ticker} tier={t.tier} antiSniper={t.antiSniper} priceSol={t.priceSol} initialSide={side} bare={bare} pool={t.pool} createdAt={t.createdAt} isMigrated={!!t.isMigrated} thresholdSol={targetSol(t)} quoteReserveSol={t.raisedSol} />;
+  const tierName = TIERS[t.tier].label;
+  const { target, p } = bondingOf(t);
+  const [copied, setCopied] = useState(false);
+  const copy = () => { navigator.clipboard?.writeText(t.mint); setCopied(true); setTimeout(() => setCopied(false), 1200); };
   return (
-    <div className="flex flex-col gap-5 pb-20 md:pb-0">
-      <TopBar />
-      <Header t={t} locks={locks.data} />
-      <StatRow t={t} holders={t.holders} />
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <PriceChart mint={t.mint} className="h-[300px] min-w-0 md:h-[440px] lg:col-start-1 lg:row-start-1" />
-        {/* trade panel + bonding: right column on lg, between chart and tabs on md, sticky Buy/Sell on mobile */}
-        <aside className="hidden md:block lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          <div className="grid gap-4 md:grid-cols-2 lg:sticky lg:top-20 lg:grid-cols-1">
-            {/* above Buy/Sell: creator gets the Dev Lock button + modal; everyone else a passive dev-lock badge (only if locked) */}
-            <div className="flex min-w-0 flex-col gap-3"><DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} badge={false} />{panel()}</div>
-            <BondingCard t={t} />
+    <div className="tok">
+      <div className="cover art">{/* eslint-disable-next-line @next/next/no-img-element */}<img className="sc" src="/brand/arena-bg-c.webp" alt="" /></div>
+      <div className="crumb">
+        <div className="th">
+          <div className="av" style={t.image ? { backgroundImage: `url(${t.image})`, color: "transparent" } : undefined}>{(t.ticker || "HB").slice(0, 2)}</div>
+          <div>
+            <Link href="/" className="dim mono" style={{ fontSize: 12 }}>← All tokens</Link>
+            <h1>{t.name} <span className="dim mono" style={{ fontSize: ".5em" }}>${t.ticker}</span></h1>
+            <div className="meta">
+              <span className={`tier ${tierName}`}>{tierName}</span>
+              <OfficialBadge official={t.official} />
+              {t.score != null && <span>HB {t.score}</span>}
+              <button type="button" onClick={copy}>{shortAddr(t.mint, 5)} {copied ? "✓" : "⧉"}</button>
+              {([[Globe, "Website", t.links?.website], [XIcon, "X", t.links?.twitter], [Send, "Telegram", t.links?.telegram]] as const)
+                .filter(([, , href]) => !!href && /^https?:\/\//i.test(href))
+                .map(([I, l, href]) => <a key={l} href={href} target="_blank" rel="noopener noreferrer nofollow" aria-label={l} title={l} className="inline-flex items-center"><I size={13} strokeWidth={1.5} /></a>)}
+            </div>
+          </div>
+        </div>
+        <div className="px">
+          <div className="v"><SolAmt><Price v={t.priceSol} /></SolAmt></div>
+          <div className="mono" style={{ fontSize: 12, marginTop: 8 }}>
+            {t.priceUsd != null && <span className="dim"><Price v={t.priceUsd} prefix="$" /></span>}{" "}
+            <span className={t.change24h < 0 ? "neg" : t.change24h > 0 ? "pos" : "dim"}>{t.change24h > 0 ? "+" : ""}{t.change24h.toFixed(1)}%</span> <span className="dim">24h</span>
+          </div>
+        </div>
+      </div>
+      <div className="strip" data-testid="token-stats">
+        <div><div className="lbl">Market cap</div><div className="v">{fmtUsd(t.mcapUsd)}</div></div>
+        <div><div className="lbl">Volume 24h</div><div className="v"><SolAmt>{fmtSol(t.volume24hSol, 1)}</SolAmt></div></div>
+        <div><div className="lbl">Holders</div><div className="v">{t.holders.toLocaleString("en-US")}</div></div>
+        <div><div className="lbl">Age</div><div className="v">{t.createdAt ? fmtAge(t.createdAt, t.now) : "—"}</div></div>
+        <div><div className="lbl">Creator</div><div className="v">{t.creator ? shortAddr(t.creator) : "—"}</div></div>
+        <div><div className="lbl">Bonding</div><div className="v">{t.isMigrated ? "Migrated" : `${(p * 100).toFixed(1)}%`}</div></div>
+      </div>
+      <div className="tg">
+        <div className="cp">
+          <PriceChart mint={t.mint} className="chart" />
+        </div>
+        <aside className="side">
+          <DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} badge={false} />
+          {panel()}
+          <div className="bond" data-testid="bonding-card">
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Bonding progress</span><span className="mono dim" style={{ fontSize: 13 }}>{t.raisedSol.toFixed(1)} of <SolAmt>{target}</SolAmt></span></div>
+            <div className="bar"><i style={{ width: `${Math.max(p * 100, 1)}%` }} /></div>
+            <div className="dim mono" style={{ fontSize: 12 }}>Graduates to DAMM v2 at {target} SOL</div>
           </div>
         </aside>
-        <div className="flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-2"><DetailTabs t={t} locks={locks.data} reloadLocks={locks.reload} />{about}</div>
       </div>
+      <DetailTabs t={t} locks={locks.data} reloadLocks={locks.reload} />
+      {about}
       {/* mobile sticky actions + bottom sheet */}
       {/* docked to the bottom nav as one surface: one row, one hairline, the creator's Dev Lock as an icon instead of a second row */}
-      <div data-testid="trade-dock" className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex gap-2 border-t border-border bg-surface px-3 pb-1 pt-2 md:hidden">
+      <div data-testid="trade-dock" className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-border bg-surface px-3 pb-[max(4px,env(safe-area-inset-bottom))] pt-2 md:hidden">
         <DevLockButton mint={t.mint} ticker={t.ticker} creator={t.creator} devLocked={t.devLocked} unlockAt={t.unlockAt} data={locks.data} reload={locks.reload} badge={false} compact />
         <button type="button" onClick={() => setSheet("buy")} className="h-10 flex-1 rounded bg-buy text-sm font-semibold text-on-ink transition-opacity hover:opacity-90">Buy</button>
         <button type="button" onClick={() => setSheet("sell")} className="h-10 flex-1 rounded bg-sell text-sm font-semibold text-on-ink transition-opacity hover:opacity-90">Sell</button>
@@ -265,4 +215,4 @@ export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered 
       )}
     </div>
   );
-}
+}

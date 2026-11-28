@@ -1,6 +1,5 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { Button, Input } from "@/components/ui";
 import { InfoTip } from "@/components/InfoTip";
 
 const ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -10,9 +9,9 @@ export function WalletLookup({ onLookup, placeholder = "Wallet address", classNa
   const [draft, setDraft] = useState("");
   const valid = ADDR.test(draft.trim());
   return (
-    <form className={`mt-4 flex max-w-xl gap-2 ${className}`} onSubmit={(e) => { e.preventDefault(); if (valid) onLookup(draft.trim()); }}>
-      <Input aria-label="Wallet address" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder} spellCheck={false} autoComplete="off" className="num flex-1" />
-      <Button type="submit" variant="secondary" disabled={!valid}>Look up</Button>
+    <form className={`lk-form ${className}`} onSubmit={(e) => { e.preventDefault(); if (valid) onLookup(draft.trim()); }}>
+      <div className="inp sm"><input aria-label="Wallet address" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder} spellCheck={false} autoComplete="off" /></div>
+      <div className="row"><button type="submit" className="btn sm" disabled={!valid}><b>Look up</b><i>→</i></button></div>
     </form>
   );
 }

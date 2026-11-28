@@ -3,12 +3,10 @@ import { SolAmt } from "@/components/Sol";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Lock, ShieldCheck } from "lucide-react";
+import { Lock } from "lucide-react";
 import { TIERS, thresholdSolFor, type TierId } from "@hb/shared";
 import { TopBlock } from "@/components/TopBar";
-import { Avatar, Button, Card, ProgressBar, TierBadge, TierDot } from "@/components/ui";
 import { InfoTip } from "@/components/InfoTip";
-import { SolanaMark } from "@/components/SolanaMark";
 import { feeSplitPct, migrationFeePct, migrationMcapSol, postMigrationPct } from "@/lib/fees";
 import {
   DEV_BUY_MAX_SOL, IMAGE_ACCEPT, NAME_MAX_BYTES, TICKER_MAX_BYTES, checkImage, cleanLabel, friendlyLaunchError, friendlyQuoteError,
@@ -20,27 +18,27 @@ import { NETWORK } from "@/lib/settings";
 import { savePendingLaunch } from "@/lib/pendingLaunch";
 import { fmtBar, useBarInfo, useBarWallet } from "@/lib/bar";
 
-const input = "h-10 w-full rounded border border-border bg-surface px-3 text-sm outline-none focus:border-ink";
+const input = "";
 /** Label row (label, optional info icon with the static helper text, optional aside such as the byte counter), the control, then the inline
  *  validation error or live note. Static help lives in the InfoTip (id `${id}-help`, kept in the DOM for aria-describedby). */
 const Field = ({ label, children, aside, note, error, id, htmlFor, help }: { label: string; children: React.ReactNode; aside?: React.ReactNode; note?: string; error?: string; id?: string; htmlFor?: string; help?: React.ReactNode }) => (
-  <div className="min-w-0">
-    <div className="mb-1.5 flex min-h-[18px] items-center justify-between gap-2 text-[13px] text-ink-2">
-      <span className="flex min-w-0 items-center gap-1.5">
-        {htmlFor ? <label htmlFor={htmlFor} className="truncate">{label}</label> : <span className="truncate">{label}</span>}
+  <div className="fld min-w-0">
+    <span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+        {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : <span>{label}</span>}
         {help && <InfoTip id={id ? `${id}-help` : undefined} label={`${label} help`}>{help}</InfoTip>}
       </span>
       {aside}
-    </div>
+    </span>
     {children}
-    {error ? <span id={id ? `${id}-msg` : undefined} role="alert" className="mt-1 block text-xs text-sell">{error}</span>
-      : note ? <span id={id ? `${id}-msg` : undefined} className="mt-1 block text-xs text-ink-3">{note}</span> : null}
+    {error ? <span id={id ? `${id}-msg` : undefined} role="alert" className="text-sell" style={{ display: "block", fontSize: 12 }}>{error}</span>
+      : note ? <span id={id ? `${id}-msg` : undefined} className="dim" style={{ display: "block", fontSize: 12 }}>{note}</span> : null}
   </div>
 );
 /** Same rounding as the lock page (whole tokens, en-US grouping). */
 const fmtTok = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 const Counter = ({ used, max }: { used: number; max: number }) => (
-  <span aria-live="polite" className={`num text-xs ${used > max ? "text-sell" : "text-ink-3"}`}>{used} of {max} bytes</span>
+  <em aria-live="polite" className={used > max ? "neg" : ""}>{used} of {max} bytes</em>
 );
 
 export default function LaunchPage() {
@@ -143,134 +141,110 @@ export default function LaunchPage() {
     } finally { setBusy(false); }
   };
 
+  const idxTitle = (n: string, t: React.ReactNode, body: React.ReactNode) => <div className="fs"><div className="idx">{`{${n}}`}</div><div className="fb"><h3>{t}</h3>{body}</div></div>;
+
   return (
-    <div className="flex flex-col gap-4">
-      <TopBlock title="Launch a token" />
-      <div className="flex flex-col items-start gap-6 lg:flex-row">
-        <Card className="w-full min-w-0 flex-1 space-y-5 p-4 sm:p-6">
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <Field label="Name" id="launch-name" htmlFor="launch-name" aside={<Counter used={nameBytes} max={NAME_MAX_BYTES} />} error={shown("name")}>
-              <input id="launch-name" className={`${input} ${shown("name") ? "border-sell" : ""}`} value={name} onChange={(e) => setName(e.target.value)} onBlur={() => setTouched((t) => ({ ...t, name: true }))}
-                placeholder="Bar Raiser" required aria-required aria-invalid={!!shown("name")} aria-describedby={shown("name") ? "launch-name-msg" : undefined} />
-            </Field>
-            <Field label="Ticker" id="launch-ticker" htmlFor="launch-ticker" aside={<Counter used={tickerBytes} max={TICKER_MAX_BYTES} />} error={shown("ticker")}
-              note={tickerNote} help="Letters A to Z and digits 0 to 9, uppercased for you.">
-              <input id="launch-ticker" className={`${input} num uppercase ${shown("ticker") ? "border-sell" : ""}`} value={ticker} onChange={(e) => onTicker(e.target.value)} onBlur={() => setTouched((t) => ({ ...t, ticker: true }))}
-                placeholder="RAISE" autoCapitalize="characters" spellCheck={false} required aria-required aria-invalid={!!shown("ticker")} aria-describedby="launch-ticker-msg launch-ticker-help" />
-            </Field>
-          </div>
-          <Field label="Image" id="launch-image" htmlFor="launch-image-input" error={imgErr} aside={imgErr ? <button type="button" onClick={() => setImgErr("")} className="text-xs text-ink-3 hover:underline">Launch without an image</button> : undefined} help="PNG, JPG, WEBP or GIF, up to 2 MB.">
-            <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void onFile(e.dataTransfer.files[0]); }}
-              className={`flex h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed bg-muted text-sm text-ink-3 hover:border-ink ${imgErr ? "border-sell" : "border-border-strong"}`}>
-              {preview ? <img src={preview} alt={`${cleanLabel(name) || "Token"} image preview`} className="h-20 w-20 rounded-full object-cover" onError={() => dropImage("This image could not be read. Try another file.")} /> : <ImagePlus size={22} strokeWidth={1.5} aria-hidden />}
-              <span>{image ? image.name : "Drop image or click to upload"}</span>
-              <input id="launch-image-input" type="file" accept={IMAGE_ACCEPT} aria-label="Token image" aria-invalid={!!imgErr} aria-describedby="launch-image-msg launch-image-help" className="hidden"
-                onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }} />
-            </label>
-          </Field>
-          <Field label="Description" htmlFor="launch-desc"><textarea id="launch-desc" className={`${input} h-24 py-2`} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What is this token about?" /></Field>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {(["website", "twitter", "telegram"] as const).map((k) => (
-              <Field key={k} label={k[0].toUpperCase() + k.slice(1)} htmlFor={`launch-${k}`}>
-                <input id={`launch-${k}`} className={input} value={socials[k]} onChange={(e) => setSocials({ ...socials, [k]: e.target.value })} placeholder={k === "website" ? "https://" : "@handle"} />
+    <div className="jtx">
+      <div className="phead"><div><div className="bul">Launch a <b>token</b></div><h1 className="h1">Set your bar, <span>then launch.</span></h1></div><div className="lbl">Block 0 dev buy</div><a className="bom" href="https://www.meteora.ag" target="_blank" rel="noreferrer" aria-label="Built on Meteora">Built on {/* eslint-disable-next-line @next/next/no-img-element */}<img src="/brand/partners/meteora-logo-light.svg" alt="Meteora" width={74} height={17} className="hidden h-[15px] w-auto dark:block" />{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/brand/partners/meteora-logo-dark.svg" alt="Meteora" width={74} height={17} className="h-[15px] w-auto dark:hidden" /></a></div>
+      <div className="lg">
+        <form className="lf" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+          {idxTitle("01", "Identity", <>
+            <div className="f2">
+              <Field label="Name" id="launch-name" htmlFor="launch-name" aside={<Counter used={nameBytes} max={NAME_MAX_BYTES} />} error={shown("name")}>
+                <input id="launch-name" className={shown("name") ? "border-sell" : ""} value={name} onChange={(e) => setName(e.target.value)} onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+                  placeholder="Arena Bull" required aria-required aria-invalid={!!shown("name")} aria-describedby={shown("name") ? "launch-name-msg" : undefined} />
               </Field>
-            ))}
-          </div>
-          <div>
-            <span id="launch-tier-label" className="mb-1.5 block text-[13px] text-ink-2">Tier</span>
-            <div role="radiogroup" aria-labelledby="launch-tier-label" className="grid grid-cols-3 gap-1 rounded-[14px] border border-seg-line bg-seg p-1">
+              <Field label="Ticker" id="launch-ticker" htmlFor="launch-ticker" aside={<Counter used={tickerBytes} max={TICKER_MAX_BYTES} />} error={shown("ticker")}
+                note={tickerNote} help="Letters A to Z and digits 0 to 9, uppercased for you.">
+                <input id="launch-ticker" className={`num uppercase ${shown("ticker") ? "border-sell" : ""}`} value={ticker} onChange={(e) => onTicker(e.target.value)} onBlur={() => setTouched((t) => ({ ...t, ticker: true }))}
+                  placeholder="ABULL" autoCapitalize="characters" spellCheck={false} required aria-required aria-invalid={!!shown("ticker")} aria-describedby="launch-ticker-msg launch-ticker-help" />
+              </Field>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="launch-image-input" className="drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void onFile(e.dataTransfer.files[0]); }} style={imgErr ? { borderColor: "var(--neg)" } : undefined}>
+                {preview ? <img src={preview} alt={`${cleanLabel(name) || "Token"} image preview`} className="h-20 w-20 object-cover" onError={() => dropImage("This image could not be read. Try another file.")} /> : <b>+</b>}
+                <span>{image ? image.name : "Drop image or click to upload"}</span>
+                <em id="launch-image-help">PNG, JPG, WEBP or GIF, up to 2 MB.</em>
+                <input id="launch-image-input" type="file" accept={IMAGE_ACCEPT} aria-label="Token image" aria-invalid={!!imgErr} aria-describedby="launch-image-msg launch-image-help" className="hidden"
+                  onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+              {imgErr && <span id="launch-image-msg" role="alert" className="text-sell" style={{ display: "block", fontSize: 12, marginTop: 6 }}>{imgErr} <button type="button" onClick={() => setImgErr("")} className="underline">Launch without an image</button></span>}
+            </div>
+            <Field label="Description" htmlFor="launch-desc"><textarea id="launch-desc" rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What is this token about?" /></Field>
+            <div className="f3">
+              {(["website", "twitter", "telegram"] as const).map((k) => (
+                <Field key={k} label={k[0].toUpperCase() + k.slice(1)} htmlFor={`launch-${k}`}>
+                  <input id={`launch-${k}`} value={socials[k]} onChange={(e) => setSocials({ ...socials, [k]: e.target.value })} placeholder={k === "website" ? "https://" : k === "twitter" ? "x.com/…" : "t.me/…"} />
+                </Field>
+              ))}
+            </div>
+          </>)}
+          {idxTitle("02", "Tier", <>
+            <div role="radiogroup" aria-label="Tier" className="tsel">
               {(Object.keys(TIERS) as TierId[]).map((id) => {
                 const s = feeSplitPct(id); const sel = tier === id; const locked = id === "max" && maxLocked; const tipId = `launch-tier-${id}-help`;
                 return (
-                  // The info icon is a sibling of the radio (not inside it), so tapping it never selects the tier. InfoTip also stops propagation.
-                  <div key={id} className="relative min-w-0">
-                    <button type="button" role="radio" aria-checked={sel} aria-disabled={locked} aria-describedby={tipId} title={locked ? maxNeed : undefined} onClick={() => !locked && setTier(id)}
-                      className={`flex h-full w-full flex-col items-start gap-2.5 rounded-[10px] px-2.5 pb-3 pt-2.5 text-left transition-colors duration-200 sm:px-3.5 sm:pb-3.5 sm:pt-3 ${sel ? "bg-seg-on text-seg-on-ink" : `text-ink-2 ${locked ? "" : "hover:bg-control-hover hover:text-ink"}`} ${locked ? "cursor-not-allowed opacity-60" : ""}`}>
-                      <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium leading-none sm:text-sm">
-                        <TierDot tier={id} /><span className="truncate">{TIERS[id].label}</span>{locked && <Lock size={11} className="shrink-0 text-ink-3" aria-hidden />}
-                      </span>
-                      <span className="num flex items-center gap-1.5 pr-5 text-lg font-semibold leading-none sm:text-xl">
-                        <SolanaMark />{thresholdSolFor(id, NETWORK)}<span className="sr-only"> SOL</span>
-                      </span>
-                    </button>
-                    {locked && maxBlocked && <span data-testid="soon-chip" className="num pointer-events-none absolute -top-2 right-2 inline-flex h-5 items-center rounded-full border border-gold-line bg-gold-soft px-2 text-[10px] font-medium uppercase tracking-[0.16em] text-gold-text">Soon</span>}
-                    <InfoTip id={tipId} label={`${TIERS[id].label} tier details`} className="absolute bottom-2.5 right-2 sm:bottom-3.5 sm:right-3">
-                      <span className="mb-1.5 block font-medium text-ink">{TIERS[id].label} tier</span>
-                      {locked && <span className="mb-1.5 flex items-start gap-1.5 text-ink"><Lock size={12} className="mt-0.5 shrink-0" aria-hidden />{maxNeed}</span>}
-                      {id === "max" && !maxGated && <span className="mb-1.5 block">{maxOpen}</span>}
-                      <span className="flex justify-between gap-3"><span className="text-ink-3">Mcap at migration</span><span className="num inline-flex items-center text-ink">~<SolAmt>{migrationMcapSol(id, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })}</SolAmt></span></span>
-                      <span className="flex justify-between gap-3"><span className="text-ink-3">Creator fee</span><span className="num text-ink">{s.creator}%</span></span>
-                      <span className="flex justify-between gap-3"><span className="text-ink-3">Creator after migration</span><span className="num text-ink">{postMigrationPct(id).creator}%</span></span>
-                    </InfoTip>
-                  </div>
+                  <button key={id} type="button" role="radio" aria-checked={sel} aria-disabled={locked} aria-describedby={tipId} title={locked ? maxNeed : undefined} onClick={() => !locked && setTier(id)} className={sel ? "on" : undefined}>
+                    <span className={`lbl ${id !== "standard" ? "yl" : ""}`}>{TIERS[id].label}{locked && <Lock size={11} className="ml-1 inline" aria-hidden />}{locked && maxBlocked && <span data-testid="soon-chip" className="chip" style={{ marginLeft: 8 }}>Soon</span>}</span>
+                    <b>{thresholdSolFor(id, NETWORK)} <small>SOL</small></b>
+                    <dl><dt>Mcap at migration</dt><dd>~{migrationMcapSol(id, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })} SOL</dd><dt>Creator fee</dt><dd>{s.creator}%</dd><dt>After migration</dt><dd>{postMigrationPct(id).creator}%</dd></dl>
+                    <span id={tipId} className="sr-only">{TIERS[id].label} tier. {locked ? maxNeed : id === "max" && !maxGated ? maxOpen : ""}</span>
+                  </button>
                 );
               })}
             </div>
+            <p className="dim" style={{ fontSize: 13, margin: "10px 0 0" }}>{maxGated ? maxNeed : "Max is open to every creator until $HIGHER launches."}</p>
+          </>)}
+          {idxTitle("03", "Protection", <>
+            <div className="trow"><div><b>Anti-sniper</b><p id="launch-anti-help" data-testid="anti-sniper-info">{anti ? "Anti-sniper on: first-minute buys pay up to 25%, falling to 1% over 60 seconds." : "Off: early bots pay the normal 1% fee. Turn on to tax first-minute buys up to 25%."}</p></div>
+              <button type="button" role="switch" aria-checked={anti} aria-label="Anti-sniper" aria-describedby="launch-anti-help" onClick={() => setAnti(!anti)} className="sw"><i /></button></div>
+            <div className="fld"><span><label htmlFor="launch-devbuy">Dev buy (optional)</label><em>Bought in Block 0, so nobody can buy before you.</em></span>
+              <div className="inp sm"><input id="launch-devbuy" aria-label="Dev buy amount in SOL" aria-describedby="launch-devbuy-help" inputMode="decimal" value={devBuy} onChange={(e) => setDevBuy(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} placeholder="0.0" /><span className="dim mono" style={{ fontSize: 13 }}>SOL</span></div>
+              <span id="launch-devbuy-help" className="sr-only">Bought in the same transaction as launch (Block 0), so nobody can buy before you.</span>
+              {balance !== null && <span className="dim num" style={{ display: "block", fontSize: 12 }}>Balance <SolAmt>{balance.toFixed(3)}</SolAmt></span>}
+              {devSol > 0 && (
+                <span className="block" style={{ display: "block", fontSize: 13 }} aria-live="polite">
+                  {overMax ? <span role="alert" className="text-sell">Dev buy is capped at {capSol} SOL. Lower it to see how much of the supply you get.</span> : q ? (
+                    <>
+                      <span style={{ display: "block" }}>You receive <span className="num">~{fmtTok(q.estTokens)} ${ticker || "TOKEN"}</span> <span className="num dim">({q.supplyPct.toFixed(2)}% of supply)</span></span>
+                      <span className="num dim" style={{ display: "block" }}>Fee {q.feePct.toFixed(2)}% (~<SolAmt>{q.feeSol.toFixed(4)}</SolAmt>){anti && !q.minFeeApplied ? " (anti-sniper starting fee applies to the dev buy)" : ""}</span>
+                    </>
+                  ) : <span className={qErr ? "text-sell" : "dim"}>{qErr ? friendlyQuoteError(qErr, capSol) : "Quoting…"}</span>}
+                  {lowBalance && <span className="text-sell" style={{ display: "block" }}>Not enough SOL: about {needSol.toFixed(3)} SOL needed including launch rent and fees.</span>}
+                </span>
+              )}
+            </div>
+          </>)}
+          {idxTitle("04", "Fees", <>
+            <dl className="kv">
+              <div><span>Curve fee</span><b>{f.total}%</b></div>
+              <div><span>Creator, platform and Meteora</span><b>{f.creator}%, {f.platform}%, {f.meteora}%</b></div>
+              <div><span>After migration (1% pool fee)</span><b>{postMigrationPct(tier).creator}%, {postMigrationPct(tier).platform}%, {postMigrationPct(tier).protocol}%</b></div>
+              <div><span>Migration fee (creator share)</span><b>{migrationFeePct(tier).fee}% ({migrationFeePct(tier).creatorShare}%)</b></div>
+              <div><span>Migrates at</span><b>{thresholdSolFor(tier, NETWORK)} SOL (~{migrationMcapSol(tier, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })} mcap)</b></div>
+            </dl>
+            <button className="go" type="submit" disabled={busy} style={{ marginTop: 16 }}>{busy ? "Launching…" : "Launch"}</button>
+            {tried && invalid && <p role="alert" className="text-sell" style={{ fontSize: 14, margin: "8px 0 0" }}>Fix the fields marked in red first.</p>}
+            {msg && <p role="status" className="muted" style={{ fontSize: 14, margin: "8px 0 0" }}>{msg}</p>}
+            {launched && <Link href={`/token/${launched.mint}`} className="ghost" style={{ marginTop: 12 }}>View token page</Link>}
+          </>)}
+        </form>
+        <aside className="prev">
+          <div className="brk pv"><span className="c1" /><span className="c2" />
+            <div className="ph" style={{ backgroundImage: "url(/brand/arena-bg-c.webp)" }} />
+            <div className="lbl" style={{ marginBottom: 16 }}>Preview{anti && <span className="yl"> · anti-sniper on</span>}</div>
+            <div className="tk">
+              {preview ? <img src={preview} alt={`${cleanLabel(name) || "Token"} image preview`} style={{ width: 56, height: 56, objectFit: "cover" }} /> : <div className="av" style={{ width: 56, height: 56, fontSize: 14, background: "var(--inv)", color: "var(--bg)" }}>{(name || "??").slice(0, 2).toUpperCase()}</div>}
+              <div><b style={{ fontSize: 20 }}>{name || "Token name"}</b><small>${ticker || "TICKER"}</small></div>
+            </div>
+            <p className="muted" style={{ fontSize: 14, margin: "16px 0" }}>{desc || "Description shows here."}</p>
+            <div className="prog" style={{ justifyContent: "space-between" }}><span>Bonding</span><span>0 of {thresholdSolFor(tier, NETWORK)} SOL</span></div>
+            <div className="bar" style={{ height: 6, margin: "8px 0 16px", background: "var(--sf)", position: "relative" }}><i style={{ position: "absolute", inset: "0 auto 0 0", width: "1%", background: "var(--y)" }} /></div>
+            <div className="kv" style={{ margin: "0 0 14px" }}><div><span>Creator</span><b>{wallet.address ? `${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)}` : "7Hb2…Qx91"}</b></div></div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span className="tier" style={{ textTransform: "capitalize" }}>{tier}</span><span className="mono dim" style={{ fontSize: 13 }}>$0 mcap</span></div>
           </div>
-          <div className="flex items-center justify-between gap-4 rounded border border-border p-3">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <ShieldCheck size={16} strokeWidth={1.5} aria-hidden />Anti-sniper
-              <InfoTip id="launch-anti-help" label="Anti-sniper help">
-                <span data-testid="anti-sniper-info">{anti ? "Anti-sniper on: first-minute buys pay up to 25%, falling to 1% over 60 seconds." : "Anti-sniper off: early bots pay the normal 1% fee. Turn on to tax first-minute buys up to 25%."}</span>
-              </InfoTip>
-            </div>
-            <button type="button" role="switch" aria-checked={anti} aria-label="Anti-sniper" aria-describedby="launch-anti-help" onClick={() => setAnti(!anti)}
-              className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${anti ? "bg-ink" : "bg-border-strong"}`}>
-              <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface transition-all ${anti ? "left-[18px]" : "left-0.5"}`} />
-            </button>
-          </div>
-          <div className="rounded border border-border p-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-1.5 text-sm font-medium">
-                <label htmlFor="launch-devbuy">Dev buy (optional)</label>
-                <InfoTip id="launch-devbuy-help" label="Dev buy help">Bought in the same transaction as launch (Block 0), so nobody can buy before you.</InfoTip>
-              </span>
-              {balance !== null && <span className="num flex items-center gap-1 text-xs text-ink-3">Balance <SolAmt>{balance.toFixed(3)}</SolAmt></span>}
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex h-10 flex-1 items-center rounded border border-border bg-surface px-3 focus-within:border-ink">
-                <input id="launch-devbuy" aria-label="Dev buy amount in SOL" aria-describedby="launch-devbuy-help" className="num w-full bg-transparent text-sm outline-none" inputMode="decimal" value={devBuy}
-                  onChange={(e) => setDevBuy(e.target.value.replace(/[^0-9.]/g, "").replace(/^\./, "0."))} placeholder="0.0" />
-                <span className="text-sm text-ink-3">SOL</span>
-              </div>
-            </div>
-            {devSol > 0 && (
-              <div className="mt-2 space-y-0.5 text-[13px]" aria-live="polite">
-                {overMax ? <div role="alert" className="text-sell">Dev buy is capped at {capSol} SOL. Lower it to see how much of the supply you get.</div> : q ? (
-                  <>
-                    <div>You receive <span className="num font-medium">~{fmtTok(q.estTokens)} ${ticker || "TOKEN"}</span> <span className="num text-ink-3">({q.supplyPct.toFixed(2)}% of supply)</span></div>
-                    <div className="num text-ink-3">Fee {q.feePct.toFixed(2)}% (~<SolAmt>{q.feeSol.toFixed(4)}</SolAmt>){anti && !q.minFeeApplied ? " (anti-sniper starting fee applies to the dev buy)" : ""}</div>
-                  </>
-                ) : <div className={qErr ? "text-sell" : "text-ink-3"}>{qErr ? friendlyQuoteError(qErr, capSol) : "Quoting…"}</div>}
-                {lowBalance && <div className="text-sell">Not enough SOL: about {needSol.toFixed(3)} SOL needed including launch rent and fees.</div>}
-              </div>
-            )}
-          </div>          <dl className="space-y-1.5 rounded border border-border bg-muted p-3 text-sm">
-            <div className="flex justify-between"><dt className="text-ink-3">Curve fee</dt><dd className="num">{f.total}%</dd></div>
-            <div className="flex justify-between"><dt className="text-ink-3">Creator, platform and Meteora</dt><dd className="num">{f.creator}%, {f.platform}%, {f.meteora}%</dd></div>
-            <div className="flex justify-between"><dt className="text-ink-3">After migration (1% pool fee)</dt><dd className="num">{postMigrationPct(tier).creator}%, {postMigrationPct(tier).platform}%, {postMigrationPct(tier).protocol}%</dd></div>
-            <div className="flex justify-between"><dt className="text-ink-3">Migration fee (creator share)</dt><dd className="num">{migrationFeePct(tier).fee}% ({migrationFeePct(tier).creatorShare}%)</dd></div>
-            <div className="flex justify-between"><dt className="text-ink-3">Migrates at</dt><dd className="num inline-flex flex-wrap items-center justify-end gap-x-1"><SolAmt>{thresholdSolFor(tier, NETWORK)}</SolAmt><span className="inline-flex items-center">(~<SolAmt>{migrationMcapSol(tier, NETWORK).toLocaleString("en-US", { maximumFractionDigits: 2 })}</SolAmt>&nbsp;mcap)</span></dd></div>
-          </dl>
-          <Button className="w-full" disabled={busy} onClick={submit}>{busy ? "Launching…" : "Launch"}</Button>
-          {tried && invalid && <p role="alert" className="text-sm text-sell">Fix the fields marked in red first.</p>}
-          {msg && <p role="status" className="text-sm text-ink-2">{msg}</p>}
-          {launched && <Link href={`/token/${launched.mint}`} className="inline-flex h-10 items-center rounded bg-ink px-4 text-sm font-medium text-on-ink hover:opacity-90">View token page</Link>}
-        </Card>
-        <div className="w-full lg:sticky lg:top-4 lg:w-[360px] lg:shrink-0">
-          <h2 className="mb-2 text-[13px] font-normal text-ink-3">Preview</h2>
-          <Card highlight className="p-5">
-            <div className="flex items-center gap-3">
-              {preview ? <img src={preview} alt={`${cleanLabel(name) || "Token"} image preview`} className="h-10 w-10 rounded-full object-cover" /> : <Avatar name={name || "??"} size={40} />}
-              <div><div className="font-medium">{name || "Token name"}</div><div className="num text-xs text-hl-sub">${ticker || "TICKER"}</div></div>
-              {anti && <ShieldCheck size={16} strokeWidth={1.5} className="ml-auto text-hl-sub" aria-label="Anti-sniper on" />}
-            </div>
-            <p className="mt-3 line-clamp-3 text-sm text-hl-sub">{desc || "Description shows here."}</p>
-            <div className="mt-4"><div className="h-1.5 rounded-full bg-ink-2"><div className="h-1.5 w-0 rounded-full bg-on-ink" /></div>
-              <div className="num mt-1 flex justify-between text-xs text-hl-sub"><span>0%</span><SolAmt>0 of {thresholdSolFor(tier, NETWORK)}</SolAmt></div></div>
-          </Card>
-          <Card className="mt-3"><div className="flex items-center justify-between text-sm"><TierBadge tier={tier} /><span className="num text-ink-3">$0 mcap</span></div><div className="mt-3"><ProgressBar value={0} tier={tier} /></div></Card>
-        </div>
+          <div className="gl"><div className="lbl" style={{ margin: "24px 0 8px" }}>Before you launch</div><Link href="/articles/how-to-launch-a-solana-memecoin">How to launch a Solana memecoin →</Link><Link href="/articles">How creator fees work →</Link><Link href="/anti-sniper-launch">Anti-sniper fees explained →</Link></div>
+        </aside>
       </div>
     </div>
   );

@@ -3,7 +3,8 @@
  *  interactive parts: window chips, token search, status filter, sorting and cursor paging. Aggregates link to the Methodology
  *  section, single accounts and transactions link to Solscan. */
 import { TableScroll } from "../ui/Scroll";
-import { Segmented, TabBar } from "../TabBar";
+import { Segmented } from "../TabBar";
+import { JtxSeg } from "../JtxSeg";
 import { InfoTip } from "../InfoTip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,11 +13,9 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, X } from "lucide
 import { TIERS, type TierId } from "@hb/shared";
 import { fmtDateTimeUS, fmtDateUS } from "@/lib/date";
 import { arr, fetchObTokens, num, OB_WINDOWS, providerLabel, str, type ObTokenRow, type ObTokensPage, type ObWindow, type PlatformOpenBook, type TokensQuery, type TreasuryWallet } from "@/lib/openbook";
-import { TokenLogo } from "../TokenLogo";
-import { TierBadge } from "../ui";
 import { FeeFlow, Spark, type FlowLink, type FlowNode } from "./charts";
 import { IndexChip } from "./OpenBookTab";
-import { Addr, BUCKET_COLOR, Chip, COLORS, fmtNum, fmtPct, fmtSolOb, fmtTokens, KV, Lbl, Nil, Panel, Prov, RECIPIENT_COLOR, Scan, SecHead, Sol, SolFig, TD, TH, mix } from "./ObUi";
+import { Addr, BUCKET_COLOR, Chip, COLORS, fmtNum, fmtPct, fmtSolOb, fmtTokens, KV, Lbl, Nil, Panel, Prov, RECIPIENT_COLOR, Scan, SecHead, Sol, SolFig, mix } from "./ObUi";
 
 const PAGE = 25;
 const ROLE_LABEL: Record<string, string> = { feeReceiver: "Fee receiver", feeClaimer: "Fee claimer", platform: "Platform", referral: "Referral", treasury: "Treasury", leftoverReceiver: "Leftover receiver", lockTip: "Lock tips" };
@@ -40,13 +39,13 @@ const solOr = (v: unknown, dp = 2) => { const n = num(v); return n == null ? <Ni
 function Totals({ t }: { t: PlatformOpenBook["totals"] }) {
   const n = (v: unknown) => num(v);
   return (
-    <div data-testid="ob-totals" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-      <Card label="Tokens launched" sub={n(t?.migratedCount) != null && <>{fmtNum(n(t?.migratedCount)!)} migrated to DAMM v2</>}>{n(t?.tokensLaunched) != null ? fmtNum(n(t?.tokensLaunched)!) : <Nil />}</Card>
-      <Card label="Total volume" sub={<>{n(t?.volumeUsd) != null && <>≈ ${fmtNum(n(t?.volumeUsd)!)}, </>}{n(t?.txCount) != null && <>{fmtNum(n(t?.txCount)!)} txs</>}</>}>{solOr(t?.volumeSol)}</Card>
-      <Card label="Total fees paid" sub={n(t?.feesPctOfVolume) != null && <>{fmtPct(n(t?.feesPctOfVolume)!)} of volume, all-in</>}>{solOr(t?.feesPaidSol, 4)}</Card>
-      <Card label="DBC fees" sub={n(t?.dbcPctOfVolume) != null && <>{fmtPct(n(t?.dbcPctOfVolume)!)} of volume</>}>{solOr(t?.dbcFeesSol, 4)}</Card>
-      <Card label="Creators earned" sub={n(t?.creatorCount) != null && <>across {fmtNum(n(t?.creatorCount)!)} {n(t?.creatorCount) === 1 ? "creator" : "creators"}</>}>{solOr(t?.creatorsEarnedSol, 4)}</Card>
-      <Card gold label="Tips paid by traders" sub={n(t?.sniperTipPct) != null && <span className="text-burn">{fmtPct(n(t?.sniperTipPct)!, 1)} from sniper wallets</span>}>{solOr(t?.tipsSol, 4)}</Card>
+    <div data-testid="ob-totals" className="obg">
+      <div><div className="lbl">Tokens launched</div><div className="v">{n(t?.tokensLaunched) != null ? fmtNum(n(t?.tokensLaunched)!) : <Nil />}</div>{n(t?.migratedCount) != null && <small>{fmtNum(n(t?.migratedCount)!)} migrated to DAMM v2</small>}</div>
+      <div><div className="lbl">Total volume</div><div className="v">{solOr(t?.volumeSol)}</div><small>{n(t?.txCount) != null ? <>{fmtNum(n(t?.txCount)!)} txs</> : null}</small></div>
+      <div><div className="lbl">Total fees paid</div><div className="v">{solOr(t?.feesPaidSol, 4)}</div>{n(t?.feesPctOfVolume) != null && <small>{fmtPct(n(t?.feesPctOfVolume)!)} of volume, all-in</small>}</div>
+      <div><div className="lbl">DBC fees</div><div className="v">{solOr(t?.dbcFeesSol, 4)}</div>{n(t?.dbcPctOfVolume) != null && <small>{fmtPct(n(t?.dbcPctOfVolume)!)} of volume</small>}</div>
+      <div><div className="lbl">Creators earned</div><div className="v yl">{solOr(t?.creatorsEarnedSol, 4)}</div>{n(t?.creatorCount) != null && <small>across {fmtNum(n(t?.creatorCount)!)} {n(t?.creatorCount) === 1 ? "creator" : "creators"}</small>}</div>
+      <div><div className="lbl">Tips paid by traders</div><div className="v">{solOr(t?.tipsSol, 4)}</div>{n(t?.sniperTipPct) != null && <small>{fmtPct(n(t?.sniperTipPct)!, 1)} from sniper wallets</small>}</div>
     </div>
   );
 }
@@ -154,7 +153,7 @@ function Flow({ ob }: { ob: PlatformOpenBook }) {
           {num(f?.platformPctOfFees) != null && <span>Platform share is {fmtPct(num(f?.platformPctOfFees)!, 1)} of total fees paid{num(f?.tipsPctOfFees) != null && <>, {fmtPct(num(f?.tipsPctOfFees)!, 1)} leaves highbar as tips</>}</span>}
         </div>
       </Panel>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="wgrid w3" style={{ marginTop: 18 }}>
         <Panel className="p-4">
           <Lbl>Platform use, closed periods</Lbl>
           <div className="mt-2.5 flex flex-col gap-1.5 text-[12px]">
@@ -233,25 +232,25 @@ function Tokens({ initial, initialQ }: { initial: ObTokensPage | null; initialQ:
               className="min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-3" />
             {qIn && <button type="button" aria-label="Clear search" onClick={() => { setQIn(""); setQ(""); }} className="text-ink-3 hover:text-ink"><X size={13} /></button>}
           </label>
-          <Segmented label="Token status" value={status} onChange={setStatus} outerClassName="max-w-full" options={[{ id: "all", label: "All" }, { id: "bonding", label: "Bonding" }, { id: "migrated", label: "Migrated" }]} />
+          <JtxSeg label="Token status" value={status} onChange={setStatus} options={[{ id: "all", label: "All" }, { id: "bonding", label: "Bonding" }, { id: "migrated", label: "Migrated" }]} />
         </div>} />
-      <Panel className="overflow-hidden">
+      <div className="tw">
         <TableScroll sticky label="All tokens">
-          <table data-testid="ob-tokens-table" className={`w-full min-w-[900px] text-[12.5px] transition-opacity ${loading ? "opacity-60" : ""}`}>
+          <table data-testid="ob-tokens-table" className={loading ? "opacity-60" : ""}>
             <thead><tr className="border-b border-border">
-              <th className={`${TH} w-8`}>#</th><th className={TH}>Token</th><th className={TH}>Tier</th>
+              <th style={{ width: 48 }}>#</th><th>Token</th><th style={{ width: 104 }}>Tier</th>
               {COLS.map((c) => (
-                <th key={c.k} className={`${TH} ${c.k === "sniperTipPct" ? "" : "text-right"}`} aria-sort={sort === c.k ? (order === "asc" ? "ascending" : "descending") : "none"}>
+                <th key={c.k} style={{ width: c.k === "sniperTipPct" ? 150 : 112 }} className={c.k === "sniperTipPct" ? "" : "r"} aria-sort={sort === c.k ? (order === "asc" ? "ascending" : "descending") : "none"}>
                   <button type="button" onClick={() => onSort(c.k)} className={`inline-flex items-center gap-1 hover:text-ink ${sort === c.k || (!sort && c.k === "volume" && !q) ? "text-gold-text" : ""}`}>
                     {c.label}{sort === c.k && (order === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />)}
                   </button>
                 </th>
               ))}
-              <th className={TH}>Status</th><th className={`${TH} w-6`}><span className="sr-only">Open</span></th>
+              <th style={{ width: 130 }}>Status</th><th style={{ width: 32 }}><span className="sr-only">Open</span></th>
             </tr></thead>
             <tbody>
-              {err && <tr><td colSpan={11} className="px-3 py-8 text-center text-ink-3">The token list could not be loaded ({err}).</td></tr>}
-              {!err && rows.length === 0 && <tr><td colSpan={11} className="px-3 py-8 text-center text-ink-3">{q ? <>No tokens match “{q}”</> : "No tokens yet"}</td></tr>}
+              {err && <tr><td colSpan={11} className="dim" style={{ textAlign: "center", padding: 24 }}>The token list could not be loaded ({err}).</td></tr>}
+              {!err && rows.length === 0 && <tr><td colSpan={11} className="dim" style={{ textAlign: "center", padding: 24 }}>{q ? <>No tokens match “{q}”</> : "No tokens yet"}</td></tr>}
               {rows.map((t, i) => <TokenRow key={t.mint ?? i} t={t} i={start + i} net={net} sniperColor={sniperColor} />)}
             </tbody>
           </table>
@@ -263,7 +262,7 @@ function Tokens({ initial, initialQ }: { initial: ObTokensPage | null; initialQ:
             <button type="button" disabled={!data?.nextCursor || loading} onClick={() => setStack((s) => [...s, data!.nextCursor!])} className="hb-ctrl inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-[12px] text-ink disabled:cursor-not-allowed disabled:opacity-40">Next<ChevronRight size={13} /></button>
           </div>
         </div>
-      </Panel>
+      </div>
     </section>
   );
 }
@@ -274,21 +273,20 @@ function TokenRow({ t, i, net, sniperColor }: { t: ObTokenRow; i: number; net?: 
   const cell = (v: unknown) => <Sol v={v} dp={2} />;
   return (
     <tr data-testid="ob-token-row" onClick={(e) => { if (href && !(e.target as HTMLElement).closest("a,button")) router.push(href); }} className={`group border-t border-border hover:bg-control ${href ? "cursor-pointer" : ""}`}>
-      <td className={`${TD} num text-ink-3`}>{i + 1}</td>
-      <td className={TD}>
+      <td className="num dim">{i + 1}</td>
+      <td>
         {href ? <Link href={href} className="flex items-center gap-2.5" data-testid="ob-token-link">
-          <TokenLogo name={name} size={28} />
-          <span className="min-w-0"><span className="block max-w-[180px] truncate text-[13px] font-medium text-ink">{name}</span>{sym && <span className="num block text-[11px] text-ink-3">${sym}</span>}</span>
+          <span className="tk"><span className="av">{name.slice(0, 2).toUpperCase()}</span><span><b>{name}</b>{sym && <small>${sym}</small>}</span></span>
         </Link> : name}
       </td>
-      <td className={TD}>{tier ? <TierBadge tier={tier} /> : <Nil />}</td>
-      <td className={`${TD} text-right`}>{cell(t.volumeSol)}</td>
-      <td className={`${TD} text-right`}>{cell(t.dbcFeesSol)}</td>
-      <td className={`${TD} text-right`}>{cell(t.creatorEarnedSol)}</td>
-      <td className={`${TD} text-right`}>{cell(t.tipsSol)}</td>
-      <td className={TD}>{sp == null ? <Nil /> : <span className="flex items-center gap-2"><span className="h-[5px] w-16 overflow-hidden rounded-full bg-border"><i className="block h-full rounded-full" style={{ width: `${Math.min(100, sp)}%`, background: sniperColor(sp) }} /></span><span className="num text-[12px]" style={{ color: sniperColor(sp) }}>{fmtPct(sp, 1)}</span></span>}</td>
-      <td className={TD}>{t.status === "migrated" ? <Chip tone="blue">Migrated</Chip> : t.status === "bonding" ? <span className="flex items-center gap-1.5"><Chip tone="gold">Bonding</Chip>{pr != null && <span className="num text-[11.5px] text-ink-2">{fmtPct(pr, 1)}</span>}</span> : <Nil />}</td>
-      <td className={`${TD} text-ink-3`}><ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" aria-hidden /></td>
+      <td>{tier ? <span className={`tier ${tier}`}>{tier}</span> : <Nil />}</td>
+      <td className="r num">{cell(t.volumeSol)}</td>
+      <td className="r num">{cell(t.dbcFeesSol)}</td>
+      <td className="r num">{cell(t.creatorEarnedSol)}</td>
+      <td className="r num">{cell(t.tipsSol)}</td>
+      <td>{sp == null ? <Nil /> : <span className="flex items-center gap-2"><span className="h-[5px] w-16 overflow-hidden rounded-full bg-border"><i className="block h-full rounded-full" style={{ width: `${Math.min(100, sp)}%`, background: sniperColor(sp) }} /></span><span className="num text-[12px]" style={{ color: sniperColor(sp) }}>{fmtPct(sp, 1)}</span></span>}</td>
+      <td>{t.status === "migrated" ? <Chip tone="blue">Migrated</Chip> : t.status === "bonding" ? <span className="flex items-center gap-1.5"><Chip tone="gold">Bonding</Chip>{pr != null && <span className="num text-[11.5px] text-ink-2">{fmtPct(pr, 1)}</span>}</span> : <Nil />}</td>
+      <td className="dim"><ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" aria-hidden /></td>
     </tr>
   );
 }
@@ -318,31 +316,36 @@ export function OpenBookPlatform({ ob, tokens, window: w, q }: { ob: PlatformOpe
   const wallets = arr(ob?.treasuryWallets);
   const winHref = useMemo(() => (id: ObWindow) => { const s = new URLSearchParams(); if (id !== "all") s.set("window", id); if (q) s.set("q", q); const t = s.toString(); return `/open-book${t ? `?${t}` : ""}`; }, [q]);
   return (
-    <div className="flex min-w-0 flex-col gap-7 pb-10">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav aria-label="Open Book sections" className="flex flex-wrap gap-4 text-[12.5px] text-ink-3">
-          {[["Overview", "#ob-totals"], ["Treasury", "#ob-treasury"], ["Fee flow", "#ob-flow"], ["All tokens", "#ob-tokens"], ["Methodology", M]].map(([l, h]) => <a key={h} href={h} className="hover:text-ink">{l}</a>)}
-        </nav>
-        <div className="flex flex-wrap items-center gap-2">
-          <IndexChip meta={ob?.meta} />
-          <TabBar label="Time window" value={w} onSelect={(id) => { keepY.current = window.scrollY; router.push(winHref(id), { scroll: false }); }} outerClassName="max-w-full"
-            items={OB_WINDOWS.map((o) => ({ id: o.id, label: o.label, href: winHref(o.id), testId: `ob-window-${o.id}` }))} />
+    <div className="min-w-0">
+      <div className="phead">
+        <div>
+          <div className="bul">Open <b>Book</b></div>
+          <h1 className="h1">Every fee, <span>reconciled against chain.</span></h1>
+          <p className="muted" style={{ margin: "10px 0 0", maxWidth: "44em" }}>Every fee, tip and treasury movement across all highbar tokens, reconciled against chain. Click any number to verify it.</p>
         </div>
+        <div className="ctrls">
+          <IndexChip meta={ob?.meta} />
+          <JtxSeg label="Time window" value={w} onChange={(id) => { keepY.current = window.scrollY; router.push(winHref(id), { scroll: false }); }}
+            options={OB_WINDOWS.map((o) => ({ id: o.id, label: o.label }))} />
+        </div>
+      </div>
+      <div className="ttabs" role="tablist" aria-label="Open Book sections">
+        {[["Overview", "#ob-totals"], ["Treasury", "#ob-treasury"], ["Fee flow", "#ob-flow"], ["All tokens", "#ob-tokens"], ["Methodology", M]].map(([l, h]) => <a key={h} href={h}>{l}</a>)}
       </div>
       {ob ? (
         <>
           <div id="ob-totals" className="scroll-mt-20"><Totals t={ob.totals} /></div>
           {wallets.length > 0 && (
-            <section id="ob-treasury" aria-labelledby="ob-treasury-h" className="scroll-mt-20">
+            <section id="ob-treasury" aria-labelledby="ob-treasury-h" className="scroll-mt-20 sec msec">
               <SecHead id="ob-treasury-h" title="Treasury wallets" sub="Live balances, read from chain" />
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{wallets.map((x, i) => <WalletCard key={x.address ?? i} w={x} net={net} />)}</div>
+              <div className="wgrid" style={{ marginTop: 24 }}>{wallets.map((x, i) => <WalletCard key={x.address ?? i} w={x} net={net} />)}</div>
             </section>
           )}
-          <Flow ob={ob} />
+          <div className="sec msec"><Flow ob={ob} /></div>
         </>
-      ) : <Panel className="p-8 text-center text-[13px] text-ink-3">The platform totals could not be loaded right now. Try again in a minute.</Panel>}
-      <Tokens initial={tokens} initialQ={q} />
-      <Methodology ob={ob} />
+      ) : <div className="sec"><Panel className="p-8 text-center text-[13px] text-ink-3">The platform totals could not be loaded right now. Try again in a minute.</Panel></div>}
+      <div className="sec msec"><Tokens initial={tokens} initialQ={q} /></div>
+      <div className="sec msec" style={{ borderBottom: 0 }}><Methodology ob={ob} /></div>
     </div>
   );
 }

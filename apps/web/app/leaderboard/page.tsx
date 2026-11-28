@@ -2,20 +2,16 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { normalizeLeaderboard, type LbCreatorRow, type LbMigrationRow, type LbScoreRow, type LbSurvivorRow, type LbTokenBase, type LbTokenRow, type LbTraderRow, type LeaderboardKind } from "@hb/shared";
-import { TopBlock } from "@/components/TopBar";
-import { NA, ProgressBar, TierBadge } from "@/components/ui";
-import { InfoTip } from "@/components/InfoTip";
+import { NA } from "@/components/ui";
 import { SolAmt } from "@/components/Sol";
-import { TableCard } from "@/components/ui/TableCard";
-import { TableScroll } from "@/components/ui/Scroll";
-import { Stacked, StackedItem } from "@/components/ui/Stacked";
-import { Empty, Loading, OfflineNote, Tabs, TD, TH } from "@/components/PageStates";
+import { Empty, Loading, OfflineNote } from "@/components/PageStates";
 import { DevLockedBadge } from "@/components/DevLockedBadge";
 import { OfficialBadge } from "@/components/OfficialBadge";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useApiData } from "@/lib/pagesData";
-import { Segmented, TabPanels, useUrlTab } from "@/components/TabBar";
-import { ChampionsHeader, RomanRank } from "@/components/arena";
+import { TabPanels, useUrlTab } from "@/components/TabBar";
+import { JtxSeg } from "@/components/JtxSeg";
+import { toRoman } from "@/components/arena";
 import { fmtAge, fmtSol, fmtUsd, shortAddr } from "@/lib/format";
 
 // Row shapes + normalizer live in @hb/shared (leaderboard.ts) next to the API contract; normalizeLeaderboard turns any payload
@@ -40,8 +36,10 @@ const HINT: Record<Kind, string> = {
 const KINDS: Kind[] = ["tokens", "scores", "creators", "traders", "migrations", "survivors"];
 const KIND_LABEL: Record<Kind, string> = { tokens: "Tokens", scores: "highbar", creators: "Creators", traders: "Traders", migrations: "Migrations", survivors: "Survivors" };
 type Cell = [ReactNode, string];
-type Def = { cols: [string, "left" | "right"][]; items: { key: string; cells: Cell[]; title: ReactNode; value: ReactNode; rows: [string, ReactNode][] }[] };
-const ROW = "border-b border-border last:border-0 hover:bg-muted";
+// cols: [label, class] (class: "r" right aligned, w1..w5 widths from the mockup, h-sm hidden on narrow screens)
+type Def = { cols: [string, string][]; items: { key: string; cells: Cell[] }[] };
+
+const TOK_COLS = (rest: [string, string][]): [string, string][] => [["Token", ""], ["Tier", "w3"], ...rest];
 
 export default function LeaderboardPage() {
   const [kind, setKind] = useUrlTab<Kind>(KINDS, "tokens");
@@ -49,110 +47,116 @@ export default function LeaderboardPage() {
   const [sortTok, setSortTok] = useState<SortTok>("volumeSol");
   const { data, loading, error } = useApiData<unknown>(`/leaderboard/${kind}?window=${win}&limit=100`, []);
   const rows: unknown[] = normalizeLeaderboard(kind, data);
-  const rank = (i: number) => <RomanRank i={i} />;
-  const name = (t: Base) => (
-    <span className="inline-flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
-      <Link href={`/token/${t.mint}`} className="truncate font-medium hover:underline">{t.name || shortAddr(t.mint)}</Link><span className="num text-xs text-ink-3">${t.symbol}</span>
-    </span>
+  const initials = (t: Base) => (t.symbol || t.name || "?").slice(0, 2).toUpperCase();
+  const tk = (t: Base, link = true) => (
+    <div className="tk">
+      <div className="av">{initials(t)}</div>
+      <div>
+        <b>{link ? <Link href={`/token/${t.mint}`} className="hover:underline">{t.name || shortAddr(t.mint)}</Link> : (t.name || shortAddr(t.mint))}</b>
+        <small>${t.symbol} · HB {t.score ?? NA}</small>
+      </div>
+    </div>
   );
-  const badges = (t: Base) => <><OfficialBadge official={t.official} /><ScoreBadge score={t.score} /><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></>;
-  const tok = (t: Base): Cell => [<span key="t" className="flex flex-wrap items-center gap-x-2 gap-y-1">{name(t)}<span className="inline-flex items-center gap-1.5">{badges(t)}</span></span>, ""];
-  const tokTitle = (t: Base) => <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">{name(t)}<TierBadge tier={t.tier} />{badges(t)}</span>;
-  const R = "num text-right";
+  const tierChip = (t: Base) => <span className={`tier ${t.tier}`}>{t.tier}</span>;
+  const tok = (t: Base): Cell[] => [[tk(t), "tkc"], [tierChip(t), ""]];
+  const R = "r num";
   const sorted = kind === "tokens" ? [...(rows as TokRow[])].sort((a, b) => b[sortTok] - a[sortTok]) : rows;
 
   const def: Def = kind === "tokens" ? {
-    cols: [["Token", "left"], ["Tier", "left"], ["Volume", "right"], ["Mcap", "right"], ["Progress", "left"]],
+    cols: TOK_COLS([["Volume", "r w3"], ["Mcap", "r w3"], ["Progress", "w5 h-sm"]]),
     items: (sorted as TokRow[]).map((t) => {
-      const prog = <div className="flex w-full items-center gap-2"><div className="flex-1"><ProgressBar value={t.isMigrated ? 1 : t.progress} tier={t.tier} /></div><span className="num w-10 text-right text-xs text-ink-3">{t.isMigrated ? "✓" : `${Math.round(t.progress * 100)}%`}</span></div>;
-      return { key: t.mint, cells: [tok(t), [<TierBadge key="r" tier={t.tier} />, ""], [<SolAmt key="v">{fmtSol(t.volumeSol, 3)}</SolAmt>, R], [fmtUsd(t.mcapUsd), R], [prog, "w-48"]],
-        title: tokTitle(t), value: <SolAmt>{fmtSol(t.volumeSol, 3)}</SolAmt>, rows: [["Mcap", fmtUsd(t.mcapUsd)], ["Progress", <span key="p" className="block w-32">{prog}</span>]] };
+      const pct = t.isMigrated ? 100 : Math.round(t.progress * 100);
+      const prog = <div className="prog"><div className="bar"><i style={{ width: `${Math.max(1, pct)}%` }} /></div>{t.isMigrated ? "✓" : `${pct}%`}</div>;
+      return { key: t.mint, cells: [...tok(t), [<SolAmt key="v">{fmtSol(t.volumeSol, 3)}</SolAmt>, R], [fmtUsd(t.mcapUsd), R], [prog, "h-sm"]] };
     }),
   } : kind === "scores" ? {
-    cols: [["Token", "left"], ["Tier", "left"], ["Score", "right"], ["Tier pts", "right"], ["Anti-sniper", "right"], ["Dev lock", "right"], ["Spread", "right"], ["Holders", "right"]],
+    cols: TOK_COLS([["Score", "r w2"], ["Tier pts", "r w2 h-md"], ["Anti-sniper", "r w3 h-md"], ["Dev lock", "r w2 h-md"], ["Spread", "r w2 h-sm"], ["Holders", "r w5 h-sm"]]),
     items: (rows as ScoRow[]).map((t) => {
-      const score = <>{t.score}<span className="ml-1 text-xs font-normal text-ink-3">{t.label}</span></>;
+      const score = <>{t.score}<span className="dim"> {t.label}</span></>;
       const hold = t.breakdown ? <>{t.breakdown.holders} holders, top 10 hold {t.breakdown.top10Pct}%</> : NA;
-      return { key: t.mint, cells: [tok(t), [<TierBadge key="r" tier={t.tier} />, ""], [score, `${R} font-semibold`], [t.breakdown?.tier ?? NA, R], [t.breakdown?.antiSniper ?? NA, R],
-          [t.breakdown?.devLock ?? NA, R], [t.breakdown?.spread ?? NA, R], [hold, `${R} text-ink-3`]],
-        title: tokTitle(t), value: <span className="font-semibold">{score}</span>,
-        rows: [["Tier pts", t.breakdown?.tier ?? NA], ["Anti-sniper", t.breakdown?.antiSniper ?? NA], ["Dev lock", t.breakdown?.devLock ?? NA], ["Spread", t.breakdown?.spread ?? NA], ["Holders", hold]] };
+      return { key: t.mint, cells: [...tok(t), [score, R], [t.breakdown?.tier ?? NA, `${R} h-md`], [t.breakdown?.antiSniper ?? NA, `${R} h-md`],
+        [t.breakdown?.devLock ?? NA, `${R} h-md`], [t.breakdown?.spread ?? NA, `${R} h-sm`], [hold, `${R} dim h-sm`]] };
     }),
   } : kind === "migrations" ? {
-    cols: [["Token", "left"], ["Tier", "left"], ["Time to migrate", "right"], ["Raised", "right"], ["Volume", "right"], ["Migrated", "right"]],
+    cols: TOK_COLS([["Time to migrate", "r w4"], ["Raised", "r w3"], ["Volume", "r w3 h-md"], ["Migrated", "r w3 h-sm"]]),
     items: (rows as MigRow[]).map((t) => ({ key: t.mint,
-      cells: [tok(t), [<TierBadge key="r" tier={t.tier} />, ""], [dur(t.timeToMigrateMs), R], [<SolAmt key="a">{fmtSol(t.raisedSol, 2)}</SolAmt>, R], [<SolAmt key="v">{fmtSol(t.volumeSol, 2)}</SolAmt>, R], [`${fmtAge(t.migratedAt)} ago`, `${R} text-ink-3`]],
-      title: tokTitle(t), value: dur(t.timeToMigrateMs),
-      rows: [["Raised", <SolAmt key="a">{fmtSol(t.raisedSol, 2)}</SolAmt>], ["Volume", <SolAmt key="v">{fmtSol(t.volumeSol, 2)}</SolAmt>], ["Migrated", `${fmtAge(t.migratedAt)} ago`]] })),
+      cells: [...tok(t), [dur(t.timeToMigrateMs), R], [<SolAmt key="a">{fmtSol(t.raisedSol, 2)}</SolAmt>, R], [<SolAmt key="v">{fmtSol(t.volumeSol, 2)}</SolAmt>, `${R} h-md`], [`${fmtAge(t.migratedAt)} ago`, `${R} dim h-sm`]] })),
   } : kind === "survivors" ? {
-    cols: [["Token", "left"], ["Tier", "left"], ["Days held", "right"], ["Since migration", "right"], ["Mcap now", "right"], ["vs migration", "right"]],
+    cols: TOK_COLS([["Days held", "r w3"], ["Since migration", "r w4 h-md"], ["Mcap now", "r w3"], ["vs migration", "r w3 h-sm"]]),
     items: (rows as SurRow[]).map((t) => {
-      const vs = <span className={t.alive == null ? "text-ink-3" : t.alive ? "text-buy" : "text-sell"}>{t.ratioNow == null ? "no DAMM data" : `${(t.ratioNow * 100).toFixed(0)}%`}</span>;
+      const vs = <span className={t.alive == null ? "dim" : t.alive ? "text-buy" : "text-sell"}>{t.ratioNow == null ? "no DAMM data" : `${(t.ratioNow * 100).toFixed(0)}%`}</span>;
       const mcap = t.nowMcapUsd == null ? NA : fmtUsd(t.nowMcapUsd);
-      return { key: t.mint, cells: [tok(t), [<TierBadge key="r" tier={t.tier} />, ""], [`${t.survivedDays}d`, `${R} font-semibold`], [`${t.daysSinceMigration}d`, `${R} text-ink-3`], [mcap, R], [vs, R]],
-        title: tokTitle(t), value: <span className="font-semibold">{t.survivedDays}d</span>,
-        rows: [["Since migration", `${t.daysSinceMigration}d`], ["Mcap now", mcap], ["vs migration", vs]] };
+      return { key: t.mint, cells: [...tok(t), [`${t.survivedDays}d`, R], [`${t.daysSinceMigration}d`, `${R} dim h-md`], [mcap, R], [vs, `${R} h-sm`]] };
     }),
   } : kind === "creators" ? {
-    cols: [["Creator", "left"], ["Tokens", "right"], ["Migrated", "right"], ["Avg score", "right"], ["Volume", "right"], ["Fees earned (est.)", "right"]],
+    cols: [["Creator", ""], ["Tokens", "r w3"], ["Migrated", "r w3"], ["Avg score", "r w3 h-md"], ["Volume", "r w4"], ["Fees earned (est.)", "r w5 h-sm"]],
     items: (rows as CreRow[]).map((c) => {
       const fees = <span className="text-buy"><SolAmt>{c.feesEarnedSol.toFixed(4)}</SolAmt></span>;
-      return { key: c.creator, cells: [[shortAddr(c.creator, 6), "num"], [c.tokens, R], [c.graduated, R], [c.avgScore ?? NA, R], [<SolAmt key="v">{fmtSol(c.volumeSol, 3)}</SolAmt>, R], [fees, R]],
-        title: <span className="num">{shortAddr(c.creator, 6)}</span>, value: <SolAmt>{fmtSol(c.volumeSol, 3)}</SolAmt>,
-        rows: [["Tokens", c.tokens], ["Migrated", c.graduated], ["Avg score", c.avgScore ?? NA], ["Fees earned (est.)", fees]] };
+      return { key: c.creator, cells: [[shortAddr(c.creator, 6), "num"], [c.tokens, R], [c.graduated, R], [c.avgScore ?? NA, `${R} h-md`], [<SolAmt key="v">{fmtSol(c.volumeSol, 3)}</SolAmt>, R], [fees, `${R} h-sm`]] };
     }),
   } : {
-    cols: [["Trader", "left"], ["Volume", "right"], ["Trades", "right"], ["Buys and sells", "right"], ["Last trade", "right"]],
+    cols: [["Trader", ""], ["Volume", "r w4"], ["Trades", "r w3"], ["Buys and sells", "r w4 h-md"], ["Last trade", "r w4 h-sm"]],
     items: (rows as TraRow[]).map((t) => {
       const bs = <><span className="text-buy">{t.buys}</span> and <span className="text-sell">{t.sells}</span></>;
-      return { key: t.wallet, cells: [[shortAddr(t.wallet, 6), "num"], [<SolAmt key="v">{fmtSol(t.volumeSol, 3)}</SolAmt>, R], [t.trades, R], [bs, R], [`${fmtAge(t.lastTs)} ago`, `${R} text-ink-3`]],
-        title: <span className="num">{shortAddr(t.wallet, 6)}</span>, value: <SolAmt>{fmtSol(t.volumeSol, 3)}</SolAmt>,
-        rows: [["Trades", t.trades], ["Buys and sells", bs], ["Last trade", `${fmtAge(t.lastTs)} ago`]] };
+      return { key: t.wallet, cells: [[shortAddr(t.wallet, 6), "num"], [<SolAmt key="v">{fmtSol(t.volumeSol, 3)}</SolAmt>, R], [t.trades, R], [bs, `${R} h-md`], [`${fmtAge(t.lastTs)} ago`, `${R} dim h-sm`]] };
     }),
   };
   const label = KIND_LABEL[kind];
+  const podium = kind === "tokens" && (sorted as TokRow[]).length >= 3 ? (sorted as TokRow[]).slice(0, 3) : [];
+  const listItems = podium.length ? def.items.slice(3) : def.items;
+  const firstRank = podium.length ? 3 : 0;
+  const hasRows = rows.length > 0;
 
   return (
-    <div className="flex flex-col gap-4">
-      <TopBlock>
-        <ChampionsHeader><p className="mt-1.5 max-w-xl font-serif text-[15px] leading-snug text-ink-2 md:mt-2 md:text-[17px]">The arena&apos;s best tokens, creators and traders.</p></ChampionsHeader>
-        <div className="mt-3 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-3">
-          <Segmented label="Leaderboard" value={kind} onChange={setKind} options={KINDS.map((k) => ({ id: k, label: KIND_LABEL[k] }))}
-            outerClassName="-mx-[14px] md:mx-0 md:max-w-full" innerClassName="px-[14px] md:px-0" />
-          <div className="flex flex-wrap items-center gap-2">
-            {kind === "tokens" && <Tabs label="Sort by" value={sortTok} onChange={setSortTok} options={[{ id: "volumeSol", label: "Volume" }, { id: "mcapUsd", label: "Mcap" }, { id: "progress", label: "Progress" }]} />}
-            <Tabs label="Time window" value={win} onChange={setWin} options={[{ id: "24h", label: "24h" }, { id: "7d", label: "7d" }, { id: "week", label: "This week" }, { id: "all", label: "All" }]} />
-            {/* Kept in the row (just hidden) for the other windows, so the right aligned tabs do not slide when it comes and goes. */}
-            <span className={win === "week" ? "inline-flex" : "invisible inline-flex"} aria-hidden={win !== "week" || undefined}><InfoTip label="About the weekly window">Weeks run Monday to Sunday, UTC.</InfoTip></span>
-          </div>
+    <div className="jtx">
+      <div className="phead">
+        <div>
+          <div className="bul">Leaderboard</div>
+          <h1 className="h1">Champions. <span>The arena&apos;s best.</span></h1>
         </div>
-      </TopBlock>
+        <div className="ctrls">
+          {kind === "tokens" && <JtxSeg label="Sort by" value={sortTok} onChange={setSortTok} options={[{ id: "volumeSol", label: "Volume" }, { id: "mcapUsd", label: "Mcap" }, { id: "progress", label: "Progress" }]} />}
+          <JtxSeg label="Time window" value={win} onChange={setWin} options={[{ id: "24h", label: "24h" }, { id: "7d", label: "7d" }, { id: "week", label: "This week" }, { id: "all", label: "All" }]} />
+        </div>
+      </div>
+      <JtxSeg line label="Leaderboard" value={kind} onChange={setKind} options={KINDS.map((k) => ({ id: k, label: KIND_LABEL[k] }))} />
       <OfflineNote error={error} />
-      <TableCard title={label} info={<InfoTip label={`About ${label}`}>{HINT[kind]}</InfoTip>} testId="leaderboard-card">
-        <TabPanels k={`${kind}:${win}`}>
-        {loading && !data ? <Loading rows={8} /> : rows.length === 0 ? (
-          error ? <Empty title="Leaderboard unavailable" hint="The API did not answer. It refreshes automatically. Try again in a moment." /> : <Empty title="No data yet" hint={`No ${kind} in this window. Try "All".`} />
+      <TabPanels k={`${kind}:${win}`}>
+        {loading && !data ? <div className="sec"><Loading rows={8} /></div> : !hasRows ? (
+          <div className="sec">{error ? <Empty title="Leaderboard unavailable" hint="The API did not answer. It refreshes automatically. Try again in a moment." /> : <Empty title="No data yet" hint={`No ${kind} in this window. Try "All".`} />}</div>
         ) : (
           <>
-            <Stacked className="sm:hidden" label={label}>
-              {def.items.map((it, i) => (
-                <StackedItem key={it.key} title={<span className="flex min-w-0 items-center gap-2.5"><span className="shrink-0">{rank(i)}</span>{it.title}</span>} value={it.value} rows={it.rows} />
-              ))}
-            </Stacked>
-            <TableScroll className="hidden sm:block" label={label}>
-              <table className="w-full text-sm">
-                <thead><tr className="border-b border-border text-xs text-ink-3"><th className={`${TH} w-14 text-left`}>Rank</th>{def.cols.map(([c, a]) => <th key={c} className={`${TH} whitespace-nowrap ${a === "right" ? "text-right" : "text-left"}`}>{c}</th>)}</tr></thead>
-                <tbody>{def.items.map((it, i) => (
-                  <tr key={it.key} className={ROW}>
-                    <td className={TD}>{rank(i)}</td>
-                    {it.cells.map(([v, c], j) => <td key={j} className={`${TD} ${c}`}>{v}</td>)}
-                  </tr>))}</tbody>
-              </table>
-            </TableScroll>
+            {podium.length > 0 && (
+              <div className="sec msec" style={{ borderBottom: 0, paddingBottom: 0 }}>
+                <div className="pod" data-testid="leaderboard-podium">
+                  {podium.map((t, i) => (
+                    <Link key={t.mint} href={`/token/${t.mint}`}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}><span className="rk">{toRoman(i + 1)}</span>{tierChip(t)}</div>
+                      {tk(t, false)}
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <div><div className="lbl">Volume</div><div className="v"><SolAmt>{fmtSol(t.volumeSol, 3)}</SolAmt></div></div>
+                        <div style={{ textAlign: "right" }}><div className="lbl">Mcap</div><div className="v">{fmtUsd(t.mcapUsd)}</div></div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="sec msec">
+              <div className="tw" data-testid="leaderboard-card">
+                <table>
+                  <thead><tr><th className="w1">Rank</th>{def.cols.map(([c, cl]) => <th key={c} className={cl}>{c}</th>)}</tr></thead>
+                  <tbody>{listItems.map((it, i) => (
+                    <tr key={it.key}>
+                      <td className="rom" data-l="Rank">{toRoman(firstRank + i + 1)}</td>
+                      {it.cells.map(([v, c], j) => <td key={j} className={c} data-l={j === 0 && kind !== "creators" && kind !== "traders" ? undefined : def.cols[j][0]}>{v}</td>)}
+                    </tr>))}</tbody>
+                </table>
+              </div>
+            </div>
           </>
         )}
-        </TabPanels>
-      </TableCard>
+      </TabPanels>
     </div>
   );
 }

@@ -1,40 +1,60 @@
 "use client";
 import Link from "next/link";
+import { Fragment } from "react";
 import { usePathname } from "next/navigation";
-import { SocialLinks } from "./SocialLinks";
-import { ThemeToggle } from "./ThemeToggle";
-import { NAV, isNavActive } from "./nav";
-import { Logo } from "./Logo";
-import { BuiltOnRow } from "./BuiltOnRow";
+import { PROJECT_LINKS } from "@/lib/links";
+import { MeteoraMark } from "./MeteoraMark";
+import { NAV_GROUPS, isNavActive, type NavItem } from "./nav";
 
-export function Sidebar() {
+function Item({ item, path, onNavigate }: { item: NavItem; path: string; onNavigate: () => void }) {
+  const on = isNavActive(path, item);
+  const className = `ni${on ? " on" : ""}`;
+  const badge = item.badge
+    ? (item.concept ? <b className="nb">{item.badge}</b> : <em className="nw">{item.badge}</em>)
+    : null;
+  const inner = (<><item.icon /><span>{item.label}</span>{badge}</>);
+  if (item.concept) {
+    return (
+      <button type="button" className={className} aria-disabled="true" title="Concept">
+        {inner}
+      </button>
+    );
+  }
+  if (item.href === "/articles") {
+    return <a href={item.href} aria-current={on ? "page" : undefined} className={className} onClick={onNavigate}>{inner}</a>;
+  }
+  return <Link href={item.href} aria-current={on ? "page" : undefined} className={className} onClick={onNavigate}>{inner}</Link>;
+}
+
+/** 252px sidebar. At <=900px it is a drawer controlled by `open`. */
+export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
   const path = usePathname();
   return (
-    <aside className="fixed inset-y-0 left-0 z-20 hidden w-sidebar md:flex flex-col border-r border-border bg-surface hb-rail px-3 py-5">
-      <Link href="/" className="mb-7 flex items-center px-3" aria-label="highbar home">
-        <Logo height={38} />
+    <aside id="sidenav" className={`sidenav${open ? " open" : ""}`} aria-label="Main navigation">
+      <Link href="/" className="logo" aria-label="highbar home" onClick={onNavigate}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="lg dk" src="/brand/sidebar-logo.png" alt="highbar" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="lg lt" src="/brand/sidebar-logo-light.png" alt="" />
       </Link>
-      <nav className="flex flex-col gap-0.5">
-        {NAV.map((item) => {
-          const { href, label, icon: Icon, badge } = item;
-          const on = isNavActive(path, item);
-          const className = `flex h-10 items-center gap-3 rounded-sm px-3 text-sm transition-colors ${on ? "bg-gold-soft font-medium text-ink" : "text-ink-2 hover:bg-control-hover hover:text-ink"}`;
-          const inner = (
-            <>
-              <Icon size={18} strokeWidth={on ? 2 : 1.5} className={on ? "text-gold-text" : undefined} />
-              {label}
-              {badge && <span className="ml-auto text-[11px] font-normal text-ink-3">{badge}</span>}
-            </>
-          );
-          return href === "/articles"
-            ? <a key={href} href={href} aria-current={on ? "page" : undefined} className={className}>{inner}</a>
-            : <Link key={href} href={href} aria-current={on ? "page" : undefined} className={className}>{inner}</Link>;
-        })}
-      </nav>
-      <div className="mt-auto" />
-      <ThemeToggle />
-      <SocialLinks variant="icons" className="mt-2 px-1" />
-      <BuiltOnRow className="mt-4 border-t border-border px-3 pt-3.5" />
+      <div id="navl" className="sn">
+        {NAV_GROUPS.map((g) => (
+          <Fragment key={g.label}>
+            <div className="lbl sg">{g.label}</div>
+            {g.items.map((item) => <Item key={item.label} item={item} path={path} onNavigate={onNavigate} />)}
+          </Fragment>
+        ))}
+      </div>
+      <div className="sbot">
+        <a className="bom" href="https://www.meteora.ag" target="_blank" rel="noopener noreferrer" aria-label="Built on Meteora">
+          Built on <MeteoraMark />
+        </a>
+        <a className="xl" href={PROJECT_LINKS.x} target="_blank" rel="noopener noreferrer" aria-label="highbar on X" title="X">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+          </svg>
+        </a>
+      </div>
     </aside>
   );
 }
