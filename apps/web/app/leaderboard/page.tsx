@@ -48,11 +48,11 @@ export default function LeaderboardPage() {
   const { data, loading, error } = useApiData<unknown>(`/leaderboard/${kind}?window=${win}&limit=100`, []);
   const rows: unknown[] = normalizeLeaderboard(kind, data);
   const initials = (t: Base) => (t.symbol || t.name || "?").slice(0, 2).toUpperCase();
-  const tk = (t: Base) => (
+  const tk = (t: Base, link = true) => (
     <div className="tk">
       <div className="av">{initials(t)}</div>
       <div>
-        <b><Link href={`/token/${t.mint}`} className="hover:underline">{t.name || shortAddr(t.mint)}</Link></b>
+        <b>{link ? <Link href={`/token/${t.mint}`} className="hover:underline">{t.name || shortAddr(t.mint)}</Link> : (t.name || shortAddr(t.mint))}</b>
         <small>${t.symbol} · HB {t.score ?? NA}</small>
       </div>
     </div>
@@ -132,7 +132,7 @@ export default function LeaderboardPage() {
                   {podium.map((t, i) => (
                     <Link key={t.mint} href={`/token/${t.mint}`}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}><span className="rk">{toRoman(i + 1)}</span>{tierChip(t)}</div>
-                      {tk(t)}
+                      {tk(t, false)}
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <div><div className="lbl">Volume</div><div className="v"><SolAmt>{fmtSol(t.volumeSol, 3)}</SolAmt></div></div>
                         <div style={{ textAlign: "right" }}><div className="lbl">Mcap</div><div className="v">{fmtUsd(t.mcapUsd)}</div></div>
