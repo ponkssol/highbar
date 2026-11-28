@@ -5,6 +5,7 @@ import BN from "bn.js";
 import {
   DynamicBondingCurveClient, SwapMode, deriveDbcPoolAddress, getCurrentPoint, type SwapQuote2Result,
 } from "@meteora-ag/dynamic-bonding-curve-sdk";
+import { allowedQuote, type QuoteNetwork } from "../quotes.js";
 
 export const WSOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
 
@@ -22,18 +23,19 @@ async function withBlockhash(connection: Connection, tx: Transaction, feePayer: 
 }
 
 export async function buildCreatePoolTx(
-  connection: Connection, configKey: PublicKey | string, name: string, symbol: string, uri: string, creator: PublicKey,
+  connection: Connection, configKey: PublicKey | string, name: string, symbol: string, uri: string, creator: PublicKey, network: QuoteNetwork = "mainnet",
 ): Promise<{ tx: Transaction; baseMint: Keypair; pool: PublicKey }> {
   const client = dbcClient(connection);
   const config = new PublicKey(configKey);
   const cfg = await client.state.getPoolConfig(config);
   if (!cfg) throw new Error(`config ${config.toBase58()} not found`);
-  if (!cfg.quoteMint.equals(WSOL_MINT)) throw new Error("config quote mint is not WSOL");
+  // fail closed: only reviewed quotes, and non-SOL quotes only where enabled (devnet). Dev buy and referral stay SOL-only (see launchTx).
+  if (!allowedQuote(cfg.quoteMint, network)) throw new Error(`config quote mint ${cfg.quoteMint.toBase58()} is not an enabled quote on ${network}`);
   const baseMint = Keypair.generate();
   const tx = await client.creator.createPool({ name, symbol, uri, payer: creator, poolCreator: creator, config, baseMint: baseMint.publicKey });
   await withBlockhash(connection, tx, creator);
   tx.partialSign(baseMint);
-  return { tx, baseMint, pool: deriveDbcPoolAddress(WSOL_MINT, baseMint.publicKey, config) };
+  return { tx, baseMint, pool: deriveDbcPoolAddress(cfg.quoteMint, baseMint.publicKey, config) };
 }
 
 /** Referral = WSOL ATA of the referral wallet. */

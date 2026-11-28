@@ -29,3 +29,12 @@ test("USDC quote needs an explicit SOL price", () => {
 test("non-SOL quotes are blocked on mainnet", () => {
   assert.throws(() => buildTierConfig("standard" as TierId, false, undefined, "mainnet", QUOTES.USDC, 150), /not enabled on mainnet/);
 });
+
+import { PublicKey } from "@solana/web3.js";
+import { allowedQuote } from "./quotes.js";
+test("allowedQuote: WSOL everywhere, devnet USDC on devnet only, unknown mints never", () => {
+  assert.equal(allowedQuote(QUOTES.SOL.mint, "mainnet")?.id, "SOL");
+  assert.equal(allowedQuote(QUOTES.USDC.mint, "devnet")?.id, "USDC");
+  assert.equal(allowedQuote(QUOTES.USDC.mint, "mainnet"), null);
+  assert.equal(allowedQuote(new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"), "mainnet"), null); // real USDC is not enabled yet
+});

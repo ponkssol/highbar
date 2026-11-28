@@ -6,18 +6,12 @@ import {
   DynamicBondingCurveClient, buildCurve, BaseFeeMode, MigrationOption, MigrationFeeOption,
   ActivationType, TokenType, TokenDecimal, CollectFeeMode, MigratedCollectFeeMode,
 } from "@meteora-ag/dynamic-bonding-curve-sdk";
+import { QUOTES, type QuoteAsset, type QuoteId } from "./quotes.js";
 import { TIERS, ANTI_SNIPER, CURVE_FEE_BPS, DAMM_V2_POOL_FEE_BPS, thresholdSolFor, type TierId, type ConfigKey, type Network } from "@hb/shared";
 
 const WSOL = new PublicKey("So11111111111111111111111111111111111111112");
 
-/** Quote assets a config can be priced in. Allowlist only: an arbitrary quote mint is a trap for traders (freeze or mint authority),
- *  so each entry is reviewed. Non-SOL quotes are DEVNET ONLY until the indexer, API accounting and UI support them. */
-export type QuoteId = "SOL" | "USDC";
-export interface QuoteAsset { id: QuoteId; mint: PublicKey; decimals: number; networks: Network[] }
-export const QUOTES: Record<QuoteId, QuoteAsset> = {
-  SOL: { id: "SOL", mint: WSOL, decimals: 9, networks: ["devnet", "mainnet"] },
-  USDC: { id: "USDC", mint: new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"), decimals: 6, networks: ["devnet"] }, // Circle devnet USDC
-};
+export { QUOTES, type QuoteAsset, type QuoteId } from "./quotes.js";
 
 /** Migration threshold in the quote token. SOL: unchanged. Other quotes: the SOL threshold converted at an explicit SOL/quote price
  *  supplied by the operator (no oracle, so a wrong price is the operator's call and is printed before anything is sent). */
