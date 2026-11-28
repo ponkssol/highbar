@@ -48,7 +48,7 @@ const REF_FEE = (n: number) => `coalesce(t.referral_fee_lamports, floor(round(t.
 export async function referralIncome(p: Period, q: Q = db) {
   const r = (await q.query<{ income: string; n: number; derived: number }>(
     `SELECT coalesce(sum(${REF_FEE(3)}), 0)::bigint::text AS income, count(*)::int AS n, count(*) FILTER (WHERE t.referral_fee_lamports IS NULL)::int AS derived
-       FROM trades t WHERE t.via_ui AND t.ts >= $1 AND t.ts < $2`, [p.start, p.end, REFERRAL_FEE_BPS_OF_TRADE_FEE])).rows[0];
+       FROM trades t WHERE NOT EXISTS (SELECT 1 FROM tokens qk WHERE qk.mint = t.mint AND qk.quote_mint <> 'So11111111111111111111111111111111111111112') AND t.via_ui AND t.ts >= $1 AND t.ts < $2`, [p.start, p.end, REFERRAL_FEE_BPS_OF_TRADE_FEE])).rows[0];
   return { income: BigInt(r.income), trades: r.n, derivedTrades: r.derived };
 }
 
@@ -209,7 +209,7 @@ export const referralStore = {
   async referees(wallet: string, limit = 50) {
     const { rows } = await db.query<{ referee: string; created_at: number; trades: number; vol: string }>(
       `SELECT r.referee, r.created_at, count(t.sig)::int AS trades, coalesce(sum(round(t.sol * 1e9)), 0)::bigint::text AS vol
-         FROM referrals r LEFT JOIN trades t ON t.wallet = r.referee AND t.via_ui AND t.ts >= r.created_at
+         FROM referrals r LEFT JOIN trades t ON t.wallet = r.referee AND NOT EXISTS (SELECT 1 FROM tokens qk WHERE qk.mint = t.mint AND qk.quote_mint <> 'So11111111111111111111111111111111111111112') AND t.via_ui AND t.ts >= r.created_at
         WHERE r.referrer = $1 GROUP BY r.referee, r.created_at ORDER BY r.created_at DESC LIMIT $2`, [wallet, limit]);
     const n = (await db.query<{ n: number }>("SELECT count(*)::int AS n FROM referrals WHERE referrer = $1", [wallet])).rows[0].n;
     return { total: n, items: rows.map((r) => ({ wallet: r.referee, joinedAt: Number(r.created_at), trades: r.trades, volumeSol: Number(r.vol) / 1e9 })) };

@@ -36,7 +36,7 @@ export const rewardsStore = {
       `SELECT count(*) FILTER (WHERE via_ui)::int AS via, count(*) FILTER (WHERE NOT via_ui)::int AS other,
               coalesce(sum(round(sol * 1e9)) FILTER (WHERE via_ui), 0)::bigint::text AS vol,
               coalesce(sum(round(sol * 1e9)) FILTER (WHERE via_ui AND ts >= $2), 0)::bigint::text AS open_vol
-         FROM trades WHERE wallet = $1`, [wallet, fromTs ?? Number.MAX_SAFE_INTEGER])).rows[0];
+         FROM trades WHERE NOT EXISTS (SELECT 1 FROM tokens qk WHERE qk.mint = trades.mint AND qk.quote_mint <> 'So11111111111111111111111111111111111111112') AND wallet = $1`, [wallet, fromTs ?? Number.MAX_SAFE_INTEGER])).rows[0];
     const rows = (await db.query(
       `SELECT t.sig, t.mint, t.side, t.sol, t.ts, coalesce(k.name, '') AS name, coalesce(k.symbol, '') AS symbol
          FROM trades t LEFT JOIN tokens k ON k.mint = t.mint WHERE t.wallet = $1 AND t.via_ui ORDER BY t.ts DESC, t.sig DESC LIMIT $2`, [wallet, limit])).rows;

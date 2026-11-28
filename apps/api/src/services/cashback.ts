@@ -18,7 +18,7 @@ export async function computeAccruals(p: Period, exclude: string[], boost?: Cash
   if (!cashbackGate(p, jobs.goPublic).ok) return []; // GO_PUBLIC_DATE guard (run.ts logs the reason)
   const { rows } = await db.query<{ wallet: string; trades: number; vol: string }>(
     `SELECT wallet, count(*)::int AS trades, sum(round(sol * 1e9))::bigint::text AS vol
-       FROM trades WHERE via_ui AND wallet IS NOT NULL AND wallet <> '' AND ts >= $1 AND ts < $2 AND NOT (wallet = ANY($3::text[]))
+       FROM trades WHERE NOT EXISTS (SELECT 1 FROM tokens qk WHERE qk.mint = trades.mint AND qk.quote_mint <> 'So11111111111111111111111111111111111111112') AND via_ui AND wallet IS NOT NULL AND wallet <> '' AND ts >= $1 AND ts < $2 AND NOT (wallet = ANY($3::text[]))
       GROUP BY wallet ORDER BY wallet`, [p.start, p.end, exclude]);
   const out = rows.map((r): Accrual => { const volume = BigInt(r.vol); return { wallet: r.wallet, trades: r.trades, volume, amount: (volume * BigInt(TRADER_CASHBACK_BPS)) / BigInt(BPS) }; });
   if (boost) for (const a of out) { const b = await boost(a.wallet, a.volume); Object.assign(a, { amount: a.amount + b.bonus, bonus: b.bonus, barTier: b.tier, barRaw: b.raw }); }
