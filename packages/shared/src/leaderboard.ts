@@ -9,6 +9,7 @@ export type LeaderboardWindow = "24h" | "7d" | "week" | "all";
 export interface LbScoreBreakdown { tier: number; antiSniper: number; devLock: number; spread: number; holders: number; top10Pct: number; label?: string; lockedPct?: number; lockDaysLeft?: number }
 export interface LbTokenBase {
   mint: string; name: string; symbol: string; tier: TierId; mcapUsd: number; progress: number; isMigrated: boolean;
+  antiSniper?: boolean; quote?: string;
   score: number | null; devLocked: boolean; unlockAt: number | null; official: boolean;
 }
 export interface LbTokenRow extends LbTokenBase { volumeSol: number; trades: number; volume24hSol?: number }

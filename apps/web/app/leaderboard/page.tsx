@@ -58,14 +58,15 @@ export default function LeaderboardPage() {
   const badges = (t: Base) => <><OfficialBadge official={t.official} /><ScoreBadge score={t.score} /><DevLockedBadge devLocked={t.devLocked} unlockAt={t.unlockAt} /></>;
   const tok = (t: Base): Cell => [<span key="t" className="flex flex-wrap items-center gap-x-2 gap-y-1">{name(t)}<span className="inline-flex items-center gap-1.5">{badges(t)}</span></span>, ""];
   const tokTitle = (t: Base) => <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">{name(t)}<TierBadge tier={t.tier} />{badges(t)}</span>;
+  const launchType = (t: Base) => `${t.tier} · ${t.antiSniper ? "anti-sniper" : "open"} · ${t.quote ?? "SOL"}`;
   const R = "num text-right";
   const sorted = kind === "tokens" ? [...(rows as TokRow[])].sort((a, b) => b[sortTok] - a[sortTok]) : rows;
 
   const def: Def = kind === "tokens" ? {
-    cols: [["Token", "left"], ["Tier", "left"], ["Volume", "right"], ["Mcap", "right"], ["Progress", "left"]],
+    cols: [["Token", "left"], ["Tier", "left"], ["Launch type", "left"], ["Volume", "right"], ["Mcap", "right"], ["Progress", "left"]],
     items: (sorted as TokRow[]).map((t) => {
       const prog = <div className="flex w-full items-center gap-2"><div className="flex-1"><ProgressBar value={t.isMigrated ? 1 : t.progress} tier={t.tier} /></div><span className="num w-10 text-right text-xs text-ink-3">{t.isMigrated ? "✓" : `${Math.round(t.progress * 100)}%`}</span></div>;
-      return { key: t.mint, cells: [tok(t), [<TierBadge key="r" tier={t.tier} />, ""], [<SolAmt key="v">{fmtSol(t.volumeSol, 3)}</SolAmt>, R], [fmtUsd(t.mcapUsd), R], [prog, "w-48"]],
+      return { key: t.mint, cells: [tok(t), [<TierBadge key="r" tier={t.tier} />, ""], [launchType(t), "text-xs text-ink-3"], [<SolAmt key="v">{fmtSol(t.volumeSol, 3)}</SolAmt>, R], [fmtUsd(t.mcapUsd), R], [prog, "w-48"]],
         title: tokTitle(t), value: <SolAmt>{fmtSol(t.volumeSol, 3)}</SolAmt>, rows: [["Mcap", fmtUsd(t.mcapUsd)], ["Progress", <span key="p" className="block w-32">{prog}</span>]] };
     }),
   } : kind === "scores" ? {
