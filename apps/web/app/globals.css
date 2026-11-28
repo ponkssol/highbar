@@ -674,3 +674,5 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .jtx tr:hover .rb{background:var(--y);border-color:var(--yx);color:var(--on-y)}
 .jtx .note{font:12px var(--mono);color:var(--tx3);margin:14px 0 0}
 @media(max-width:700px){.jtx .tw td.act{grid-column:1/-1}.jtx .tw td.act::before{display:none}.jtx .tw td.act .rb{width:100%;justify-content:center;height:44px}}
+.jtx .tw th button{font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit}
+#ob-tokens .tw td,#ob-tokens .tw th{padding-left:12px;padding-right:12px}

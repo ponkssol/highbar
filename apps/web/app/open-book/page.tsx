@@ -28,13 +28,6 @@ export default async function OpenBookPage({ searchParams }: Props) {
   return (
     <div className="jtx">
       <JsonLd data={ld} />
-      <div className="phead">
-        <div>
-          <div className="bul">Open <b>Book</b></div>
-          <h1 className="h1">Every fee, <span>reconciled against chain.</span></h1>
-          <p className="muted" style={{ margin: "10px 0 0", maxWidth: "44em" }}>Every fee, tip and treasury movement across all highbar tokens, reconciled against chain. Click any number to verify it.</p>
-        </div>
-      </div>
       <OpenBookPlatform ob={ob} tokens={tokens} window={w} q={q} />
     </div>
   );
