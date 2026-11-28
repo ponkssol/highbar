@@ -699,3 +699,28 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 @media(max-width:1200px){.jtx .glist{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:800px){.jtx .feat-g{grid-template-columns:minmax(0,1fr)}.jtx .fgi{border-left:0;border-top:1px solid var(--bd-s);min-height:180px}}
 @media(max-width:600px){.jtx .glist{grid-template-columns:minmax(0,1fr)}}
+
+/* Token page shares the mockup table (it is not inside .jtx) */
+.tok th{font-family:var(--mono);font-weight:400;font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:.04em}
+.tok td{font-size:14px;font-weight:400;padding:16px;border-bottom:1px solid var(--bd-s)}
+.tok th{padding:14px 16px}
+.tok .tw{border:1px solid var(--bd-s);background:var(--el)}
+.tok .tw table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
+.tok .tw th{text-align:left;padding:14px 16px;border-bottom:1px solid var(--bd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tok .tw td{padding:16px;height:68px;border-bottom:1px solid var(--bd-s);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tok .tw tbody tr:hover{background:var(--hov)}
+.tok .tw tbody tr:hover td:first-child{box-shadow:inset 2px 0 0 var(--y)}
+.tok .tw tbody tr:last-child td{border-bottom:0}
+.tok .tw .r{text-align:right}
+.tok .tw .num,.jtx .pod .num{font-family:var(--mono)}
+.tok .tw .dim,.jtx .dim{color:var(--tx3)}
+.tok .tw .w1{width:72px}.jtx .tw .w2{width:104px}.jtx .tw .w3{width:128px}.jtx .tw .w4{width:160px}.jtx .tw .w5{width:200px}
+.tok .tier{font-family:var(--mono);font-size:12px;padding:3px 8px;border:1px solid var(--bd);text-transform:capitalize}
+.tok .tier.higher{border-color:#ffc72c66;color:var(--yx)}
+.tok .tier.max{background:var(--y);color:var(--on-y);border-color:var(--yx)}
+.tok .tw td.rom{width:56px}
+.tok .tw th button{font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit}
+.tok .tw.flat{border:0;background:none}
+.tok .tw.flat th:first-child,.tok .tw.flat td:first-child{padding-left:clamp(16px,3vw,32px)}
+.tok .tw .pos{color:var(--pos,#4ade80)}.tok .tw .neg{color:var(--neg,#f87171)}
+@media(max-width:900px){.tok .tw .h-sm{display:none}}

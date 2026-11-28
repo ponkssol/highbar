@@ -11,7 +11,6 @@ import { TradePanel } from "./TradePanel";
 import { Price } from "./ui";
 import { InfoTip } from "./InfoTip";
 import { SolAmt, SolHead } from "./Sol";
-import { TableScroll } from "./ui/Scroll";
 import { Stacked, StackedItem } from "./ui/Stacked";
 import { DevLock, DevLockButton } from "./DevLock";
 import { TabPanels, useUrlTab } from "./TabBar";
@@ -78,25 +77,21 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
               meta={[shortAddr(tr.wallet), <a key="t" href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label={`${fmtAge(tr.ts, t.now)} ago, view transaction on Solscan`} className="inline-flex items-center gap-1 hover:text-ink">{fmtAge(tr.ts, t.now)} ago<ExternalLink size={12} aria-hidden /></a>]} />
           ))}
         </Stacked>
-        <TableScroll className="hidden sm:block" label="Trades">
-          <table className="w-full text-sm">
-            <thead><tr className="h-10 whitespace-nowrap text-xs text-ink-3">
-              <th className="pl-0 pr-4 text-left font-medium">Time</th><th className="px-4 text-left font-medium">Type</th><th className="px-4 text-right font-medium"><SolHead>SOL</SolHead></th>
-              <th className="px-4 text-right font-medium">${t.ticker}</th><th className="px-4 text-left font-medium">Wallet</th><th className="px-4"><span className="sr-only">Transaction</span></th></tr></thead>
-            <tbody>
-              {t.trades.map((tr) => (
-                <tr key={tr.sig} className="h-11 border-t border-border hover:bg-muted">
-                  <td className="num whitespace-nowrap pl-0 pr-4 text-ink-3">{fmtAge(tr.ts, t.now)} ago</td>
-                  <td className="whitespace-nowrap px-4"><SideChip side={tr.side} />{tr.devBuy && <DevChip />}</td>
-                  <td className="num px-4 text-right">{tr.sol}</td>
-                  <td className="num whitespace-nowrap px-4 text-right">{tr.tokens.toLocaleString("en-US")}</td>
-                  <td className="num px-4 text-ink-2">{shortAddr(tr.wallet)}</td>
-                  <td className="px-4 text-right"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label="View transaction on Solscan" className="text-ink-3 hover:text-ink"><ExternalLink size={14} aria-hidden /></a></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
+        <div className="tw flat hidden sm:block"><table>
+          <thead><tr><th className="w3">Time</th><th className="w2">Type</th><th className="r">SOL</th><th className="r">${t.ticker}</th><th className="w4 h-sm">Wallet</th><th className="w1"><span className="sr-only">Transaction</span></th></tr></thead>
+          <tbody>
+            {t.trades.map((tr) => (
+              <tr key={tr.sig}>
+                <td className="num dim">{fmtAge(tr.ts, t.now)} ago</td>
+                <td><span className={tr.side === "buy" ? "pos" : "neg"}>{tr.side === "buy" ? "Buy" : "Sell"}</span>{tr.devBuy && <span className="tier" style={{ marginLeft: 8 }}>Dev</span>}</td>
+                <td className="r num">{tr.sol}</td>
+                <td className="r num">{tr.tokens.toLocaleString("en-US")}</td>
+                <td className="num dim h-sm">{shortAddr(tr.wallet)}</td>
+                <td className="r"><a href={explorerTx(tr.sig.split(":")[0])} target="_blank" rel="noreferrer" aria-label="View transaction on Solscan" className="dim"><ExternalLink size={14} aria-hidden /></a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
       </>
     );
     if (k === "holders") return (
@@ -133,7 +128,7 @@ function DetailTabs({ t, locks, reloadLocks }: { t: TokenViewData; locks: LocksR
           </button>
         ))}
       </div>
-      <div style={{ padding: "8px clamp(16px,3vw,32px) 28px" }}>
+      <div style={{ padding: tab === "trades" ? "0 0 28px" : "8px clamp(16px,3vw,32px) 28px" }}>
         <TabPanels k={tab}>{panel(tab)}</TabPanels>
       </div>
     </section>
@@ -220,4 +215,4 @@ export function TokenView({ t, about }: { t: TokenViewData; /** server-rendered 
       )}
     </div>
   );
-}
+}
