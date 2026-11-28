@@ -724,3 +724,10 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .tok .tw.flat th:first-child,.tok .tw.flat td:first-child{padding-left:clamp(16px,3vw,32px)}
 .tok .tw .pos{color:var(--pos,#4ade80)}.tok .tw .neg{color:var(--neg,#f87171)}
 @media(max-width:900px){.tok .tw .h-sm{display:none}}
+
+/* Open Book wallet / summary grids: flat 1px-gap cells like the mockup */
+.jtx .wgrid>*{border:0!important;border-radius:0!important;box-shadow:none!important;background:var(--el)!important;padding:18px!important}
+.jtx .wgrid.w3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1200px){.jtx .wgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){.jtx .wgrid.w3{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.jtx .wgrid{grid-template-columns:minmax(0,1fr)}}

@@ -153,7 +153,7 @@ function Flow({ ob }: { ob: PlatformOpenBook }) {
           {num(f?.platformPctOfFees) != null && <span>Platform share is {fmtPct(num(f?.platformPctOfFees)!, 1)} of total fees paid{num(f?.tipsPctOfFees) != null && <>, {fmtPct(num(f?.tipsPctOfFees)!, 1)} leaves highbar as tips</>}</span>}
         </div>
       </Panel>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="wgrid w3" style={{ marginTop: 18 }}>
         <Panel className="p-4">
           <Lbl>Platform use, closed periods</Lbl>
           <div className="mt-2.5 flex flex-col gap-1.5 text-[12px]">
@@ -338,7 +338,7 @@ export function OpenBookPlatform({ ob, tokens, window: w, q }: { ob: PlatformOpe
           {wallets.length > 0 && (
             <section id="ob-treasury" aria-labelledby="ob-treasury-h" className="scroll-mt-20 sec msec">
               <SecHead id="ob-treasury-h" title="Treasury wallets" sub="Live balances, read from chain" />
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{wallets.map((x, i) => <WalletCard key={x.address ?? i} w={x} net={net} />)}</div>
+              <div className="wgrid" style={{ marginTop: 24 }}>{wallets.map((x, i) => <WalletCard key={x.address ?? i} w={x} net={net} />)}</div>
             </section>
           )}
           <div className="sec msec"><Flow ob={ob} /></div>
