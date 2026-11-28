@@ -185,3 +185,14 @@ test("route: 400 on a bad address, the status json (no-store), 429 with retry-af
   await tick();
   assert.equal(kicks.length, 1);
 });
+
+test("candidatePools: a config with a non-WSOL quote gets its PDA from that quote", async () => {
+  const { PublicKey } = await import("@solana/web3.js");
+  const usdc = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+  const mint = "6rT2fiDGLscFco76R6Ni2eEBJVm7sSgoQxGpQUqghigh", config = "6oKq2aMeY7gV4ZSP4T8szQkiAJ3xoL8Ps39UmtWNVsHW";
+  const [sol] = candidatePools(mint, [{ address: config }]);
+  const [alt] = candidatePools(mint, [{ address: config, quote: { mint: usdc } }]);
+  assert.equal(sol.pool, deriveDbcPoolAddress(WSOL_MINT, new PublicKey(mint), new PublicKey(config)).toBase58());
+  assert.equal(alt.pool, deriveDbcPoolAddress(usdc, new PublicKey(mint), new PublicKey(config)).toBase58());
+  assert.notEqual(sol.pool, alt.pool);
+});

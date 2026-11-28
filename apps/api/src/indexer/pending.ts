@@ -44,20 +44,20 @@ export interface PendingDeps {
   /** db only: a token row with this mint (or pool) exists */
   tokenExists(mint: string): Promise<boolean>;
   /** our DBC configs (poller.ts tierConfigs) */
-  configs(): { address: string }[];
+  configs(): { address: string; quote?: { mint: PublicKey } }[];
   /** ONE getMultipleAccountsInfo call, results in key order (null = no account) */
   getMultipleAccounts(keys: PublicKey[]): Promise<(AccountLite | null)[]>;
   /** fire-and-forget fast index of a found pool (fastIndexer.kick: dedupe per mint, FAST_INDEX caps); must not throw */
   kick(mint: string, found: FoundPool): void;
 }
 
-/** The DBC pool PDA of (config, mint, WSOL) for each distinct config. */
-export function candidatePools(mint: string, configs: { address: string }[]): FoundPool[] {
+/** The DBC pool PDA of (config, mint, the config's quote; WSOL when none given) for each distinct config. */
+export function candidatePools(mint: string, configs: { address: string; quote?: { mint: PublicKey } }[]): FoundPool[] {
   const base = new PublicKey(mint), seen = new Set<string>(), out: FoundPool[] = [];
   for (const c of configs) {
     if (seen.has(c.address)) continue;
     seen.add(c.address);
-    out.push({ pool: deriveDbcPoolAddress(WSOL_MINT, base, new PublicKey(c.address)).toBase58(), config: c.address });
+    out.push({ pool: deriveDbcPoolAddress(c.quote?.mint ?? WSOL_MINT, base, new PublicKey(c.address)).toBase58(), config: c.address });
   }
   return out;
 }

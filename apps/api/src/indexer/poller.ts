@@ -1,7 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import { deriveDbcPoolAddress, getPriceFromSqrtPrice } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { TIERS, networkOf, thresholdSolFor, type TierId } from "@hb/shared";
-import { getClient, getConnection, indexableConfigEntries, referralAta, sleep, withRetry } from "@hb/onchain";
+import { getClient, getConnection, indexableConfigEntries, quoteConfigEntries, QUOTES, WSOL, type QuoteAsset, referralAta, sleep, withRetry } from "@hb/onchain";
 import { decodeDbcEvents } from "./decode.js";
 import { toRaw } from "./rawTx.js";
 import { chronological, nextTradeTs, secondBaseMs } from "./tradeOrder.js";
@@ -19,7 +19,10 @@ import type { FoundPool } from "./pending.js";
 /** RPC-polling indexer (state in Postgres). Pool state via getPoolsByConfig; swaps via the backup's decode.ts (EvtSwap3). */
 const METAPLEX = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 const SUPPLY = 1_000_000_000;
-const L = 1e9;
+const L = 1e9; // SOL lamports; non-SOL quotes use 10 ** quote.decimals (quoteScale)
+const quoteScale = (q: QuoteAsset) => 10 ** q.decimals;
+/** Unit scale of a stored token's quote (WSOL when the column is empty). */
+const tokenScale = (t: { quoteMint?: string }) => { const q = Object.values(QUOTES).find((x) => x.mint.toBase58() === (t.quoteMint ?? WSOL.toBase58())); if (!q) throw new Error(`unknown quote mint ${t.quoteMint}`); return quoteScale(q); };
 const REFERRAL = process.env.PLATFORM_REFERRAL_TOKEN_ACCOUNT || referralAta().toBase58();
 /** getSignaturesForAddress page size (max 1000; same credits per call whatever the size) and page budget per poll. */
 const SIG_PAGE = Math.min(1000, Math.max(1, Number(process.env.INDEXER_SIG_PAGE ?? 1000) || 1000));
@@ -29,8 +32,11 @@ const MISSING_TX_RETRIES = 3;
 const missingTx = new Map<string, number>();
 
 export function tierConfigs() {
-  return indexableConfigEntries() // mainnet: ONLY configs.mainnet.json; devnet: devnet file + legacy + TEST_CONFIGS
-    .map(([k, v]) => { const [tier, a] = k.split("_"); return { key: k, tier: tier as TierId, antiSniper: a === "on", address: v }; });
+  const sol = indexableConfigEntries() // mainnet: ONLY configs.mainnet.json; devnet: devnet file + legacy + TEST_CONFIGS
+    .map(([k, v]) => { const [tier, a] = k.split("_"); return { key: k, tier: tier as TierId, antiSniper: a === "on", address: v, quote: QUOTES.SOL as QuoteAsset }; });
+  // non-SOL quotes (devnet only today, see quotes.ts): same tiers, priced in the quote's own units
+  const other = quoteConfigEntries().map((c) => { const [tier, a] = c.key.split("_"); return { key: `${c.key}@${c.quote}`, tier: tier as TierId, antiSniper: a === "on", address: c.address, quote: QUOTES[c.quote] as QuoteAsset }; });
+  return [...sol, ...other];
 }
 
 function readStr(buf: Buffer, o: number): [string, number] {
@@ -58,7 +64,9 @@ async function indexTrades(t: Token, maxTxs: number, log: (m: string) => void = 
   const batch = all.slice(0, Math.max(1, maxTxs));
   let cursor: string | undefined, stopped = false, handled = 0;
   const lastTsInSecond = new Map<number, number>(); // second (ms) -> last trade ts handed out for this mint
-  const ob = await openbookTables(db); // 0012 applied: trades + tx costs + aggregates in one db tx (Open Book)
+  const QS = tokenScale(t);
+  // Open Book (fee ledger, tips, sniper costs) is SOL-denominated: non-SOL pairs are not written to it yet
+  const ob = t.quoteMint && t.quoteMint !== WSOL.toBase58() ? null : await openbookTables(db); // 0012 applied: trades + tx costs + aggregates in one db tx (Open Book)
   // failed txs: also fetched (wallet / fee) inside the launch window only; 0 = never (the backfill can fill them later)
   const failedDetailMs = Number(process.env.OPENBOOK_FAILED_DETAIL_WINDOW_S ?? 60) * 1000;
   try {
@@ -100,8 +108,8 @@ async function indexTrades(t: Token, maxTxs: number, log: (m: string) => void = 
       const tradeTs = nextTradeTs(ts, lastTsInSecond.has(ts) ? lastTsInSecond.get(ts) : await store.maxTradeTsInSecond(t.mint, ts));
       lastTsInSecond.set(ts, tradeTs);
       const viaUi = !!REFERRAL && ev.referralTokenAccount === REFERRAL;
-      swaps.push({ row: { sig, pool: t.pool, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / L, tokens: Number(ev.tokenAmount) / 1e6,
-        feeSol: Number(ev.feeLamports) / L, wallet: ev.trader, viaUi, ts: tradeTs, ...(devBuy ? { devBuy: true } : {}),
+      swaps.push({ row: { sig, pool: t.pool, mint: t.mint, side: ev.side, sol: Number(ev.solLamports) / QS, tokens: Number(ev.tokenAmount) / 1e6,
+        feeSol: Number(ev.feeLamports) / QS, wallet: ev.trader, viaUi, ts: tradeTs, ...(devBuy ? { devBuy: true } : {}),
         referralFeeLamports: viaUi ? ev.referralFeeLamports : null }, extra: swapExtra(ev, raw, t, viaUi), solLamports: ev.solLamports });
     }
     let added: boolean[];
@@ -150,9 +158,10 @@ async function indexPool(it: Item, ctx: PassCtx): Promise<{ view: PoolView; due:
   const ps = account.poolState;
   const mint = ps.baseMint.toBase58();
   const prev = await store.getToken(mint).then((x) => (x?.mint === mint ? x : null));
-  const thresholdSol = config ? Number(config.migrationQuoteThreshold.toString()) / L : thresholdSolFor(cfg.tier, networkOf(process.env.NETWORK)); // on-chain value wins; fallback per network
-  const quoteReserveSol = Number(ps.quoteReserve.toString()) / L;
-  const priceSol = Number(getPriceFromSqrtPrice(ps.sqrtPrice, 6, 9).toString());
+  const QS = quoteScale(cfg.quote);
+  const thresholdSol = config ? Number(config.migrationQuoteThreshold.toString()) / QS : thresholdSolFor(cfg.tier, networkOf(process.env.NETWORK)); // on-chain value wins; fallback per network
+  const quoteReserveSol = Number(ps.quoteReserve.toString()) / QS;
+  const priceSol = Number(getPriceFromSqrtPrice(ps.sqrtPrice, 6, cfg.quote.decimals).toString());
   const isMigrated = Number(ps.isMigrated) !== 0;
   const pool = publicKey.toBase58();
   const view: PoolView = { createdAt: prev?.createdAt ?? 0, isMigrated, fingerprint: poolFingerprint(account) };
@@ -165,7 +174,7 @@ async function indexPool(it: Item, ctx: PassCtx): Promise<{ view: PoolView; due:
     creator: ps.creator.toBase58(), createdAt: prev?.createdAt ?? 0,
     quoteReserveSol, thresholdSol, progress: Math.min(1, quoteReserveSol / thresholdSol),
     isMigrated, priceSol, mcapSol: priceSol * SUPPLY, name: meta.name, symbol: meta.symbol, uri: meta.uri,
-    volumeSol: 0, volume24hSol: 0, trades: 0, creatorFeesSol: 0, feesSol: 0, updatedAt: Date.now(),
+    volumeSol: 0, volume24hSol: 0, trades: 0, creatorFeesSol: 0, feesSol: 0, updatedAt: Date.now(), quoteMint: cfg.quote.mint.toBase58(),
   };
   const r = due ? await indexTrades(t, prev ? Math.max(1, Math.min(limit, budget.left)) : limit, log).catch((e) => { log(`trades ${t.pool}: ${e.message}`); return null; }) : null;
   if (r) budget.left -= r.handled;
@@ -219,7 +228,6 @@ export async function indexOnce(log: (m: string) => void = console.log, sched?: 
   return { pools: views.size, polled, deferred, classes: sched?.stats(views, Date.now()) };
 }
 
-const NATIVE_MINT = new PublicKey("So11111111111111111111111111111111111111112");
 const sleepMs = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -261,7 +269,7 @@ async function launchInit(mint: string, signature: string | undefined, configs: 
 }
 
 async function indexPoolOf(mint: string, init: FoundPool, cfg: ReturnType<typeof tierConfigs>[number], log: (m: string) => void): Promise<FastResult> {
-  if (deriveDbcPoolAddress(NATIVE_MINT, new PublicKey(mint), new PublicKey(cfg.address)).toBase58() !== init.pool) return { status: "rejected", detail: "pool is not the config/mint PDA" };
+  if (deriveDbcPoolAddress(cfg.quote.mint, new PublicKey(mint), new PublicKey(cfg.address)).toBase58() !== init.pool) return { status: "rejected", detail: "pool is not the config/mint PDA" };
   const account = await withRetry(() => getClient().state.getPool(init.pool));
   if (!account || account.poolState.baseMint.toBase58() !== mint) return { status: "not_found", detail: "pool account not found" };
   const config = await poolConfig(cfg.address);

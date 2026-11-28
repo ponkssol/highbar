@@ -9,6 +9,7 @@ export interface Token {
   creator: string; createdAt: number; quoteReserveSol: number; thresholdSol: number; progress: number;
   isMigrated: boolean; priceSol: number; mcapSol: number; name: string; symbol: string; uri: string;
   volumeSol: number; volume24hSol: number; trades: number; creatorFeesSol: number; feesSol: number; updatedAt: number;
+  /** quote asset mint (WSOL for SOL pairs). The *Sol fields hold amounts in this quote's units. */ quoteMint?: string;
 }
 /** sig = "<txsig>:<ixIdx>" */
 export interface TradeRow { sig: string; pool: string; mint: string; side: "buy" | "sell"; sol: number; tokens: number; feeSol: number; wallet: string; viaUi: boolean; ts: number; /** first buy inside the pool-creation tx (Block 0) */ devBuy?: boolean;
@@ -21,7 +22,7 @@ export const splitSig = (s: string) => { const k = s.lastIndexOf(":"); return k 
 
 const TOKEN_COLS = `mint, pool, config, tier, anti_sniper AS "antiSniper", creator, created_at AS "createdAt", quote_reserve_sol AS "quoteReserveSol",
   threshold_sol AS "thresholdSol", progress, is_migrated AS "isMigrated", price_sol AS "priceSol", mcap_sol AS "mcapSol", name, symbol, uri,
-  volume_sol AS "volumeSol", volume_24h_sol AS "volume24hSol", trades, creator_fees_sol AS "creatorFeesSol", fees_sol AS "feesSol", updated_at AS "updatedAt"`;
+  volume_sol AS "volumeSol", volume_24h_sol AS "volume24hSol", trades, creator_fees_sol AS "creatorFeesSol", fees_sol AS "feesSol", updated_at AS "updatedAt", quote_mint AS "quoteMint"`;
 const TRADE_COLS = `sig || ':' || ix_idx AS sig, pool, mint, side, sol, tokens, fee_sol AS "feeSol", wallet, via_ui AS "viaUi", ts, dev_buy AS "devBuy"`;
 const tradeOut = (r: TradeRow & { devBuy: boolean }): TradeRow => { const { devBuy, ...t } = r; return devBuy ? { ...t, devBuy: true } : t; };
 const actOut = (r: Record<string, unknown>): Activity => Object.fromEntries(Object.entries(r).filter(([, v]) => v !== null)) as unknown as Activity;
@@ -71,15 +72,15 @@ export const store = {
       console.warn(`[tokens] refused insert of ${t.mint}: config ${t.config} is not in the ${network()} config allowlist`);
       return false;
     }
-    await q.query(`INSERT INTO tokens (mint,pool,config,tier,anti_sniper,creator,created_at,quote_reserve_sol,threshold_sol,progress,is_migrated,price_sol,mcap_sol,name,symbol,uri,volume_sol,volume_24h_sol,trades,creator_fees_sol,fees_sol,updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+    await q.query(`INSERT INTO tokens (mint,pool,config,tier,anti_sniper,creator,created_at,quote_reserve_sol,threshold_sol,progress,is_migrated,price_sol,mcap_sol,name,symbol,uri,volume_sol,volume_24h_sol,trades,creator_fees_sol,fees_sol,updated_at,quote_mint)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
       ON CONFLICT (mint) DO UPDATE SET pool=EXCLUDED.pool, config=EXCLUDED.config, tier=EXCLUDED.tier, anti_sniper=EXCLUDED.anti_sniper, creator=EXCLUDED.creator,
         created_at=EXCLUDED.created_at, quote_reserve_sol=EXCLUDED.quote_reserve_sol, threshold_sol=EXCLUDED.threshold_sol, progress=EXCLUDED.progress,
         is_migrated=EXCLUDED.is_migrated, price_sol=EXCLUDED.price_sol, mcap_sol=EXCLUDED.mcap_sol, name=EXCLUDED.name, symbol=EXCLUDED.symbol, uri=EXCLUDED.uri,
         volume_sol=EXCLUDED.volume_sol, volume_24h_sol=EXCLUDED.volume_24h_sol, trades=EXCLUDED.trades, creator_fees_sol=EXCLUDED.creator_fees_sol,
-        fees_sol=EXCLUDED.fees_sol, updated_at=EXCLUDED.updated_at`,
+        fees_sol=EXCLUDED.fees_sol, updated_at=EXCLUDED.updated_at, quote_mint=EXCLUDED.quote_mint`,
       [t.mint, t.pool, t.config, t.tier, t.antiSniper, t.creator, Math.round(t.createdAt), t.quoteReserveSol, t.thresholdSol, t.progress, t.isMigrated, t.priceSol, t.mcapSol,
-        t.name, t.symbol, t.uri, t.volumeSol, t.volume24hSol, t.trades, t.creatorFeesSol, t.feesSol, Math.round(t.updatedAt)]);
+        t.name, t.symbol, t.uri, t.volumeSol, t.volume24hSol, t.trades, t.creatorFeesSol, t.feesSol, Math.round(t.updatedAt), t.quoteMint ?? "So11111111111111111111111111111111111111112"]);
     return true;
   },
 

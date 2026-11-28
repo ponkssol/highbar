@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { Connection, Keypair, PublicKey, SendTransactionError, Transaction, type Signer } from "@solana/web3.js";
 import { utils } from "@coral-xyz/anchor";
 import { DynamicBondingCurveClient } from "@meteora-ag/dynamic-bonding-curve-sdk";
+import { QUOTES, type QuoteId } from "./quotes.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -73,9 +74,23 @@ export function indexableConfigEntries(net = network()): [string, string][] {
   return [...active, ...legacy];
 }
 
+/** Non-SOL quote configs (configs.<network>.<quote>.json, e.g. configs.devnet.usdc.json) for quotes ENABLED on this network.
+ *  Mainnet returns [] until a quote is enabled there in quotes.ts, so a stray file can never pull foreign pools into production. */
+export function quoteConfigEntries(net = network()): { key: string; address: string; quote: QuoteId }[] {
+  const out: { key: string; address: string; quote: QuoteId }[] = [];
+  for (const q of Object.values(QUOTES)) {
+    if (q.id === "SOL" || !q.networks.includes(net)) continue;
+    const p = path.resolve(here, "..", `configs.${net}.${q.id.toLowerCase()}.json`);
+    if (!fs.existsSync(p)) continue;
+    const f = JSON.parse(fs.readFileSync(p, "utf8").replace(/^\uFEFF/, "")) as Record<string, unknown>;
+    for (const [k, v] of Object.entries(f)) if (TIER_KEY.test(k) && typeof v === "string") out.push({ key: k, address: v, quote: q.id });
+  }
+  return out;
+}
+
 /** Allowlisted config addresses for the active cluster (see indexableConfigEntries). */
 export function indexableConfigSet(net = network()): Set<string> {
-  return new Set(indexableConfigEntries(net).map(([, a]) => a));
+  return new Set([...indexableConfigEntries(net).map(([, a]) => a), ...quoteConfigEntries(net).map((c) => c.address)]);
 }
 
 /** Devnet: DEVNET_RPC || RPC_URL || public devnet. Mainnet: RPC_URL only (DEVNET_RPC is ignored; the startup check refuses the public endpoint). */
