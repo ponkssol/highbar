@@ -95,12 +95,19 @@ export function NewBadge({ className = "" }: { className?: string }) {
 
 /** Section head: small gold-outlined letter, serif title, muted subtitle, optional right slot. */
 export function SecHead({ letter, title, sub, right, id, as: H = "h2", info, infoLabel }: { letter?: string; title: string; sub?: ReactNode; right?: ReactNode; id?: string; as?: "h2" | "h3"; /** helper text behind an InfoTip next to the title */ info?: ReactNode; infoLabel?: string }) {
+  const words = title.split(" ");
+  const subText = typeof sub === "string" ? sub : null;
+  // Mockup heading: "<muted first words> <b>last words</b>" label, then a large sentence whose tail is muted.
+  const split = (t: string) => { const i = t.indexOf(","); if (i > 0) return [t.slice(0, i + 1), t.slice(i + 1).trim()]; const w = t.split(" "); const k = Math.ceil(w.length / 2); return [w.slice(0, k).join(" "), w.slice(k).join(" ")]; };
+  const [h, tail] = subText ? split(subText) : ["", ""];
   return (
-    <div className="mb-3 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      {letter && <span aria-hidden className="num inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] border border-gold-line px-1 text-[10.5px] text-gold-text">{letter}</span>}
-      <H id={id} className="flex items-center gap-2 font-serif text-[21px] font-medium leading-tight tracking-normal text-ink md:text-[22px]">{title}{info && <InfoTip label={infoLabel ?? `About ${title.toLowerCase()}`} width={300} className="font-sans">{info}</InfoTip>}</H>
-      {sub && <p className="min-w-0 text-[12.5px] text-ink-3">{sub}</p>}
-      {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
+    <div style={{ marginBottom: 8 }}>
+      <div className="bul">{words.length > 1 ? words[0] : ""} <b>{words.length > 1 ? words.slice(1).join(" ") : title}</b></div>
+      <H id={id} className="h2" style={{ fontSize: 30, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {subText ? <span>{h} <span style={{ color: "var(--tx3)" }}>{tail}</span></span> : sub ? <span>{sub}</span> : title}
+        {info && <InfoTip label={infoLabel ?? `About ${title.toLowerCase()}`} width={300} className="font-sans">{info}</InfoTip>}
+      </H>
+      {right && <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>{right}</div>}
     </div>
   );
 }
