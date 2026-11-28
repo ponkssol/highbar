@@ -45,8 +45,8 @@ export function DocsToc({ items, title = "On this page" }: { items: TocItem[]; t
         </summary>
         <ul className="border-t border-border px-2 pb-3 pt-2">{items.map((i) => link(i, true))}</ul>
       </details>
-      <nav aria-label={title} data-testid="docs-toc" className="sticky top-4 hidden max-h-[calc(100vh-32px)] overflow-y-auto lg:block">
-        <div className="hb-eyebrow mb-3 pl-3">{title}</div>
+      <nav aria-label={title} data-testid="docs-toc" className="dnav hidden lg:flex">
+        <div className="lbl" style={{ marginBottom: 12 }}>{title}</div>
         <ul>{items.map((i) => link(i, false))}</ul>
       </nav>
     </>

@@ -676,3 +676,7 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 @media(max-width:700px){.jtx .tw td.act{grid-column:1/-1}.jtx .tw td.act::before{display:none}.jtx .tw td.act .rb{width:100%;justify-content:center;height:44px}}
 .jtx .tw th button{font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit}
 #ob-tokens .tw td,#ob-tokens .tw th{padding-left:12px;padding-right:12px}
+.jtx .dnav ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.jtx .dnav li{display:block}
+.jtx .dnav a{display:block}
+@media(max-width:1000px){.jtx .dg{grid-template-columns:minmax(0,1fr)!important}}

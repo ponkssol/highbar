@@ -24,10 +24,9 @@ export function DocsPage({ hero, toc, children }: { hero: ReactNode; toc: TocIte
   return (
     <div className="jtx">
       {hero}
-      <div className="dg">
+      <div className="dg" style={{ gridTemplateColumns: "240px minmax(0,1fr)" }}>
         <DocsToc items={toc} />
         <article className="dbody">{children}</article>
-        <aside className="dtoc" aria-label="On this page"><div className="lbl">On this page</div></aside>
       </div>
     </div>
   );
