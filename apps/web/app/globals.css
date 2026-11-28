@@ -680,3 +680,22 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .jtx .dnav li{display:block}
 .jtx .dnav a{display:block}
 @media(max-width:1000px){.jtx .dg{grid-template-columns:minmax(0,1fr)!important}}
+
+/* Guides (mockup feat-g / gc) */
+.jtx .feat-g{position:relative;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:0;align-items:stretch;border:1px solid var(--bd-s);background:var(--el);padding:0;overflow:hidden;margin-bottom:28px;text-decoration:none;color:inherit}
+.jtx .fgt{padding:clamp(20px,3vw,40px);display:flex;flex-direction:column;gap:14px;justify-content:center}
+.jtx .fgt h2{margin:0;font-weight:400;font-size:clamp(24px,2.6vw,36px);line-height:1.12;letter-spacing:-.015em}
+.jtx .fgt p{margin:0;max-width:44ch}
+.jtx .fgi{position:relative;min-height:240px;border-left:1px solid var(--bd-s)}
+.jtx .fgi img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.jtx .gc{transition:.15s}
+.jtx .gc:hover{border-color:var(--bd-x);background:var(--hov)}
+.jtx .gc:hover h4{color:var(--yx)}
+.jtx .gb{flex:1;justify-content:space-between}
+.jtx .gt{position:relative;aspect-ratio:16/8;overflow:hidden;border-bottom:1px solid var(--bd-s)}
+.jtx .gt img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scale(1.35);transition:transform .4s}
+.jtx .gc:hover .gt img{transform:scale(1.45)}
+.jtx .gt .tier{position:absolute;left:12px;top:12px;background:var(--bg);z-index:1}
+@media(max-width:1200px){.jtx .glist{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:800px){.jtx .feat-g{grid-template-columns:minmax(0,1fr)}.jtx .fgi{border-left:0;border-top:1px solid var(--bd-s);min-height:180px}}
+@media(max-width:600px){.jtx .glist{grid-template-columns:minmax(0,1fr)}}
