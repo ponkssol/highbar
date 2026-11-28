@@ -30,7 +30,6 @@ const FEATS: [string, string, string][] = [
   ["Three tiers", "Standard, Higher and Max graduate at 85, 150 and 250 SOL. Vanity mints end in “high”.", ""],
   ["Anti-sniper fee", "When enabled, the fee starts at 25% and decays to about 1% within 60 seconds.", ""],
   ["Dev Lock", "Creators lock their tokens with Jupiter Lock. Locks and unlock dates are public.", ""],
-  ["Private launch", "Launch from a hidden creator wallet, pay privately and claim fees to stealth addresses.", "New"],
   ["$HIGHER buyback & burn", "Part of platform fees buys and burns $HIGHER. Not an investment.", "Soon"],
 ];
 
@@ -420,13 +419,6 @@ export function HomeView({ initialStats = null, initialTokens = null, intro }: {
         <Link href="/rewards"><span className="lbl">Rewards</span><b>Check cashback</b><span className="muted">0.05% of volume, accrued daily.</span></Link>
         <Link href="/open-book"><span className="lbl">Verify</span><b>Open Book</b><span className="muted">Every fee, reconciled against chain.</span></Link>
         <div className="slot"><span className="lbl">Module slot</span><b>+ Add your next feature</b><span className="muted">Reserved space in the grid.</span></div>
-      </section>
-      <section className="pbn">
-        <div><span className="lbl">New · Private launch</span><h3>Launch without carrying your wallet.</h3><p className="muted">Pay privately, launch from a one-time wallet and claim fees to stealth addresses.</p></div>
-        <div className="pbr">
-          <Link className="btn y" href="/launch"><b>Launch privately</b><i>→</i></Link>
-          <button type="button" className="btn" aria-disabled="true" title="Concept"><b>Private send</b><i>→</i></button>
-        </div>
       </section>
       <Activity pct={STATS.graduatedPct} graduated={STATS.graduated} total={STATS.totalTokens} volume={STATS.totalVolumeSol} fees={STATS.creatorFeesSol} burned={STATS.barBurned} launched={STATS.barLaunched} traders={STATS.activeTraders24h ?? 0} />
       <div className="tick"><div className="tr">{loop.map((t, i) => <span key={`${t.mint}-${i}`}><b>${t.ticker}</b><span className="dim">—</span></span>)}</div></div>

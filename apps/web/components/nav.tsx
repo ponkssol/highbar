@@ -73,7 +73,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/portfolio", label: "Portfolio", icon: IconPortfolio, match: ["/claim"] },
       { href: "/rewards", label: "Rewards", icon: IconRewards, match: ["/cashback", "/referral", "/milestones", "/bar", "/burn", "/higher"] },
-      { href: "/private", label: "Private send", icon: IconPrivate, badge: "New" },
     ],
   },
   {

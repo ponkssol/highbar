@@ -55,8 +55,6 @@ export default function LaunchPage() {
   const [devBuy, setDevBuy] = useState("0");
   const [q, setQ] = useState<DevBuyQuote | null>(null);
   const [qErr, setQErr] = useState("");
-  const [mode, setMode] = useState<0 | 1>(0); // concept only: the private flow is shown as information, it changes nothing about the launch
-  const [pv, setPv] = useState({ wallet: false, pay: false, claim: false });
   const [launched, setLaunched] = useState<{ mint: string; signature: string } | null>(null);
   const [touched, setTouched] = useState<{ name?: boolean; ticker?: boolean }>({});
   const [tried, setTried] = useState(false);
@@ -143,24 +141,11 @@ export default function LaunchPage() {
     } finally { setBusy(false); }
   };
 
-  const Sw = ({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) => <button type="button" className="sw" role="switch" aria-checked={on} aria-label={label} onClick={onClick}><i /></button>;
-  const pvCount = Number(pv.wallet) + Number(pv.pay) + Number(pv.claim);
-  const pvLevel = ["Public", "Low", "Medium", "High"][pvCount];
-  const pvDesc = ["Your wallet is shown as the creator, like every launch today.", "One privacy option is on.", "Two privacy options are on.", "Creator wallet, payment and fee claims are all private."][pvCount];
   const idxTitle = (n: string, t: React.ReactNode, body: React.ReactNode) => <div className="fs"><div className="idx">{`{${n}}`}</div><div className="fb"><h3>{t}</h3>{body}</div></div>;
 
   return (
     <div className="jtx">
       <div className="phead"><div><div className="bul">Launch a <b>token</b></div><h1 className="h1">Set your bar, <span>then launch.</span></h1></div><div className="lbl">Block 0 dev buy</div><a className="bom" href="https://www.meteora.ag" target="_blank" rel="noreferrer" aria-label="Built on Meteora">Built on {/* eslint-disable-next-line @next/next/no-img-element */}<img src="/brand/partners/meteora-logo-light.svg" alt="Meteora" width={74} height={17} className="hidden h-[15px] w-auto dark:block" />{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/brand/partners/meteora-logo-dark.svg" alt="Meteora" width={74} height={17} className="h-[15px] w-auto dark:hidden" /></a></div>
-      <div className="modes">
-        <button type="button" className={mode === 0 ? "on" : ""} onClick={() => setMode(0)}><b>Public launch</b><span>Your wallet is the creator, like every launch today.</span></button>
-        <button type="button" className={mode === 1 ? "on" : ""} onClick={() => setMode(1)}><b>Private launch <i className="chip">New</i></b><span>Hidden creator wallet, private payment, stealth fee claims.</span></button>
-      </div>
-      {mode === 1 && (
-        <div className="pflow"><div className="lbl">How a private launch works</div>
-          <ol className="pfs"><li><b>Fund privately</b><span>SOL moves through the shielded pool to a fresh one-time wallet.</span></li><li><b>Launch from it</b><span>The token is created by that wallet. Your main wallet is not on the token.</span></li><li><b>Claim to stealth</b><span>Creator fees go to a new address each time.</span></li></ol>
-          <Link className="sm" href="/private">Open Private send <i>→</i></Link></div>
-      )}
       <div className="lg">
         <form className="lf" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
           {idxTitle("01", "Identity", <>
@@ -230,13 +215,7 @@ export default function LaunchPage() {
               )}
             </div>
           </>)}
-          {idxTitle("04", <>Privacy <span className="chip pvc">Concept</span></>, <>
-            <div className="trow"><div><b>Hide creator wallet</b><p>The token launches from a fresh one-time wallet. Your main wallet never appears on the token page or on-chain as the creator.</p></div><Sw on={pv.wallet} label="Hide creator wallet" onClick={() => setPv({ ...pv, wallet: !pv.wallet })} /></div>
-            <div className="trow"><div><b>Pay launch costs privately</b><p>Fund the launch wallet through a shielded transfer, so the payment is not linked to your wallet. <Link href="/private" className="yl">Open Private send →</Link></p></div><Sw on={pv.pay} label="Pay launch costs privately" onClick={() => setPv({ ...pv, pay: !pv.pay })} /></div>
-            <div className="trow"><div><b>Stealth fee claims</b><p>Creator fees are claimed to a new address each time, so claims cannot be tied back to you.</p></div><Sw on={pv.claim} label="Stealth fee claims" onClick={() => setPv({ ...pv, claim: !pv.claim })} /></div>
-            <div className="pvbox"><span className="lbl">Privacy level</span><b>{pvLevel}</b><div className="bar"><i style={{ width: `${pvCount * 33.4}%` }} /></div><p>{pvDesc}</p></div>
-          </>)}
-          {idxTitle("05", "Fees", <>
+          {idxTitle("04", "Fees", <>
             <dl className="kv">
               <div><span>Curve fee</span><b>{f.total}%</b></div>
               <div><span>Creator, platform and Meteora</span><b>{f.creator}%, {f.platform}%, {f.meteora}%</b></div>

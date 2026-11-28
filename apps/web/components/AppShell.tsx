@@ -20,7 +20,6 @@ function titleFor(path: string) {
   if (path.startsWith("/articles")) return "Guides";
   if (path.startsWith("/docs")) return "Documentation";
   if (path.startsWith("/settings")) return "Settings";
-  if (path.startsWith("/private")) return "Private send";
   if (path.startsWith("/terms")) return "Terms and Conditions";
   if (path.startsWith("/privacy")) return "Privacy Policy";
   if (path === "/") return "Dashboard";
