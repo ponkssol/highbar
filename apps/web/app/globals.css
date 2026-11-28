@@ -226,10 +226,10 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .home .art>.sc{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover}
 .home .arena{border:1px solid var(--bd-s);min-height:340px;display:flex;align-items:flex-end}
 .home .arena .ov{position:relative;padding:clamp(24px,4vw,56px);display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;width:100%;background:linear-gradient(0deg,var(--bg) 0%,var(--bg-0) 100%)}
-.home .arena .lbl{color:#e9dcc0;margin-bottom:12px}
-.home .arena h2{font-size:clamp(32px,3.6vw,52px);line-height:1.05;font-weight:400;letter-spacing:-.02em;margin:0;text-wrap:balance;text-shadow:0 2px 40px #000}
-.home .arena p{margin:14px 0 20px;color:#e9dcc0;max-width:34em;line-height:1.5;text-shadow:0 1px 20px #000}
-.home .arena .btn{margin:0 6px 12px 0}
+.home .arena .lbl{color:#e9dcc0;margin:0}
+.home .arena h2{font-size:clamp(32px,3.6vw,52px);line-height:1;font-weight:400;letter-spacing:-.02em;margin:0;text-wrap:balance;text-shadow:0 2px 40px #000}
+.home .arena p{margin:10px 0 0;color:#e9dcc0;max-width:34em;text-shadow:0 1px 20px #000}
+.home .arena .btn{margin:0}
 :root[data-theme=light] .home .arena h2,:root[data-theme=light] .home .arena p{color:#fff}
 :root[data-theme=light] .home .arena .lbl{color:#fff}
 :root[data-theme=light] .home .arena .ov{background:linear-gradient(0deg,#00000066,#00000000)}
@@ -246,9 +246,9 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 .home .cvl>div.hit{background:var(--selt)}
 .home .cvl>div.hit b{color:var(--y)}
 .home .qa{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;padding:0 clamp(16px,2.4vw,32px) 16px}
-.home .qa>a,.home .qa>.slot{border:1px solid var(--bd-s);background:var(--el);padding:16px;display:flex;flex-direction:column;gap:8px;min-height:118px;transition:.15s;text-decoration:none;color:inherit}
+.home .qa>a,.home .qa>.slot{border:1px solid var(--bd-s);background:var(--el);padding:16px;display:flex;flex-direction:column;gap:6px;min-height:118px;transition:.15s;text-decoration:none;color:inherit}
 .home .qa>a:hover{border-color:var(--bd-x);background:var(--hov)}
-.home .qa b{font-weight:400;font-size:17px;line-height:1.3}
+.home .qa b{font-weight:400;font-size:17px}
 .home .qa .muted{font-size:13px}
 .home .qa .slot{border-style:dashed;border-color:var(--bd-x);background:transparent}
 .home .qa .slot b{color:var(--yx)}
@@ -652,3 +652,5 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 @media(max-width:700px){.jtx .pfs{grid-template-columns:minmax(0,1fr)}}
 .jtx input::placeholder,.jtx textarea::placeholder{color:#757575;opacity:1}
 @media(max-width:700px){.jtx .modes{grid-template-columns:minmax(0,1fr)}}
+
+.home .arena .row{gap:0}
