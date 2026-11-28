@@ -26,8 +26,9 @@ export function HubTabs({ title, intro, headline, tabs, line = false }: { title:
           {headline && <h1 className="h1">{headline}</h1>}
           {intro && <p className="muted" style={{ margin: "10px 0 0", maxWidth: "40em" }}>{intro}</p>}
         </div>
-        <JtxSeg label={`${title} sections`} line={line} value={active.id} onChange={select} options={tabs.map((t) => ({ id: t.id, label: t.label }))} />
+        {!line && <JtxSeg label={`${title} sections`} value={active.id} onChange={select} options={tabs.map((t) => ({ id: t.id, label: t.label }))} />}
       </div>
+      {line && <JtxSeg label={`${title} sections`} line value={active.id} onChange={select} options={tabs.map((t) => ({ id: t.id, label: t.label }))} />}
       <HubContext.Provider value={true}>
         <TabPanels k={active.id}><Active /></TabPanels>
       </HubContext.Provider>

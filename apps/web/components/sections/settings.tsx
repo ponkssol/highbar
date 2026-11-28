@@ -17,7 +17,7 @@ export default function SettingsPage() {
   const presets = [0.5, 1, 2, 5];
   const slipId = presets.includes(s.slippagePct) ? String(s.slippagePct) : "custom";
   return (
-    <div className="sec"><div className="setl">
+    <div className="sec msec"><div className="setl">
         <Row title="Theme" hint="Light, dark, or follow the system.">
           <JtxSeg<Theme> label="Theme" value={s.theme} onChange={(theme) => update({ theme })} options={[{ id: "light", label: "Light" }, { id: "dark", label: "Dark" }, { id: "system", label: "System" }]} />
         </Row>

@@ -654,3 +654,19 @@ button.ni{background:transparent;cursor:pointer;text-align:left}
 @media(max-width:700px){.jtx .modes{grid-template-columns:minmax(0,1fr)}}
 
 .home .arena .row{gap:0}
+
+/* Rewards layout and the shared mockup button. */
+.jtx .btn{display:inline-flex;align-items:center;gap:4px;text-decoration:none;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.jtx .btn b,.jtx .btn i{display:inline-flex;align-items:center;justify-content:center;height:40px;border:1px solid var(--bd-x);font-style:normal;font-weight:400;font-size:14px;transition:.15s}
+.jtx .btn b{padding:0 16px}.jtx .btn i{width:40px;font-size:18px}
+.jtx .btn:hover b,.jtx .btn:hover i{border-color:var(--tx);background:var(--tint)}
+.jtx .btn.y b,.jtx .btn.y i{background:var(--y);border-color:var(--yx);color:var(--on-y);font-weight:500}
+.jtx .btn.sm b,.jtx .btn.sm i{height:34px;font-size:13px}.jtx .btn.sm i{width:34px}
+.jtx .btn:disabled{opacity:.45;cursor:not-allowed}
+.jtx .chip2{display:inline-block;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--yx);border:1px solid #ffc72c55;padding:6px 10px}
+.jtx .rlook{border:1px solid var(--bd-s);padding:24px;display:flex;flex-direction:column;gap:8px}
+.jtx .rlook h3{margin:0;font-weight:400;font-size:22px}.jtx .rlook p{margin:0 0 8px}
+.jtx .mega span{font-size:.4em;color:var(--tx3);letter-spacing:0}
+.jtx .rbig p{margin:0 0 12px}
+.jtx .lk-form{display:flex;flex-direction:column;gap:12px}
+.jtx .lk-form .row{display:flex;gap:8px;flex-wrap:wrap}

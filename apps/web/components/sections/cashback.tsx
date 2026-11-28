@@ -40,12 +40,20 @@ export default function CashbackPage() {
   const minPayout = d.minPayoutSol ?? 0.001;
   return (
     <div className="flex flex-col gap-4">
-      <TopBlock title="Cashback">
-        <Intro label="About cashback payouts" more={since ? `${sinceNote}. Cashback starts from zero on that day, so earlier trades are not paid. Every payout links its transaction.` : "Payouts are coming soon. Cashback starts from zero when payouts begin, so earlier trades are not paid."}>
-          Trades made on highbar accrue {EMPTY.bps / 100}% of volume per UTC day, with a minimum payout of {minPayout} SOL.
-        </Intro>
-        <WalletLookup onLookup={setLookup} placeholder={wallet.address ? shortAddr(wallet.address, 6) : undefined} />
-      </TopBlock>
+      <div className="rw">
+        <div className="rbig brk"><span className="c1" /><span className="c2" />
+          <div className="lbl">Cashback rate</div>
+          <div className="mega">{EMPTY.bps / 100}<span>%</span></div>
+          <p className="muted">of your trading volume, accrued per UTC day. Minimum payout {minPayout} SOL.</p>
+          <div className="chip2">{since ? `${sinceNote} · cashback starts from zero on that day` : "Payouts coming soon · cashback starts from zero when payouts begin"}</div>
+        </div>
+        <div className="rlook">
+          <div className="lbl">Look up</div>
+          <h3>Check accrued cashback</h3>
+          <p className="muted">Connect a wallet, or paste an address.</p>
+          <WalletLookup onLookup={setLookup} placeholder={wallet.address ? shortAddr(wallet.address, 6) : undefined} />
+        </div>
+      </div>
       <OfflineNote error={error} />
       {!ok ? <Card><Empty title="Connect a wallet" hint="Or paste an address to see its accrued cashback." /></Card> : (
         <>
